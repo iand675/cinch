@@ -1,207 +1,121 @@
-// The landing page's Game of Life: a board that steps exactly like `step` in
-// src/data/examples/life.cinch (bounded, cells past the edge are dead), and a
-// reader for edits to its `rule` declaration.
-//
-// The reader stands in for the compiler until the browser build exists. It
-// accepts a subset of Cinch that the Rust compiler also accepts: a `case` on the
-// cell whose arms are `Alive`, `Dead` or `_`, each an `if` chain over
-// comparisons of the neighbour count with integer literals, joined by `&&`,
-// `||` and `not (...)`. Anything else is reported as unreadable rather than
-// guessed at.
+export const width = 40;
+export const height = 24;
+const boardRepresentation = 1n;
+const ruleSymbol = 0n;
+const stateBytes = BigInt((height + 1) * BigUint64Array.BYTES_PER_ELEMENT);
 
-export type Cell = 0 | 1;
-export type Rule = (cell: Cell, neighbours: number) => Cell;
-
-export type Load =
-  | { ok: true; rule: Rule }
-  | { ok: false; reason: 'interface' }
-  | { ok: false; reason: 'missing'; constructor: 'Alive' | 'Dead' }
-  | { ok: false; reason: 'unreadable' };
-
-export const SIGNATURE = 'rule :: Cell -> Int -> Cell';
-
-type Token = { kind: 'var' | 'con' | 'int' | 'op' | 'kw'; text: string };
-const KEYWORDS: Record<string, true> = { case: true, of: true, if: true, then: true, else: true, not: true };
-const TOKEN = /\s*(?:(\d+)|([a-z][A-Za-z0-9_'-]*)|([A-Z][A-Za-z0-9_]*)|(==|\/=|<=|>=|&&|\|\||->|::|[<>=()_]))/y;
-
-class Unreadable extends Error {}
-
-function lex(text: string): Token[] {
-  const tokens: Token[] = [];
-  TOKEN.lastIndex = 0;
-  while (TOKEN.lastIndex < text.length) {
-    if (/^\s*$/.test(text.slice(TOKEN.lastIndex))) break;
-    const m = TOKEN.exec(text);
-    if (!m) throw new Unreadable();
-    if (m[1]) tokens.push({ kind: 'int', text: m[1] });
-    else if (m[2]) tokens.push({ kind: Object.hasOwn(KEYWORDS, m[2]) ? 'kw' : 'var', text: m[2] });
-    else if (m[3]) tokens.push({ kind: 'con', text: m[3] });
-    else tokens.push({ kind: 'op', text: m[4] });
-  }
-  return tokens;
+type WordFunction = (...args: bigint[]) => bigint;
+export interface BoardExports extends WebAssembly.Exports {
+  memory: WebAssembly.Memory;
+  life_initial_rule: () => number;
+  life_step_row: (rules: number, above: bigint, row: bigint, below: bigint) => bigint;
+  cinch_alloc: WordFunction;
+  cinch_evo_module_new: WordFunction;
+  cinch_evo_state_seed: WordFunction;
+  cinch_evo_state_payload: WordFunction;
+  cinch_evo_current_version: WordFunction;
+  cinch_evo_version_new: WordFunction;
+  cinch_evo_update_begin: WordFunction;
+  cinch_evo_add_replacement: WordFunction;
+  cinch_evo_mark_complete: WordFunction;
+  cinch_evo_activate: WordFunction;
+  cinch_evo_version_try_drop: WordFunction;
 }
 
-type Bool = (n: number) => boolean;
-type CellExpr = (n: number) => Cell;
-
-function parse(tokens: Token[]): { cellVar: string; arms: { pattern: string; body: CellExpr }[] } {
-  let i = 0;
-  const take = (text?: string, kind?: Token['kind']) => {
-    const t = tokens[i];
-    if (!t || (text !== undefined && t.text !== text) || (kind !== undefined && t.kind !== kind)) throw new Unreadable();
-    i++;
-    return t;
-  };
-
-  take('rule');
-  const cellVar = take(undefined, 'var').text;
-  const countVar = take(undefined, 'var').text;
-  take('=');
-  take('case');
-  if (take(undefined, 'var').text !== cellVar) throw new Unreadable();
-  take('of');
-
-  const count = () => {
-    const t = take();
-    if (t.kind === 'int') { const v = Number(t.text); return () => v; }
-    if (t.kind === 'var' && t.text === countVar) return (n: number) => n;
-    throw new Unreadable();
-  };
-  const comparison = (): Bool => {
-    const left = count();
-    const op = take(undefined, 'op').text;
-    const right = count();
-    switch (op) {
-      case '==': return (n) => left(n) === right(n);
-      case '/=': return (n) => left(n) !== right(n);
-      case '<': return (n) => left(n) < right(n);
-      case '<=': return (n) => left(n) <= right(n);
-      case '>': return (n) => left(n) > right(n);
-      case '>=': return (n) => left(n) >= right(n);
-      default: throw new Unreadable();
-    }
-  };
-  const atom = (): Bool => {
-    const t = tokens[i];
-    if (t?.text === '(') { take('('); const b = disjunction(); take(')'); return b; }
-    if (t?.text === 'True') { take(); return () => true; }
-    if (t?.text === 'False') { take(); return () => false; }
-    if (t?.text === 'not') {
-      take('not');
-      // `not n == 2` is `(not n) == 2` in Cinch, a type error, so `not` needs a closed operand.
-      const next = tokens[i];
-      if (next?.text !== '(' && next?.text !== 'True' && next?.text !== 'False') throw new Unreadable();
-      const b = atom();
-      return (n) => !b(n);
-    }
-    return comparison();
-  };
-  const conjunction = (): Bool => {
-    let b = atom();
-    while (tokens[i]?.text === '&&') { take(); const l = b, r = atom(); b = (n) => l(n) && r(n); }
-    return b;
-  };
-  const disjunction = (): Bool => {
-    let b = conjunction();
-    while (tokens[i]?.text === '||') { take(); const l = b, r = conjunction(); b = (n) => l(n) || r(n); }
-    return b;
-  };
-  const cellExpr = (): CellExpr => {
-    const t = tokens[i];
-    if (t?.text === 'if') {
-      take('if');
-      const test = disjunction();
-      take('then');
-      const yes = cellExpr();
-      take('else');
-      const no = cellExpr();
-      return (n) => (test(n) ? yes(n) : no(n));
-    }
-    if (t?.text === '(') { take('('); const e = cellExpr(); take(')'); return e; }
-    if (t?.text === 'Alive') { take(); return () => 1; }
-    if (t?.text === 'Dead') { take(); return () => 0; }
-    throw new Unreadable();
-  };
-
-  const arms: { pattern: string; body: CellExpr }[] = [];
-  while (i < tokens.length) {
-    const pattern = take().text;
-    if (pattern !== 'Alive' && pattern !== 'Dead' && pattern !== '_') throw new Unreadable();
-    take('->');
-    arms.push({ pattern, body: cellExpr() });
-  }
-  if (arms.length === 0) throw new Unreadable();
-  return { cellVar, arms };
+function checked(value: bigint): bigint {
+  if (value < 0n) throw new Error(`Cinch's runtime refused the update (${value}).`);
+  return value;
 }
 
-/** Read an edited `rule` declaration (comments allowed) into a rule the board can run. */
-export function loadRule(source: string): Load {
-  const lines = source.split('\n').map((l) => l.replace(/--.*$/, ''));
-  const signatureAt = lines.findIndex((l) => /::/.test(l));
-  if (signatureAt < 0 || lines[signatureAt].trim().replace(/\s+/g, ' ') !== SIGNATURE) return { ok: false, reason: 'interface' };
-  const body = lines.filter((_, i) => i !== signatureAt).join('\n');
-  let parsed;
-  try {
-    const tokens = lex(body);
-    // A renamed declaration or a different parameter count changes what `step` calls.
-    if (tokens[0]?.text !== 'rule') return { ok: false, reason: 'interface' };
-    const equals = tokens.findIndex((t) => t.text === '=');
-    if (equals !== 3 || tokens.slice(1, 3).some((t) => t.kind !== 'var')) return { ok: false, reason: 'interface' };
-    parsed = parse(tokens);
-  } catch (e) {
-    if (e instanceof Unreadable) return { ok: false, reason: 'unreadable' };
-    throw e;
-  }
-  const { arms } = parsed;
-  for (const constructor of ['Alive', 'Dead'] as const) {
-    if (!arms.some((a) => a.pattern === constructor || a.pattern === '_')) return { ok: false, reason: 'missing', constructor };
-  }
-  return {
-    ok: true,
-    rule: (cell, n) => {
-      const name = cell ? 'Alive' : 'Dead';
-      const arm = arms.find((a) => a.pattern === name || a.pattern === '_')!;
-      return arm.body(n);
-    },
-  };
-}
+export class Life {
+  private readonly wasm: BoardExports;
+  private readonly module: bigint;
+  private readonly rules = new Map<bigint, number>();
+  private readonly next = new BigUint64Array(height);
 
-/** One generation, as `step` computes it: cells beyond the edge count as dead. */
-export function step(board: Uint8Array, width: number, height: number, rule: Rule): Uint8Array {
-  const next = new Uint8Array(board.length);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let n = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        const yy = y + dy;
-        if (yy < 0 || yy >= height) continue;
-        for (let dx = -1; dx <= 1; dx++) {
-          const xx = x + dx;
-          if ((dx || dy) && xx >= 0 && xx < width) n += board[yy * width + xx];
-        }
+  static async load(boardUrl: string): Promise<Life> {
+    const response = await fetch(boardUrl);
+    if (!response.ok) throw new Error('The precompiled board could not be loaded.');
+    const { instance } = await WebAssembly.instantiate(await response.arrayBuffer());
+    return new Life(instance.exports as BoardExports);
+  }
+
+  constructor(wasm: BoardExports) {
+    this.wasm = wasm;
+    this.module = checked(wasm.cinch_evo_module_new(0n));
+    // A KIND_RAW block holds 24 packed rows and the generation counter.
+    // The runtime keeps the same payload across updates of this representation.
+    const payload = checked(wasm.cinch_alloc(stateBytes, 13n));
+    checked(wasm.cinch_evo_state_seed(this.module, boardRepresentation, payload));
+    this.install(wasm.life_initial_rule());
+    this.reset();
+  }
+
+  get state(): BigUint64Array {
+    const pointer = checked(this.wasm.cinch_evo_state_payload(this.module));
+    return new BigUint64Array(this.wasm.memory.buffer, Number(pointer), height + 1);
+  }
+
+  install(table: number): number {
+    if (!Number.isInteger(table) || table < 0 || table >= 1 << 18) {
+      throw new Error('The compiler returned an invalid rule.');
+    }
+    const wasm = this.wasm;
+    const previous = wasm.cinch_evo_current_version(this.module);
+    const version = checked(wasm.cinch_evo_version_new(this.module, boardRepresentation, 0n));
+    const update = checked(wasm.cinch_evo_update_begin(this.module, version));
+    checked(wasm.cinch_evo_add_replacement(update, ruleSymbol, version));
+    checked(wasm.cinch_evo_mark_complete(update, 1n, 0n));
+    this.rules.set(version, table);
+    let epoch;
+    try {
+      epoch = checked(wasm.cinch_evo_activate(update));
+    } catch (error) {
+      this.rules.delete(version);
+      throw error;
+    }
+    if (previous >= 0n && wasm.cinch_evo_version_try_drop(this.module, previous) === 1n) {
+      this.rules.delete(previous);
+    }
+    return Number(epoch);
+  }
+
+  step(): void {
+    const wasm = this.wasm;
+    // The main thread steps whole generations synchronously. This read pins
+    // the dispatch choice for the generation before the next message can
+    // activate a version.
+    const version = checked(wasm.cinch_evo_current_version(this.module));
+    const table = this.rules.get(version);
+    if (table === undefined) throw new Error('The active rule is missing.');
+    const state = this.state;
+    for (let y = 0; y < height; y++) {
+      const above = state[y - 1] ?? 0n;
+      const below = y + 1 < height ? state[y + 1] : 0n;
+      this.next[y] = wasm.life_step_row(table, above, state[y], below);
+    }
+    state.set(this.next);
+    state[height]++;
+  }
+
+  reset(): void {
+    const gun = [
+      '........................#...........',
+      '......................#.#...........',
+      '............##......##............##',
+      '...........#...#....##............##',
+      '##........#.....#...##..............',
+      '##........#...#.##....#.#...........',
+      '..........#.....#.......#...........',
+      '...........#...#....................',
+      '............##......................',
+    ];
+    const state = this.state;
+    state.fill(0n);
+    for (const [y, row] of gun.entries()) {
+      for (const [x, cell] of [...row].entries()) {
+        if (cell === '#') state[y + 1] |= 1n << BigInt(x + 1);
       }
-      next[y * width + x] = rule(board[y * width + x] as Cell, n);
     }
   }
-  return next;
-}
-
-/** Gosper's glider gun, placed with its top-left corner at (left, top). */
-export function gliderGun(width: number, height: number, left = 1, top = 1): Uint8Array {
-  const rows = [
-    '........................#...........',
-    '......................#.#...........',
-    '............##......##............##',
-    '...........#...#....##............##',
-    '##........#.....#...##..............',
-    '##........#...#.##....#.#...........',
-    '..........#.....#.......#...........',
-    '...........#...#....................',
-    '............##......................',
-  ];
-  const board = new Uint8Array(width * height);
-  rows.forEach((row, y) => [...row].forEach((c, x) => {
-    if (c === '#' && y + top < height && x + left < width) board[(y + top) * width + x + left] = 1;
-  }));
-  return board;
 }
