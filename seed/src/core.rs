@@ -3753,17 +3753,92 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
 /// keeps the unit's own symbol as a one-call wrapper for closures and
 /// other entries; every member then tail-calls every other through
 /// prototypes of one shape.
-pub fn tail_widths(program: &Program) -> std::collections::HashMap<String, usize> {
-    let arity: std::collections::HashMap<&str, usize> =
+pub fn tail_widths(program: &Program) -> HashMap<String, usize> {
+    tail_widths_for_groups(program, &tail_groups(program))
+}
+
+pub(crate) fn tail_widths_for_groups(
+    program: &Program,
+    groups: &[(TailGroup, Option<usize>)],
+) -> HashMap<String, usize> {
+    let arities: HashMap<&str, usize> =
         program.fns.iter().map(|f| (f.id.0.as_str(), f.arity())).collect();
-    let mut out = std::collections::HashMap::new();
-    for (group, width) in tail_groups(program) {
-        let Some(width) = width else {
+    let mut widths = HashMap::new();
+    for (group, width) in groups {
+        let Some(width) = *width else {
             continue;
         };
-        for m in group.members {
-            if arity.get(m.as_str()).is_some_and(|&a| a < width) {
-                out.insert(m, width);
+        for member in &group.members {
+            if arities.get(member.as_str()).is_some_and(|&arity| arity < width) {
+                widths.insert(member.clone(), width);
+            }
+        }
+    }
+    widths
+}
+
+/// Strongly connected components of a graph given as adjacency lists
+/// (Tarjan, iterative: the graphs are declaration counts, and recursion
+/// would be the only depth limit). Components come out in reverse
+/// topological order and each component's members are sorted.
+pub(crate) fn strongly_connected(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    #[derive(Clone, Copy)]
+    struct Node {
+        index: usize,
+        low: usize,
+        on_stack: bool,
+    }
+    let n = edges.len();
+    let mut nodes: Vec<Option<Node>> = vec![None; n];
+    let mut stack: Vec<usize> = Vec::new();
+    let mut next_index = 0usize;
+    let mut out: Vec<Vec<usize>> = Vec::new();
+    // (node, next edge position to consider)
+    let mut frames: Vec<(usize, usize)> = Vec::new();
+    for root in 0..n {
+        if nodes[root].is_some() {
+            continue;
+        }
+        nodes[root] = Some(Node { index: next_index, low: next_index, on_stack: true });
+        next_index += 1;
+        stack.push(root);
+        frames.push((root, 0));
+        while let Some(&mut (node, ref mut cursor)) = frames.last_mut() {
+            if *cursor < edges[node].len() {
+                let to = edges[node][*cursor];
+                *cursor += 1;
+                match nodes[to] {
+                    None => {
+                        nodes[to] = Some(Node { index: next_index, low: next_index, on_stack: true });
+                        next_index += 1;
+                        stack.push(to);
+                        frames.push((to, 0));
+                    }
+                    Some(other) if other.on_stack => {
+                        let low = nodes[node].unwrap().low.min(other.index);
+                        nodes[node] = Some(Node { low, ..nodes[node].unwrap() });
+                    }
+                    Some(_) => {}
+                }
+            } else {
+                frames.pop();
+                let finished = nodes[node].unwrap();
+                if let Some(&mut (parent, _)) = frames.last_mut() {
+                    let low = nodes[parent].unwrap().low.min(finished.low);
+                    nodes[parent] = Some(Node { low, ..nodes[parent].unwrap() });
+                }
+                if finished.low == finished.index {
+                    let mut component: Vec<usize> = Vec::new();
+                    while let Some(top) = stack.pop() {
+                        nodes[top] = Some(Node { on_stack: false, ..nodes[top].unwrap() });
+                        component.push(top);
+                        if top == node {
+                            break;
+                        }
+                    }
+                    component.sort_unstable();
+                    out.push(component);
+                }
             }
         }
     }
@@ -3772,297 +3847,107 @@ pub fn tail_widths(program: &Program) -> std::collections::HashMap<String, usize
 
 /// [`tail_report`]'s groups, each with the width its members lower
 /// under when their tail calls cross arities ([`tail_widths`]).
-fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
-    // Unit arities as code generation sees them: every function (its
-    // parameter count), and every instance's dictionary construction
-    // unit. Primitives and foreign wrappers answer from their own
-    // metadata (`unit_of`).
-    let mut fns: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    let mut bodies: std::collections::HashMap<String, &Core> = std::collections::HashMap::new();
-    // The units code generation lowers from their `Core` body, the only
-    // ones that can take a widened worker (a `prim` declaration's unit is
-    // its inline target fragment).
-    let mut lowered: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    for f in &program.fns {
-        fns.insert(f.id.0.clone(), f.arity());
-        if f.prim.is_none() && f.ctor.is_none() {
-            bodies.insert(f.id.0.clone(), &f.body);
-            if !f.meta.prim_body {
-                lowered.insert(f.id.0.as_str());
-            }
-        }
-    }
-    let mut insts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for i in &program.instances {
-        insts.insert(format!("{}.mk", i.id.0), i.subdict_count);
-    }
+pub(crate) fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
+    // Only units with Core bodies can be members of a cycle. Resolve
+    // symbolic names once at the call edge and use dense IDs thereafter.
+    let bodies = program.fns.iter()
+        .filter(|f| f.prim.is_none() && f.ctor.is_none())
+        .map(|f| (f.id.0.as_str(), f))
+        .collect::<HashMap<_, _>>();
+    let mut functions: Vec<_> = bodies.into_values().collect();
+    functions.sort_unstable_by(|a, b| a.id.0.cmp(&b.id.0));
+    let index: HashMap<_, _> = functions.iter().enumerate()
+        .map(|(id, f)| (f.id.0.as_str(), id)).collect();
 
-    // The unit a call head names (`None` for a dynamically dispatched
-    // head) is `scan_unit_of`.
-
-    /// Every called unit in a body (any position): the call graph's
-    /// out-edges.
-    fn all_calls(
-        e: &Core,
-        fns: &std::collections::HashMap<String, usize>,
-        insts: &std::collections::HashMap<String, usize>,
-        foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
-        out: &mut Vec<String>,
-    ) {
+    fn collect_edges(e: &Core, index: &HashMap<&str, usize>, out: &mut Vec<usize>) {
         match e {
-            Core::Int(_) | Core::Wide(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
-            | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
-            | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
-            | Core::SyntaxLit(..) | Core::StrLit(_) => {}
-            Core::Quote { holes, body, .. } => {
-                for h in holes {
-                    all_calls(h, fns, insts, foreigns, out);
+            Core::App(head, _) => {
+                if let Core::Global(name, _) = &**head {
+                    if let Some(&id) = index.get(name.0.as_str()) {
+                        out.push(id);
+                    }
                 }
-                if let Some(b) = body {
-                    all_calls(b, fns, insts, foreigns, out);
-                }
+                collect_edges(head, index, out);
             }
-            Core::DeclsQuote { holes, .. } => {
-                for h in holes {
-                    all_calls(h, fns, insts, foreigns, out);
-                }
-            }
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) | Core::BoxClear(d, _) => {
-                all_calls(d, fns, insts, foreigns, out)
-            }
-            Core::InstDict(_, args, _) => {
-                for a in args {
-                    all_calls(a, fns, insts, foreigns, out);
-                }
-            }
-            Core::App(f, args) => {
-                if let Some((u, _)) = scan_unit_of(f, fns, insts, foreigns) {
-                    out.push(u);
-                }
-                all_calls(f, fns, insts, foreigns, out);
-                for a in args {
-                    all_calls(a, fns, insts, foreigns, out);
-                }
-            }
-            Core::Lam { env, .. } => {
-                for a in env {
-                    all_calls(a, fns, insts, foreigns, out);
-                }
-            }
-            Core::Let(_, _, v, body) => {
-                all_calls(v, fns, insts, foreigns, out);
-                all_calls(body, fns, insts, foreigns, out);
-            }
-            // A join is a code block inside this unit, so its calls are
-            // this unit's calls.
-            Core::Join { body, rest, .. } => {
-                all_calls(body, fns, insts, foreigns, out);
-                all_calls(rest, fns, insts, foreigns, out);
-            }
-            Core::Jump { args, .. } => {
-                for a in args {
-                    all_calls(a, fns, insts, foreigns, out);
-                }
-            }
-            Core::BoxInit(_, v, _) => all_calls(v, fns, insts, foreigns, out),
-            Core::RefSet(_, v, _) => all_calls(v, fns, insts, foreigns, out),
-            Core::LazyInit(_, t) => all_calls(t, fns, insts, foreigns, out),
-            Core::Dup(_, _, body) | Core::Drop(_, _, body) | Core::Release { body, .. } => {
-                all_calls(body, fns, insts, foreigns, out)
-            }
-            Core::Reuse { ctor, args, .. } => {
-                if fns.contains_key(&ctor.0) {
-                    out.push(ctor.0.clone());
-                }
-                for a in args {
-                    all_calls(a, fns, insts, foreigns, out);
-                }
-            }
-            Core::If(c, t, fe) => {
-                all_calls(c, fns, insts, foreigns, out);
-                all_calls(&t.body, fns, insts, foreigns, out);
-                all_calls(&fe.body, fns, insts, foreigns, out);
-            }
-            Core::Case { scrut, alts } => {
-                all_calls(scrut, fns, insts, foreigns, out);
-                for a in alts {
-                    all_calls(&a.body, fns, insts, foreigns, out);
-                }
-            }
+            Core::Quote { body: Some(body), .. } => collect_edges(body, index, out),
+            _ => {}
         }
+        each_child(e, &mut |child| collect_edges(child, index, out));
     }
 
-    /// The tail-position calls of a body, as `(callee, arguments,
-    /// callee arity)`; `callee` is `None` for a dynamically dispatched
-    /// tail call. The traversal mirrors code generation's `emit_tail`.
-    fn tail_calls(
-        e: &Core,
-        fns: &std::collections::HashMap<String, usize>,
-        insts: &std::collections::HashMap<String, usize>,
-        foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
-        out: &mut Vec<(Option<String>, usize, usize)>,
-    ) {
+    let edges: Vec<_> = functions.iter().map(|f| {
+        let mut out = Vec::new();
+        collect_edges(&f.body, &index, &mut out);
+        out.sort_unstable();
+        out.dedup();
+        out
+    }).collect();
+
+    fn visit_tail_calls(e: &Core, apply: &mut impl FnMut(&str, usize)) {
         match e {
-            Core::Let(_, _, _, body) => tail_calls(body, fns, insts, foreigns, out),
-            Core::If(_, t, fe) => {
-                tail_calls(&t.body, fns, insts, foreigns, out);
-                tail_calls(&fe.body, fns, insts, foreigns, out);
+            Core::Let(_, _, _, body) => visit_tail_calls(body, apply),
+            Core::If(_, then_, else_) => {
+                visit_tail_calls(&then_.body, apply);
+                visit_tail_calls(&else_.body, apply);
             }
             Core::Case { alts, .. } => {
-                for a in alts {
-                    tail_calls(&a.body, fns, insts, foreigns, out);
+                for alt in alts {
+                    visit_tail_calls(&alt.body, apply);
                 }
             }
-            Core::App(f, args) => {
-                let (u, a) = match scan_unit_of(f, fns, insts, foreigns) {
-                    Some((u, a)) => (Some(u), a),
-                    None => (None, args.len()),
-                };
-                out.push((u, args.len(), a));
+            Core::App(head, args) => {
+                if let Core::Global(name, _) = &**head {
+                    apply(&name.0, args.len());
+                }
             }
             _ => {}
         }
     }
 
-    // The call graph over the analyzed units (primitives and foreign
-    // wrappers are leaves; hoisted lambdas and `letrec` members are
-    // ordinary units in `program.fns`).
-    let mut edges: std::collections::HashMap<String, Vec<String>> =
-        std::collections::HashMap::new();
-    for (name, body) in &bodies {
-        let mut out = Vec::new();
-        all_calls(body, &fns, &insts, &program.foreigns, &mut out);
-        out.sort();
-        out.dedup();
-        edges.insert((*name).clone(), out);
-    }
-
-    // Strongly connected components (Tarjan), recursive on the graph.
-    fn connect(
-        node: &str,
-        edges: &std::collections::HashMap<String, Vec<String>>,
-        index: &mut std::collections::HashMap<String, usize>,
-        low: &mut std::collections::HashMap<String, usize>,
-        on_stack: &mut std::collections::HashSet<String>,
-        stack: &mut Vec<String>,
-        next: &mut usize,
-        groups: &mut Vec<Vec<String>>,
-    ) {
-        index.insert(node.to_string(), *next);
-        low.insert(node.to_string(), *next);
-        *next += 1;
-        stack.push(node.to_string());
-        on_stack.insert(node.to_string());
-        for callee in edges.get(node).map(|v| v.as_slice()).unwrap_or(&[]) {
-            if !index.contains_key(callee) {
-                connect(callee, edges, index, low, on_stack, stack, next, groups);
-                let cl = low[callee];
-                let entry = low.entry(node.to_string()).or_insert(usize::MAX);
-                *entry = (*entry).min(cl);
-            } else if on_stack.contains(callee) {
-                let ci = index[callee];
-                let entry = low.entry(node.to_string()).or_insert(usize::MAX);
-                *entry = (*entry).min(ci);
-            }
-        }
-        if low[node] == index[node] {
-            let mut group = Vec::new();
-            while let Some(top) = stack.pop() {
-                on_stack.remove(&top);
-                group.push(top.clone());
-                if top == node {
-                    break;
-                }
-            }
-            groups.push(group);
+    let components = strongly_connected(&edges);
+    let mut component_of = vec![0; functions.len()];
+    for (id, members) in components.iter().enumerate() {
+        for &member in members {
+            component_of[member] = id;
         }
     }
-
-    let mut names: Vec<String> = edges.keys().cloned().collect();
-    names.sort();
-    let mut index = std::collections::HashMap::new();
-    let mut low = std::collections::HashMap::new();
-    let mut on_stack = std::collections::HashSet::new();
-    let mut stack = Vec::new();
-    let mut next = 0;
     let mut groups = Vec::new();
-    for n in &names {
-        if !index.contains_key(n) {
-            connect(
-                n,
-                &edges,
-                &mut index,
-                &mut low,
-                &mut on_stack,
-                &mut stack,
-                &mut next,
-                &mut groups,
-            );
-        }
-    }
-
-    // Recursive groups only: a cycle needs a self edge or two members.
-    let mut out = Vec::new();
-    for group in groups {
-        let self_edge = group.len() == 1
-            && edges
-                .get(&group[0])
-                .map(|cs| cs.contains(&group[0]))
-                .unwrap_or(false);
-        if group.len() < 2 && !self_edge {
+    for (id, members) in components.into_iter().enumerate() {
+        if members.len() == 1 && !edges[members[0]].contains(&members[0]) {
             continue;
         }
-        let mut members = group;
-        members.sort();
-        // The mark: every tail call to a group member is a jump (self)
-        // or a `musttail` call (mutual) exactly when it saturates the
-        // callee (`codegen::emit_tail`). Saturated calls across arities
-        // widen the group: its members lower under its widest member's
-        // arity, so their prototypes match.
-        let width = members.iter().filter_map(|m| fns.get(m)).copied().max().unwrap_or(0);
-        let widenable = members.iter().all(|m| lowered.contains(m.as_str()));
+        let width = members.iter().map(|&member| functions[member].arity()).max().unwrap_or(0);
+        let widenable = members.iter().all(|&member| !functions[member].meta.prim_body);
         let mut widen = false;
-        let mut mark = "marked".to_string();
-        for caller in &members {
-            let Some(body) = bodies.get(caller) else {
-                // A leaf unit (a primitive or foreign wrapper) never
-                // reaches a cycle through its own code.
-                continue;
-            };
-            let caller_arity = fns[caller];
-            let mut tails = Vec::new();
-            tail_calls(body, &fns, &insts, &program.foreigns, &mut tails);
-            for (callee, args, callee_arity) in tails {
-                let Some(callee) = callee else {
-                    continue;
-                };
-                if !members.contains(&callee) {
-                    continue;
+        let mut fallback = None;
+        for &member in &members {
+            let caller = functions[member];
+            visit_tail_calls(&caller.body, &mut |name, args| {
+                let Some(&callee) = index.get(name) else { return };
+                if component_of[callee] != id {
+                    return;
                 }
-                let fallback = if args != callee_arity {
-                    Some(format!(
-                        "tail call {caller} -> {callee}: applied to {args} arguments, unit arity {callee_arity}"
-                    ))
+                let callee_arity = functions[callee].arity();
+                let caller_arity = caller.arity();
+                if args != callee_arity {
+                    fallback.get_or_insert_with(|| format!(
+                        "tail call {} -> {name}: applied to {args} arguments, unit arity {callee_arity}", caller.id.0
+                    ));
                 } else if callee_arity != caller_arity && !widenable {
-                    Some(format!(
-                        "tail call {caller} -> {callee}: arity {callee_arity} differs from caller arity {caller_arity}"
-                    ))
+                    fallback.get_or_insert_with(|| format!(
+                        "tail call {} -> {name}: arity {callee_arity} differs from caller arity {caller_arity}", caller.id.0
+                    ));
                 } else {
                     widen |= callee_arity != caller_arity;
-                    None
-                };
-                // The report names the first call that falls back.
-                if let Some(reason) = fallback {
-                    if mark == "marked" {
-                        mark = format!("fallback ({reason})");
-                    }
                 }
-            }
+            });
         }
-        out.push((TailGroup { members, mark }, widen.then_some(width)));
+        let names = members.iter().map(|&member| functions[member].id.0.clone()).collect();
+        let mark = fallback.map_or_else(|| "marked".into(), |reason| format!("fallback ({reason})"));
+        groups.push((TailGroup { members: names, mark }, widen.then_some(width)));
     }
-    out.sort_by(|a, b| a.0.members.cmp(&b.0.members));
-    out
+    groups.sort_by(|a, b| a.0.members.cmp(&b.0.members));
+    groups
 }
 
 /// One call from a unit's body to a named callee, with whether the call

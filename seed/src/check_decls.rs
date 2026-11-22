@@ -283,74 +283,6 @@ fn data_type_references(ty: &ast::Type, module: &str) -> Vec<String> {
     out
 }
 
-/// Strongly connected components of a graph given as adjacency lists
-/// (Tarjan, iterative: the graphs are declaration counts, and recursion
-/// would be the only depth limit). Components come out in reverse
-/// topological order and each component's members are sorted.
-fn strongly_connected(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
-    #[derive(Clone, Copy)]
-    struct Node {
-        index: usize,
-        low: usize,
-        on_stack: bool,
-    }
-    let n = edges.len();
-    let mut nodes: Vec<Option<Node>> = vec![None; n];
-    let mut stack: Vec<usize> = Vec::new();
-    let mut next_index = 0usize;
-    let mut out: Vec<Vec<usize>> = Vec::new();
-    // (node, next edge position to consider)
-    let mut frames: Vec<(usize, usize)> = Vec::new();
-    for root in 0..n {
-        if nodes[root].is_some() {
-            continue;
-        }
-        nodes[root] = Some(Node { index: next_index, low: next_index, on_stack: true });
-        next_index += 1;
-        stack.push(root);
-        frames.push((root, 0));
-        while let Some(&mut (node, ref mut cursor)) = frames.last_mut() {
-            if *cursor < edges[node].len() {
-                let to = edges[node][*cursor];
-                *cursor += 1;
-                match nodes[to] {
-                    None => {
-                        nodes[to] = Some(Node { index: next_index, low: next_index, on_stack: true });
-                        next_index += 1;
-                        stack.push(to);
-                        frames.push((to, 0));
-                    }
-                    Some(other) if other.on_stack => {
-                        let low = nodes[node].unwrap().low.min(other.index);
-                        nodes[node] = Some(Node { low, ..nodes[node].unwrap() });
-                    }
-                    Some(_) => {}
-                }
-            } else {
-                frames.pop();
-                let finished = nodes[node].unwrap();
-                if let Some(&mut (parent, _)) = frames.last_mut() {
-                    let low = nodes[parent].unwrap().low.min(finished.low);
-                    nodes[parent] = Some(Node { low, ..nodes[parent].unwrap() });
-                }
-                if finished.low == finished.index {
-                    let mut component: Vec<usize> = Vec::new();
-                    while let Some(top) = stack.pop() {
-                        nodes[top] = Some(Node { on_stack: false, ..nodes[top].unwrap() });
-                        component.push(top);
-                        if top == node {
-                            break;
-                        }
-                    }
-                    component.sort_unstable();
-                    out.push(component);
-                }
-            }
-        }
-    }
-    out
-}
-
 /// Does this type mention the name (as a type constructor head, a type
 /// parameter, or an index-level variable)?
 fn ty_mentions(t: &Ty, name: &str) -> bool {
@@ -3232,7 +3164,7 @@ impl Checker {
                 }
             }
         }
-        for component in strongly_connected(&edges) {
+        for component in crate::core::strongly_connected(&edges) {
             if component.len() == 1 && !edges[component[0]].contains(&component[0]) {
                 continue;
             }
@@ -6894,7 +6826,7 @@ impl Checker {
         // Preserve the original order of the starting names for diagnostics.
         // A singleton component may have a direct self-reference, which is
         // already governed by the structural termination check.
-        let first_cycle = strongly_connected(&edges).into_iter()
+        let first_cycle = crate::core::strongly_connected(&edges).into_iter()
             .filter(|members| members.len() > 1)
             .map(|members| members[0])
             .min();
@@ -6959,7 +6891,7 @@ impl Checker {
             return Ok(());
         }
         let mut component = vec![0; adjacent.len()];
-        for (id, members) in strongly_connected(&adjacent).into_iter().enumerate() {
+        for (id, members) in crate::core::strongly_connected(&adjacent).into_iter().enumerate() {
             for member in members {
                 component[member] = id;
             }
@@ -7010,7 +6942,7 @@ impl Checker {
         }
         let acyclic = Arc::new(HashSet::new());
         let mut groups = HashMap::with_capacity(names.len());
-        for component in strongly_connected(&adjacent) {
+        for component in crate::core::strongly_connected(&adjacent) {
             let first = component[0];
             let group = if component.len() > 1 || adjacent[first].contains(&first) {
                 Arc::new(component.iter().map(|&i| names[i].to_owned()).collect())

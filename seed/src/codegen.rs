@@ -89,7 +89,7 @@ use crate::core::{
 };
 use crate::types::Scalar;
 use crate::Result;
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// The runtime's block header encoding (kinds, rc conventions, the header
@@ -331,7 +331,8 @@ fn emit_module(
     // retain the C convention and its widened tail workers.
     let tail_conv = profile.word_size == 64
         && matches!(profile.arch.as_str(), "x86_64" | "aarch64");
-    let mut reg = Registry::build(program, (profile.word_size / 8) as usize, tail_conv)?;
+    let tail_groups = OnceCell::new();
+    let mut reg = Registry::build(program, (profile.word_size / 8) as usize, tail_conv, &tail_groups)?;
     // An apply stub's prefix data holds the tail twin's address as an
     // absolute integer, and Mach-O cannot encode an absolute address in a
     // code section: the assembler emits it as a text relocation, which the
@@ -345,10 +346,10 @@ fn emit_module(
         // An ELFv1 tail branch must preserve this compilation unit's TOC.
         // Reserve musttail for the recursive calls that require constant stack.
         let mut groups = HashMap::new();
-        for (group, recursive) in crate::core::tail_report(program).into_iter().enumerate() {
-            for name in recursive.members {
-                if emitted_symbol(&name, emit_modules) {
-                    groups.insert(name, group);
+        for (group, (recursive, _)) in tail_groups.get_or_init(|| crate::core::tail_groups(program)).iter().enumerate() {
+            for name in &recursive.members {
+                if emitted_symbol(name, emit_modules) {
+                    groups.insert(name.clone(), group);
                 }
             }
         }
@@ -1707,7 +1708,13 @@ impl Registry {
 }
 
 impl Registry {
-    fn build(p: &Program, pointer_bytes: usize, tail_conv: bool) -> Result<Registry> {
+    fn build(
+        p: &Program,
+        pointer_bytes: usize,
+        tail_conv: bool,
+        tail_groups: &OnceCell<Vec<(crate::core::TailGroup, Option<usize>)>>,
+    ) -> Result<Registry> {
+        let groups = || tail_groups.get_or_init(|| crate::core::tail_groups(p));
         let mut reg = Registry::default();
         reg.tail_conv = tail_conv;
         // Set first: the narrowed signatures below resolve `csize`
@@ -1839,7 +1846,11 @@ impl Registry {
         // Under `tailcc` a `musttail` call may cross prototypes, so a
         // recursive group of mixed arities needs no widened worker: its
         // members call each other at their own arities.
-        reg.tail_width = if tail_conv { HashMap::new() } else { crate::core::tail_widths(p) };
+        reg.tail_width = if tail_conv {
+            HashMap::new()
+        } else {
+            crate::core::tail_widths_for_groups(p, groups())
+        };
         // A wide unit's boundary is its type, not an optimisation, so it is
         // decided first and never dropped. A mixed-arity tail group lowers
         // through one word-typed worker (`tail_width`), which a wide
@@ -1849,7 +1860,7 @@ impl Registry {
         let is_wide_unit = |f: &FnDef| f.repr.result == Some(Class::Wide) || f.repr.params.contains(&Class::Wide);
         let wide_units: HashSet<&str> = p.fns.iter().filter(|f| is_wide_unit(f)).map(|f| f.id.0.as_str()).collect();
         if !wide_units.is_empty() {
-            for group in crate::core::tail_report(p) {
+            for (group, _) in groups() {
                 if group.members.iter().any(|m| wide_units.contains(m.as_str())) {
                     for m in &group.members {
                         reg.tail_width.remove(m);
@@ -1908,7 +1919,7 @@ impl Registry {
             reg.owned_entry.insert(unit.clone());
         }
         if !reg.owned_entry.is_empty() {
-            for group in crate::core::tail_report(p) {
+            for (group, _) in groups() {
                 let local = |m: &String| !matches!(p.lent_entries.get(m), Some(crate::core::LentEntry::Imported { .. }));
                 if group.members.iter().any(|m| reg.owned_entry.contains(m) && local(m)) {
                     for m in group.members.iter().filter(|m| local(m)) {
@@ -1951,7 +1962,7 @@ impl Registry {
         // does not compare parameter lists, but the call's value is what
         // the caller returns.
         if !reg.narrow_sigs.is_empty() {
-            for group in crate::core::tail_report(p) {
+            for (group, _) in groups() {
                 let proto = |name: &String| {
                     let sig = reg.narrow_sigs.get(name);
                     if tail_conv {
@@ -12346,7 +12357,7 @@ mod tests {
         let mut checked = option_inventory();
         checked.certify_builtin_constructors().unwrap();
         checked.fns.retain(|unit| unit.id.0 == "Data.Core.None");
-        Registry::build(&checked, 8, true).unwrap();
+        Registry::build(&checked, 8, true, &OnceCell::new()).unwrap();
         let dump = crate::coretext::print(
             &checked,
             crate::coretext::Stage::Lowered,
@@ -12358,7 +12369,7 @@ mod tests {
         crate::coretext::verify(&dump).expect("a valid pruned lowered dump still verifies");
         assert!(crate::coretext::diff(&dump, &dump).is_none());
         let independent = Program::from_functions(checked.fns.clone());
-        let error = Registry::build(&independent, 8, true).err().unwrap();
+        let error = Registry::build(&independent, 8, true, &OnceCell::new()).err().unwrap();
         assert!(
             error
                 .message
@@ -12410,7 +12421,7 @@ mod tests {
                 _ => unreachable!(),
             }
             assert!(
-                Registry::build(&changed, 8, true).is_err(),
+                Registry::build(&changed, 8, true, &OnceCell::new()).is_err(),
                 "variant {variant}"
             );
         }
@@ -12418,7 +12429,7 @@ mod tests {
         representation_copy.fns[1].id.0.push_str("@W");
         representation_copy.fns[1].repr.fields = vec![Class::Wide];
         representation_copy.fns[1].repr.params = vec![Class::Wide];
-        Registry::build(&representation_copy, 8, true).unwrap();
+        Registry::build(&representation_copy, 8, true, &OnceCell::new()).unwrap();
     }
 
     /// All three anonymous runtime ABI families retain their complete inventory
