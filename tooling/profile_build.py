@@ -534,7 +534,7 @@ def toolkit_bundle() -> Path:
     return out
 
 
-def workload(name: str) -> Path:
+def workload(name: str, directory: Path | None = None) -> Path:
     """One of the four shapes the shard count is measured against.
 
     The stage link's cost is dominated by how much independent work the
@@ -559,7 +559,7 @@ def workload(name: str) -> Path:
     Each is written under `build/bootstrap-profile/sources`, so measuring
     never touches the tree.
     """
-    directory = SCRATCH / "sources" / "workloads"
+    directory = directory or SCRATCH / "sources" / "workloads"
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{name}.cinch"
     parts: list[bytes] = []

@@ -15,7 +15,7 @@ module Bootstrap.ExportNominal where
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export source-refinement, source-abstract-type, binding-refinements, merge-nominals, scheme-nominals, data-nominal, class-nominal, parameter-json, parameter-names, binding-source-type
-  export sorted, declaration-reference-index, source-effect-contract
+  export sorted, DeclarationReferences, declaration-reference-index, indexed-abstract-type, source-effect-contract
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -317,16 +317,16 @@ module Bootstrap.ExportNominal where
     JArr row rest -> (case insert-nominal row second of Ok next -> merge-nominals rest next; Err error -> Err error)
     JArrEnd -> Ok second
     other -> Err "invalid defining nominal closure"
-  referenced-refinements :: List Decl -> List String -> List String -> Result String Json
-  referenced-refinements declarations names seen = case names of
+  referenced-refinements :: List Decl -> HashMap String Decl -> List String -> List String -> Result String Json
+  referenced-refinements declarations refinements names seen = case names of
     Nil -> Ok JArrEnd
-    Cons name rest -> if has-name name seen then referenced-refinements declarations rest seen else
-      (case defining-refinement name declarations of
-        None -> referenced-refinements declarations rest (Cons name seen)
+    Cons name rest -> if has-name name seen then referenced-refinements declarations refinements rest seen else
+      (case hash-map-lookup name refinements of
+        None -> referenced-refinements declarations refinements rest (Cons name seen)
         Some declaration -> case declaration of
           DRefine sp actual params binder predicate -> let refs = (declaration-references [DData sp actual params Nil, DSig sp actual predicate] <>
             (case param-kind binder of Some carrier -> declaration-references [DSig sp actual carrier]; None -> Nil)) in
-            case (refinement-nominal declarations declaration, referenced-refinements declarations (refs <> rest) (Cons name seen)) of
+            case (refinement-nominal declarations declaration, referenced-refinements declarations refinements (refs <> rest) (Cons name seen)) of
               (Ok row, Ok more) -> insert-nominal row more
               (Err error, other) -> Err error
               (other, Err error) -> Err error
@@ -365,31 +365,65 @@ module Bootstrap.ExportNominal where
   -- The reference names of every binding, built once per export instead of
   -- walked once per exported row. A later entry for a name appends, so each
   -- name's list keeps declaration order exactly as the walk produced it.
-  declaration-reference-index :: List Decl -> HashMap String (List String)
-  declaration-reference-index declarations = reference-index-of declarations hash-map-empty
-  reference-index-of :: List Decl -> HashMap String (List String) -> HashMap String (List String)
-  reference-index-of declarations index = case declarations of
+  data DeclarationReferences where
+    DeclarationReferences :: HashMap String (List String) -> HashMap String Decl -> HashMap String (Nat, TypeExpr) -> DeclarationReferences
+
+  declaration-reference-index :: List Decl -> DeclarationReferences
+  declaration-reference-index declarations = reference-index-of declarations 0 (DeclarationReferences hash-map-empty hash-map-empty hash-map-empty)
+  reference-index-of :: List Decl -> Nat -> DeclarationReferences -> DeclarationReferences
+  reference-index-of declarations position index = case declarations of
     Nil -> index
-    Cons declaration rest ->
-      reference-index-of rest (reference-index-insert (reference-entries declaration) index)
+    Cons declaration rest -> case index of
+      DeclarationReferences references refinements signatures ->
+        reference-index-of rest (position + 1)
+          (DeclarationReferences (reference-index-insert (reference-entries declaration) references)
+            (index-refinement declaration refinements) (index-signature declaration position signatures))
+  index-refinement :: Decl -> HashMap String Decl -> HashMap String Decl
+  index-refinement declaration refinements = case declaration of
+    DRefine sp actual params binder predicate ->
+      let named = first-declaration actual declaration refinements in
+      case export-global actual of
+        Ok identity -> first-declaration identity declaration named
+        Err error -> named
+    other -> refinements
+  first-declaration :: String -> Decl -> HashMap String Decl -> HashMap String Decl
+  first-declaration name declaration index = case hash-map-lookup name index of
+    Some first -> index
+    None -> hash-map-insert name declaration index
+  index-signature :: Decl -> Nat -> HashMap String (Nat, TypeExpr) -> HashMap String (Nat, TypeExpr)
+  index-signature declaration position signatures = case declaration of
+    DSig sp name ty -> case hash-map-lookup name signatures of
+      Some first -> signatures
+      None -> hash-map-insert name (position, ty) signatures
+    other -> signatures
+  indexed-abstract-type :: List Decl -> DeclarationReferences -> String -> Option (Result String Json)
+  indexed-abstract-type declarations index name = case index of
+    DeclarationReferences references refinements signatures -> case hash-map-lookup name refinements of
+      Some declaration -> Some (refinement-nominal declarations declaration)
+      None -> source-opaque declarations name
   reference-index-insert :: List (String, List String) -> HashMap String (List String) -> HashMap String (List String)
   reference-index-insert entries index = case entries of
     Nil -> index
     Cons (name, refs) rest -> reference-index-insert rest (hash-map-insert name (reference-names-of name index <> refs) index)
   reference-names-of :: String -> HashMap String (List String) -> List String
   reference-names-of name index = case hash-map-lookup name index of Some refs -> refs; None -> Nil
-  binding-reference-names :: String -> HashMap String (List String) -> List String
-  binding-reference-names name index = reference-names-of name index
-  binding-source-type :: List Decl -> HashMap String (List String) -> String -> Option TypeExpr
-  binding-source-type declarations index name = source-signature-of declarations name (binding-reference-names name index)
-  source-signature-of :: List Decl -> String -> List String -> Option TypeExpr
-  source-signature-of declarations symbol names = case declarations of
-    Nil -> None
-    Cons (DSig s name ty) rest -> if same name symbol || same name (string-concat "m." symbol) || name-in-names name names then Some ty else source-signature-of rest symbol names
-    Cons other rest -> source-signature-of rest symbol names
-  name-in-names :: String -> List String -> Bool
-  name-in-names name names = case names of
-    Nil -> False
-    Cons first rest -> if same name first then True else name-in-names name rest
-  binding-refinements :: List Decl -> HashMap String (List String) -> String -> Result String Json
-  binding-refinements declarations index name = referenced-refinements declarations (binding-reference-names name index) Nil
+  binding-reference-names :: String -> DeclarationReferences -> List String
+  binding-reference-names name index = case index of
+    DeclarationReferences references refinements signatures -> reference-names-of name references
+  binding-source-type :: DeclarationReferences -> String -> Option TypeExpr
+  binding-source-type index name = case index of
+    DeclarationReferences references refinements signatures ->
+      case earliest-signature signatures (Cons name (Cons (string-concat "m." name) (reference-names-of name references))) None of
+        Some (position, ty) -> Some ty
+        None -> None
+  earliest-signature :: HashMap String (Nat, TypeExpr) -> List String -> Option (Nat, TypeExpr) -> Option (Nat, TypeExpr)
+  earliest-signature signatures names best = case names of
+    Nil -> best
+    Cons name rest -> case hash-map-lookup name signatures of
+      None -> earliest-signature signatures rest best
+      Some (position, ty) -> case best of
+        Some (previous, prior) -> earliest-signature signatures rest (if position < previous then Some (position, ty) else best)
+        None -> earliest-signature signatures rest (Some (position, ty))
+  binding-refinements :: List Decl -> DeclarationReferences -> String -> Result String Json
+  binding-refinements declarations index name = case index of
+    DeclarationReferences references refinements signatures -> referenced-refinements declarations refinements (binding-reference-names name index) Nil
