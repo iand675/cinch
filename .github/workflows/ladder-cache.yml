@@ -35,7 +35,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: compiler-distributions-${{ github.workflow }}-${{ github.ref }}
+  group: compiler-distributions-${{ github.workflow }}-${{ (github.event_name == 'schedule' || inputs.publish_nightly) && 'nightly' || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -92,7 +92,7 @@ jobs:
         run: |
           mkdir -p dist
           nix path-info --json ./result-pins ./result-ladder > dist/manifest.json
-          nix-store --query --requisites ./result-ladder > dist/store-paths.txt
+          nix-store --query --requisites ./result-pins ./result-ladder > dist/store-paths.txt
           # A ladder contains absolute store paths. Export its entire runtime
           # closure, rather than an executable that breaks after extraction.
           store_paths=()
