@@ -16,8 +16,8 @@
 //! standard library round needs (Ruby's `Digest` and `OpenSSL::HMAC`
 //! items, design/stdlib-parity-ruby.md): SHA-512 (FIPS 180-4), SHA-1
 //! (FIPS 180-1), MD5 (RFC 1321) and HMAC-SHA-256 (RFC 2104, block size
-//! 64). A wrong digest is a security bug, so each is implemented from
-//! its specification and pinned against the published test vectors
+//! 64). The portable implementations and platform SHA-256 are tested
+//! against the published test vectors
 //! (FIPS 180-4, FIPS 180-1, RFC 1321 and RFC 4231) in both the Rust
 //! tests below and the prelude-facing `seed/tests/runtime_prims.rs`.
 //! These are content-integrity primitives, not authentication schemes:
@@ -54,23 +54,31 @@ const K: [u32; 64] = [
 
 /// The SHA-256 digest of `data`: 32 bytes, the FIPS 180-4 hash.
 pub fn sha256(data: &[u8]) -> [u8; 32] {
+    #[cfg(target_os = "macos")]
+    if let Some(digest) = crate::sys::darwin::sha256(data) {
+        return digest;
+    }
+    sha256_portable(data)
+}
+
+fn sha256_portable(data: &[u8]) -> [u8; 32] {
     // The initial hash value (first 32 bits of the square roots of the
     // first 8 primes).
     let mut h: [u32; 8] = [
         0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
         0x5be0cd19,
     ];
-    // Padding: 0x80, zeros, then the bit length as a big-endian u64.
-    let mut padded: Vec<u8> = Vec::with_capacity(data.len() + 72);
-    padded.extend_from_slice(data);
-    padded.push(0x80);
-    while padded.len() % 64 != 56 {
-        padded.push(0);
-    }
-    padded.extend_from_slice(&((data.len() as u64) * 8).to_be_bytes());
-    // The message schedule over each 512-bit chunk.
+    // Compress the input in place. Only the tail needs a writable buffer.
+    let chunks = data.chunks_exact(64);
+    let remainder = chunks.remainder();
+    let mut padded = [0; 128];
+    padded[..remainder.len()].copy_from_slice(remainder);
+    padded[remainder.len()] = 0x80;
+    let end = if remainder.len() < 56 { 64 } else { 128 };
+    let bits = (data.len() as u64).wrapping_mul(8).to_be_bytes();
+    padded[end - bits.len()..end].copy_from_slice(&bits);
     let mut w = [0u32; 64];
-    for chunk in padded.chunks_exact(64) {
+    for chunk in chunks.chain(padded[..end].chunks_exact(64)) {
         for (i, word) in chunk.chunks_exact(4).enumerate() {
             w[i] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
         }
@@ -457,33 +465,24 @@ mod tests {
 
     #[test]
     fn sha256_matches_the_fips_180_4_vectors() {
-        // The classic NIST example vectors.
-        assert_eq!(
-            hex(&sha256(b"")),
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        );
-        assert_eq!(
-            hex(&sha256(b"abc")),
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        );
-        assert_eq!(
-            hex(&sha256(
-                b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
-            )),
-            "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
-        );
-        // One million 'a': the two-block-pad boundary is covered by the
-        // length field alone, so a shorter crossing input stands in for
-        // the million-byte vector's schedule behavior (56 bytes is the
-        // first length that forces a second padded block).
-        assert_eq!(
-            hex(&sha256(&[b'a'; 56])),
-            "b35439a4ac6f0948b6d6f9e3c6af0f5f590ce20f1bde7090ef7970686ec6738a"
-        );
-        assert_eq!(
-            hex(&sha256(&[b'a'; 64])),
-            "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb"
-        );
+        let million = vec![b'a'; 1_000_000];
+        let vectors: &[(&[u8], &str)] = &[
+            (b"", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+            (b"abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+            (
+                b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+                "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+            ),
+            // 56 bytes forces a second padding block. 64 bytes fills the
+            // first data block before adding padding.
+            (&[b'a'; 56], "b35439a4ac6f0948b6d6f9e3c6af0f5f590ce20f1bde7090ef7970686ec6738a"),
+            (&[b'a'; 64], "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb"),
+            (&million, "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"),
+        ];
+        for &(input, expected) in vectors {
+            assert_eq!(hex(&sha256(input)), expected);
+            assert_eq!(hex(&sha256_portable(input)), expected);
+        }
     }
 
     fn hex64(digest: &[u8]) -> String {

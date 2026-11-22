@@ -29,7 +29,7 @@ class LibraryProviderContract(unittest.TestCase):
                                 "dictionaries": [{"symbol": "Data.List.FromList_List", "classes": "O"}],
                                 "methods": [{"class": "Library.Π", "slot": 3, "own": "RT"}]})
 
-    def fixture(self, directory):
+    def fixture(self, directory, source_tree="compiler"):
         root = directory / "checkout"
         (root / "compiler").mkdir(parents=True)
         lock = {"schema": 1, "runtime_abi": 10, "revision": "a" * 40, "source_sha256": "b" * 64}
@@ -37,14 +37,14 @@ class LibraryProviderContract(unittest.TestCase):
         (root / "compiler/Bootstrap.RuntimeAbi.cinch").write_bytes(bootstrap.runtime_abi_source(10))
         bootstrap.write_json(root / "compiler/pins/library-object-roots.json", {"schema": 1, "units": []})
         snapshot = directory / "pinned-source"
-        (snapshot / "compiler/prelude").mkdir(parents=True)
-        bootstrap.write_json(snapshot / "compiler/prelude/cinch-base.cinchpkg", {"modules": [{"name": "Data.Core"}]})
+        (snapshot / source_tree / "prelude").mkdir(parents=True)
+        bootstrap.write_json(snapshot / source_tree / "prelude/cinch-base.cinchpkg", {"modules": [{"name": "Data.Core"}]})
         return root, snapshot
 
     def test_only_generated_library_root_reaches_native_and_corrupt_inputs_rebuild(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
-            root, snapshot = self.fixture(directory)
+            root, snapshot = self.fixture(directory, source_tree="seed")
             calls = []
 
             def run(args, cwd, log, **kwargs):

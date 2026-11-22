@@ -57,6 +57,7 @@ mod c {
     use super::Key;
 
     unsafe extern "C" {
+        pub(super) fn CC_SHA256(data: *const c_void, len: u32, digest: *mut u8) -> *mut u8;
         pub(super) fn write(fd: i32, buf: *const u8, n: usize) -> isize;
         pub(super) fn read(fd: i32, buf: *mut u8, n: usize) -> isize;
         pub(super) fn close(fd: i32) -> i32;
@@ -104,6 +105,14 @@ mod c {
         // elsewhere).
         pub(super) fn __error() -> *mut i32;
     }
+}
+
+pub(crate) fn sha256(data: &[u8]) -> Option<[u8; 32]> {
+    let len = u32::try_from(data.len()).ok()?;
+    let mut digest = [0; 32];
+    // CommonCrypto reads exactly len bytes and writes 32 bytes to digest.
+    let result = unsafe { c::CC_SHA256(data.as_ptr().cast(), len, digest.as_mut_ptr()) };
+    (!result.is_null()).then_some(digest)
 }
 
 /// The error number of a call that answered `last`: 0 when the answer is

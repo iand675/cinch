@@ -407,7 +407,7 @@ def build_provider(driver, directory, inputs, snapshot, lock, roots):
             or metadata.get("word_size") != 64 or metadata.get("endian") != "little"
             or metadata.get("reclaim") is not True or metadata.get("self_describing") is not True):
         raise driver.BootstrapError("library object has an incompatible runtime/descriptor ABI")
-    package = driver.read_json(snapshot / "compiler/prelude/cinch-base.cinchpkg")
+    package = driver.read_json(driver.seed_source_root(snapshot) / "prelude/cinch-base.cinchpkg")
     interfaces = admitted_interfaces(driver, metadata, package, directory)
     driver.write_json(directory / "interfaces.json", interfaces)
     artifacts = {name: driver.file_hash(directory / name) for name in
