@@ -10,6 +10,7 @@ module Bootstrap.Contracts where
   import Bootstrap.Nominal (global-stage-str-nat, interface-global, resolved-text, qualify-resolved, encode-identity, global-data-core-cons, global-data-core-nil, global-data-fromlist-fromlist, global-data-fromlist-fromlist-from-list)
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
+  import Data.List (sort-by)
   import Bootstrap.Document
   import Text.Lex (Span)
   import Text.Parse (ParseOutcome, Parsed, Failed)
@@ -18,6 +19,7 @@ module Bootstrap.Contracts where
   export interface-headers, interface-fixity-header, interface-fixity-headers, interface-declarations, public-global
   export overload-candidates, overload-references, sequencing-providers, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, expr-references, imported-class-references, kernel-references
   export ImportedClasses, imported-classes, imported-class-rows, imported-class-row
+  export PreparedExternals, prepare-externals, select-externals
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -151,6 +153,55 @@ module Bootstrap.Contracts where
   referenced name index = case hash-map-lookup name index of
     Some _ -> True
     None -> False
+
+  -- Keep every contract and look up external declarations by demand.
+  -- Positions preserve first-definition precedence and diagnostic order.
+  data PreparedExternals where
+    PreparedExternals :: List Decl -> List (Nat, Decl) -> HashMap String (List (Nat, Decl)) -> Nat -> PreparedExternals
+
+  prepare-externals :: List Decl -> PreparedExternals
+  prepare-externals declarations = index-externals declarations declarations 0 Nil hash-map-empty
+
+  index-externals :: List Decl -> List Decl -> Nat -> List (Nat, Decl) -> HashMap String (List (Nat, Decl)) -> PreparedExternals
+  index-externals original declarations position kept index = case declarations of
+    Nil -> PreparedExternals original (reverse kept) index (position / 4)
+    Cons declaration rest -> case declaration of
+      DExternal sp name category syntax metadata ->
+        let earlier = (case hash-map-lookup name index of Some prior -> prior; None -> Nil) in
+        index-externals original rest (position + 1) kept (hash-map-insert name (Cons (position, declaration) earlier) index)
+      other -> index-externals original rest (position + 1) (Cons (position, declaration) kept) index
+
+  select-externals :: List (List String) -> PreparedExternals -> List Decl
+  select-externals used (PreparedExternals original kept index budget) =
+    case collect-externals Nil used budget index hash-map-empty Nil of
+      None -> original
+      Some reached -> merge-external-positions kept (sort-by compare-external-position reached)
+
+  -- A source with a large reference list is cheaper to handle by scanning
+  -- the already ordered declarations. Stop probing at a fraction of that cost.
+  collect-externals :: List String -> List (List String) -> Nat -> HashMap String (List (Nat, Decl)) -> HashMap String Bool -> List (Nat, Decl) -> Option (List (Nat, Decl))
+  collect-externals requests pending budget index seen found = case requests of
+    Nil -> case pending of
+      Nil -> Some found
+      Cons next groups -> collect-externals next groups budget index seen found
+    Cons name rest -> if budget == 0 then None else
+      let remaining = saturating-sub budget 1 in
+      if referenced name seen then collect-externals rest pending remaining index seen found else
+        (case hash-map-lookup name index of
+          None -> collect-externals rest pending remaining index seen found
+          Some declarations -> collect-externals rest pending remaining index (hash-map-insert name True seen) (declarations <> found))
+
+  merge-external-positions :: List (Nat, Decl) -> List (Nat, Decl) -> List Decl
+  merge-external-positions kept selected = case (kept, selected) of
+    (Cons (a, first) other, Cons (b, second) rest) ->
+      if a < b then Cons first (merge-external-positions other selected) else Cons second (merge-external-positions kept rest)
+    (Cons (a, first) other, Nil) -> Cons first (merge-external-positions other Nil)
+    (Nil, Cons (b, second) rest) -> Cons second (merge-external-positions Nil rest)
+    (Nil, Nil) -> Nil
+
+  compare-external-position :: (Nat, Decl) -> (Nat, Decl) -> Ordering
+  compare-external-position (first, a) (second, b) =
+    if first < second then LT else if first == second then EQ else GT
 
   materialize-externals :: HashMap String Bool -> List Decl -> List (String, String) -> (List Decl, List Diagnostic)
   materialize-externals references ds seen = materialize-externals-from references (seen-index seen) ds

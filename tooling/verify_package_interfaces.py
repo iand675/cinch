@@ -386,14 +386,20 @@ def native_object_session(stage, work, source, expected_ir, repeats):
         'string-to-bytes "Hello, world!\\n"',
         'string-to-bytes (join-message "Hello, " "library!\\n")',
     )
-    hello.write_text(new_import)
-    invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
-            "--objects", config, hello, ir], session_dir, leak=True)
-    expected_new_import = ir.read_bytes()
-    hello.write_text(changed)
-    invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
-            "--objects", config, hello, ir], session_dir, leak=True)
-    expected_changed = ir.read_bytes()
+    shadow = """module Data.String where
+  marker :: Int
+  marker = 42
+module Main where
+  import Data.String (marker)
+  main :: Int
+  main = marker
+"""
+    expected_edits = {}
+    for edit in (new_import, shadow, changed):
+        hello.write_text(edit)
+        invoke([stage / "cinch", "--emit-ir-only", "--interfaces", package,
+                "--objects", config, hello, ir], session_dir, leak=True)
+        expected_edits[edit] = ir.read_bytes()
     args = [stage / "cinch", "--serve-ir", "--interfaces", package,
             "--objects", config, hello]
     invoke([*args, package], session_dir, status=1, leak=True)
@@ -432,17 +438,18 @@ def native_object_session(stage, work, source, expected_ir, repeats):
                     assert build() == b"4\n"
                     assert not ir.read_bytes()
                     assert "missing-name" in diagnostics.read_text()
-                    hello.write_text(new_import)
-                    assert build() == b"0\n"
-                    assert not diagnostics.read_bytes()
-                    assert ir.read_bytes() == expected_new_import
+                    for edit in (new_import, shadow):
+                        hello.write_text(edit)
+                        assert build() == b"0\n"
+                        assert not diagnostics.read_bytes()
+                        assert ir.read_bytes() == expected_edits[edit]
                     for index in range(repeats):
                         hello.write_text(changed if index % 2 == 0 else initial)
                         start = time.perf_counter_ns()
                         assert build() == b"0\n"
                         times.append((time.perf_counter_ns() - start) / 1e6)
                         assert not diagnostics.read_bytes()
-                        assert ir.read_bytes() == (expected_changed if index % 2 == 0 else expected_ir)
+                        assert ir.read_bytes() == (expected_edits[changed] if index % 2 == 0 else expected_ir)
                 child.stdin.close()
                 assert child.wait(timeout=30) == 0
             finally:

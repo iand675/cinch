@@ -6,6 +6,7 @@ module Main where
   import Bootstrap.Load (InterfaceSet, check-interface-set)
   import Bootstrap.Inputs (read-interfaces)
   import Bootstrap.Nominal (interface-global)
+  import Bootstrap.Report (diagnostic-message)
   import Text.Lex (Span)
   import Data.Path (path-from-string)
   import Effect.Fs (fs-read)
@@ -109,6 +110,17 @@ module Main where
   invalid-context-checks = invalid-context-check nat
     && invalid-context-check (UCon "Eq" (KFun KType KType))
     && invalid-context-check (eq (UCon "not-a-carrier" KEffect))
+  coherence-diagnostic-order :: Store -> Bool
+  coherence-diagnostic-order start =
+    let order = UApp (UCon "Ord" (KFun KType KType)) nat in
+    let entries = [("first", mono (eq nat)), ("repeated", mono order), ("second", mono (eq nat)),
+      ("repeated", mono (eq integer)), ("third", mono (eq nat)), ("repeated", mono (eq nat))] in
+    let prefix = "ambiguous instance: overlapping implicit contracts for " in
+    let duplicate = prefix <> "repeated and repeated" in
+    case map diagnostic-message (store-errors (check-instance-coherence entries start)) of
+      [first, second, third, fourth] -> string-compare first (prefix <> "first and second") == 0
+        && string-compare second duplicate == 0 && string-compare third duplicate == 0 && string-compare fourth duplicate == 0
+      other -> False
   run :: List BodyBinding -> Nat -> Int
   run bodies nonce =
     let leaf = string-concat "leaf-" (nat-to-string nonce) in
@@ -148,7 +160,8 @@ module Main where
     else if not (method-checks bodies nonce) then 12 else if not (arithmetic-checks bodies nonce) then 13
     else if not (clean (check-instance-coherence factories start)) then 14
     else if clean (check-instance-coherence [leaf-entry, ("duplicate", mono (eq nat))] start) then 15
-    else if not invalid-context-checks then 16 else 0
+    else if not invalid-context-checks then 16
+    else if not (coherence-diagnostic-order start) then 17 else 0
   method-bodies :: InterfaceSet -> Option (List BodyBinding)
   method-bodies interfaces = case (
       check-imported-method-binding interfaces (interface-global "Data.Nat.Ord_Nat") 2 (mono (UFun nat (UFun nat boolean))),
