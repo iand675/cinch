@@ -8,6 +8,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
+    "verify:downloads": "node --experimental-strip-types scripts/verify-downloads.ts",
     "verify:preview": "python3 scripts/verify-preview.py",
     "verify:docs": "python3 scripts/generate-library-reference.py --check && python3 scripts/verify-docs.py",
     "verify:examples": "python3 scripts/verify-doc-examples.py",

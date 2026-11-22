@@ -108,9 +108,26 @@ Run that refresh periodically, or point a scheduled CI job at the same commands.
 
 Package, module, module-source, and download pages share `PlatformLayout.astro`. Their Light / Dark / System selector uses the same `starlight-theme` preference as the docs, initializes before first paint, and follows system changes in System mode. `src/styles/platform-theme.css` defines the warm paper and dark olive palettes; the header, footer, and instrument wells retain their dark surfaces in both modes. Native controls and scrollbars follow their surrounding surfaces.
 
-`/downloads/` demonstrates release-channel and platform selection. `src/lib/downloads.ts` generates eight deterministic sample ZIPs, each containing only a README and release metadata, plus matching SHA-256 sidecars. No compiler is included. Repository and source-download links use the real GitHub project configured in `src/lib/project.ts`. Replace the fixtures with real release metadata and artifacts when those become available.
+`/downloads/` shows real nightly compiler distributions from GitHub
+prereleases. `src/lib/downloads.ts` selects the newest complete nightly
+with all three native Nix archives, SHA-256 digests and checksum sidecars.
+The static build includes the current release when GitHub is reachable;
+the browser refreshes the public release list on load, so new nightlies
+appear without redeploying. Failed refreshes preserve the build snapshot
+and explain that it may be stale. Before the first successful nightly,
+the page links to source and releases without offering fake downloads.
 
-After `npm run build`, run `npm run verify:preview`. It derives the expected package, version, module, and source routes from `/packages/index.json`, checks links and anchors, rejects sample labels on live pages, and checks the separate download ZIPs and checksums.
+The supported targets match `.github/workflows/ladder-cache.yml`: Linux
+x86-64, Linux ARM64 and Apple Silicon macOS. These archives contain full
+Nix runtime closures, not relocatable standalone executables. The page
+keeps platform, revision, filename, size, digest and download URL aligned.
+Sample ZIP routes have been removed.
+
+After `npm run build`, run `npm run verify:preview`. It checks the package
+routes and shared navigation along with the nightly page's install and
+release wiring. `npm run verify:downloads` exercises release selection,
+checksums, incomplete publications and repository URL boundaries.
+
 
 
 ## Reader documentation and verification
