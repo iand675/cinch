@@ -43,6 +43,7 @@ flags:
   -o <path>   the output path (emit-ir, emit-object and build)
   --object-roots <path>  concrete library variants demanded by a consumer
   --interface-package   emit a packed .cpk with the library object
+  --interface-package-only   publish a standalone object with its packed contracts and ABI
   --interface-package-private <module>  keep one object-only module in the packed ABI
   --package-object <path>  link an installed package object in build/run
   --shared              build a native shared library (without main)
@@ -258,6 +259,10 @@ fn main() {
     while i < rest.len() {
         match rest[i].as_str() {
             "--interface-package" => opts.interface_package = true,
+            "--interface-package-only" => {
+                opts.interface_package = true;
+                opts.interface_package_only = true;
+            }
             "--interface-package-private" => {
                 i += 1;
                 let Some(module) = rest.get(i).filter(|name| !name.starts_with('-')) else {

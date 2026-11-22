@@ -2636,7 +2636,7 @@ fn write_artifacts(
     // below. The class pass and the encoding are only paid for when this
     // compile is a library producer (or the caller asked), so a check of a
     // user program does not run them.
-    let body_index = if write_optimisations {
+    let body_index = if write_optimisations && !opts.interface_package_only {
         Some(crate::ifaceopt::ModuleBodyIndex::new(program, &crate::simplify::unfoldable_names(program)))
     } else {
         None
@@ -2649,7 +2649,13 @@ fn write_artifacts(
         let error = |e| Error::plain(format!("{}: {e}", p.display()));
         let store_hash = contract_hashes.get(iface.module.as_str())
             .filter(|_| package_modules.contains(iface.module.as_str()));
-        if let Some(contract_hash) = store_hash {
+        if opts.interface_package_only {
+            match std::fs::remove_file(&p) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(error(e)),
+            }
+        } else if let Some(contract_hash) = store_hash {
             let json = iface.to_json();
             std::fs::write(&p, &json).map_err(error)?;
             rendered.insert(iface.module.as_str(), crate::store::RenderedInterface { json, contract_hash });
@@ -3318,7 +3324,7 @@ fn write_artifacts(
     // embedded sources, so it cannot happen, and silently ignoring it
     // would hide a real inconsistency.
     let store = crate::store::Store::user();
-    if store.ensure_root().is_ok() {
+    if !opts.interface_package_only && store.ensure_root().is_ok() {
         if let Err(e) = store.write_rendered(package, profile, wit, ifaces, &[], opts.rebuild_store, &rendered) {
             if matches!(&e, crate::store::StoreError::Package { .. }) {
                 return Err(Error::plain(e.to_string()));
@@ -4489,6 +4495,8 @@ pub struct DriverOptions {
     pub object_roots: Vec<crate::specialize::ObjectRoot>,
     /// Write a CINCHPK4 companion for the emitted object.
     pub interface_package: bool,
+    /// Use that package as the complete contract and ABI publication.
+    pub interface_package_only: bool,
     /// An object-only module, stored in the native package ABI section.
     pub interface_package_private: Option<String>,
     /// `EmitObject` only: modules whose units this object defines. Every
@@ -5613,6 +5621,11 @@ pub fn driver_with_profile_opts(
     if opts.interface_package_private.is_some() && !opts.interface_package {
         return Err(Error::plain("--interface-package-private requires --interface-package"));
     }
+    if opts.interface_package_only
+        && (!opts.interface_package || !opts.emit_modules.is_empty() || !opts.package_objects.is_empty())
+    {
+        return Err(Error::plain("--interface-package-only requires a packed standalone object"));
+    }
     if mode != Mode::EmitObject && !opts.package_objects.is_empty() && mode == Mode::EmitIr {
         return Err(Error::plain("package objects require build or run mode"));
     }
@@ -6371,6 +6384,9 @@ fn write_object(
             ])]));
         }
         let digest = crate::package_interfaces::publish(&package_path, &entries, &J::Obj(packed_abi))?;
+        if opts.interface_package_only {
+            return Ok(0);
+        }
         fields.insert("interface_package_sha256".into(), digest.into());
     }
     fields.insert("interfaces".into(), J::Arr(ifaces.iter().zip(interfaces).map(|(iface, (hash, optimisation))| {
