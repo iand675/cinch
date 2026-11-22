@@ -10,7 +10,7 @@ module Bootstrap.Resolve where
   import Bootstrap.Report (Diagnostic, MkDiagnostic)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-exports, loaded-names, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
   import Bootstrap.Inputs (embedded-library-home)
-  import Bootstrap.Contracts (public-global, interface-fixity-headers, interface-declarations, overload-references, materialize-externals, reference-index, referenced, declaration-references, imported-class-references, kernel-references)
+  import Bootstrap.Contracts (public-global, interface-fixity-headers, interface-declarations, overload-references, materialize-externals, reference-index, reference-index-from, referenced, declaration-references, imported-class-references, kernel-references)
   import Bootstrap.Parse (indexed-exported-fixities)
   import Text.Lex (Span, span-start, span-end)
   import Text.Scan (string-starts-with, string-drop)
@@ -1462,11 +1462,27 @@ module Bootstrap.Resolve where
   resolve-program :: Program -> (Program, List Diagnostic)
   resolve-program p = resolve-program-with p Nil
 
-  interface-scopes :: List LoadedInterface -> List Scoped
-  interface-scopes interfaces = case interfaces of
+  import-target-index :: List Module -> HashMap String Bool -> HashMap String Bool
+  import-target-index modules targets = case modules of
+    Nil -> targets
+    Cons m rest -> import-target-index rest (index-import-targets (module-decls m) targets)
+
+  index-import-targets :: List Decl -> HashMap String Bool -> HashMap String Bool
+  index-import-targets declarations targets = case declarations of
+    Nil -> targets
+    Cons (DImport sp path mods alias members hidden args) rest ->
+      index-import-targets rest (hash-map-insert path True targets)
+    Cons other rest -> index-import-targets rest targets
+
+  -- Only explicit imports and the implicit Prelude look up a lexical
+  -- surface. Keep every admitted contract for defining identities and laws.
+  interface-scopes :: HashMap String Bool -> List LoadedInterface -> List Scoped
+  interface-scopes targets interfaces = case interfaces of
     Nil -> Nil
-    Cons i rest -> Cons (MkScoped (loaded-module i) (map (\name -> MkBinding name (loaded-module i) (public-global i name)) (loaded-names i))
-      (interface-declarations i)) (interface-scopes rest)
+    Cons i rest -> let home = loaded-module i in
+      let surface = (if referenced home targets then
+        map (\name -> MkBinding name home (public-global i name)) (loaded-names i) else Nil) in
+      Cons (MkScoped home surface (interface-declarations i)) (interface-scopes targets rest)
 
   export-references :: List Scoped -> List String
   export-references scopes = case scopes of
@@ -1494,7 +1510,7 @@ module Bootstrap.Resolve where
   resolve-ordered-interfaces :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-ordered-interfaces p ordered checked =
     let available = unshadowed-interfaces (program-modules p) ordered in
-    resolve-context p (interface-scopes available) (interface-fixity-headers available) Nil checked
+    resolve-context p available Nil checked
 
   -- A source module beside the entry shadows the base-package copy of the
   -- same name: the explicit source is the program's version of that module,
@@ -1522,7 +1538,7 @@ module Bootstrap.Resolve where
     Err message -> (p, fail (program-span p) message)
     Ok ordered -> let available = unshadowed-interfaces (program-modules p) ordered in
       let base = overlay-base-bindings facade (loaded-exports facade) available Nil in
-      resolve-context p (interface-scopes available) (interface-fixity-headers available) base Nil
+      resolve-context p available base Nil
 
   overlay-base-bindings :: LoadedInterface -> List (String, String, String) -> List LoadedInterface -> List Binding -> List Binding
   overlay-base-bindings facade exports dependencies found = case exports of
@@ -1551,15 +1567,19 @@ module Bootstrap.Resolve where
     Nil -> False
     Cons (name, category, symbol) rest -> (same kind category && same identity symbol) || exports-identity kind identity rest
 
-  resolve-context :: Program -> List Scoped -> List Module -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
-  resolve-context p interfaces headers base checked = case p of
+  resolve-context :: Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
+  resolve-context p available base checked = case p of
     MkProgram sp modules ->
       let sources = reference-index (map module-name modules) in
-      let imported = reference-index (map scoped-name interfaces) in
+      let imported = reference-index (map loaded-module available) in
       case validate-modules sources imported modules hash-map-empty of
         Nil -> case module-order modules imported of
-          (ordered, blocked) -> finish-resolution p sp modules sources
-            (resolve-ordered ordered blocked (reverse interfaces) (scope-index interfaces hash-map-empty) base Nil checked) headers base
+          (ordered, blocked) ->
+            let targets = import-target-index modules (reference-index ["Prelude"]) in
+            let interfaces = interface-scopes targets available in
+            finish-resolution p sp modules sources
+              (resolve-ordered ordered blocked (reverse interfaces) (scope-index interfaces hash-map-empty) base Nil checked)
+              (interface-fixity-headers available) base
         errors -> (p, errors)
 
   finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> (List Scoped, HashMap String Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic)
@@ -1569,15 +1589,16 @@ module Bootstrap.Resolve where
       let source-surfaces = source-scopes sources done in
       let imported-records = imported-record-symbols declarations in
       let records = source-record-symbols modules <> imported-records in
+      let record-index = reference-index records in
       let prelude-available = (case hash-map-lookup "Prelude" indexed of Some prelude -> True; None -> False) in
-      let contexts = source-contexts (module-name-index (modules <> headers)) indexed source-surfaces prelude-available records base in
+      let contexts = source-contexts (module-name-index (modules <> headers)) indexed source-surfaces prelude-available (records, record-index) base in
       let references = declaration-references declarations <> export-references source-surfaces <> record-context-references contexts in
       let reference-set = reference-index references in
       let record-references = (case imported-records of
         Nil -> Nil
-        other -> imported-record-references reference-set imported-records declarations) in
-      let all-references = references <> overload-references reference-set declarations <> kernel-references references declarations <> imported-class-references declarations declarations <> record-references in
-      let all-reference-set = reference-index all-references in
+        other -> imported-record-references reference-set (reference-index imported-records) declarations) in
+      let additional = overload-references reference-set declarations <> kernel-references reference-set declarations <> imported-class-references declarations declarations <> record-references in
+      let all-reference-set = reference-index-from additional reference-set in
       -- The parallel interface is a kernel declaration: a program that
       -- names `Parallelism` or one of its methods keeps it, exactly as
       -- a source mention of a prelude family would.
@@ -1605,7 +1626,7 @@ module Bootstrap.Resolve where
 
   -- The fragment backend uses one aggregate, but checked interface output
   -- must still know each source module's public aliases and declarations.
-  source-contexts :: HashMap String Module -> HashMap String Scoped -> List Scoped -> Bool -> List String -> List Binding -> List Decl
+  source-contexts :: HashMap String Module -> HashMap String Scoped -> List Scoped -> Bool -> (List String, HashMap String Bool) -> List Binding -> List Decl
   source-contexts available all-scopes scopes prelude records base = case scopes of
     Nil -> Nil
     Cons (MkScoped name surface body) rest ->
@@ -1658,7 +1679,7 @@ module Bootstrap.Resolve where
   -- A known receiver can use its public defining record even when only
   -- the function that returned it was imported. Nominal closures contain
   -- no labels, so private carriers cannot introduce field authority here.
-  imported-record-references :: HashMap String Bool -> List String -> List Decl -> List String
+  imported-record-references :: HashMap String Bool -> HashMap String Bool -> List Decl -> List String
   imported-record-references references records declarations = case declarations of
     Nil -> Nil
     Cons (DExternal sp name category syntax metadata) rest ->
@@ -1667,30 +1688,33 @@ module Bootstrap.Resolve where
         record-nominal-references records (context-field "nominals" (context-field "resolved" metadata)) <> more
       else more
     Cons other rest -> imported-record-references references records rest
-  record-nominal-references :: List String -> Json -> List String
+  record-nominal-references :: HashMap String Bool -> Json -> List String
   record-nominal-references records rows = case rows of
     JArr nominal rest -> let more = record-nominal-references records rest in
       (case context-field "identity" nominal of
-        JStr identity -> let symbol = interface-global identity in if has-name symbol records then Cons symbol more else more
+        JStr identity -> let symbol = interface-global identity in if referenced symbol records then Cons symbol more else more
         other -> more)
     other -> Nil
-  visible-record-symbols :: List Binding -> List String -> List String
-  visible-record-symbols bindings records = case records of
+  visible-record-symbols :: HashMap String Bool -> List String -> List String
+  visible-record-symbols visible records = case records of
     Nil -> Nil
-    Cons name rest -> if visible-record-symbol name bindings then Cons name (visible-record-symbols bindings rest) else visible-record-symbols bindings rest
-  visible-record-symbol :: String -> List Binding -> Bool
-  visible-record-symbol name bindings = case bindings of
-    Nil -> False
-    Cons binding rest -> same name (binding-symbol binding) || visible-record-symbol name rest
-  record-source-context :: Option Module -> HashMap String Scoped -> List String -> List Binding -> Json -> Json
+    Cons name rest ->
+      if referenced name visible then Cons name (visible-record-symbols visible rest) else visible-record-symbols visible rest
+  visible-record-index :: HashMap String Bool -> List Binding -> HashMap String Bool -> HashMap String Bool
+  visible-record-index records bindings found = case bindings of
+    Nil -> found
+    Cons binding rest -> let symbol = binding-symbol binding in
+      visible-record-index records rest
+        (if referenced symbol records then hash-map-insert symbol True found else found)
+  record-source-context :: Option Module -> HashMap String Scoped -> (List String, HashMap String Bool) -> List Binding -> Json -> Json
   record-source-context source scopes records base document = case records of
-    Nil -> document
-    other -> JObj "record_scope" (strings-json (module-record-scope source scopes records base)) document
-  module-record-scope :: Option Module -> HashMap String Scoped -> List String -> List Binding -> List String
-  module-record-scope source scopes records base = case source of
+    (Nil, index) -> document
+    (names, index) -> JObj "record_scope" (strings-json (module-record-scope source scopes names index base)) document
+  module-record-scope :: Option Module -> HashMap String Scoped -> List String -> HashMap String Bool -> List Binding -> List String
+  module-record-scope source scopes names records base = case source of
     None -> Nil
     Some m -> case module-visibility m scopes base Nil of
-      (declared, visible, views, errors) -> visible-record-symbols visible records
+      (declared, visible, views, errors) -> visible-record-symbols (visible-record-index records visible hash-map-empty) names
 
   -- Retain consumed imports and the parser's definition-owned fixity facts
   -- before elaboration drops source declarations. Reexport metadata carries
