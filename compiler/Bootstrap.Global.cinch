@@ -18,7 +18,7 @@ module Bootstrap.Global where
   export globals-body-context, globals-bodies, globals-guarded-bodies, GlobalGuardedBody
   export GlobalDeclarations, empty-global-declarations, insert-global-declaration, ordered-global-declarations
   export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed, globals-declarations
-  export close-globals-with-definitions, close-globals-with-source-data
+  export close-globals-with-definitions, close-globals-with-source-data, close-indexed-globals
   export globals-refusal
   export constructor-pattern-supported
 
@@ -138,20 +138,22 @@ module Bootstrap.Global where
       MergeIntrinsic merged -> replace-intrinsic name merged declarations
 
   data GlobalDeclarations where
-    MkGlobalDeclarations :: List CoreGlobal -> HashMap String CoreGlobal -> GlobalDeclarations
+    MkGlobalDeclarations :: List CoreGlobal -> HashMap String CoreGlobal -> Bool -> GlobalDeclarations
   empty-global-declarations :: GlobalDeclarations
-  empty-global-declarations = MkGlobalDeclarations Nil hash-map-empty
+  empty-global-declarations = MkGlobalDeclarations Nil hash-map-empty True
   ordered-global-declarations :: GlobalDeclarations -> List CoreGlobal
-  ordered-global-declarations globals = case globals of MkGlobalDeclarations declarations index -> declarations
+  ordered-global-declarations globals = case globals of MkGlobalDeclarations declarations index unique -> declarations
   -- Index the first declaration with each name. The ordered list is still
   -- needed for deterministic validation, including rejected duplicates.
   insert-global-declaration :: CoreGlobal -> GlobalDeclarations -> GlobalDeclarations
   insert-global-declaration declaration globals = case globals of
-    MkGlobalDeclarations declarations index -> let name = global-name declaration in
-      (case global-insertion declaration (hash-map-lookup name index) of
+    MkGlobalDeclarations declarations index unique -> let name = global-name declaration in
+      let previous = hash-map-lookup name index in
+      (case global-insertion declaration previous of
         KeepGlobals -> globals
         PrependGlobal -> MkGlobalDeclarations (Cons declaration declarations) (hash-map-insert name declaration index)
-        MergeIntrinsic merged -> MkGlobalDeclarations (replace-intrinsic name merged declarations) (hash-map-insert name merged index))
+          (unique && (case previous of None -> True; Some prior -> False))
+        MergeIntrinsic merged -> MkGlobalDeclarations (replace-intrinsic name merged declarations) (hash-map-insert name merged index) unique)
   has-name :: String -> List String -> Bool
   has-name name names = case names of Nil -> False; Cons key rest -> same key name || has-name name rest
   role-valid :: String -> Bool
@@ -173,10 +175,16 @@ module Bootstrap.Global where
     Cons declaration rest -> let name = global-name declaration in
       (case hash-map-lookup name table of
         Some prior -> None
-        None -> if string-length name > 0 && schemes-closed (global-schemes declaration)
-          && decision-global declaration && body-declaration-valid declaration && global-role-valid declaration then
+        None -> if global-header-closed declaration then
           checked-global-index rest (hash-map-insert name declaration table)
           else None)
+  global-header-closed :: CoreGlobal -> Bool
+  global-header-closed declaration = string-length (global-name declaration) > 0 && schemes-closed (global-schemes declaration)
+    && decision-global declaration && body-declaration-valid declaration && global-role-valid declaration
+  global-headers-closed :: List CoreGlobal -> Bool
+  global-headers-closed declarations = case declarations of
+    Nil -> True
+    Cons declaration rest -> global-header-closed declaration && global-headers-closed rest
   globals-closed :: List CoreGlobal -> Bool
   globals-closed declarations = case checked-global-index declarations hash-map-empty of
     None -> False
@@ -231,18 +239,27 @@ module Bootstrap.Global where
   close-globals-with-definitions :: List CoreGlobal -> List CoreDefinition -> Option CoreGlobals
   close-globals-with-definitions declarations definitions = close-globals-with-source-data declarations definitions Nil
   close-globals-with-source-data :: List CoreGlobal -> List CoreDefinition -> List CoreData -> Option CoreGlobals
-  close-globals-with-source-data declarations definitions datas =
+  close-globals-with-source-data declarations definitions datas = case checked-global-index declarations hash-map-empty of
+    None -> None
+    Some index -> close-global-bodies declarations index definitions datas
+  -- The builder retains every conflicting name in the ordered list. Its
+  -- index can become authoritative once uniqueness and every independent
+  -- Core check have passed.
+  close-indexed-globals :: GlobalDeclarations -> List CoreDefinition -> List CoreData -> Option CoreGlobals
+  close-indexed-globals globals definitions datas = case globals of
+    MkGlobalDeclarations declarations index unique ->
+      if unique && global-headers-closed declarations then close-global-bodies declarations index definitions datas else None
+  close-global-bodies :: List CoreGlobal -> HashMap String CoreGlobal -> List CoreDefinition -> List CoreData -> Option CoreGlobals
+  close-global-bodies declarations index definitions datas =
     let bindings = declaration-bodies declarations in
     let guarded = declaration-guarded-bodies declarations in
-    case checked-global-index declarations hash-map-empty of
-      None -> None
-      Some index -> if guarded-bindings-closed guarded && declarations-body-authorized bindings declarations then
-        (case check-body-bindings bindings of
-          Some bodies -> (case check-source-bindings bindings bindings definitions datas of
-            Some sources -> Some (ClosedGlobals declarations index sources datas bodies guarded (body-dependents bindings hash-map-empty))
-            None -> None)
+    if guarded-bindings-closed guarded && declarations-body-authorized bindings declarations then
+      (case check-body-bindings bindings of
+        Some bodies -> (case check-source-bindings bindings bindings definitions datas of
+          Some sources -> Some (ClosedGlobals declarations index sources datas bodies guarded (body-dependents bindings hash-map-empty))
           None -> None)
-        else None
+        None -> None)
+    else None
   -- Index the already validated graphs. Replacing any member requires
   -- rederiving all the graphs that mention it, including transitive uses.
   body-dependents :: List BodyBinding -> HashMap String (List BodyBinding) -> HashMap String (List BodyBinding)

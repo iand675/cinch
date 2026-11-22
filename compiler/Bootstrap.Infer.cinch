@@ -7501,16 +7501,18 @@ module Bootstrap.Infer where
     MkForeignExport name plan -> b
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of Nil -> Nil; Cons (MkBodyContext context names index cache) rest -> finish-bindings st rest; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
-  global-bindings :: List CheckedBinding -> GlobalDeclarations -> GlobalDeclarations
-  global-bindings bindings globals = case bindings of
+  global-bindings :: Store -> List CheckedBinding -> GlobalDeclarations -> GlobalDeclarations
+  global-bindings st bindings globals = case bindings of
     Nil -> globals
-    Cons binding rest -> global-bindings rest (case binding of
+    Cons binding rest -> global-bindings st rest (case binding of
       MkBodyBinding binding -> insert-global-declaration (GlobalBody (GlobalValue (binding-name binding) (binding-role binding) (binding-scheme binding)) binding) globals
-      MkCheckedBinding name sc role -> if same role "closed-proof" then globals else insert-global-declaration (GlobalValue name role sc) globals
+      MkCheckedBinding name sc role -> if same role "closed-proof" then globals else insert-global-declaration (GlobalValue name role (map-scheme-types (normalize st) sc)) globals
       MkForeignBinding name sc plan -> insert-global-declaration (GlobalValue name "foreign" sc) globals
-      MkMethodBinding name sc owner slot -> insert-global-declaration (GlobalMethod name owner slot sc) globals
-      MkConditionalBinding origin name owner slot dictionary head sc guarded -> insert-global-declaration (case guarded of Some binding -> GlobalGuardedBody (GlobalValue name "external" sc) binding; None -> GlobalValue name (conditional-role origin) sc) globals
-      MkIntrinsicBinding name sc symbol -> insert-global-declaration (GlobalValue symbol "intrinsic" sc) globals
+      MkMethodBinding name sc owner slot -> insert-global-declaration (GlobalMethod name owner slot (map-scheme-types (normalize st) sc)) globals
+      MkConditionalBinding origin name owner slot dictionary head sc guarded ->
+        let scheme = map-scheme-types (normalize st) sc in
+        insert-global-declaration (case guarded of Some binding -> GlobalGuardedBody (GlobalValue name "external" scheme) binding; None -> GlobalValue name (conditional-role origin) scheme) globals
+      MkIntrinsicBinding name sc symbol -> insert-global-declaration (GlobalValue symbol "intrinsic" (map-scheme-types (normalize st) sc)) globals
       other -> globals)
   field-globals :: List CoreDictionaryField -> GlobalDeclarations -> GlobalDeclarations
   field-globals fields globals = case fields of
@@ -7600,10 +7602,10 @@ module Bootstrap.Infer where
   check-global-core :: TypeContext -> List CheckedBinding -> List CoreInstance -> List CoreData -> List CoreDefinition -> List UsageShape -> Store -> Store
   check-global-core kinds bindings instances datas definitions usage st =
     let rows = declared-kind-rows kinds in
-    let globals = ordered-global-declarations (instance-globals instances (global-bindings (finish-bindings st bindings) empty-global-declarations)) in
-    case close-typing-context-with-usage rows globals (context-effects kinds) datas definitions usage of
+    let globals = instance-globals instances (global-bindings st bindings empty-global-declarations) in
+    case close-typing-context-with-indexed-globals rows globals (context-effects kinds) datas definitions usage of
       Some closed -> check-instance-globals closed instances (check-core-closed closed definitions st)
-      None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal rows globals (context-effects kinds) datas definitions)) st
+      None -> add-error zero (string-concat "global declaration environment is not closed: " (closure-refusal rows (ordered-global-declarations globals) (context-effects kinds) datas definitions)) st
   -- Reuse the schemes registered and checked above. Re-reading a surface
   -- constructor type here would discard the exact nominal identities.
   checked-constructors :: List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CoreConstructor, Store)

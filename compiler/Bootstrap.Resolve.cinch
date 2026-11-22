@@ -38,7 +38,8 @@ module Bootstrap.Resolve where
     MkScoped :: String -> List Binding -> List Decl -> Scoped
 
   data PreparedDeclarations where
-    PreparedDeclarations :: PreparedExternals -> List String -> HashMap String Bool -> HashMap String Module -> PreparedDeclarations
+    PreparedDeclarations :: PreparedExternals -> List String -> HashMap String Bool -> HashMap String Module
+      -> HashMap String Bool -> HashMap String Scoped -> PreparedDeclarations
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -1489,21 +1490,10 @@ module Bootstrap.Resolve where
   interface-scope i exposed =
     (MkScoped (loaded-module i) (if exposed then interface-bindings i else Nil) (interface-declarations i), interface-fixity-header i)
 
-  index-interface-scopes :: List LoadedInterface -> HashMap String (Scoped, Module) -> HashMap String (Scoped, Module)
-  index-interface-scopes interfaces indexed = case interfaces of
-    Nil -> indexed
-    Cons i rest -> index-interface-scopes rest (hash-map-insert (loaded-module i) (interface-scope i True) indexed)
-
-  indexed-interface-scope :: HashMap String (Scoped, Module) -> LoadedInterface -> Bool -> (Scoped, Module)
-  indexed-interface-scope indexed i exposed = case hash-map-lookup (loaded-module i) indexed of
-    Some (scope, header) -> if exposed then (scope, header) else
-      (case scope of MkScoped home surface body -> (MkScoped home Nil body, header))
-    None -> interface-scope i exposed
-
-  interface-contexts :: (LoadedInterface -> Bool -> (Scoped, Module)) -> HashMap String Bool -> List LoadedInterface -> (List Scoped, List Module)
-  interface-contexts scope targets interfaces = case interfaces of
+  interface-contexts :: HashMap String Bool -> List LoadedInterface -> (List Scoped, List Module)
+  interface-contexts targets interfaces = case interfaces of
     Nil -> (Nil, Nil)
-    Cons i rest -> case (scope i (referenced (loaded-module i) targets), interface-contexts scope targets rest) of
+    Cons i rest -> case (interface-scope i (referenced (loaded-module i) targets), interface-contexts targets rest) of
       ((built, header), (more, headers)) -> (Cons built more, Cons header headers)
 
   export-references :: List Scoped -> List String
@@ -1536,24 +1526,24 @@ module Bootstrap.Resolve where
   prepare-admitted-resolution admitted = case admitted of
     Err message -> \p checked -> (p, fail (program-span p) message, False)
     Ok ready -> let ordered = validated-interfaces-members ready in
-      let scopes = index-interface-scopes ordered hash-map-empty in
-      let scope = indexed-interface-scope scopes in
-      case interface-contexts scope hash-map-empty ordered of
+      let imported = reference-index (map loaded-module ordered) in
+      case interface-contexts imported ordered of
         (members, headers) ->
+          let scopes = scope-index members hash-map-empty in
           let base = builtin-declarations <> scoped-decls members in
           let records = imported-record-symbols base in
-          let prepared = PreparedDeclarations (prepare-externals base) records (reference-index records) (module-name-index headers) in
+          let prepared = PreparedDeclarations (prepare-externals base) records (reference-index records) (module-name-index headers) imported scopes in
           \p checked -> let modules = program-modules p in
-            if shadows-admitted-interface scopes modules
-              then resolve-context-with scope None p (unshadowed-interfaces modules ordered) Nil checked
-              else resolve-context-with scope (Some prepared) p ordered Nil checked
+            if shadows-admitted-interface imported modules
+              then resolve-context-with None p (unshadowed-interfaces modules ordered) Nil checked
+              else resolve-context-with (Some prepared) p ordered Nil checked
 
-  shadows-admitted-interface :: HashMap String (Scoped, Module) -> List Module -> Bool
-  shadows-admitted-interface scopes modules = case modules of
+  shadows-admitted-interface :: HashMap String Bool -> List Module -> Bool
+  shadows-admitted-interface imported modules = case modules of
     Nil -> False
     Cons source rest -> let name = module-name source in
-      if embedded-library-home name && (case hash-map-lookup name scopes of Some _ -> True; None -> False)
-        then True else shadows-admitted-interface scopes rest
+      if embedded-library-home name && referenced name imported
+        then True else shadows-admitted-interface imported rest
   resolve-ordered-interfaces :: Program -> List LoadedInterface -> List LoadedInterface -> (Program, List Diagnostic)
   resolve-ordered-interfaces p ordered checked =
     let available = unshadowed-interfaces (program-modules p) ordered in
@@ -1615,19 +1605,27 @@ module Bootstrap.Resolve where
     Cons (name, category, symbol) rest -> (same kind category && same identity symbol) || exports-identity kind identity rest
 
   resolve-context :: Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic)
-  resolve-context p available base checked = case resolve-context-with interface-scope None p available base checked of
+  resolve-context p available base checked = case resolve-context-with None p available base checked of
     (resolved, errors, retained) -> (resolved, errors)
 
-  resolve-context-with :: (LoadedInterface -> Bool -> (Scoped, Module)) -> Option PreparedDeclarations -> Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic, Bool)
-  resolve-context-with scope prepared p available base checked = case p of
+  resolve-context-with :: Option PreparedDeclarations -> Program -> List LoadedInterface -> List Binding -> List LoadedInterface -> (Program, List Diagnostic, Bool)
+  resolve-context-with prepared p available base checked = case p of
     MkProgram sp modules ->
       let sources = reference-index (map module-name modules) in
-      let imported = reference-index (map loaded-module available) in
+      let imported = (case prepared of
+        Some (PreparedDeclarations externals records indexed headers known scopes) -> known
+        None -> reference-index (map loaded-module available)) in
       case validate-modules sources imported modules hash-map-empty of
-        Nil -> case module-order modules imported of
-          (ordered, blocked) ->
+        Nil -> case (module-order modules imported, prepared) of
+          ((ordered, blocked), Some (PreparedDeclarations externals records indexed headers known scopes)) ->
+            -- Lexical lookup reaches package scopes only through an import
+            -- or Prelude. The ordered resolution result needs source rows
+            -- alone, since the package declarations already have a separate index.
+            finish-resolution p sp modules sources prepared
+              (resolve-ordered ordered blocked Nil scopes base Nil checked) Nil base
+          ((ordered, blocked), None) ->
             let targets = import-target-index modules (reference-index ["Prelude"]) in
-            case interface-contexts scope targets available of
+            case interface-contexts targets available of
               (interfaces, headers) -> finish-resolution p sp modules sources prepared
                 (resolve-ordered ordered blocked (reverse interfaces) (scope-index interfaces hash-map-empty) base Nil checked)
                 headers base
@@ -1636,13 +1634,14 @@ module Bootstrap.Resolve where
   finish-resolution :: Program -> Span -> List Module -> HashMap String Bool -> Option PreparedDeclarations -> (List Scoped, HashMap String Scoped, List Diagnostic) -> List Module -> List Binding -> (Program, List Diagnostic, Bool)
   finish-resolution p sp modules sources prepared resolution headers base = case resolution of
     (done, indexed, Nil) ->
-      let source-surfaces = source-scopes sources done in
+      let source-surfaces = (case prepared of Some package -> done; None -> source-scopes sources done) in
       let (select, imported-records, imported-record-index) = resolution-declarations prepared done source-surfaces in
-      let records = source-record-symbols modules <> imported-records in
-      let record-index = reference-index records in
+      let source-records = source-record-symbols modules in
+      let records = source-records <> imported-records in
+      let record-index = reference-index-from source-records imported-record-index in
       let prelude-available = (case hash-map-lookup "Prelude" indexed of Some prelude -> True; None -> False) in
       let header-index = (case prepared of
-        Some (PreparedDeclarations externals names indexed-records imports) -> index-module-names (reverse modules) imports
+        Some (PreparedDeclarations externals names indexed-records imports known scopes) -> index-module-names (reverse modules) imports
         None -> module-name-index (modules <> headers)) in
       let contexts = source-contexts header-index indexed source-surfaces prelude-available (records, record-index) base in
       -- Package scopes contain only DExternal, DInterface and refusal
@@ -1677,7 +1676,7 @@ module Bootstrap.Resolve where
     -- The only external declaration source resolution can synthesize is
     -- the staging primitive. Imported record declarations belong to the
     -- pinned package, while source record names come from the source AST.
-    Some (PreparedDeclarations externals records indexed headers) -> let body = scoped-decls sources in
+    Some (PreparedDeclarations externals records indexed headers known scopes) -> let body = scoped-decls sources in
       (\used -> select-externals used externals <> body, records, indexed)
     None -> let declarations = builtin-declarations <> scoped-decls done in
       let records = imported-record-symbols declarations in

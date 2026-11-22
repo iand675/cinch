@@ -31,10 +31,17 @@ module Main where
     let merged = insert-global-declaration (GlobalIntrinsicViews "runtime.identity" [sc]) with-value in
     let ordered = ordered-global-declarations merged in
     let duplicate = insert-global-declaration (GlobalValue "answer" "external" (mono int)) merged in
+    let after-duplicate = insert-global-declaration intrinsic duplicate in
+    let invalid = insert-global-declaration (GlobalValue "bad" "local" (mono int)) merged in
     [ (case ordered of
         [GlobalValue name _ _, GlobalIntrinsicViews symbol [_]] -> string-compare name "answer" == 0 && string-compare symbol "runtime.identity" == 0
         _ -> False)
     , globals-closed ordered
+    , (case close-indexed-globals merged Nil Nil of
+        Some actual -> accepted actual (result (CApply sp int (CUse sp (UFun int int) "runtime.identity" "intrinsic" Nil) (CInt sp int "1")))
+        None -> False)
+    , (case close-indexed-globals after-duplicate Nil Nil of None -> True; Some actual -> False)
+    , (case close-indexed-globals invalid Nil Nil of None -> True; Some actual -> False)
     , (case globals-refusal (ordered-global-declarations duplicate) of
         Some reason -> string-compare reason "answer is declared twice" == 0
         None -> False)

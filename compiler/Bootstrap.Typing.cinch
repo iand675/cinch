@@ -25,7 +25,7 @@ module Bootstrap.Typing where
   export context-body-context, close-typing-context-with-definitions, closure-refusal
   export task-source-forwarder, task-forwarder-type
   export task-free, task-pattern-ids
-  export close-typing-context-with-usage
+  export close-typing-context-with-usage, close-typing-context-with-indexed-globals
   -- | Retain checked declarations and separate usage-only fields for later Core and provenance checks.
   data TypingContext where
     -- | Usage facts remain distinct from actual source constructors and runtime data declarations.
@@ -155,12 +155,18 @@ module Bootstrap.Typing where
         (Nil, Nil, UCon result KType) | same owner result -> Cons (constructor-index-key (core-constructor-name ctor), KValue (scheme-body sc)) more
         other -> more)
   close-typing-context-with-usage :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
-  close-typing-context-with-usage kinds declarations effects datas definitions usage = let declared = kernel-effect-kinds <> kinds in
+  close-typing-context-with-usage kinds declarations effects datas definitions usage =
+    close-typing-context-using kinds declarations effects datas definitions usage (\unit -> close-globals-with-source-data declarations definitions datas)
+  close-typing-context-with-indexed-globals :: List (String, Kind) -> GlobalDeclarations -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> Option TypingContext
+  close-typing-context-with-indexed-globals kinds declarations effects datas definitions usage =
+    close-typing-context-using kinds (ordered-global-declarations declarations) effects datas definitions usage (\unit -> close-indexed-globals declarations definitions datas)
+  close-typing-context-using :: List (String, Kind) -> List CoreGlobal -> List CoreEffect -> List CoreData -> List CoreDefinition -> List UsageShape -> (Unit -> Option CoreGlobals) -> Option TypingContext
+  close-typing-context-using kinds declarations effects datas definitions usage close = let declared = kernel-effect-kinds <> kinds in
     let defined = index-kinds declared in
     let all = extend-kind-index defined (constructor-index-kinds datas) in
     if nominal-index-closed defined declared && global-types all declarations && effects-registered all declarations Nil effects && task-data-closed all datas then
       (case index-checked-usage all usage hash-map-empty of
-        Some owners | usage-schemes-closed usage declarations datas -> (case close-globals-with-source-data declarations definitions datas of
+        Some owners | usage-schemes-closed usage declarations datas -> (case close () of
           Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) owners Nil)
           None -> None)
         other -> None)
