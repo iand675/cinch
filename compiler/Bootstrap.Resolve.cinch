@@ -462,12 +462,13 @@ module Bootstrap.Resolve where
   data MacroNamespaces where
     MkMacroNamespaces :: List (String, List Binding) -> MacroNamespaces
   macro-namespaces :: List Module -> List Module -> MacroNamespaces
-  macro-namespaces modules headers = MkMacroNamespaces (macro-scope-order (map macro-header modules) (external-macro-headers modules headers) Nil)
-  external-macro-headers :: List Module -> List Module -> List Scoped
+  macro-namespaces modules headers = MkMacroNamespaces (macro-scope-order (map macro-header modules)
+    (external-macro-headers (reference-index (map module-name modules)) headers) Nil)
+  external-macro-headers :: HashMap String Bool -> List Module -> List Scoped
   external-macro-headers sources headers = case headers of
     Nil -> Nil
     Cons m rest -> let home = module-name m in
-      if has-module home sources then external-macro-headers sources rest else
+      if referenced home sources then external-macro-headers sources rest else
         Cons (MkScoped home (external-names home (module-decls m)) Nil) (external-macro-headers sources rest)
   external-names :: String -> List Decl -> List Binding
   external-names home declarations = case declarations of
@@ -1453,10 +1454,14 @@ module Bootstrap.Resolve where
   unshadowed-interfaces :: List Module -> List LoadedInterface -> List LoadedInterface
   unshadowed-interfaces modules interfaces = case interfaces of
     Nil -> Nil
+    other -> unshadowed-indexed-interfaces (reference-index (map module-name modules)) interfaces
+  unshadowed-indexed-interfaces :: HashMap String Bool -> List LoadedInterface -> List LoadedInterface
+  unshadowed-indexed-interfaces sources interfaces = case interfaces of
+    Nil -> Nil
     Cons i rest ->
-      if has-module (loaded-module i) modules && embedded-library-home (loaded-module i)
-        then unshadowed-interfaces modules rest
-        else Cons i (unshadowed-interfaces modules rest)
+      if referenced (loaded-module i) sources && embedded-library-home (loaded-module i)
+        then unshadowed-indexed-interfaces sources rest
+        else Cons i (unshadowed-indexed-interfaces sources rest)
 
   -- A library home may precede the Prelude facade that re-exports it.
   -- Only project facade names whose defining interface is already in the
@@ -1502,7 +1507,7 @@ module Bootstrap.Resolve where
       Nil -> case resolve-ordered modules (reverse interfaces) base Nil checked of
         (done, Nil) ->
           let declarations = builtin-declarations <> scoped-decls done in
-          let source-surfaces = source-scopes modules done in
+          let source-surfaces = source-scopes (reference-index (map module-name modules)) done in
           let imported-records = imported-record-symbols declarations in
           let records = source-record-symbols modules <> imported-records in
           let prelude-available = (case lookup-scoped "Prelude" done of Some prelude -> True; None -> False) in
@@ -1535,10 +1540,10 @@ module Bootstrap.Resolve where
     || referenced "b.both" references || referenced "b.tabulate" references
     || referenced "b.mapArray" references || referenced "b.workers" references
 
-  source-scopes :: List Module -> List Scoped -> List Scoped
-  source-scopes modules done = case done of
+  source-scopes :: HashMap String Bool -> List Scoped -> List Scoped
+  source-scopes sources done = case done of
     Nil -> Nil
-    Cons s rest -> if has-module (scoped-name s) modules then Cons s (source-scopes modules rest) else source-scopes modules rest
+    Cons s rest -> if referenced (scoped-name s) sources then Cons s (source-scopes sources rest) else source-scopes sources rest
 
   -- The fragment backend uses one aggregate, but checked interface output
   -- must still know each source module's public aliases and declarations.

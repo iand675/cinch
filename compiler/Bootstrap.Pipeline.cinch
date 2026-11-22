@@ -28,7 +28,7 @@ module Bootstrap.Pipeline where
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface, loaded-module, loaded-hash, loaded-contract, loaded-imports, load-interface, validate-interface-set, ValidatedInterfaces, validated-interfaces-members, canonical-interface-validation)
-  import Bootstrap.Inputs (InterfaceInputs, read-interfaces, read-validated-interfaces, embedded-library-home, read-interface-inputs, interface-input-files, load-client-interface-inputs)
+  import Bootstrap.Inputs (InterfaceInputs, read-validated-interfaces, embedded-library-home, read-interface-inputs, interface-input-files, load-client-interface-inputs)
   import Bootstrap.Contracts (interface-headers, interface-fixity-headers)
   import Bootstrap.Resolve (resolve-program, resolve-program-with, resolve-admitted-signature-overlays, resolve-overlay-with, unshadowed-interfaces)
   import Bootstrap.Stage (expand-stages-with-report, explain-expansion-errors)
@@ -41,6 +41,7 @@ module Bootstrap.Pipeline where
   import Effect.Process (process-run, command)
   import Bootstrap.Document
   import Data.Bytes (bytes-compare)
+  import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
   import Data.List (map)
   import Data.Nat (nat-to-int)
   import Data.Path (Path, path-from-string, path-to-string, path-is-absolute, path-normalize, path-stem)
@@ -166,15 +167,17 @@ module Bootstrap.Pipeline where
   compile-manifest-profile-mode :: forall r. using (io :: Io r) => Bool -> Bool -> Result String TargetProfile -> PipelineMode -> String -> String -> Path -> Path -> Path ->{IO r, Diverge} Int
   compile-manifest-profile-mode inlining reclaim selection mode manifest source ir exe report = case selection of
     Err message -> write-failure ir message pipeline-bad-args
-    Ok profile -> case read-interfaces manifest of
+    Ok profile -> case read-validated-interfaces manifest of
       Err message -> write-failure ir (string-concat "bootstrap.interfaces: " message) pipeline-interface-failed
-      Ok interfaces -> case mode of
-        InterfacesOnly -> compile-source-interfaces profile interfaces source ir
-        ObjectOnly -> pipeline-bad-args
-        EmitWithInterfaces -> pipeline-bad-args
-        other -> case fs-read (path-from-string source) of
-          Err error -> pipeline-read-failed
-          Ok src -> after-parse-with inlining reclaim profile mode interfaces source src (parse-program-with source src (interface-fixity-headers interfaces)) ir exe report
+      Ok admitted ->
+        let interfaces = validated-interfaces-members admitted in
+        (case mode of
+          InterfacesOnly -> compile-source-interfaces profile interfaces source ir
+          ObjectOnly -> pipeline-bad-args
+          EmitWithInterfaces -> pipeline-bad-args
+          other -> (case fs-read (path-from-string source) of
+            Err error -> pipeline-read-failed
+            Ok src -> after-parse-with inlining reclaim profile mode admitted source src (parse-program-with source src (interface-fixity-headers interfaces)) ir exe report))
 
   -- `debug` selects debug counting (`--rc-debug`): the emitted program's
   -- count operations call the runtime's checked out-of-line entries.
@@ -323,6 +326,14 @@ module Bootstrap.Pipeline where
   -- checker. It never asks another compiler to manufacture source contracts.
   checked-source :: TargetProfile -> Program -> List LoadedInterface -> Result (List Diagnostic) CheckedProgram
   checked-source profile program interfaces = check-source-phase profile interfaces (\input -> resolve-program-with input interfaces) program
+  checked-admitted-source :: TargetProfile -> ValidatedInterfaces -> List LoadedInterface -> Program -> Result (List Diagnostic) CheckedProgram
+  checked-admitted-source profile checked overlays program =
+    let interfaces = validated-interfaces-members checked in
+    let admitted = canonical-interface-validation checked in
+    let check = \resolved -> case admitted of
+          Ok canonical -> check-and-retain-with-admitted-interfaces canonical resolved
+          Err message -> check-and-retain-with-interfaces interfaces resolved in
+    check-source-using profile interfaces check (\input -> resolve-admitted-signature-overlays input admitted overlays) program
   check-source-phase :: TargetProfile -> List LoadedInterface -> (Program -> (Program, List Diagnostic)) -> Program -> Result (List Diagnostic) CheckedProgram
   check-source-phase profile interfaces resolve program =
     check-source-using profile interfaces (check-and-retain-with-interfaces interfaces) resolve program
@@ -344,14 +355,18 @@ module Bootstrap.Pipeline where
   overlay-interface name interfaces = case interfaces of
     Nil -> None
     Cons entry rest -> if string-compare name (loaded-module entry) == 0 then Some entry else overlay-interface name rest
-  overlay-dependencies :: List (String, String) -> List LoadedInterface -> List LoadedInterface -> Result String (List LoadedInterface)
-  overlay-dependencies pending all found = case pending of
+  overlay-interface-index :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String LoadedInterface
+  overlay-interface-index interfaces indexed = case interfaces of
+    Nil -> indexed
+    Cons entry rest -> overlay-interface-index rest (hash-map-insert (loaded-module entry) entry indexed)
+  overlay-dependencies :: List (String, String) -> HashMap String LoadedInterface -> HashMap String Unit -> List LoadedInterface -> Result String (List LoadedInterface)
+  overlay-dependencies pending all seen found = case pending of
     Nil -> Ok found
-    Cons (name, hash) rest -> case overlay-interface name found of
-      Some existing -> overlay-dependencies rest all found
-      None -> case overlay-interface name all of
+    Cons (name, hash) rest -> case hash-map-lookup name seen of
+      Some existing -> overlay-dependencies rest all seen found
+      None -> case hash-map-lookup name all of
         None -> Err (string-concat "missing source replacement dependency: " name)
-        Some dependency -> overlay-dependencies (loaded-imports dependency <> rest) all (Cons dependency found)
+        Some dependency -> overlay-dependencies (loaded-imports dependency <> rest) all (hash-map-insert name () seen) (Cons dependency found)
   overlay-module :: String -> List Module -> List Module -> Option (Module, List Module)
   overlay-module name modules before = case modules of
     Nil -> None
@@ -381,23 +396,32 @@ module Bootstrap.Pipeline where
   -- admitting it into the cached set. This keeps the Prelude facade out
   -- of early homes and checks every retained consumer against fresh hashes.
   recheck-source-overlays :: TargetProfile -> Bytes -> Program -> List LoadedInterface -> List LoadedInterface -> List (String, Json) -> Result String (Program, List LoadedInterface, List (String, Json))
-  recheck-source-overlays profile source program order interfaces written = case order of
+  recheck-source-overlays profile source program order interfaces written =
+    recheck-indexed-overlays profile source (overlay-source-homes (program-modules program) hash-map-empty) program order interfaces written
+  overlay-source-homes :: List Module -> HashMap String Unit -> HashMap String Unit
+  overlay-source-homes modules homes = case modules of
+    Nil -> homes
+    Cons first rest -> let name = module-name first in
+      if embedded-library-home name then overlay-source-homes rest (hash-map-insert name () homes)
+      else overlay-source-homes rest homes
+  recheck-indexed-overlays :: TargetProfile -> Bytes -> HashMap String Unit -> Program -> List LoadedInterface -> List LoadedInterface -> List (String, Json) -> Result String (Program, List LoadedInterface, List (String, Json))
+  recheck-indexed-overlays profile source homes program order interfaces written = case order of
     Nil -> (case written of
       Nil -> Ok (program, interfaces, Nil)
       other -> case validate-interface-set interfaces of
         Err message -> Err (string-concat "bootstrap.interfaces: " message)
         Ok checked -> Ok (program, checked, reverse written))
     Cons previous rest -> let name = loaded-module previous in
-      if embedded-library-home name then
-        (case overlay-module name (program-modules program) Nil of
-          None -> recheck-source-overlays profile source program rest interfaces written
-          Some (replacement, remaining) -> case overlay-dependencies (loaded-imports previous) interfaces Nil of
+      (case hash-map-lookup name homes of
+        Some present -> (case overlay-module name (program-modules program) Nil of
+          None -> recheck-indexed-overlays profile source homes program rest interfaces written
+          Some (replacement, remaining) -> case overlay-dependencies (loaded-imports previous) (overlay-interface-index interfaces hash-map-empty) hash-map-empty Nil of
             Err message -> Err (string-concat "bootstrap.interfaces: " message)
             Ok dependencies -> let sp = program-span program in
               case rebuild-source-interface profile source (MkProgram sp [replacement]) name dependencies (overlay-interface "Prelude" interfaces) of
                 Err message -> Err message
-                Ok (fresh, doc) -> recheck-source-overlays profile source (MkProgram sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
-      else recheck-source-overlays profile source program rest interfaces written
+                Ok (fresh, doc) -> recheck-indexed-overlays profile source homes (MkProgram sp remaining) rest (replace-overlay-interface fresh interfaces) (Cons (name, doc) written))
+        None -> recheck-indexed-overlays profile source homes program rest interfaces written)
 
   -- A base-package home the client declares itself is the client's version of
   -- that module: the object's copy stays internal and unused, so the source
@@ -437,11 +461,7 @@ module Bootstrap.Pipeline where
   check-object-source :: TargetProfile -> Bytes -> Program -> ValidatedInterfaces -> Result (List Diagnostic) CheckedProgram
   check-object-source profile source program checked =
     let interfaces = validated-interfaces-members checked in
-    let admitted = canonical-interface-validation checked in
-    let check = \resolved -> case admitted of
-          Ok canonical -> check-and-retain-with-admitted-interfaces canonical resolved
-          Err message -> check-and-retain-with-interfaces interfaces resolved in
-    let run-check = \overlays -> check-source-using profile interfaces check (\input -> resolve-admitted-signature-overlays input admitted overlays) program in
+    let run-check = \overlays -> checked-admitted-source profile checked overlays program in
     if not (has-signature-overlay (program-modules program)) then run-check Nil else
       case recheck-source-overlays profile source program interfaces interfaces Nil of
         Ok (remaining, effective, rows) -> (case matched-object-overlays rows interfaces of
@@ -501,10 +521,10 @@ module Bootstrap.Pipeline where
       Ok view -> after-resolve profile inlining reclaim mode src view ir exe report
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
-  after-parse-with :: forall r. using (io :: Io r) => Bool -> Bool -> TargetProfile -> PipelineMode -> List LoadedInterface -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-parse-with inlining reclaim profile mode interfaces name src outcome ir exe report = case outcome of
+  after-parse-with :: forall r. using (io :: Io r) => Bool -> Bool -> TargetProfile -> PipelineMode -> ValidatedInterfaces -> String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-parse-with inlining reclaim profile mode admitted name src outcome ir exe report = case outcome of
     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
-    Parsed prog Nil -> case target-view-program profile prog of
+    Parsed prog Nil -> let interfaces = validated-interfaces-members admitted in case target-view-program profile prog of
       Err message -> write-failure ir message pipeline-check-refused
       Ok view -> (if checks-only mode then case recheck-source-overlays profile src view interfaces interfaces Nil of
           Err message -> write-failure ir (source-overlay-error profile src view interfaces message) pipeline-check-refused
@@ -513,8 +533,10 @@ module Bootstrap.Pipeline where
               CheckOnly -> case serialize-artifacts Nil JArrEnd profile (path-stem (path-from-string name)) effective replaced of
                 done -> write-interface-output ir (Ok Nil)
               other -> write-interface-output ir (Ok Nil))
+            (other, Nil) -> after-check-artifacts profile inlining reclaim mode name src effective Nil
+              (checked-admitted-source profile admitted Nil remaining) ir exe report
             other -> after-check-artifacts profile inlining reclaim mode name src effective replaced (checked-source profile remaining effective) ir exe report
-        else after-check-artifacts profile inlining reclaim mode name src interfaces Nil (checked-source profile view interfaces) ir exe report)
+        else after-check-artifacts profile inlining reclaim mode name src interfaces Nil (checked-admitted-source profile admitted Nil view) ir exe report)
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
   -- A changed library module can invalidate a cached dependent while the
