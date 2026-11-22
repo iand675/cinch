@@ -140,7 +140,7 @@
 //! frame, no call.
 use crate::core::{
     child_slots, child_slots_imm, alpha_eq, CAlt, CPat, Class, Core, FnDef, GlobalId, JoinId,
-    LocalId, Program, SimplifyReport,
+    LocalId, Program, SimplifyReport, symbol_has_module_prefix,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -4746,11 +4746,7 @@ pub fn prune(program: &mut Program, keep: &[String]) -> PruneReport {
 /// darwin`, on Linux), and their bindings stay only if a live unit really
 /// reaches them.
 pub fn prune_excluding(program: &mut Program, keep: &[String], excluded: &HashSet<String>) -> PruneReport {
-    let in_excluded = |name: &str| {
-        excluded
-            .iter()
-            .any(|m| name.len() > m.len() && name.starts_with(m.as_str()) && name.as_bytes()[m.len()] == b'.')
-    };
+    let in_excluded = |name: &str| symbol_has_module_prefix(name, excluded);
     let present: HashSet<&str> = program.fns.iter().map(|f| f.id.0.as_str()).collect();
     let mut live: HashSet<String> = HashSet::new();
     let mut work: Vec<String> = Vec::new();

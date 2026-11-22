@@ -59,9 +59,9 @@
 //! pass left it and unbalanced after a later move, which is exactly how
 //! `crate::coalesce` dupped a dead field for months.
 
-use crate::core::{CAlt, CBranch, CPat, Core, FnDef, GlobalId, LocalId, Program};
+use crate::core::{symbol_in_modules, CAlt, CBranch, CPat, Core, FnDef, GlobalId, LocalId, Program};
 use crate::repr::Class;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 
 type Set = BTreeSet<usize>;
@@ -113,16 +113,6 @@ pub struct Boundary<'a> {
     pub closed: bool,
 }
 
-fn in_modules(modules: &[String], unit: &str) -> bool {
-    modules.iter().any(|m| unit == m || unit.strip_prefix(m.as_str()).is_some_and(|r| r.starts_with('.')))
-}
-
-impl Boundary<'_> {
-    fn ships(&self, unit: &str) -> bool {
-        self.modules.is_empty() || in_modules(self.modules, unit)
-    }
-}
-
 /// [`insert`] for an open program (a library or package object, or a
 /// program linking package objects) with borrow inference across the
 /// boundary. Its own units are inferred as a closed program's are, since
@@ -170,8 +160,13 @@ fn insert_with(
     }
     name_call_arguments(&mut program);
     let ctors = Ctors::of(&program);
+    let shipped: HashSet<&str> = boundary.into_iter().flat_map(|b| b.modules).map(String::as_str).collect();
+    let private_modules: HashSet<&str> = program.private_modules.iter().map(String::as_str).collect();
+    let ships = |unit: &str| shipped.is_empty() || symbol_in_modules(unit, &shipped);
+    // Defined here: shipped, or a private copy (`Program::private_modules`).
+    let private = |unit: &str| symbol_in_modules(unit, &private_modules);
     let (mut modes, prims) = match boundary {
-        Some(b) => borrow_modes(&program, &ctors, b),
+        Some(b) => borrow_modes(&program, &ctors, b, |unit| ships(unit) || private(unit)),
         None => Default::default(),
     };
     // An open program runs a lending unit's body in a word-typed worker
@@ -202,10 +197,9 @@ fn insert_with(
         // A private copy is called only from this artifact (and through its
         // own apply stub), so it takes the lent convention at its symbol,
         // as a closed program's units do.
-        let private = |unit: &str| in_modules(&program.private_modules, unit);
         for (unit, _) in modes.iter().filter(|(k, _)| !prims.contains(*k) && !private(k)) {
             let entry = match b.imported.get(unit) {
-                Some((_, width)) if !b.ships(unit) => crate::core::LentEntry::Imported { width: *width },
+                Some((_, width)) if !ships(unit) => crate::core::LentEntry::Imported { width: *width },
                 _ => crate::core::LentEntry::Local,
             };
             program.lent_entries.insert(unit.clone(), entry);
@@ -318,7 +312,14 @@ impl BorrowReport {
         }
     }
 
-    fn emit(&self, program: &Program, modes: &Modes, excluded: &std::collections::HashSet<String>, boundary: &Boundary<'_>) {
+    fn emit(
+        &self,
+        program: &Program,
+        modes: &Modes,
+        excluded: &HashSet<String>,
+        closed: bool,
+        defines: impl Fn(&str) -> bool,
+    ) {
         let Some(reasons) = &self.reasons else {
             self.emit_work();
             return;
@@ -330,7 +331,7 @@ impl BorrowReport {
             }
             for (i, class) in param_classes(f).into_iter().enumerate().filter(|(_, c)| counted(*c)) {
                 let lent = modes.get(&f.id.0).is_some_and(|m| m[i]);
-                let reason = if !boundary.closed && (f.repr.result == Some(Class::Wide) || f.repr.params.contains(&Class::Wide)) {
+                let reason = if !closed && (f.repr.result == Some(Class::Wide) || f.repr.params.contains(&Class::Wide)) {
                     "wide-boundary"
                 } else if lent {
                     "lent"
@@ -338,7 +339,7 @@ impl BorrowReport {
                     "entry"
                 } else if excluded.contains(&f.id.0) {
                     "owned-boundary"
-                } else if !boundary.ships(&f.id.0) && !in_modules(&program.private_modules, &f.id.0) {
+                } else if !defines(&f.id.0) {
                     "imported-owned"
                 } else {
                     reasons.get(&(f.id.0.clone(), i)).copied().unwrap_or("owned")
@@ -425,7 +426,12 @@ fn reuse_scrutinees<const MEASURE: bool>(body: &Core, ctors: &Ctors, out: &mut S
     }
 }
 
-fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (Modes, std::collections::HashSet<String>) {
+fn borrow_modes(
+    program: &Program,
+    ctors: &Ctors,
+    boundary: &Boundary<'_>,
+    defines: impl Fn(&str) -> bool,
+) -> (Modes, HashSet<String>) {
     let mut report = BorrowReport {
         reasons: std::env::var_os("CINCH_BORROW_REPORT").map(|_| HashMap::new()),
         owned_details: std::env::var_os("CINCH_BORROW_REPORT").map(|_| HashMap::new()),
@@ -433,8 +439,6 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
             || std::env::var_os("CINCH_BORROW_WORK").is_some(),
         ..BorrowReport::default()
     };
-    // Defined here: shipped, or a private copy (`Program::private_modules`).
-    let defines = |unit: &str| boundary.ships(unit) || in_modules(&program.private_modules, unit);
     let mut excluded: std::collections::HashSet<String> = std::collections::HashSet::new();
     // A unit another object defines is not inferred here: its modes are
     // what that object published, or none (owned).
@@ -586,7 +590,7 @@ fn borrow_modes(program: &Program, ctors: &Ctors, boundary: &Boundary<'_>) -> (M
     }
     modes.retain(|_, m| m.iter().any(|b| *b));
     prims.retain(|p| modes.contains_key(p));
-    report.emit(program, &modes, &excluded, boundary);
+    report.emit(program, &modes, &excluded, boundary.closed, defines);
     (modes, prims)
 }
 

@@ -6045,7 +6045,7 @@ pub fn driver_with_profile_opts(
         // reachable, so another target's backend keeps none: its symbols
         // do not exist on this target, and nothing here can call them.
         if !unselected.is_empty() {
-            let owned_by_unselected = |unit: &str| unselected.iter().any(|m| unit.starts_with(&format!("{m}.")));
+            let owned_by_unselected = |unit: &str| crate::core::symbol_has_module_prefix(unit, &unselected);
             program.foreigns.retain(|unit, _| !owned_by_unselected(unit));
             program.fns.retain(|f| !owned_by_unselected(&f.id.0));
         }

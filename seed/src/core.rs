@@ -33,8 +33,10 @@
 pub use crate::repr::Class;
 use crate::types::{Scalar, Ty};
 use crate::{Error, Result};
-use std::collections::HashMap;
+use std::borrow::Borrow;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::hash::Hash;
 
 /// A resolved code generation unit name, e.g. `"Prelude.natAdd"`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -44,6 +46,22 @@ impl fmt::Display for GlobalId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
+}
+
+/// Match a proper module prefix of a symbol at a dot boundary.
+pub(crate) fn symbol_has_module_prefix<S: Borrow<str> + Eq + Hash>(
+    symbol: &str,
+    modules: &HashSet<S>,
+) -> bool {
+    !modules.is_empty() && symbol.match_indices('.').any(|(i, _)| modules.contains(&symbol[..i]))
+}
+
+/// The symbol can also name the module itself (for example an entry unit).
+pub(crate) fn symbol_in_modules<S: Borrow<str> + Eq + Hash>(
+    symbol: &str,
+    modules: &HashSet<S>,
+) -> bool {
+    modules.contains(symbol) || symbol_has_module_prefix(symbol, modules)
 }
 
 /// A local binder identity, unique within a function body.
@@ -9049,6 +9067,19 @@ mod word_folding_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn symbol_ownership_matches_at_module_boundaries() {
+        let modules = HashSet::from(["Data", "Other.Nested", "Unicode.λ"]);
+        for name in ["Data.f", "Data.Sub.f", "Other.Nested.f", "Unicode.λ.f"] {
+            assert!(symbol_has_module_prefix(name, &modules));
+        }
+        for name in ["Database.f", "Other.Nestedness.f", "Unicode.λλ.f", "Other"] {
+            assert!(!symbol_in_modules(name, &modules));
+        }
+        assert!(symbol_in_modules("Other.Nested", &modules));
+        assert!(!symbol_has_module_prefix("Other.Nested", &modules));
+    }
 
     #[test]
     fn optimizer_measure_bounds_transitive_unfolding() {

@@ -85,7 +85,7 @@ use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
     CmpOp, ConcOp, ConvMode, Core, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
     FloatUnOp, FnDef, ForeignPlan, JoinId, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimOp, PrimPlan, ProcOp,
-    Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op,
+    Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op, symbol_in_modules,
 };
 use crate::types::Scalar;
 use crate::Result;
@@ -283,11 +283,8 @@ fn target_datalayout(profile: &crate::core::TargetProfile) -> Option<&'static st
     })
 }
 
-fn emitted_symbol(symbol: &str, modules: &[String]) -> bool {
-    modules.is_empty()
-        || modules
-            .iter()
-            .any(|module| symbol == module || symbol.starts_with(&format!("{module}.")))
+fn emitted_symbol(symbol: &str, modules: &HashSet<String>) -> bool {
+    modules.is_empty() || symbol_in_modules(symbol, modules)
 }
 
 fn emit_module(
@@ -310,13 +307,14 @@ fn emit_module(
     // linkage, and stay out of the ABI. From here on `emit_modules` is the
     // set the module defines, and `shipped` the set it exports.
     let shipped = emit_modules;
-    let defined: Vec<String> = if emit_modules.is_empty() {
-        Vec::new()
-    } else {
-        emit_modules.iter().chain(&program.private_modules).cloned().collect()
-    };
-    let emit_modules: &[String] = &defined;
-    let private = |name: &str| !program.private_modules.is_empty() && emitted_symbol(name, &program.private_modules);
+    let shipped_modules: HashSet<_> = shipped.iter().cloned().collect();
+    let mut defined = shipped_modules.clone();
+    if !defined.is_empty() {
+        defined.extend(program.private_modules.iter().cloned());
+    }
+    let emit_modules = &defined;
+    let private_modules: HashSet<&str> = program.private_modules.iter().map(String::as_str).collect();
+    let private = |name: &str| symbol_in_modules(name, &private_modules);
     let cx = LowerCx {
         usize_bits: profile.word_size,
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
@@ -385,7 +383,7 @@ fn emit_module(
     reg.rc_debug = profile.rc_debug;
     reg.convention = crate::cabi::Convention::of(profile);
     reg.reclaim = profile.reclaim;
-    reg.emit_modules = emit_modules.to_vec();
+    reg.emit_modules = emit_modules.clone();
     // An object, or a module emitted without its neighbours, may not define
     // the constructor unit whose block a use would name: such a module keeps
     // the call. A whole-program module emits every constructor unit, so a use
@@ -975,7 +973,7 @@ fn emit_module(
     } else if !program.private_modules.is_empty() {
         let own: Vec<String> = units
             .iter()
-            .filter(|u| emitted_symbol(&u.name, shipped) && !private(&u.name))
+            .filter(|u| emitted_symbol(&u.name, &shipped_modules) && !private(&u.name))
             .map(|u| u.name.clone())
             .collect();
         Some(reachable_units(&units, &reg, program, main_exit.map(|e| e.0.clone()), &own))
@@ -1110,15 +1108,15 @@ fn emit_module(
     // Function attribute groups and metadata nodes (the branch weights
     // of attribute annotations specification section 3.1).
     out.push_str(&reg.finish_meta());
+    // Use the same deduplicated IR to compute the ABI identity and to write
+    // the object, so the recorded hash describes the bytes actually emitted.
+    let ir = dedupe_static_blocks(&out);
     let abi = if object {
-        // The recorded identity is the identity of what is written, so the
-        // dedupe happens before it: a hash over the pre-dedupe text would
-        // disagree with the file on disk.
-        reg.object_abi(program, profile, &dedupe_static_blocks(&out), shipped)?
+        reg.object_abi(program, profile, &ir, shipped, &shipped_modules)?
     } else {
         String::new()
     };
-    Ok(EmittedObject { ir: dedupe_static_blocks(&out), abi })
+    Ok(EmittedObject { ir, abi })
 }
 
 fn err<T>(msg: impl Into<String>) -> Result<T> {
@@ -1295,7 +1293,7 @@ struct Registry {
     reclaim: bool,
     /// The modules this module defines (empty: every module), as
     /// [`emitted_symbol`] reads them.
-    emit_modules: Vec<String>,
+    emit_modules: HashSet<String>,
     /// The primitive units' borrowed parameters ([`Program::lent`]): their
     /// wrappers leave them to the caller.
     lent: std::collections::BTreeMap<String, Vec<bool>>,
@@ -1362,7 +1360,8 @@ impl Registry {
         p: &Program,
         profile: &crate::core::TargetProfile,
         ir: &str,
-        emit_modules: &[String],
+        shipped: &[String],
+        modules: &HashSet<String>,
     ) -> Result<String> {
         use crate::interface::JsonValue as J;
         fn class(c: Class) -> Result<J> {
@@ -1421,7 +1420,7 @@ impl Registry {
             .arity
             .keys()
             .filter(|name| {
-                emitted_symbol(name, emit_modules) || primitives.contains_key(name.as_str())
+                emitted_symbol(name, modules) || primitives.contains_key(name.as_str())
             })
             .collect();
         names.sort();
@@ -1487,7 +1486,7 @@ impl Registry {
         let mut imported: Vec<&String> = self
             .owned_entry
             .iter()
-            .filter(|name| !emitted_symbol(name, emit_modules))
+            .filter(|name| !emitted_symbol(name, modules))
             .collect();
         imported.sort();
         for name in imported {
@@ -1501,7 +1500,7 @@ impl Registry {
         }
         let mut ctors = BTreeMap::new();
         for (name, (tag, fields)) in &self.ctors {
-            if !emitted_symbol(name, emit_modules) {
+            if !emitted_symbol(name, modules) {
                 continue;
             }
             ctors.insert(
@@ -1516,7 +1515,7 @@ impl Registry {
         }
         let mut dictionaries = BTreeMap::new();
         for inst in &p.instances {
-            if !emitted_symbol(&inst.id.0, emit_modules) {
+            if !emitted_symbol(&inst.id.0, modules) {
                 continue;
             }
             let info = &self.insts[&inst.id.0];
@@ -1551,7 +1550,7 @@ impl Registry {
             ("ir_content_hash", crate::interface::content_hash(ir).into()),
             (
                 "modules",
-                J::Arr(emit_modules.iter().map(|m| J::from(m.as_str())).collect()),
+                J::Arr(shipped.iter().map(|m| J::from(m.as_str())).collect()),
             ),
             ("units", J::Arr(units)),
             ("lent_imports", J::Arr(lent_imports)),
