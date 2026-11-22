@@ -3146,6 +3146,8 @@ struct Checker {
     /// Top-level equations in declaration order, with positions stable across macro expansion.
     top_eqs: Vec<(String, String, ast::Equation)>,
     top_eqs_by_module: HashMap<String, ModuleEquations>,
+    /// Built only if index reduction needs the source equations for a symbol.
+    top_eqs_by_symbol: std::cell::OnceCell<HashMap<String, Vec<usize>>>,
     top_recursion_groups: RefCell<HashMap<String, RecursionGroups>>,
     /// Finished instance dictionaries.
     instance_defs: Vec<InstanceDef>,
@@ -3961,6 +3963,7 @@ impl Checker {
             syntax_context_values: HashMap::new(),
             top_eqs: Vec::new(),
             top_eqs_by_module: HashMap::new(),
+            top_eqs_by_symbol: std::cell::OnceCell::new(),
             top_recursion_groups: RefCell::new(HashMap::new()),
             instance_defs: Vec::new(),
             instance_defs_pending: HashMap::new(),

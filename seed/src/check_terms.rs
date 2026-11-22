@@ -5553,10 +5553,15 @@ impl Checker {
             return None;
         }
         if let Some(index) = self.reduce_checked_numeric_helper(gid, args, fuel) { return Some(index); }
-        for (m, n, eq) in &self.top_eqs {
-            if fn_id(m, n).0 != gid {
-                continue;
+        let by_symbol = self.top_eqs_by_symbol.get_or_init(|| {
+            let mut index: HashMap<_, Vec<_>> = HashMap::new();
+            for (position, (module, name, _)) in self.top_eqs.iter().enumerate() {
+                index.entry(fn_id(module, name).0).or_default().push(position);
             }
+            index
+        });
+        for &position in by_symbol.get(gid).into_iter().flatten() {
+            let eq = &self.top_eqs[position].2;
             let mut bind = HashMap::new();
             if !self.match_idx_pats(&eq.pats, args, &mut bind) {
                 continue;

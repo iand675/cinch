@@ -5366,7 +5366,11 @@ impl Checker {
             self.top_recursion_groups.get_mut().remove(&module);
             let equations = self.top_eqs_by_module.entry(module.clone()).or_default();
             for (name, eq) in eqs {
-                equations.push(&name, self.top_eqs.len());
+                let position = self.top_eqs.len();
+                equations.push(&name, position);
+                if let Some(index) = self.top_eqs_by_symbol.get_mut() {
+                    index.entry(fn_id(&module, &name).0).or_default().push(position);
+                }
                 self.top_eqs.push((module.clone(), name, eq));
             }
         }
