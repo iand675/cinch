@@ -100,9 +100,10 @@ Rust package-object admission checks sorts, lexical slots and call edges
 directly in the packed records. It walks closures by definition ID and hashes
 the same canonical contract without allocating expression trees. An explicit
 request for an owned definition materializes that closure on demand. Native
-Cinch checks the node sorts, lexical scope, and call graph against the
-packed tables while building one shared tree per definition for the
-JSON-based contract consumers. Its total-body queries use checked node
+Cinch validates the node sorts, lexical scope, and call graph before
+allocating expression trees. It builds a shared compatibility tree only
+for a definition selected by a contract's body reference. Its total-body
+queries use checked node
 IDs and operand spans against the retained package bytes when the
 definition matches the admitted row. This includes the refinement checker
 and the LLVM inliner for imported primitive bodies. Graphs that match the

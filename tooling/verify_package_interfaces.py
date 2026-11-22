@@ -161,6 +161,13 @@ module Main where
     invoke(command, work, status=7, leak=True)
     assert "malformed interface contract envelope" in output.with_suffix(".diagnostics").read_text()
 
+    # At this point no document selects the wrapper's root. Its nodes
+    # must still be validated, even though no JSON projection needs them.
+    struct.pack_into("<I", corrupt, call, 0xffffffff)
+    publish(package, corrupt)
+    invoke(command, work, status=7, leak=True)
+    assert "invalid packed body node" in output.with_suffix(".diagnostics").read_text()
+
     for updates, refusal in (
         ([(arg + 4, 0xffffffff)], "packed body local slot outside its scope"),
         ([(call + 12, 0)], "packed body argument arity mismatch"),
