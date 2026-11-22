@@ -19808,7 +19808,7 @@ impl Checker {
         // resolved only when a duplicate turns up, because resolving it
         // for every imported name costs a scan of the instance tables and
         // the bootstrap program has thousands of them.
-        let mut seen: Vec<(String, String, Option<crate::check::SurfaceName>)> = Vec::new();
+        let mut seen = HashMap::<String, String>::new();
         for v in self.module_views.get(module).cloned().unwrap_or_default() {
             if v.applied {
                 continue;
@@ -19840,14 +19840,16 @@ impl Checker {
             }
             let names: Vec<String> = match &v.members {
                 Some(ms) => ms.iter().map(|(l, _)| l.clone()).collect(),
-                None => self
-                    .module_surface
-                    .get(&v.target)
-                    .map(|s| s.keys().cloned().collect())
-                    .unwrap_or_else(|| self.declared_names(&v.target))
-                    .into_iter()
-                    .filter(|n| !v.hides(n))
-                    .collect(),
+                None => {
+                    let hidden: HashSet<_> = v.hidden.iter().map(String::as_str).collect();
+                    self.module_surface
+                        .get(&v.target)
+                        .map(|s| s.keys().cloned().collect())
+                        .unwrap_or_else(|| self.declared_names(&v.target))
+                        .into_iter()
+                        .filter(|n| !hidden.contains(n.as_str()))
+                        .collect()
+                }
             };
             for n in names {
                 let origin = || {
@@ -19861,20 +19863,16 @@ impl Checker {
                         }
                     })
                 };
-                if let Some((_, prev_target, prev_origin)) =
-                    seen.iter().find(|(l, _, _)| *l == n).cloned()
-                {
+                if let Some(prev_target) = seen.get(&n) {
                     let origin = origin();
                     // The previous side is resolved now too: its path and
                     // its declaring module differ only for a re-export,
                     // and the message prints both only when they do.
-                    let prev_origin = prev_origin.unwrap_or_else(|| {
-                        self.surface_def(&prev_target, &n).unwrap_or_else(|| {
-                            crate::check::SurfaceName {
-                                module: prev_target.clone(),
-                                name: n.clone(),
-                            }
-                        })
+                    let prev_origin = self.surface_def(prev_target, &n).unwrap_or_else(|| {
+                        crate::check::SurfaceName {
+                            module: prev_target.clone(),
+                            name: n.clone(),
+                        }
                     });
                     let same_declaration = prev_origin == origin;
                     if !same_declaration {
@@ -19894,7 +19892,7 @@ impl Checker {
                             "the name `{n}` is imported from both {} and {}: \
                              rename one (a selection like `import {} ({n} as ...)`) \
                              or leave one out (`import {} hiding ({n})`)",
-                            side(&prev_target, &prev_origin),
+                            side(prev_target, &prev_origin),
                             side(&v.target, &origin),
                             v.target,
                             v.target
@@ -19904,7 +19902,7 @@ impl Checker {
                     // ambiguity (design/base-as-a-package.md section 3).
                     continue;
                 }
-                seen.push((n, v.target.clone(), None));
+                seen.insert(n, v.target.clone());
             }
         }
         // The export surface (empty items: the declared names, as before).
@@ -19976,27 +19974,28 @@ impl Checker {
                                 // `export module X` re-exports what the
                                 // import brought in, so what it hid stays
                                 // out of the surface too.
-                                None => match self.module_surface.get(&v.target) {
-                                    Some(sm) => {
-                                        for (l, d) in sm {
-                                            if !v.hides(l) {
-                                                out.push((l.clone(), d.clone()));
+                                None => {
+                                    let hidden: HashSet<_> = v.hidden.iter().map(String::as_str).collect();
+                                    match self.module_surface.get(&v.target) {
+                                        Some(sm) => {
+                                            for (l, d) in sm {
+                                                if !hidden.contains(l.as_str()) {
+                                                    out.push((l.clone(), d.clone()));
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            for n in self.declared_names(&v.target) {
+                                                if hidden.contains(n.as_str()) {
+                                                    continue;
+                                                }
+                                                if let Some(d) = self.surface_def(&v.target, &n) {
+                                                    out.push((n, d));
+                                                }
                                             }
                                         }
                                     }
-                                    None => {
-                                        for n in self.declared_names(&v.target) {
-                                            if v.hides(&n) {
-                                                continue;
-                                            }
-                                            if let Some(d) =
-                                                self.surface_def(&v.target, &n)
-                                            {
-                                                out.push((n, d));
-                                            }
-                                        }
-                                    }
-                                },
+                                }
                             }
                             out
                         }
@@ -20029,32 +20028,33 @@ impl Checker {
     /// The names a module declares (its default export surface).
     fn declared_names(&self, module: &str) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
+        let mut seen = HashSet::new();
         for (n, vs) in &self.values {
-            if vs.iter().any(|v| v.module == module) && !out.contains(n) {
+            if vs.iter().any(|v| v.module == module) && seen.insert(n.as_str()) {
                 out.push(n.clone());
             }
         }
         for (n, ts) in &self.types {
-            if ts.iter().any(|t| t.module == module) && !out.contains(n) {
+            if ts.iter().any(|t| t.module == module) && seen.insert(n.as_str()) {
                 out.push(n.clone());
             }
         }
         for (n, ss) in &self.sigs {
-            if ss.iter().any(|s| s.module == module) && !out.contains(n) {
+            if ss.iter().any(|s| s.module == module) && seen.insert(n.as_str()) {
                 out.push(n.clone());
             }
         }
         for (home, name) in self.effect_bindings.keys() {
-            if home == module && !out.contains(name) { out.push(name.clone()); }
+            if home == module && seen.insert(name.as_str()) { out.push(name.clone()); }
         }
         for (home, name) in self.deferred_headers.keys() {
-            if home == module && !out.contains(name) { out.push(name.clone()); }
+            if home == module && seen.insert(name.as_str()) { out.push(name.clone()); }
         }
         for (home, instance) in &self.instance_defs_pending {
-            if home == module && !out.contains(&instance.name.text) { out.push(instance.name.text.clone()); }
+            if home == module && seen.insert(instance.name.text.as_str()) { out.push(instance.name.text.clone()); }
         }
         for instance in &self.instance_list {
-            if instance.module == module && !out.contains(&instance.name) { out.push(instance.name.clone()); }
+            if instance.module == module && seen.insert(instance.name.as_str()) { out.push(instance.name.clone()); }
         }
         out
     }
