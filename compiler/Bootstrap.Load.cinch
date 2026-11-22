@@ -195,16 +195,16 @@ module Bootstrap.Load where
   -- source replacements. Reuse the proof only for that exact sequence.
   load-body-interfaces-with-admission :: ValidatedInterfaces -> List (String, String, Json) -> Result String InterfaceSet
   load-body-interfaces-with-admission checked inputs = case checked of
-    MkValidatedInterfaces members closures ordered ->
+    MkValidatedInterfaces members indexed closures ordered ->
       if ordered && admitted-body-documents members inputs then Ok (checked-interface-set members)
-      else load-body-interfaces-with-known members inputs
+      else load-body-interfaces-using (read-known-document indexed) inputs
 
   -- A resident compiler keeps the checked body index and the fallback
   -- module table together. The direct result is for a resolver that kept
   -- the original list of admitted documents in order.
   prepare-body-interface-load :: ValidatedInterfaces -> (Option InterfaceSet, List (String, String, Json) -> (Result String InterfaceSet, Bool))
-  prepare-body-interface-load (MkValidatedInterfaces members closures ordered) =
-    let known = read-known-document (interface-table (reverse members) hash-map-empty) in
+  prepare-body-interface-load (MkValidatedInterfaces members indexed closures ordered) =
+    let known = read-known-document indexed in
     let fallback = \inputs -> (load-body-interfaces-using known inputs, False) in
     if not ordered || not (verified-body-documents members) then (None, fallback) else
       let prepared = checked-interface-set members in
@@ -617,14 +617,12 @@ module Bootstrap.Load where
   same-nominal-contract :: Json -> Json -> Bool
   same-nominal-contract a b =
     if has-field "usage" a && has-field "usage" b then same-contract a b
-    else same-contract (nominal-defining-fields a) (nominal-defining-fields b)
-  nominal-defining-fields :: Json -> Json
-  nominal-defining-fields row = JObj "identity" (field "identity" row)
-    (JObj "kind" (field "kind" row)
-      (JObj "params" (field "params" row)
-        (JObj "parameters" (field "parameters" row)
-          (JObj "constructors" (field "constructors" row)
-            (JObj "refinement" (field "refinement" row) JObjEnd)))))
+    else same-contract (field "identity" a) (field "identity" b)
+      && same-contract (field "kind" a) (field "kind" b)
+      && same-contract (field "params" a) (field "params" b)
+      && same-contract (field "parameters" a) (field "parameters" b)
+      && same-contract (field "constructors" a) (field "constructors" b)
+      && same-contract (field "refinement" a) (field "refinement" b)
   -- Reusing a parsed row requires its exact tree, including field order.
   -- A less common numeric form can always go through the normal loader.
   compare-documents :: Bool -> Json -> Json -> Bool
@@ -985,15 +983,29 @@ module Bootstrap.Load where
       (export-entries rows exports) rows private prepared)
 
   read-interface-inputs :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> Result String (List LoadedInterface)
-  read-interface-inputs load inputs = read-interface-rows load inputs hash-map-empty Nil
-  read-interface-rows :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> HashMap String () -> List LoadedInterface -> Result String (List LoadedInterface)
-  read-interface-rows load inputs seen loaded = case inputs of
-    Nil -> Ok (reverse loaded)
+  read-interface-inputs load inputs = case read-interface-rows load inputs hash-map-empty Nil False of
+    Err message -> Err message
+    Ok (loaded, indexed, ordered) -> Ok loaded
+  read-interface-rows :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> HashMap String LoadedInterface -> List LoadedInterface -> Bool -> Result String (List LoadedInterface, HashMap String LoadedInterface, Bool)
+  read-interface-rows load inputs seen loaded ordered = case inputs of
+    Nil -> Ok (reverse loaded, seen, ordered)
     Cons (name, hash, payload) rest -> case hash-map-lookup name seen of
       Some previous -> Err (string-concat "duplicate interface module: " name)
       None -> case load name hash payload of
         Err message -> Err (string-concat-all [name, ": ", message])
-        Ok i -> read-interface-rows load rest (hash-map-insert name () seen) (Cons i loaded)
+        Ok i -> let follows-dependencies = ordered && preceding-interface-refs (loaded-imports i) seen in
+          read-interface-rows load rest (hash-map-insert name i seen) (Cons i loaded) follows-dependencies
+
+  -- The writer normally emits dependency-first order. Each matching
+  -- reference to a preceding row proves both freshness and acyclicity.
+  -- Any other order or reference goes through full validation for its
+  -- original dependency and cycle diagnostics.
+  preceding-interface-refs :: List (String, String) -> HashMap String LoadedInterface -> Bool
+  preceding-interface-refs refs seen = case refs of
+    Nil -> True
+    Cons (name, hash) rest -> (case hash-map-lookup name seen of
+      Some member -> same hash (loaded-hash member) && preceding-interface-refs rest seen
+      None -> False)
 
   -- A declared hash from a synthetic contract is insufficient. Only the
   -- byte/document loaders mark a hash verified, and a changed tree is checked
@@ -1183,13 +1195,17 @@ module Bootstrap.Load where
 
   -- Only a successful set check can supply this handle to the object loader.
   data ValidatedInterfaces where
-    MkValidatedInterfaces :: List LoadedInterface -> HashMap String ModuleClosure -> Bool -> ValidatedInterfaces
+    MkValidatedInterfaces :: List LoadedInterface -> HashMap String LoadedInterface -> HashMap String ModuleClosure -> Bool -> ValidatedInterfaces
   validated-interfaces-members :: ValidatedInterfaces -> List LoadedInterface
-  validated-interfaces-members checked = case checked of MkValidatedInterfaces members closures ordered -> members
+  validated-interfaces-members checked = case checked of MkValidatedInterfaces members indexed closures ordered -> members
   load-validated-interfaces :: List (String, String, Bytes) -> Result String ValidatedInterfaces
-  load-validated-interfaces inputs = case read-interface-inputs load-interface inputs of
+  load-validated-interfaces inputs = read-validated-interfaces-using load-interface inputs
+  read-validated-interfaces-using :: forall a. (String -> String -> a -> Result String LoadedInterface) -> List (String, String, a) -> Result String ValidatedInterfaces
+  read-validated-interfaces-using load inputs = case read-interface-rows load inputs hash-map-empty Nil True of
     Err message -> Err message
-    Ok loaded -> validate-interfaces loaded
+    Ok (loaded, indexed, ordered) ->
+      let ix = MkInterfaceIndex loaded indexed (law-exporters loaded) in
+      if ordered then validate-ordered-interfaces loaded loaded ix True else validate-indexed-interfaces loaded ix
   load-packed-contract :: String -> String -> (Json, String, Option PackedBodyTable) -> Result String LoadedInterface
   load-packed-contract expected-name expected-hash (doc, digest, bodies) = case check-contract-envelope bodies expected-name doc of
     Err message -> Err message
@@ -1198,9 +1214,7 @@ module Bootstrap.Load where
       else accepted-interface-with-bodies True expected-name digest doc (string-to-bytes "") bodies
 
   load-validated-package-contracts :: List PackageContract -> Result String ValidatedInterfaces
-  load-validated-package-contracts inputs = case read-interface-inputs load-packed-contract (map package-contract inputs) of
-    Err message -> Err message
-    Ok loaded -> validate-interfaces loaded
+  load-validated-package-contracts inputs = read-validated-interfaces-using load-packed-contract (map package-contract inputs)
 
   -- A digest can locate a candidate, but only equality of the whole
   -- admitted source establishes the end of an embedded contract.
@@ -1235,8 +1249,7 @@ module Bootstrap.Load where
   -- Validate the represented closure before classifying those client rows.
   load-referenced-object-interfaces :: ValidatedInterfaces -> List (String, String, Option Json) -> Option (List LoadedInterface)
   load-referenced-object-interfaces checked inputs = case checked of
-    MkValidatedInterfaces members closures ordered ->
-      let indexed = interface-table members hash-map-empty in
+    MkValidatedInterfaces members indexed closures ordered ->
       case match-object-contracts public-reference private-reference inputs indexed hash-map-empty True of
         None -> None
         Some matched -> case validate-interface-set matched of
@@ -1252,8 +1265,7 @@ module Bootstrap.Load where
   validated-object-contracts-match :: forall a. (LoadedInterface -> a -> Bool) ->
     (String -> String -> a -> Result String LoadedInterface) -> ValidatedInterfaces -> List (String, String, a) -> Bool
   validated-object-contracts-match agrees load checked inputs = case checked of
-    MkValidatedInterfaces members closures ordered ->
-      let by-name = interface-table members hash-map-empty in
+    MkValidatedInterfaces members by-name closures ordered ->
       let count = list-length members in
       let input-count = list-length inputs in
       let extra = input-count == count + 1 in
@@ -1549,32 +1561,44 @@ module Bootstrap.Load where
     Nil -> True
     Cons first rest -> signature-laws-valid (field "signatures" (field "exports" (loaded-contract first))) ix closures
       && interface-laws-valid rest ix closures
-  signature-owner-valid :: String -> String -> Json -> InterfaceIndex -> Bool
-  signature-owner-valid home owner-name row ix =
-    let identity = text (field "identity" row) in
-    case interface-by-name ix owner-name of
-      None -> False
-      Some owner -> case loaded-entry owner "signature" identity of
-        None -> not (same (text (field "kind" row)) "signature")
-        Some definition -> same (text (field "kind" row)) "signature"
-          && (same owner-name home
-            || same-contract (field "parameters" row) (field "parameters" definition))
+  data NominalOwner where
+    MissingNominalOwner :: NominalOwner
+    OrdinaryNominalOwner :: NominalOwner
+    SignatureNominalOwner :: Json -> NominalOwner
+  find-nominal-owner :: InterfaceIndex -> String -> String -> NominalOwner
+  find-nominal-owner ix owner-name identity = case interface-by-name ix owner-name of
+    None -> MissingNominalOwner
+    Some owner -> (case loaded-entry owner "signature" identity of
+      None -> OrdinaryNominalOwner
+      Some definition -> SignatureNominalOwner (field "parameters" definition))
+  signature-owner-valid :: String -> String -> Json -> NominalOwner -> Bool
+  signature-owner-valid home owner-name row authority = case authority of
+    MissingNominalOwner -> False
+    OrdinaryNominalOwner -> not (same (text (field "kind" row)) "signature")
+    SignatureNominalOwner parameters -> same (text (field "kind" row)) "signature"
+      && (same owner-name home || same-contract (field "parameters" row) parameters)
+  data NominalAdmission where
+    NominalAdmission :: String -> Json -> NominalOwner -> NominalAdmission
   -- Keep the parsed defining contract by identity so repeated mentions
-  -- can be compared without allocating an encoded copy of each row.
-  verify-nominal-rows :: String -> List Json -> ModuleClosure -> InterfaceIndex -> HashMap String (String, Json) -> Result String (HashMap String (String, Json))
+  -- can use the same owner lookup. Each importing module still checks
+  -- reachability and each row still checks its nominal and signature facts.
+  verify-nominal-rows :: String -> List Json -> ModuleClosure -> InterfaceIndex -> HashMap String NominalAdmission -> Result String (HashMap String NominalAdmission)
   verify-nominal-rows home rows reachable ix seen = case rows of
     Nil -> Ok seen
     Cons row rest ->
       let identity = text (field "identity" row) in
       let previous = hash-map-lookup identity seen in
-      let owner-name = (case previous of Some (owner, prior) -> owner; None -> nominal-owner identity) in
+      let owner-name = (case previous of Some (NominalAdmission owner prior authority) -> owner; None -> nominal-owner identity) in
+      let authority = (case previous of
+        Some (NominalAdmission owner prior checked) -> checked
+        None -> find-nominal-owner ix owner-name identity) in
       if not (name-in owner-name reachable) then Err (string-concat "nominal identity is outside the checked dependency closure: " identity)
-      else if not (signature-owner-valid home owner-name row ix) then Err (string-concat "signature identity has no matching defining contract: " identity)
+      else if not (signature-owner-valid home owner-name row authority) then Err (string-concat "signature identity has no matching defining contract: " identity)
       else case previous of
-        None -> verify-nominal-rows home rest reachable ix (hash-map-insert identity (owner-name, row) seen)
-        Some (owner, prior) -> if same-nominal-contract prior row then verify-nominal-rows home rest reachable ix seen
+        None -> verify-nominal-rows home rest reachable ix (hash-map-insert identity (NominalAdmission owner-name row authority) seen)
+        Some (NominalAdmission owner prior checked) -> if same-nominal-contract prior row then verify-nominal-rows home rest reachable ix seen
           else Err (string-concat "conflicting defining nominal contracts: " identity)
-  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String (String, Json) -> Result String Unit
+  verify-nominal-set :: List LoadedInterface -> InterfaceIndex -> HashMap String ModuleClosure -> HashMap String NominalAdmission -> Result String Unit
   verify-nominal-set remaining ix closures seen = case remaining of
     Nil -> Ok ()
     Cons i rest -> let home = loaded-module i in
@@ -1754,15 +1778,19 @@ module Bootstrap.Load where
 
   validate-indexed-interfaces :: List LoadedInterface -> InterfaceIndex -> Result String ValidatedInterfaces
   validate-indexed-interfaces loaded ix = case order-interfaces loaded ix of
-      Err message -> case verify-set loaded ix of
-        Err dependency -> if missing-dependency loaded ix then Err dependency else Err message
-        Ok unit -> Err message
-      Ok ordered -> case verify-set loaded ix of
+    Err message -> case verify-set loaded ix of
+      Err dependency -> if missing-dependency loaded ix then Err dependency else Err message
+      Ok unit -> Err message
+    Ok ordered -> case verify-set loaded ix of
+      Err message -> Err message
+      Ok unit -> validate-ordered-interfaces loaded ordered ix (same-interface-order loaded ordered)
+
+  validate-ordered-interfaces :: List LoadedInterface -> List LoadedInterface -> InterfaceIndex -> Bool -> Result String ValidatedInterfaces
+  validate-ordered-interfaces loaded ordered ix unchanged = case ix of
+    MkInterfaceIndex entries by-name globals -> let closures = index-closures ordered ix hash-map-empty in
+      case verify-interface-contracts loaded ix closures of
         Err message -> Err message
-        Ok unit -> let closures = index-closures ordered ix hash-map-empty in
-          case verify-interface-contracts loaded ix closures of
-            Err message -> Err message
-            Ok unit -> Ok (MkValidatedInterfaces ordered closures (same-interface-order loaded ordered))
+        Ok unit -> Ok (MkValidatedInterfaces ordered by-name closures unchanged)
 
   same-interface-order :: List LoadedInterface -> List LoadedInterface -> Bool
   same-interface-order before after = case (before, after) of
@@ -1780,10 +1808,10 @@ module Bootstrap.Load where
   -- in its new order before resolution or inference can reuse the evidence.
   canonical-interface-validation :: ValidatedInterfaces -> Result String ValidatedInterfaces
   canonical-interface-validation checked = case checked of
-    MkValidatedInterfaces members closures ordered ->
-      if ordered then Ok checked else case verify-interface-contracts members (index-interfaces members) closures of
+    MkValidatedInterfaces members by-name closures ordered ->
+      if ordered then Ok checked else case verify-interface-contracts members (MkInterfaceIndex members by-name (law-exporters members)) closures of
         Err message -> Err message
-        Ok unit -> Ok (MkValidatedInterfaces members closures True)
+        Ok unit -> Ok (MkValidatedInterfaces members by-name closures True)
 
   unique-interface-table :: List LoadedInterface -> HashMap String LoadedInterface -> Option (HashMap String LoadedInterface)
   unique-interface-table loaded seen = case loaded of
