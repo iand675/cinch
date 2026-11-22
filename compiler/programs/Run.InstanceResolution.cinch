@@ -121,6 +121,15 @@ module Main where
       [first, second, third, fourth] -> string-compare first (prefix <> "first and second") == 0
         && string-compare second duplicate == 0 && string-compare third duplicate == 0 && string-compare fourth duplicate == 0
       other -> False
+  coherence-carrier-buckets :: Store -> Bool
+  coherence-carrier-buckets start =
+    let concrete = ("concrete", mono (eq nat)) in
+    let distinct = ("distinct", mono (eq integer)) in
+    let generic = ("generic", qualified [MkQuant 0 "a" KType False] Nil (eq (UBound 0 "a" KType))) in
+    clean (check-instance-coherence [concrete, distinct] start)
+      && store-error-count (check-instance-coherence [concrete, generic] start) == 1
+      && store-error-count (check-instance-coherence [generic, distinct] start) == 1
+      && store-error-count (check-instance-coherence [concrete, ("concrete", mono (eq integer))] start) == 1
   run :: List BodyBinding -> Nat -> Int
   run bodies nonce =
     let leaf = string-concat "leaf-" (nat-to-string nonce) in
@@ -161,7 +170,8 @@ module Main where
     else if not (clean (check-instance-coherence factories start)) then 14
     else if clean (check-instance-coherence [leaf-entry, ("duplicate", mono (eq nat))] start) then 15
     else if not invalid-context-checks then 16
-    else if not (coherence-diagnostic-order start) then 17 else 0
+    else if not (coherence-diagnostic-order start) then 17
+    else if not (coherence-carrier-buckets start) then 18 else 0
   method-bodies :: InterfaceSet -> Option (List BodyBinding)
   method-bodies interfaces = case (
       check-imported-method-binding interfaces (interface-global "Data.Nat.Ord_Nat") 2 (mono (UFun nat (UFun nat boolean))),

@@ -412,14 +412,50 @@ module Bootstrap.Dictionary where
   data CoherenceRow where
     CoherenceRow :: String -> Scheme -> List CoherenceCandidate -> List CoherenceCandidate -> CoherenceRow
 
+  data CoherenceClass where
+    SingleClassInstance :: CoherenceCandidate -> CoherenceClass
+    CoherenceClass :: List CoherenceCandidate -> List CoherenceCandidate -> HashMap String (List CoherenceCandidate) -> CoherenceClass
+
   coherence-bucket :: String -> HashMap String (List CoherenceCandidate) -> List CoherenceCandidate
   coherence-bucket key indexed = case hash-map-lookup key indexed of
     Some entries -> entries
     None -> Nil
 
-  -- A row needs only later instances with the same class or the same
-  -- symbol. Walk backwards so the candidate lists share their tails.
-  index-coherence-rows :: List (String, Scheme) -> Nat -> HashMap String (List CoherenceCandidate) -> HashMap String (List CoherenceCandidate) -> List CoherenceRow -> List CoherenceRow
+  -- A unary type class applied to a rigid nominal carrier keeps that
+  -- carrier through substitution and normalization. Distinct carriers
+  -- of this form cannot unify. All other heads keep the full class check.
+  coherence-carrier :: Scheme -> Option String
+  coherence-carrier sc = case scheme-body sc of
+    UApp (UCon owner (KFun KType KType)) (UCon carrier KType) -> Some carrier
+    other -> None
+
+  -- Both buckets have the original diagnostic order and disjoint members.
+  merge-coherence-candidates :: List CoherenceCandidate -> List CoherenceCandidate -> List CoherenceCandidate
+  merge-coherence-candidates definite flexible = case (definite, flexible) of
+    (Nil, other) -> other
+    (other, Nil) -> other
+    (Cons first rest, Cons second more) ->
+      if coherence-position first > coherence-position second then Cons first (merge-coherence-candidates rest flexible)
+      else Cons second (merge-coherence-candidates definite more)
+
+  index-coherence-class :: CoherenceCandidate -> Scheme -> CoherenceClass -> (List CoherenceCandidate, CoherenceClass)
+  index-coherence-class entry sc group = case group of
+    SingleClassInstance prior -> case prior of
+      CoherenceCandidate position name first ->
+        let all = Cons prior Nil in
+        let buckets = (case coherence-carrier first of
+          None -> CoherenceClass all all hash-map-empty
+          Some carrier -> CoherenceClass all Nil (hash-map-insert carrier all hash-map-empty)) in
+        index-coherence-class entry sc buckets
+    CoherenceClass all flexible carriers -> case coherence-carrier sc of
+      None -> (all, CoherenceClass (Cons entry all) (Cons entry flexible) carriers)
+      Some carrier -> let matches = coherence-bucket carrier carriers in
+        (merge-coherence-candidates matches flexible, CoherenceClass (Cons entry all) flexible
+          (hash-map-insert carrier (Cons entry matches) carriers))
+
+  -- Walk backwards so a bucket contains only later rows. A duplicate
+  -- symbol remains a candidate even across different carrier buckets.
+  index-coherence-rows :: List (String, Scheme) -> Nat -> HashMap String CoherenceClass -> HashMap String (List CoherenceCandidate) -> List CoherenceRow -> List CoherenceRow
   index-coherence-rows reversed position classes symbols indexed = case reversed of
     Nil -> indexed
     Cons (name, sc) rest ->
@@ -428,10 +464,12 @@ module Bootstrap.Dictionary where
       let next-symbols = hash-map-insert name (Cons entry duplicates) symbols in
       case class-root (scheme-body sc) of
         None -> index-coherence-rows rest (position + 1) classes next-symbols (Cons (CoherenceRow name sc Nil duplicates) indexed)
-        Some (owner, kind) ->
-          let members = coherence-bucket owner classes in
-          let next-classes = hash-map-insert owner (Cons entry members) classes in
-          index-coherence-rows rest (position + 1) next-classes next-symbols (Cons (CoherenceRow name sc members duplicates) indexed)
+        Some (owner, kind) -> case hash-map-lookup owner classes of
+          None -> index-coherence-rows rest (position + 1) (hash-map-insert owner (SingleClassInstance entry) classes)
+            next-symbols (Cons (CoherenceRow name sc Nil duplicates) indexed)
+          Some prior -> case index-coherence-class entry sc prior of
+            (members, next) -> index-coherence-rows rest (position + 1) (hash-map-insert owner next classes)
+              next-symbols (Cons (CoherenceRow name sc members duplicates) indexed)
 
   coherence-position :: CoherenceCandidate -> Nat
   coherence-position (CoherenceCandidate position name scheme) = position
