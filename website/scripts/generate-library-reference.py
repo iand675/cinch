@@ -46,6 +46,7 @@ DESCRIPTIONS = {
 'Text.Utf8':'Raw UTF-8 and immutable-text decoding, validation, scalar counts, replacement encoding and checked atomic buffer writes.',
 'Data.Bytes':'Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations.',
 'Data.Bytes.Fields':'Nonempty raw-byte field views with Unicode whitespace, ordered scalar predicates, persistent producers and replayable effect-preserving iteration.',
+'Data.Array.Edit':'Checked immutable array range edits, predicate deletion, adjacent compaction, reversal and concatenation.',
 'Data.Array.Search':'Immutable array comparison, indexed lookups, binary search and sortedness with explicit callback policies.',
 'Data.Array.Packed':'Packed scalar constructors for Array. The element format travels with the buffer, so generic reads and updates keep it.',
 'Data.Array':'Immutable contiguous arrays with optional failed reads, updates, slices, and ranges, plus list conversions.',

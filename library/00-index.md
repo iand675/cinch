@@ -80,6 +80,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 | Module | Distribution | Purpose |
 | --- | --- | --- |
+| [Data.Array.Edit](Data.Array.Edit.md) | Ship source | Checked immutable array range edits, predicate deletion, adjacent compaction, reversal and concatenation. |
 | [Data.Array.Packed](Data.Array.Packed.md) | Ship source | Packed scalar constructors for Array. The element format travels with the buffer, so generic reads and updates keep it. |
 | [Data.Array.Search](Data.Array.Search.md) | Ship source | Immutable array comparison, indexed lookups, binary search and sortedness with explicit callback policies. |
 | [Data.Array](Data.Array.md) | Ship source | Immutable contiguous arrays with optional failed reads, updates, slices, and ranges, plus list conversions. |
@@ -271,7 +272,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **199 source modules**: **66 embedded** and **133 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **200 source modules**: **66 embedded** and **134 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

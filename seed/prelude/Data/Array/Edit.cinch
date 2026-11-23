@@ -1,0 +1,77 @@
+-- | Persistent edits over immutable arrays. Half-open ranges are checked
+-- before constructing a result, and the original arrays remain usable.
+module Data.Array.Edit where
+  import Data.Array
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Relation.Eq
+
+  export array-replace-range, array-insert, array-delete-range, array-delete-by
+  export array-compact, array-compact-by, array-reverse, array-concat
+
+  -- | Replace [start,end) with the replacement's elements. Both bounds may
+  -- equal the array length; reversed or out-of-range bounds return None.
+  array-replace-range :: forall a. Array a -> Nat -> Nat -> Array a -> Option (Array a)
+  array-replace-range items start end replacement =
+    let size = array-length items in
+    if start <= end && end <= size then
+      if start == end && array-length replacement == 0 then Some items
+      else case (array-slice items 0 start, array-slice items end (size - end)) of
+        (Some before, Some after) -> Some (array-append (array-append before replacement) after)
+        _ -> None
+    else None
+
+  -- | Insert all new elements at an index in the closed range from zero to length.
+  array-insert :: forall a. Array a -> Nat -> Array a -> Option (Array a)
+  array-insert items at inserted = array-replace-range items at at inserted
+
+  -- | Delete exactly the elements in the half-open range.
+  array-delete-range :: forall a. Array a -> Nat -> Nat -> Option (Array a)
+  array-delete-range items start end = array-replace-range items start end (array-from-list Nil)
+
+  -- | Delete each matching element. Run the predicate once per element from left to right.
+  array-delete-by :: forall (e :: Row) a. (a ->{|e} Bool) -> Array a ->{|e} Array a
+  array-delete-by predicate items = delete-from predicate items 0 Nil
+
+  delete-from :: forall (e :: Row) a. (a ->{|e} Bool) -> Array a -> Nat -> List a ->{|e} Array a
+  delete-from predicate items at kept = case array-get items at of
+    None -> array-from-list (reverse kept)
+    Some item -> if predicate item then delete-from predicate items (at + 1) kept
+      else delete-from predicate items (at + 1) (Cons item kept)
+
+  -- | Keep the first element of each adjacent run. Compare each current
+  -- element with its immediate predecessor, passing the current element first.
+  array-compact-by :: forall (e :: Row) a. (a -> a ->{|e} Bool) -> Array a ->{|e} Array a
+  array-compact-by equal items = case array-get items 0 of
+    None -> items
+    Some first -> compact-from equal items first 1 (Cons first Nil)
+
+  compact-from :: forall (e :: Row) a. (a -> a ->{|e} Bool) -> Array a -> a -> Nat -> List a ->{|e} Array a
+  compact-from equal items previous at kept = case array-get items at of
+    None -> array-from-list (reverse kept)
+    Some item -> if equal item previous then compact-from equal items item (at + 1) kept
+      else compact-from equal items item (at + 1) (Cons item kept)
+
+  -- | Remove adjacent duplicate values using element equality.
+  array-compact :: forall a. using (equal :: Eq a) => Array a -> Array a
+  array-compact items = array-compact-by (\a b -> a == b) items
+
+  -- | Return the elements in reverse order.
+  array-reverse :: forall a. Array a -> Array a
+  array-reverse items = array-from-list (prepend-reversed items 0 Nil)
+
+  -- | Concatenate arrays in order, walking each input once. The temporary list
+  -- keeps earlier prefixes from being copied for every subsequent input.
+  array-concat :: forall a. List (Array a) -> Array a
+  array-concat arrays = concat-from arrays Nil
+
+  concat-from :: forall a. List (Array a) -> List a -> Array a
+  concat-from arrays backwards = case arrays of
+    Nil -> array-from-list (reverse backwards)
+    Cons items rest -> concat-from rest (prepend-reversed items 0 backwards)
+
+  prepend-reversed :: forall a. Array a -> Nat -> List a -> List a
+  prepend-reversed items at backwards = case array-get items at of
+    None -> backwards
+    Some item -> prepend-reversed items (at + 1) (Cons item backwards)

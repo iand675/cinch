@@ -2019,18 +2019,20 @@
       "status": "partial",
       "cinch_modules": [
         "Data.Array",
+        "Data.Array.Edit",
         "Data.Array.Search",
         "Data.List",
         "Data.Mutable.Vec"
       ],
       "remaining": [
-        "range edits, compaction, sequence and sorting adapters, and operation-level review"
+        "sequence adapters, remaining slice operations, sorting and operation-level review"
       ],
       "reference_declarations": 40,
       "tests": [
-        "lib_search::array_search_uses_element_order_and_short_circuits_callbacks"
+        "lib_search::array_search_uses_element_order_and_short_circuits_callbacks",
+        "lib_array_edit::persistent_range_edits_and_compaction"
       ],
-      "review": "Immutable arrays support equality, lexicographic comparison, membership/index search, first-equal binary search and sortedness, including effect-preserving comparator and predicate variants."
+      "review": "Immutable arrays support equality, lexicographic comparison, membership/index search, first-equal binary search and sortedness, including effect-preserving comparator and predicate variants. Data.Array.Edit adds checked insertion/replacement/deletion, predicate deletion, adjacent compaction, reversal and concatenation."
     },
     {
       "reference_package": "sort",

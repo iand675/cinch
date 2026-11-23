@@ -1,0 +1,32 @@
+module Main where
+  import Data.Array
+  import Data.Array.Edit
+
+  same :: Array Nat -> List Nat -> Bool
+  same items expected = equal-at items 0 expected
+
+  equal-at :: Array Nat -> Nat -> List Nat -> Bool
+  equal-at items at expected = case (array-get items at, expected) of
+    (None, Nil) -> True
+    (Some x, Cons y rest) -> x == y && equal-at items (at + 1) rest
+    _ -> False
+
+  has :: Option (Array Nat) -> List Nat -> Bool
+  has result expected = case result of Some xs -> same xs expected; None -> False
+
+  refused :: Option (Array Nat) -> Bool
+  refused result = case result of None -> True; Some _ -> False
+
+  main :: Int
+  main = let items = array-from-list [(1 :: Nat),2,2,3,1] in
+    let empty = array-from-list (Nil :: List Nat) in
+    if has (array-replace-range items 1 4 items) [1,1,2,2,3,1,1] &&
+      has (array-insert items 5 (array-from-list [7])) [1,2,2,3,1,7] &&
+      has (array-insert empty 0 items) [1,2,2,3,1] &&
+      has (array-delete-range items 0 5) Nil && has (array-delete-range items 5 5) [1,2,2,3,1] &&
+      refused (array-delete-range items 3 2) && refused (array-insert items 6 empty) &&
+      same (array-compact items) [1,2,3,1] && same (array-delete-by (\x -> x == 2) items) [1,3,1] &&
+      same (array-reverse items) [1,3,2,2,1] && same (array-reverse empty) Nil &&
+      same (array-compact-by (\current previous -> previous + 1 == current) (array-from-list [1,2,3,7])) [1,7] &&
+      same (array-concat [empty,items,empty,items]) [1,2,2,3,1,1,2,2,3,1] &&
+      same (array-concat Nil) Nil && same items [1,2,2,3,1] then 0 else 1
