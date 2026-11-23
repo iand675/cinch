@@ -158,10 +158,17 @@
     },
     {
       "reference_package": "compress/bzip2",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 3
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Bzip2"
+      ],
+      "remaining": [
+        "Incremental reader adapter over Effect.Stream (NewReader)"
+      ],
+      "reference_declarations": 3,
+      "tests": [
+        "lib_bzip2"
+      ]
     },
     {
       "reference_package": "compress/flate",

@@ -1,0 +1,716 @@
+-- | Bzip2 decompression: concatenated streams of Burrows-Wheeler blocks with Huffman and move-to-front coding.
+-- A block passes through its stages in order. Symbols are read with canonical
+-- Huffman codes (two to six tables, switched every fifty symbols by
+-- move-to-front coded selectors) through a 1024-entry direct lookup with a
+-- canonical range scan for codes longer than ten bits. Zero-run symbols and
+-- move-to-front indices rebuild the transformed block while counting each byte
+-- value with carry-only counter updates; it is inverted through a vector of
+-- 32-bit successor links kept beside the block's bytes.
+-- Following that vector feeds an explicit state machine that undoes the initial
+-- run-length coding straight into the output, filling repeats by doubling
+-- memmoves. Bits are read as 64-bit
+-- big-endian windows, CRCs fold four bytes per branch-free step, and every block
+-- CRC and each stream's combined CRC are verified. Obsolete randomized blocks
+-- are rejected; streams that follow the first are decoded in turn.
+module Text.Bzip2 where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Show (nat-to-string)
+
+  export Bzip2Error, Bzip2BadHeader, Bzip2BadBlock, Bzip2Truncated, Bzip2ChecksumMismatch, bzip2-error-message, bzip2-decompress
+
+  -- | A malformed or corrupted bzip2 stream.
+  data Bzip2Error where
+    -- | A stream does not begin with "BZh" and a block size digit from 1 to 9.
+    Bzip2BadHeader :: Bzip2Error
+    -- | A block's structure is invalid at this bit offset.
+    Bzip2BadBlock :: Nat -> Bzip2Error
+    -- | The input ends inside a block or before an end-of-stream marker.
+    Bzip2Truncated :: Bzip2Error
+    -- | A block or stream CRC does not match the decoded data.
+    Bzip2ChecksumMismatch :: Bzip2Error
+
+  -- | Render a bzip2 error.
+  bzip2-error-message :: Bzip2Error -> String
+  bzip2-error-message error = case error of
+    Bzip2BadHeader -> "bzip2: invalid stream header"
+    Bzip2BadBlock offset -> string-concat "bzip2: invalid block at bit " (nat-to-string offset)
+    Bzip2Truncated -> "bzip2: truncated stream"
+    Bzip2ChecksumMismatch -> "bzip2: checksum mismatch"
+
+  -- ---------------------------------------------------------------------
+  -- Words and bits.
+  -- ---------------------------------------------------------------------
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at input i = if i < bytes-len input then bytes-get input i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | A value below 2^32 as a 64-bit word.
+  small :: Nat -> U64
+  small n = if n < 4294967296 then wrapping-i64-to-u64 (nat-to-i64 n) else 0
+
+  -- | A value below 2^32 as a 32-bit word.
+  word :: Nat -> U32
+  word n = if n < 4294967296 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+
+  -- | A 32-bit counter in a word table, zero outside it.
+  get32 :: Bytes -> Nat -> Nat
+  get32 b i = if i + 4 <= bytes-len b then u32-to-nat (bytes-read-le32 b i) else 0
+
+  -- | Store a 32-bit counter in a word table when it fits.
+  set32 :: Bytes -> Nat -> Nat -> Unit
+  set32 b i v = if i + 4 <= bytes-len b then bytes-write-le32 b i (word v) else ()
+
+  -- | Store a byte when it fits.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | The bit field of a little-endian 64-bit load: byte swap so the first byte leads, drop shift bits, keep the next n (1 to 32).
+  prim bit-field :: U64 -> U64 -> U64 -> U32 where
+    llvm {
+      %w = call i64 @llvm.bswap.i64(i64 %0)
+      %s = shl i64 %w, %1
+      %k = sub i64 64, %2
+      %v = lshr i64 %s, %k
+      %r = trunc i64 %v to i32
+      ret i32 %r
+    }
+
+  -- | The n bits (1 to 32) starting at a bit position, most significant first, from a buffer padded with eight zero bytes.
+  peek :: Bytes -> Nat -> Nat -> Nat
+  peek src pos n =
+    let byte = nat-div pos 8 in
+    if byte + 8 <= bytes-len src then u32-to-nat (bit-field (bytes-read-le64 src byte) (small (nat-rem pos 8)) (small n)) else 0
+
+  -- | The n bits at a position when all of them lie below the input's bit length.
+  take-bits :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  take-bits src total pos n = if pos + n <= total then Some (peek src pos n) else None
+
+  -- | Whether bit k (counted from the least significant) of a value below 2^32 is set.
+  bit-of :: Nat -> Nat -> Bool
+  bit-of v k = u32-to-nat (bit-and-u32 (wrapping-shr-u32 (word v) (word k)) 1) == 1
+
+  -- | 2^n as a natural number.
+  power2 :: Nat -> Nat
+  power2 n = u32-to-nat (wrapping-shl-u32 1 (word n))
+
+  -- ---------------------------------------------------------------------
+  -- Streams and blocks.
+  -- ---------------------------------------------------------------------
+
+  -- | Decompress a complete input of one or more concatenated streams.
+  bzip2-decompress :: Bytes -> Result Bzip2Error Bytes
+  bzip2-decompress input =
+    if bytes-len input == 0 then Err Bzip2Truncated
+    else
+      let src = bytes-new (bytes-len input + 8) in
+      let copied = if bytes-len input <= bytes-len src then bytes-copy-range src input 0 0 (bytes-len input) else () in
+      streams src (bytes-len input) 0 (bytes-new (4 * bytes-len input + 64)) 0
+
+  -- | Decode the stream at a byte offset, then any stream after it.
+  streams :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Result Bzip2Error Bytes
+  streams src size byte out len =
+    if byte >= size then Ok (trim out len)
+    else if not (at src byte == 66 && at src (byte + 1) == 90 && at src (byte + 2) == 104) then Err Bzip2BadHeader
+    else
+      let level = at src (byte + 3) in
+      if level < 49 || level > 57 then Err Bzip2BadHeader
+      else blocks src (8 * size) (8 * (byte + 4)) (100000 * (level - 48)) (bytes-new (500000 * (level - 48))) 0 out len
+
+  -- | The first len bytes as an exact buffer.
+  trim :: Bytes -> Nat -> Bytes
+  trim out len =
+    if len == bytes-len out then out
+    else
+      let exact = bytes-new len in
+      if len <= bytes-len out then let copied = bytes-copy-range exact out 0 0 len in exact else exact
+
+  -- | Decode blocks until the end-of-stream marker, folding each block CRC into the stream CRC.
+  blocks :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Bytes -> Nat -> Result Bzip2Error Bytes
+  blocks src total pos limit tt combined out len = case (take-bits src total pos 24, take-bits src total (pos + 24) 24) of
+    (Some hi, Some lo) ->
+      if hi == 1536581 && lo == 3690640 then (case take-bits src total (pos + 48) 32 of
+        None -> Err Bzip2Truncated
+        Some crc -> if crc == combined then streams src (nat-div total 8) (nat-div (pos + 87) 8) out len else Err Bzip2ChecksumMismatch)
+      else if hi == 3227993 && lo == 2511705 then (case block src total (pos + 48) limit tt out len of
+        Err error -> Err error
+        Ok done -> case done of
+          Decoded grown grown-len after crc -> blocks src total after limit tt (combine combined crc) grown grown-len)
+      else Err (Bzip2BadBlock pos)
+    other -> Err Bzip2Truncated
+
+  -- | The stream CRC step: rotate left by one and XOR the block CRC.
+  combine :: Nat -> Nat -> Nat
+  combine combined crc = u32-to-nat (bit-xor-u32 (rotate-left-u32 (word combined) 1) (word crc))
+
+  -- | A decoded block: the output buffer (possibly grown), its new length, the bit position after the block, and the block CRC.
+  data Decoded where
+    -- | Fields in the order listed above.
+    Decoded :: Bytes -> Nat -> Nat -> Nat -> Decoded
+
+  -- | Decode one block after its magic: CRC, randomized flag, origin pointer, symbol map, then tables and data.
+  block :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Nat -> Result Bzip2Error Decoded
+  block src total pos limit tt out len = case (take-bits src total pos 32, take-bits src total (pos + 32) 1, take-bits src total (pos + 33) 24) of
+    (Some crc, Some randomized, Some origin) ->
+      if randomized == 1 then Err (Bzip2BadBlock (pos + 32))
+      else case take-bits src total (pos + 57) 16 of
+        None -> Err Bzip2Truncated
+        Some ranges ->
+          let mtf = bytes-new 256 in
+          case symbol-map src total ranges 0 (pos + 73) mtf 0 of
+            None -> Err Bzip2Truncated
+            Some found -> case found of
+              (used, after) -> if used == 0 then Err (Bzip2BadBlock (pos + 57)) else tables src total after mtf used origin crc limit tt out len
+    other -> Err Bzip2Truncated
+
+  -- | Collect the bytes in use, in increasing order, into the move-to-front list: sixteen bits per present range of sixteen values.
+  symbol-map :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Nat -> Option (Nat, Nat)
+  symbol-map src total ranges r pos mtf used =
+    if r >= 16 then Some (used, pos)
+    else if bit-of ranges (15 - r) then
+      (case take-bits src total pos 16 of
+        None -> None
+        Some mask -> symbol-map src total ranges (r + 1) (pos + 16) mtf (members mask r 0 mtf used))
+    else symbol-map src total ranges (r + 1) pos mtf used
+
+  -- | Append the members of range r whose mask bits are set, most significant bit first.
+  members :: Nat -> Nat -> Nat -> Bytes -> Nat -> Nat
+  members mask r b mtf used =
+    if b >= 16 then used
+    else if bit-of mask (15 - b) then let w = put mtf used (r * 16 + b) in members mask r (b + 1) mtf (used + 1)
+    else members mask r (b + 1) mtf used
+
+  -- ---------------------------------------------------------------------
+  -- Huffman tables.
+  -- ---------------------------------------------------------------------
+
+  -- | Byte offset of the 1024-entry direct table in a table region; each entry is symbol * 32 + length, zero for long codes.
+  fast-at :: Nat
+  fast-at = 0
+
+  -- | Byte offset of the per-length exclusive code limits (lengths 0 to 20).
+  limit-at :: Nat
+  limit-at = 4096
+
+  -- | Byte offset of the per-length first codes.
+  first-at :: Nat
+  first-at = 4180
+
+  -- | Byte offset of the per-length offsets into the symbol permutation.
+  offset-at :: Nat
+  offset-at = 4264
+
+  -- | Byte offset of the symbols sorted by code.
+  perm-at :: Nat
+  perm-at = 4348
+
+  -- | Bytes per table region.
+  table-size :: Nat
+  table-size = 5380
+
+  -- | Read the table count and selectors, then each table's code lengths, then decode the block's symbols.
+  tables :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Nat -> Result Bzip2Error Decoded
+  tables src total pos mtf used origin crc limit tt out len = case (take-bits src total pos 3, take-bits src total (pos + 3) 15) of
+    (Some groups, Some count) ->
+      if groups < 2 || groups > 6 || count == 0 then Err (Bzip2BadBlock pos)
+      else
+        let order = bytes-from-u8s [0, 1, 2, 3, 4, 5] in
+        let sels = bytes-new count in
+        case selectors src total (pos + 18) groups sels order 0 of
+          Err error -> Err error
+          Ok after ->
+            let tabs = bytes-new (groups * table-size) in
+            case code-tables src total after (used + 2) tabs 0 groups of
+              Err error -> Err error
+              Ok start ->
+                let counts = bytes-new 1024 in
+                case symbols src total tabs sels mtf tt counts (used + 1) limit start 0 50 (table-size * at sels 0) 0 Idle of
+                  Err error -> Err error
+                  Ok decoded -> case decoded of
+                    (size, next) -> if origin >= size then Err (Bzip2BadBlock pos) else finish tt limit counts size origin crc next out len
+    other -> Err Bzip2Truncated
+
+  -- | Each selector is a unary move-to-front index naming the table for the next fifty symbols.
+  selectors :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Nat -> Result Bzip2Error Nat
+  selectors src total pos groups sels order i =
+    if i >= bytes-len sels then Ok pos
+    else case unary src total pos 0 groups of
+      None -> Err (Bzip2BadBlock pos)
+      Some found -> case found of
+        (index, next) ->
+          let value = move-front order index in
+          let w = put sels i value in
+          selectors src total next groups sels order (i + 1)
+
+  -- | Count one bits before a zero bit; a count reaching the limit is invalid.
+  unary :: Bytes -> Nat -> Nat -> Nat -> Nat -> Option (Nat, Nat)
+  unary src total pos n limit =
+    if n >= limit || pos >= total then None
+    else if peek src pos 1 == 0 then Some (n, pos + 1)
+    else unary src total (pos + 1) (n + 1) limit
+
+  -- | Take the entry at an index, slide the entries before it up by one with a single memmove, and put it at the front.
+  move-front :: Bytes -> Nat -> Nat
+  move-front order index =
+    if index < bytes-len order then
+      let value = bytes-get order index in
+      let moved = if index + 1 <= bytes-len order then bytes-copy-range order order 1 0 index else () in
+      let w = put order 0 value in
+      value
+    else 0
+
+  -- | Read and index every table's code lengths.
+  code-tables :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat -> Result Bzip2Error Nat
+  code-tables src total pos alphabet tabs g groups =
+    if g >= groups then Ok pos
+    else case take-bits src total pos 5 of
+      None -> Err Bzip2Truncated
+      Some start ->
+        let lengths = bytes-new alphabet in
+        case code-lengths src total (pos + 5) start lengths 0 of
+          Err error -> Err error
+          Ok next -> if build-table tabs (g * table-size) lengths then code-tables src total next alphabet tabs (g + 1) groups else Err (Bzip2BadBlock pos)
+
+  -- | Lengths start at a five-bit value; each "1x" pair raises ("10") or lowers ("11") it, and a "0" bit takes it for the next symbol.
+  code-lengths :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Result Bzip2Error Nat
+  code-lengths src total pos current lengths i =
+    if i >= bytes-len lengths then Ok pos
+    else if current < 1 || current > 20 then Err (Bzip2BadBlock pos)
+    else if pos + 2 > total then Err Bzip2Truncated
+    else
+      let pair = peek src pos 2 in
+      if pair < 2 then let w = put lengths i current in code-lengths src total (pos + 1) current lengths (i + 1)
+      else code-lengths src total (pos + 2) (if pair == 2 then current + 1 else minus current 1) lengths i
+
+  -- | Index a canonical code: per-length first codes, limits and offsets, the code-sorted symbols, and the direct table. False when oversubscribed.
+  build-table :: Bytes -> Nat -> Bytes -> Bool
+  build-table tabs base lengths =
+    let counts = bytes-new 84 in
+    let counted = count-lengths lengths counts 0 in
+    if not (assign-ranges tabs base counts 1 0 0) then False
+    else
+      let next = bytes-new 84 in
+      let copied = if base + first-at + 84 <= bytes-len tabs then bytes-copy-range next tabs 0 (base + first-at) 84 else () in
+      let placed = place-symbols tabs base lengths next 0 in
+      True
+
+  -- | Count codes of each length.
+  count-lengths :: Bytes -> Bytes -> Nat -> Unit
+  count-lengths lengths counts i =
+    if i >= bytes-len lengths then ()
+    else let l = bytes-get lengths i in let w = set32 counts (4 * l) (get32 counts (4 * l) + 1) in count-lengths lengths counts (i + 1)
+
+  -- | Lay out lengths 1 to 20 canonically: first code, exclusive limit and permutation offset of each, rejecting more codes than a length holds.
+  assign-ranges :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Nat -> Bool
+  assign-ranges tabs base counts l code offset =
+    if l > 20 then True
+    else
+      let n = get32 counts (4 * l) in
+      if code + n > power2 l then False
+      else
+        let a = set32 tabs (base + first-at + 4 * l) code in
+        let b = set32 tabs (base + limit-at + 4 * l) (code + n) in
+        let c = set32 tabs (base + offset-at + 4 * l) offset in
+        assign-ranges tabs base counts (l + 1) ((code + n) * 2) (offset + n)
+
+  -- | Give each symbol, in symbol order, the next code of its length; record it in the permutation and, for codes of up to ten bits, in the direct table.
+  place-symbols :: Bytes -> Nat -> Bytes -> Bytes -> Nat -> Unit
+  place-symbols tabs base lengths next s =
+    if s >= bytes-len lengths then ()
+    else
+      let l = bytes-get lengths s in
+      let code = get32 next (4 * l) in
+      let bumped = set32 next (4 * l) (code + 1) in
+      let slot = get32 tabs (base + offset-at + 4 * l) + minus code (get32 tabs (base + first-at + 4 * l)) in
+      let p = set32 tabs (base + perm-at + 4 * slot) s in
+      let f = if l <= 10 then fill-fast tabs base (code * power2 (10 - l)) (power2 (10 - l)) (s * 32 + l) else () in
+      place-symbols tabs base lengths next (s + 1)
+
+  -- | Fill n direct-table entries from a starting index.
+  fill-fast :: Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
+  fill-fast tabs base i n v = if n == 0 then () else let w = set32 tabs (base + fast-at + 4 * i) v in fill-fast tabs base (i + 1) (n - 1) v
+
+  -- | Decode one symbol from a twenty-bit window as symbol * 32 + length, or zero for an unused code.
+  decode-symbol :: Bytes -> Nat -> Nat -> Nat
+  decode-symbol tabs base window =
+    let direct = get32 tabs (base + fast-at + 4 * nat-div window 1024) in
+    if direct > 0 then direct else long-code tabs base window 11
+
+  -- | Scan lengths 11 to 20: a code below its length's limit is a symbol of that length.
+  long-code :: Bytes -> Nat -> Nat -> Nat -> Nat
+  long-code tabs base window l =
+    if l > 20 then 0
+    else
+      let code = u32-to-nat (wrapping-shr-u32 (word window) (word (20 - l))) in
+      if code < get32 tabs (base + limit-at + 4 * l) then
+        get32 tabs (base + perm-at + 4 * (get32 tabs (base + offset-at + 4 * l) + minus code (get32 tabs (base + first-at + 4 * l)))) * 32 + l
+      else long-code tabs base window (l + 1)
+
+  -- ---------------------------------------------------------------------
+  -- Symbols, zero runs and move-to-front.
+  -- ---------------------------------------------------------------------
+
+  -- | The zero-run decoder's state between symbols.
+  data Run where
+    -- | No RUNA or RUNB symbol is pending.
+    Idle :: Run
+    -- | A pending run of the front byte: its length so far and the weight of the next run symbol.
+    Pending :: Nat -> Nat -> Run
+
+  -- | Decode symbols into the transformed block, counting each byte value; ends at the end-of-block symbol with the block size and bit position.
+  -- The group state is the selector index, the symbols left in its group and its table's offset.
+  symbols :: Bytes -> Nat -> Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Run -> Result Bzip2Error (Nat, Nat)
+  symbols src total tabs sels mtf tt counts eob limit pos group left base size run =
+    if left == 0 then
+      (if group + 1 >= bytes-len sels then Err (Bzip2BadBlock pos)
+      else symbols src total tabs sels mtf tt counts eob limit pos (group + 1) 50 (table-size * at sels (group + 1)) size run)
+    else
+      let code = decode-symbol tabs base (peek src pos 20) in
+      let l = nat-rem code 32 in
+      if l == 0 then Err (Bzip2BadBlock pos)
+      else if pos + l > total then Err Bzip2Truncated
+      else
+        let symbol = nat-div code 32 in
+        if symbol <= 1 then (case run of
+          Idle -> symbols src total tabs sels mtf tt counts eob limit (pos + l) group (left - 1) base size (Pending (symbol + 1) 2)
+          Pending length weight ->
+            if length > limit then Err (Bzip2BadBlock pos)
+            else symbols src total tabs sels mtf tt counts eob limit (pos + l) group (left - 1) base size (Pending (length + (symbol + 1) * weight) (weight * 2)))
+        else
+          let flushed = run-length run in
+          if size + flushed > limit then Err (Bzip2BadBlock pos)
+          else
+            let w = fill-run tt counts size flushed (at mtf 0) in
+            if symbol >= eob then Ok (size + flushed, pos + l)
+            else if size + flushed >= limit then Err (Bzip2BadBlock pos)
+            else
+              let value = move-front mtf (symbol - 1) in
+              let stored = put tt (size + flushed) value in
+              let c = bump counts value in
+              symbols src total tabs sels mtf tt counts eob limit (pos + l) group (left - 1) base (size + flushed + 1) Idle
+
+  -- | The run length a pending zero run contributes.
+  run-length :: Run -> Nat
+  run-length run = case run of Idle -> 0; Pending length weight -> length
+
+  -- | Write a run of one byte into the transformed block and count it.
+  fill-run :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  fill-run tt counts start n value =
+    if n == 0 then ()
+    else
+      let c = set32 counts (4 * value) (get32 counts (4 * value) + n) in
+      fill-bytes tt start n value
+
+  -- | Add one to a 32-bit counter, touching only the bytes a carry reaches (one byte write in 255 of 256 cases).
+  bump :: Bytes -> Nat -> Unit
+  bump counts c = let o = quad c in carry counts o (o + 4)
+
+  -- | Increment the byte at i, carrying into the next byte below end on overflow.
+  carry :: Bytes -> Nat -> Nat -> Unit
+  carry counts i end =
+    if i >= end || i >= bytes-len counts then ()
+    else
+      let b = bytes-get counts i in
+      if b < 255 then bytes-set counts i (b + 1) else let w = bytes-set counts i 0 in carry counts (i + 1) end
+
+  -- ---------------------------------------------------------------------
+  -- Inverse transform and run-length decoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Invert the transform from the byte counts, undo the initial run-length coding into the output, and verify the block CRC.
+  -- The block's bytes occupy tt[0, limit) and the successor links the 32-bit words from limit on.
+  finish :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Nat -> Result Bzip2Error Decoded
+  finish tt limit starts size origin crc next out len =
+    let summed = prefix-sums starts 0 0 in
+    let linked = link tt limit size starts 0 0 0 0 in
+    case rle-fresh tt limit (get32 tt (limit + 4 * origin)) size out len of
+      (grown, end) ->
+        if u32-to-nat (block-crc grown len end) == crc then Ok (Decoded grown end next crc) else Err Bzip2ChecksumMismatch
+
+  -- | Replace counts with exclusive prefix sums: where each byte value's first occurrence lands in sorted order.
+  prefix-sums :: Bytes -> Nat -> Nat -> Unit
+  prefix-sums counts c sum =
+    if c >= 256 then ()
+    else let n = get32 counts (4 * c) in let w = set32 counts (4 * c) sum in prefix-sums counts (c + 1) (sum + n)
+
+  -- | Record at each sorted position the original position it came from. The position's three
+  -- little-endian bytes (blocks hold under 2^24 bytes) are carried alongside it, so each link is
+  -- three byte stores into a word whose top byte stays zero.
+  link :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
+  link tt limit size starts i b0 b1 b2 =
+    if i >= size then ()
+    else
+      let c = at tt i in
+      let o = limit + quad (get32 starts (quad c)) in
+      let w0 = put tt o b0 in
+      let w1 = put tt (o + 1) b1 in
+      let w2 = put tt (o + 2) b2 in
+      let s = bump starts c in
+      if b0 < 255 then link tt limit size starts (i + 1) (b0 + 1) b1 b2
+      else if b1 < 255 then link tt limit size starts (i + 1) 0 (b1 + 1) b2
+      else link tt limit size starts (i + 1) 0 0 (b2 + 1)
+
+  -- | Four times a value, by addition.
+  quad :: Nat -> Nat
+  quad n = let d = n + n in d + d
+
+  -- | Run-length state: no byte since the last run count (or the block start). Each state takes the next byte along the successor vector.
+  rle-fresh :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> (Bytes, Nat)
+  rle-fresh tt limit t left out len =
+    if left == 0 then (out, len)
+    else
+      let b = at tt t in
+      rle-same tt limit (get32 tt (limit + quad t)) (left - 1) (emit out len b) (len + 1) b 1
+
+  -- | Run-length state: the last k bytes (1 to 3) were equal to prev; a fourth equal byte means a count follows.
+  rle-same :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> (Bytes, Nat)
+  rle-same tt limit t left out len prev k =
+    if left == 0 then (out, len)
+    else
+      let b = at tt t in
+      let after = get32 tt (limit + quad t) in
+      let grown = emit out len b in
+      if not (b == prev) then rle-same tt limit after (left - 1) grown (len + 1) b 1
+      else if k == 3 then rle-count tt limit after (left - 1) grown (len + 1) b
+      else rle-same tt limit after (left - 1) grown (len + 1) b (k + 1)
+
+  -- | Run-length state: four equal bytes were seen; this byte repeats prev that many more times.
+  rle-count :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat -> (Bytes, Nat)
+  rle-count tt limit t left out len prev =
+    if left == 0 then (out, len)
+    else
+      let n = at tt t in
+      rle-fresh tt limit (get32 tt (limit + quad t)) (left - 1) (emit-run out len prev n) (len + n)
+
+  -- | Store a byte at len, doubling the buffer first when it is full.
+  emit :: Bytes -> Nat -> Nat -> Bytes
+  emit out len v = if len < bytes-len out then let w = put out len v in out else emit (grow out len (len + 1)) len v
+
+  -- | Store n copies of a byte from len, growing the buffer to fit.
+  emit-run :: Bytes -> Nat -> Nat -> Nat -> Bytes
+  emit-run out len v n =
+    if len + n > bytes-len out then emit-run (grow out len (len + n)) len v n
+    else let w = fill-bytes out len n v in out
+
+  -- | Store n copies of a byte: one write, then memmoves that double the filled span.
+  fill-bytes :: Bytes -> Nat -> Nat -> Nat -> Unit
+  fill-bytes out i n v = if n == 0 then () else let w = put out i v in double out i 1 n
+
+  -- | Copy the filled span [i, i + done) after itself until n bytes are filled.
+  double :: Bytes -> Nat -> Nat -> Nat -> Unit
+  double out i done n =
+    if done >= n then ()
+    else
+      let step = if done + done <= n then done else n - done in
+      if i + done + step <= bytes-len out then let w = bytes-copy-range out out (i + done) i step in double out i (done + step) n else ()
+
+  -- | A buffer at least twice as large holding the first len bytes, and at least need bytes long.
+  grow :: Bytes -> Nat -> Nat -> Bytes
+  grow out len need =
+    let bigger = bytes-new (2 * bytes-len out + need + 4096) in
+    if len <= bytes-len out && len <= bytes-len bigger then let copied = bytes-copy-range bigger out 0 0 len in bigger else bigger
+
+  -- ---------------------------------------------------------------------
+  -- Block CRC.
+  -- ---------------------------------------------------------------------
+
+  -- | The block CRC of out[start, end): CRC-32 with polynomial 0x04C11DB7, most significant bit first, complemented before and after.
+  block-crc :: Bytes -> Nat -> Nat -> U32
+  block-crc out start end = bit-not-u32 (crc-words out start end (bit-not-u32 (word 0)))
+
+  -- | Fold four bytes per step while they last, then single bytes.
+  crc-words :: Bytes -> Nat -> Nat -> U32 -> U32
+  crc-words out i end crc =
+    if i + 4 <= end && i + 4 <= bytes-len out then crc-words out (i + 4) end (crc-word crc (bytes-read-le32 out i))
+    else crc-bytes out i end crc
+
+  -- | Fold the remaining bytes one at a time.
+  crc-bytes :: Bytes -> Nat -> Nat -> U32 -> U32
+  crc-bytes out i end crc =
+    if i >= end then crc
+    else crc-bytes out (i + 1) end (crc-step8 (bit-xor-u32 crc (wrapping-shl-u32 (word (at out i)) 24)))
+
+  -- | Eight shift steps of the most-significant-bit-first CRC register (polynomial 0x04C11DB7), branch-free.
+  prim crc-step8 :: U32 -> U32 where
+    llvm {
+      %s0 = ashr i32 %0, 31
+      %m0 = and i32 %s0, 79764919
+      %h0 = shl i32 %0, 1
+      %c0 = xor i32 %h0, %m0
+      %s1 = ashr i32 %c0, 31
+      %m1 = and i32 %s1, 79764919
+      %h1 = shl i32 %c0, 1
+      %c1 = xor i32 %h1, %m1
+      %s2 = ashr i32 %c1, 31
+      %m2 = and i32 %s2, 79764919
+      %h2 = shl i32 %c1, 1
+      %c2 = xor i32 %h2, %m2
+      %s3 = ashr i32 %c2, 31
+      %m3 = and i32 %s3, 79764919
+      %h3 = shl i32 %c2, 1
+      %c3 = xor i32 %h3, %m3
+      %s4 = ashr i32 %c3, 31
+      %m4 = and i32 %s4, 79764919
+      %h4 = shl i32 %c3, 1
+      %c4 = xor i32 %h4, %m4
+      %s5 = ashr i32 %c4, 31
+      %m5 = and i32 %s5, 79764919
+      %h5 = shl i32 %c4, 1
+      %c5 = xor i32 %h5, %m5
+      %s6 = ashr i32 %c5, 31
+      %m6 = and i32 %s6, 79764919
+      %h6 = shl i32 %c5, 1
+      %c6 = xor i32 %h6, %m6
+      %s7 = ashr i32 %c6, 31
+      %m7 = and i32 %s7, 79764919
+      %h7 = shl i32 %c6, 1
+      %c7 = xor i32 %h7, %m7
+      ret i32 %c7
+    }
+
+  -- | Fold four bytes, given as a little-endian load, into the register: byte swap, XOR, then thirty-two branch-free steps.
+  prim crc-word :: U32 -> U32 -> U32 where
+    llvm {
+      %w = call i32 @llvm.bswap.i32(i32 %1)
+      %x = xor i32 %0, %w
+      %s0 = ashr i32 %x, 31
+      %m0 = and i32 %s0, 79764919
+      %h0 = shl i32 %x, 1
+      %c0 = xor i32 %h0, %m0
+      %s1 = ashr i32 %c0, 31
+      %m1 = and i32 %s1, 79764919
+      %h1 = shl i32 %c0, 1
+      %c1 = xor i32 %h1, %m1
+      %s2 = ashr i32 %c1, 31
+      %m2 = and i32 %s2, 79764919
+      %h2 = shl i32 %c1, 1
+      %c2 = xor i32 %h2, %m2
+      %s3 = ashr i32 %c2, 31
+      %m3 = and i32 %s3, 79764919
+      %h3 = shl i32 %c2, 1
+      %c3 = xor i32 %h3, %m3
+      %s4 = ashr i32 %c3, 31
+      %m4 = and i32 %s4, 79764919
+      %h4 = shl i32 %c3, 1
+      %c4 = xor i32 %h4, %m4
+      %s5 = ashr i32 %c4, 31
+      %m5 = and i32 %s5, 79764919
+      %h5 = shl i32 %c4, 1
+      %c5 = xor i32 %h5, %m5
+      %s6 = ashr i32 %c5, 31
+      %m6 = and i32 %s6, 79764919
+      %h6 = shl i32 %c5, 1
+      %c6 = xor i32 %h6, %m6
+      %s7 = ashr i32 %c6, 31
+      %m7 = and i32 %s7, 79764919
+      %h7 = shl i32 %c6, 1
+      %c7 = xor i32 %h7, %m7
+      %s8 = ashr i32 %c7, 31
+      %m8 = and i32 %s8, 79764919
+      %h8 = shl i32 %c7, 1
+      %c8 = xor i32 %h8, %m8
+      %s9 = ashr i32 %c8, 31
+      %m9 = and i32 %s9, 79764919
+      %h9 = shl i32 %c8, 1
+      %c9 = xor i32 %h9, %m9
+      %s10 = ashr i32 %c9, 31
+      %m10 = and i32 %s10, 79764919
+      %h10 = shl i32 %c9, 1
+      %c10 = xor i32 %h10, %m10
+      %s11 = ashr i32 %c10, 31
+      %m11 = and i32 %s11, 79764919
+      %h11 = shl i32 %c10, 1
+      %c11 = xor i32 %h11, %m11
+      %s12 = ashr i32 %c11, 31
+      %m12 = and i32 %s12, 79764919
+      %h12 = shl i32 %c11, 1
+      %c12 = xor i32 %h12, %m12
+      %s13 = ashr i32 %c12, 31
+      %m13 = and i32 %s13, 79764919
+      %h13 = shl i32 %c12, 1
+      %c13 = xor i32 %h13, %m13
+      %s14 = ashr i32 %c13, 31
+      %m14 = and i32 %s14, 79764919
+      %h14 = shl i32 %c13, 1
+      %c14 = xor i32 %h14, %m14
+      %s15 = ashr i32 %c14, 31
+      %m15 = and i32 %s15, 79764919
+      %h15 = shl i32 %c14, 1
+      %c15 = xor i32 %h15, %m15
+      %s16 = ashr i32 %c15, 31
+      %m16 = and i32 %s16, 79764919
+      %h16 = shl i32 %c15, 1
+      %c16 = xor i32 %h16, %m16
+      %s17 = ashr i32 %c16, 31
+      %m17 = and i32 %s17, 79764919
+      %h17 = shl i32 %c16, 1
+      %c17 = xor i32 %h17, %m17
+      %s18 = ashr i32 %c17, 31
+      %m18 = and i32 %s18, 79764919
+      %h18 = shl i32 %c17, 1
+      %c18 = xor i32 %h18, %m18
+      %s19 = ashr i32 %c18, 31
+      %m19 = and i32 %s19, 79764919
+      %h19 = shl i32 %c18, 1
+      %c19 = xor i32 %h19, %m19
+      %s20 = ashr i32 %c19, 31
+      %m20 = and i32 %s20, 79764919
+      %h20 = shl i32 %c19, 1
+      %c20 = xor i32 %h20, %m20
+      %s21 = ashr i32 %c20, 31
+      %m21 = and i32 %s21, 79764919
+      %h21 = shl i32 %c20, 1
+      %c21 = xor i32 %h21, %m21
+      %s22 = ashr i32 %c21, 31
+      %m22 = and i32 %s22, 79764919
+      %h22 = shl i32 %c21, 1
+      %c22 = xor i32 %h22, %m22
+      %s23 = ashr i32 %c22, 31
+      %m23 = and i32 %s23, 79764919
+      %h23 = shl i32 %c22, 1
+      %c23 = xor i32 %h23, %m23
+      %s24 = ashr i32 %c23, 31
+      %m24 = and i32 %s24, 79764919
+      %h24 = shl i32 %c23, 1
+      %c24 = xor i32 %h24, %m24
+      %s25 = ashr i32 %c24, 31
+      %m25 = and i32 %s25, 79764919
+      %h25 = shl i32 %c24, 1
+      %c25 = xor i32 %h25, %m25
+      %s26 = ashr i32 %c25, 31
+      %m26 = and i32 %s26, 79764919
+      %h26 = shl i32 %c25, 1
+      %c26 = xor i32 %h26, %m26
+      %s27 = ashr i32 %c26, 31
+      %m27 = and i32 %s27, 79764919
+      %h27 = shl i32 %c26, 1
+      %c27 = xor i32 %h27, %m27
+      %s28 = ashr i32 %c27, 31
+      %m28 = and i32 %s28, 79764919
+      %h28 = shl i32 %c27, 1
+      %c28 = xor i32 %h28, %m28
+      %s29 = ashr i32 %c28, 31
+      %m29 = and i32 %s29, 79764919
+      %h29 = shl i32 %c28, 1
+      %c29 = xor i32 %h29, %m29
+      %s30 = ashr i32 %c29, 31
+      %m30 = and i32 %s30, 79764919
+      %h30 = shl i32 %c29, 1
+      %c30 = xor i32 %h30, %m30
+      %s31 = ashr i32 %c30, 31
+      %m31 = and i32 %s31, 79764919
+      %h31 = shl i32 %c30, 1
+      %c31 = xor i32 %h31, %m31
+      ret i32 %c31
+    }

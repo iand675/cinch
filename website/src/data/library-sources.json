@@ -1603,6 +1603,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Bzip2",
+      "path": "seed/prelude/Text/Bzip2.cinch",
+      "sha256": "ac64666d69ed61d0f44e7ae56cbb1a840564046919b9da0718ae7b8e50bc9283",
+      "embedded": false,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Checksum",
       "path": "seed/prelude/Text/Checksum.cinch",
       "sha256": "6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684",
