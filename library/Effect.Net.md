@@ -184,4 +184,4 @@ The handle word of a socket, for the layers above this one.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Net.cinch`. Source SHA-256: `a2cb8234289a30c321ff66c01032badecda44207e910c715466821db78321a46`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Net.cinch`. Source SHA-256: `9bac11640aa56817a5722b1336568f7d1ad80e034c105313934b44c8a7e9cc30`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

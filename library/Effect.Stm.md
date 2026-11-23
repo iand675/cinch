@@ -170,7 +170,7 @@ used any number of times: a `%1` value cannot cross a `<-`.
 
 ## `atomically`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atomically</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atomically</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">STM</span>} <span class="tok-variable">a</span>)</code></pre>
 
 Run a transaction: its reads and writes take effect together, at one
 instant, or the transaction runs again. Returns when an attempt
@@ -182,7 +182,7 @@ commits, which `retry` and contention can postpone without bound.
 
 ## `atomically-or-cancel`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atomically-or-cancel</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">r</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atomically-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">STM</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
 
 `atomically` for a task that must stay cancellable while it waits:
 `None` when the task's cancellation was requested while the
@@ -289,7 +289,7 @@ to the attempt that made it.
 
 ## `tvar-new-io`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-new-io</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>} <span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-new-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>} (<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>))</code></pre>
 
 A new variable, made outside any transaction.
 
@@ -307,7 +307,7 @@ A new variable, made outside any transaction.
 
 ## `tvar-read-io`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-read-io</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>} <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tvar-read-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">TVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">STM</span>} <span class="tok-variable">a</span>)</code></pre>
 
 The variable's committed value at some instant during the call,
 outside any transaction. Two such reads are two instants: use a
@@ -360,4 +360,4 @@ their type). `empty` is `retry` and `<|>` is `or-else`.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm.cinch`. Source SHA-256: `2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm.cinch`. Source SHA-256: `470353674e04c6572a5f941cbba42503281077aa55abd3ed8daf50ff85a9f071`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

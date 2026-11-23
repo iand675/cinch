@@ -1,0 +1,102 @@
+-- | Exact bounded byte scans shared by buffered input and token splitters.
+-- Complete eight-byte words use lane comparisons; scalar fringes never read
+-- before the requested start or after the half-open end of the owned span.
+module Effect.Buffered.Internal.Scan where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  export find-byte, ascii-spaces, ascii-word
+
+  -- | Mark matching byte lanes with an explicit bit8 sentinel for the no-match case.
+  prim byte-mask :: U64 -> U8 -> U32 where
+    llvm {
+      %lanes = bitcast i64 %0 to <8 x i8>
+      %seed = insertelement <8 x i8> poison, i8 %1, i32 0
+      %needle = shufflevector <8 x i8> %seed, <8 x i8> poison, <8 x i32> zeroinitializer
+      %equal = icmp eq <8 x i8> %lanes, %needle
+      %mask = bitcast <8 x i1> %equal to i8
+      %wide = zext i8 %mask to i32
+      %sentinel = or i32 %wide, 256
+      ret i32 %sentinel
+    }
+
+  -- | Mark lanes that are not one of the six ASCII whitespace bytes, with a bit8 sentinel.
+  prim nonspace-mask :: U64 -> U32 where
+    llvm {
+      %lanes = bitcast i64 %0 to <8 x i8>
+      %space = icmp eq <8 x i8> %lanes, <i8 32,i8 32,i8 32,i8 32,i8 32,i8 32,i8 32,i8 32>
+      %above = icmp uge <8 x i8> %lanes, <i8 9,i8 9,i8 9,i8 9,i8 9,i8 9,i8 9,i8 9>
+      %below = icmp ule <8 x i8> %lanes, <i8 13,i8 13,i8 13,i8 13,i8 13,i8 13,i8 13,i8 13>
+      %control = and <8 x i1> %above, %below
+      %white = or <8 x i1> %space, %control
+      %other = xor <8 x i1> %white, <i1 true,i1 true,i1 true,i1 true,i1 true,i1 true,i1 true,i1 true>
+      %mask = bitcast <8 x i1> %other to i8
+      %wide = zext i8 %mask to i32
+      %sentinel = or i32 %wide, 256
+      ret i32 %sentinel
+    }
+
+  -- | Mark ASCII whitespace and non-ASCII lanes so scalar logic can handle their boundaries.
+  prim word-end-mask :: U64 -> U32 where
+    llvm {
+      %lanes = bitcast i64 %0 to <8 x i8>
+      %space = icmp eq <8 x i8> %lanes, <i8 32,i8 32,i8 32,i8 32,i8 32,i8 32,i8 32,i8 32>
+      %above = icmp uge <8 x i8> %lanes, <i8 9,i8 9,i8 9,i8 9,i8 9,i8 9,i8 9,i8 9>
+      %below = icmp ule <8 x i8> %lanes, <i8 13,i8 13,i8 13,i8 13,i8 13,i8 13,i8 13,i8 13>
+      %control = and <8 x i1> %above, %below
+      %white = or <8 x i1> %space, %control
+      %unicode = icmp uge <8 x i8> %lanes, <i8 128,i8 128,i8 128,i8 128,i8 128,i8 128,i8 128,i8 128>
+      %boundary = or <8 x i1> %white, %unicode
+      %mask = bitcast <8 x i1> %boundary to i8
+      %wide = zext i8 %mask to i32
+      %sentinel = or i32 %wide, 256
+      ret i32 %sentinel
+    }
+
+  -- | Find a byte in a checked half-open owner span, returning its absolute offset or None for absence or invalid bounds.
+  find-byte :: Bytes -> Nat -> Nat -> U8 -> Option Nat
+  find-byte owner at end value = if at < end && end <= bytes-len owner then
+    if at + 8 <= end && at + 8 <= bytes-len owner then
+      let word = bytes-read-le64 owner at in let matched = byte-lane word value in let lane = u32-to-nat matched in
+      if lane < 8 then Some (at + lane) else find-byte owner (at + 8) end value
+    else if bytes-get owner at == u8-to-nat value then Some at else find-byte owner (at + 1) end value
+    else None
+
+  -- | Test the six ASCII whitespace bytes without including other Latin-1 or Unicode separators.
+  ascii-space :: Nat -> Bool
+  ascii-space value = value == 32 || (9 <= value && value <= 13)
+
+  -- | Advance past ASCII whitespace in a bounded span, returning an absolute endpoint; invalid bounds leave the offset unchanged.
+  ascii-spaces :: Bytes -> Nat -> Nat -> Nat
+  ascii-spaces owner at end = if at < end && end <= bytes-len owner then
+    if at + 8 <= end && at + 8 <= bytes-len owner then
+      let word = bytes-read-le64 owner at in let matched = nonspace-lane word in let lane = u32-to-nat matched in
+      if lane < 8 then at + lane else ascii-spaces owner (at + 8) end
+    else if ascii-space (bytes-get owner at) then ascii-spaces owner (at + 1) end else at
+    else at
+
+  -- | Advance past ASCII non-whitespace bytes, stopping before Unicode fringes for scalar decoding.
+  ascii-word :: Bytes -> Nat -> Nat -> Nat
+  ascii-word owner at end = if at < end && end <= bytes-len owner then
+    if at + 8 <= end && at + 8 <= bytes-len owner then
+      let word = bytes-read-le64 owner at in let matched = word-end-lane word in let lane = u32-to-nat matched in
+      if lane < 8 then at + lane else ascii-word owner (at + 8) end
+    else let value = bytes-get owner at in
+      if value < 128 && not (ascii-space value) then ascii-word owner (at + 1) end else at
+    else at
+
+  -- | Locate the first matching lane through the checked trailing-zero intrinsic, yielding eight for absence.
+  byte-lane :: U64 -> U8 -> U32
+  byte-lane word value = let mask = byte-mask word value in trailing-zeros-u32 mask
+
+  -- | Locate the first non-whitespace lane using the registered scalar intrinsic rather than an unchecked inline call.
+  nonspace-lane :: U64 -> U32
+  nonspace-lane word = let mask = nonspace-mask word in trailing-zeros-u32 mask
+
+  -- | Locate the next whitespace or Unicode boundary while retaining the defined eight-lane sentinel.
+  word-end-lane :: U64 -> U32
+  word-end-lane word = let mask = word-end-mask word in trailing-zeros-u32 mask

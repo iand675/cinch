@@ -245,4 +245,4 @@ Printing: the exact inverse of parsing (the round-trip law).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Uri.cinch`. Source SHA-256: `b1b0e152c068b9b4ef4d47b03b84502cd0fc2b506608bdd006b87405934c50f4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Uri.cinch`. Source SHA-256: `e3098cfb52bdee5813cb985d730d5865cb01c2b687d42464f821b73121bc1749`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -1,0 +1,456 @@
+-- Data.Time.Zone: time zones
+-- (design/datetime.md, layer L2, lane C).
+--
+-- A `TimeZone` is the pair of mappings between instants and civil
+-- readings in one place: every instant has exactly one offset
+-- (`zone-offset-at`), and a civil reading has zero, one or two
+-- (`zone-to-ambiguous`, T4). A zone is one of
+--   - a fixed offset (`zone-fixed`, `zone-utc`),
+--   - a table of transitions read from a TZif file
+--     (`Data.Time.Zone.Tzif`), with an optional POSIX rule for the
+--     instants after the table's last transition, or
+--   - a POSIX rule alone (`zone-posix`).
+-- Getting a zone by name is an effect and lives in `Effect.Time.Zone`
+-- (T5); everything here is pure. This module re-exports
+-- `Data.Time.Zone.Types` (`Ambiguous`, `Disambiguation`, `OffsetInfo`
+-- and their eliminators).
+--
+-- REPRESENTATION of a table zone. The transition instants are Unix
+-- seconds in one packed `Array I64` (`Data.Array.Packed`'s
+-- `array-from-i64s`: eight bytes an element, no per-element object),
+-- each transition's local time type index is a byte in a packed
+-- `Array U8`, and the local time types are a small boxed
+-- `Array OffsetInfo` (at most 256 entries) so a lookup returns the
+-- table's own `OffsetInfo` without building one. A lookup is a binary
+-- search over the instants. `array-get` is the only reader the
+-- compiler offers for an `Array` and it answers `Option`, so each
+-- probe passes through an `Option I64`; nothing else is built.
+-- `Data.Array` and `Data.Array.Packed` are "ship source" modules (not
+-- in the embedded base package), so importing them would oblige every
+-- user of the datetime family to copy them beside their entry file;
+-- this module instead binds the four runtime entry points it needs
+-- privately, under the names and types those modules give them.
+--
+-- Design law shape. For a table of transitions `t_0 < t_1 < ...`
+-- with types `k_i` (RFC 9636): an instant before `t_0` has local time
+-- type 0; an instant in `[t_i, t_i+1)` has type `k_i`; an instant at
+-- or after the last transition follows the POSIX rule when there is
+-- one, and type `k_last` otherwise. `zone-to-datetime z t` is the
+-- civil reading of `t` at `zone-offset-at z t`. `zone-to-ambiguous`
+-- is derived from the same instant-side lookups
+-- (`ambiguous-from-lookups`), so: a reading is `Unambiguous o`
+-- exactly when one instant has it as its civil reading (and that
+-- instant's offset is `o`), a `Fold` when two do, and a `Gap` when
+-- none does; and for every instant `t`, resolving
+-- `zone-to-datetime z t` with any strategy but `Reject` gives an
+-- instant with the same civil reading. `zone-next-transition` and
+-- `zone-previous-transition` are strict on both sides.
+--
+-- NAMED REFUSALS:
+--   - a default disambiguation (T4): `zone-to-timestamp` takes the
+--     strategy and the four named forms carry it in their names.
+--   - lookup by name (T5): `Effect.Time.Zone`.
+--   - leap seconds: a table zone is on the Unix time scale.
+--   - a "transition" is whatever the table or rule lists, including
+--     one that changes only the abbreviation or the daylight flag;
+--     they are not filtered.
+--   - an unboxed probe: see REPRESENTATION.
+--   - `Eq` on `TimeZone`: two zones with the same rules under
+--     different names are neither clearly equal nor clearly distinct;
+--     `Data.Time.Zoned` compares names and says so.
+module Data.Time.Zone where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone.Types
+  import Data.Time.Zone.Posix
+
+  export module Data.Time.Zone.Types
+  export TimeZone
+  export zone-utc, zone-fixed, zone-fixed-named, zone-posix
+  export ZoneTableError, ZoneNoTypes, ZoneLengthMismatch
+  export ZoneUnsortedTransitions, ZoneTypeIndexOutOfRange
+  export zone-from-table
+  export zone-name, zone-fixed-offset, zone-transition-count
+  export zone-offset-at, zone-info-at, zone-to-datetime
+  export zone-to-ambiguous, zone-to-timestamp
+  export zone-to-timestamp-compatible, zone-to-timestamp-earlier
+  export zone-to-timestamp-later, zone-to-timestamp-reject
+  export zone-next-transition, zone-previous-transition
+  export zone-info-at-unix-seconds, zone-next-transition-unix-seconds
+  export zone-previous-transition-unix-seconds
+
+
+  -- The array entry points, bound here (see REPRESENTATION): the
+  -- same runtime functions `Data.Array` and `Data.Array.Packed` bind,
+  -- with the same types. A read outside the array answers `None`.
+  foreign import ccall "cinch.runtime.arrayFromListI64" array-from-i64s :: List I64 -> Array I64
+  foreign import ccall "cinch.runtime.arrayFromListU8" array-from-u8s :: List U8 -> Array U8
+  foreign import ccall "cinch.runtime.arrayFromList" array-from-list :: forall a. List a -> Array a
+  foreign import ccall "cinch.runtime.arrayGet" array-get :: forall a. Array a -> Nat -> Option a
+
+  -- A zone (header). The constructors are not exported: a table zone
+  -- is only made by `zone-from-table`, which checks it.
+  data TimeZone where
+    -- Name and the one `OffsetInfo`.
+    ZoneFixed :: String -> OffsetInfo -> TimeZone
+    -- Name, transition count, transition instants (Unix seconds,
+    -- strictly ascending), each transition's type index, the local
+    -- time types, type 0, and the rule after the last transition.
+    ZoneTable :: String -> I64 -> Array I64 -> Array U8 -> Array OffsetInfo -> OffsetInfo -> Option PosixRule -> TimeZone
+    -- Name and rule.
+    ZoneRule :: String -> PosixRule -> TimeZone
+
+  -- Why `zone-from-table` refused a table.
+  data ZoneTableError where
+    -- There is no local time type.
+    ZoneNoTypes :: ZoneTableError
+    -- The instants and the type indices differ in number.
+    ZoneLengthMismatch :: ZoneTableError
+    -- The instants are not strictly ascending.
+    ZoneUnsortedTransitions :: ZoneTableError
+    -- A type index is not below the number of types (or above 255).
+    ZoneTypeIndexOutOfRange :: ZoneTableError
+
+  -- -----------------------------------------------------------------
+  -- Construction.
+  -- -----------------------------------------------------------------
+
+  -- UTC: offset zero, named and abbreviated "UTC".
+  zone-utc :: TimeZone
+  zone-utc = ZoneFixed "UTC" (offset-info offset-utc False "UTC")
+
+  -- A fixed offset. Its name and abbreviation are the offset as
+  -- `+hh:mm` (`+hh:mm:ss` when the seconds are not zero); offset zero
+  -- is `zone-utc`.
+  zone-fixed :: Offset -> TimeZone
+  zone-fixed o =
+    if offset-is-utc o then zone-utc
+    else
+      let name = offset-label o in
+      ZoneFixed name (offset-info o False name)
+
+  -- A fixed offset under a name of the caller's choosing (also its
+  -- abbreviation).
+  zone-fixed-named :: String -> Offset -> TimeZone
+  zone-fixed-named name o = ZoneFixed name (offset-info o False name)
+
+  -- A zone that follows a POSIX rule for every instant.
+  zone-posix :: String -> PosixRule -> TimeZone
+  zone-posix name r = ZoneRule name r
+
+  -- A table zone (the header's law). `instants` are Unix seconds and
+  -- must be strictly ascending; `indices` gives each transition's
+  -- local time type as an index into `types`, which must not be
+  -- empty and whose first element is the type before the first
+  -- transition; `tail` is the rule after the last transition.
+  zone-from-table :: String -> List I64 -> List I64 -> List OffsetInfo -> Option PosixRule -> Result ZoneTableError TimeZone
+  zone-from-table name instants indices types tail = case types of
+    Nil -> Err ZoneNoTypes
+    Cons first _ ->
+      let type-count = count-items types 0 in
+      let n = count-items instants 0 in
+      if ne-i64 n (count-items indices 0) then Err ZoneLengthMismatch
+      else if not (ascending instants) then Err ZoneUnsortedTransitions
+      else if not (indices-below type-count indices) then Err ZoneTypeIndexOutOfRange
+      else Ok (ZoneTable name n (array-from-i64s instants) (array-from-u8s (index-bytes indices)) (array-from-list types) first tail)
+
+  -- A list's length as a machine word (a list cannot hold 2^63
+  -- elements, so the count cannot wrap).
+  count-items :: forall a. List a -> I64 -> I64
+  count-items xs acc = case xs of
+    Nil -> acc
+    Cons _ rest -> count-items rest (wrapping-add-i64 acc 1)
+
+  ascending :: List I64 -> Bool
+  ascending xs = case xs of
+    Nil -> True
+    Cons x rest -> ascending-from x rest
+
+  ascending-from :: I64 -> List I64 -> Bool
+  ascending-from x xs = case xs of
+    Nil -> True
+    Cons y rest -> if lt-i64 x y then ascending-from y rest else False
+
+  indices-below :: I64 -> List I64 -> Bool
+  indices-below n xs = case xs of
+    Nil -> True
+    Cons x rest ->
+      if ge-i64 x 0 && lt-i64 x n && le-i64 x 255 then indices-below n rest else False
+
+  -- The checked indices as bytes (each is 0..=255, so the wrapping
+  -- conversion is exact).
+  index-bytes :: List I64 -> List U8
+  index-bytes xs = case xs of
+    Nil -> Nil
+    Cons x rest -> Cons (wrapping-i64-to-u8 x) (index-bytes rest)
+
+  -- -----------------------------------------------------------------
+  -- Reading a zone.
+  -- -----------------------------------------------------------------
+
+  -- The zone's name: the IANA name it was looked up under, "UTC", a
+  -- fixed offset's label, or whatever its maker called it.
+  zone-name :: TimeZone -> String
+  zone-name z = case z of
+    ZoneFixed name _ -> name
+    ZoneTable name _ _ _ _ _ _ -> name
+    ZoneRule name _ -> name
+
+  -- The offset of a fixed-offset zone.
+  zone-fixed-offset :: TimeZone -> Option Offset
+  zone-fixed-offset z = case z of
+    ZoneFixed _ i -> Some (offset-info-offset i)
+    ZoneTable _ _ _ _ _ _ _ -> None
+    ZoneRule _ _ -> None
+
+  -- How many transitions a table zone lists (0 for the other kinds).
+  zone-transition-count :: TimeZone -> I64
+  zone-transition-count z = case z of
+    ZoneFixed _ _ -> 0
+    ZoneTable _ n _ _ _ _ _ -> n
+    ZoneRule _ _ -> 0
+
+  -- -----------------------------------------------------------------
+  -- The table.
+  -- -----------------------------------------------------------------
+
+  -- Element `i` of the instants. The `None` arms are unreachable for
+  -- `0 <= i < n` (the array has `n` elements); they read as `I64`'s
+  -- maximum, which sorts after every instant.
+  instant-at :: Array I64 -> I64 -> I64
+  instant-at ts i =
+    if i >= 0 then case array-get ts (nat-from-i64 i) of
+      Some v -> v
+      None -> max-bound-i64
+    else max-bound-i64
+
+  -- How many of the `n` instants are at or before `t`: a binary
+  -- search for the first instant after `t` over `[lo, hi)`. `lo + hi`
+  -- is at most twice a list length, so it cannot wrap.
+  count-at-or-before :: Array I64 -> I64 -> I64 -> I64 -> I64
+  count-at-or-before ts t lo hi =
+    if ge-i64 lo hi then lo
+    else
+      let mid = half (wrapping-add-i64 lo hi) in
+      if le-i64 (instant-at ts mid) t then count-at-or-before ts t (wrapping-add-i64 mid 1) hi
+      else count-at-or-before ts t lo mid
+
+  -- The local time type of transition `i`. Every arm but the last is
+  -- unreachable for `0 <= i < n` (`zone-from-table` checked the
+  -- lengths and the indices) and reads as type 0.
+  type-of-transition :: Array U8 -> Array OffsetInfo -> OffsetInfo -> I64 -> OffsetInfo
+  type-of-transition idx types first i =
+    if i >= 0 then case array-get idx (nat-from-i64 i) of
+      None -> first
+      Some k -> case array-get types (nat-from-i64 (u8-to-i64 k)) of
+        None -> first
+        Some info -> info
+    else first
+
+  -- -----------------------------------------------------------------
+  -- Lookups by Unix second.
+  -- -----------------------------------------------------------------
+
+  -- What the zone says at Unix second `t` (the header's law).
+  zone-info-at-unix-seconds :: TimeZone -> I64 -> OffsetInfo
+  zone-info-at-unix-seconds z t = case z of
+    ZoneFixed _ i -> i
+    ZoneRule _ r -> posix-info-at-unix-seconds r t
+    ZoneTable _ n ts idx types first tail ->
+      let i = count-at-or-before ts t 0 n in
+      if eq-i64 i n then case tail of
+        Some r -> posix-info-at-unix-seconds r t
+        None -> if eq-i64 i 0 then first else type-of-transition idx types first (wrapping-sub-i64 i 1)
+      else if eq-i64 i 0 then first
+      else type-of-transition idx types first (wrapping-sub-i64 i 1)
+
+  -- The first transition strictly after Unix second `t`.
+  zone-next-transition-unix-seconds :: TimeZone -> I64 -> Option I64
+  zone-next-transition-unix-seconds z t = case z of
+    ZoneFixed _ _ -> None
+    ZoneRule _ r -> posix-next-transition-unix-seconds r t
+    ZoneTable _ n ts _ _ _ tail ->
+      let i = count-at-or-before ts t 0 n in
+      if lt-i64 i n then Some (instant-at ts i)
+      else case tail of
+        None -> None
+        Some r -> posix-next-transition-unix-seconds r t
+
+  -- The last transition strictly before Unix second `t`. Past the
+  -- table's end it is the rule's, unless the table's last transition
+  -- is later than that.
+  zone-previous-transition-unix-seconds :: TimeZone -> I64 -> Option I64
+  zone-previous-transition-unix-seconds z t = case z of
+    ZoneFixed _ _ -> None
+    ZoneRule _ r -> posix-previous-transition-unix-seconds r t
+    ZoneTable _ n ts _ _ _ tail ->
+      -- Instants strictly before `t` are those at or before `t - 1`
+      -- (saturating: nothing is before `I64`'s minimum).
+      let j = if eq-i64 t min-bound-i64 then zero-i64 else count-at-or-before ts (wrapping-sub-i64 t 1) 0 n in
+      if lt-i64 j n then (if eq-i64 j 0 then None else Some (instant-at ts (wrapping-sub-i64 j 1)))
+      else case tail of
+        None -> if eq-i64 j 0 then None else Some (instant-at ts (wrapping-sub-i64 j 1))
+        Some r -> case posix-previous-transition-unix-seconds r t of
+          None -> if eq-i64 j 0 then None else Some (instant-at ts (wrapping-sub-i64 j 1))
+          Some p ->
+            if eq-i64 j 0 then Some p
+            else
+              let last = instant-at ts (wrapping-sub-i64 j 1) in
+              if gt-i64 last p then Some last else Some p
+
+  zero-i64 :: I64
+  zero-i64 = 0
+
+  -- -----------------------------------------------------------------
+  -- Instant to civil.
+  -- -----------------------------------------------------------------
+
+  -- Offset, daylight flag and abbreviation in force at an instant.
+  zone-info-at :: TimeZone -> Timestamp -> OffsetInfo
+  zone-info-at z t = zone-info-at-unix-seconds z (timestamp-to-unix-seconds t)
+
+  zone-offset-at :: TimeZone -> Timestamp -> Offset
+  zone-offset-at z t = offset-info-offset (zone-info-at z t)
+
+  -- The civil reading of an instant in the zone.
+  zone-to-datetime :: TimeZone -> Timestamp -> DateTime
+  zone-to-datetime z t = offset-timestamp-to-datetime (zone-offset-at z t) t
+
+  -- -----------------------------------------------------------------
+  -- Civil to instant.
+  -- -----------------------------------------------------------------
+
+  offset-at-seconds :: TimeZone -> I64 -> Offset
+  offset-at-seconds z t = offset-info-offset (zone-info-at-unix-seconds z t)
+
+  -- The offsets a civil reading can have in the zone (T4).
+  zone-to-ambiguous :: TimeZone -> DateTime -> Ambiguous
+  zone-to-ambiguous z x = case z of
+    ZoneFixed _ i -> Unambiguous (offset-info-offset i)
+    ZoneTable _ _ _ _ _ _ _ -> ambiguous-from-lookups (offset-at-seconds z) (zone-next-transition-unix-seconds z) x
+    ZoneRule _ _ -> ambiguous-from-lookups (offset-at-seconds z) (zone-next-transition-unix-seconds z) x
+
+  -- The instant of a civil reading, by the given strategy
+  -- (`Data.Time.Zone.Types`' table).
+  zone-to-timestamp :: Disambiguation -> TimeZone -> DateTime -> Result AmbiguityError Timestamp
+  zone-to-timestamp s z x = ambiguous-resolve s x (zone-to-ambiguous z x)
+
+  -- In a gap the later instant, in a fold the earlier one.
+  zone-to-timestamp-compatible :: TimeZone -> DateTime -> Result AmbiguityError Timestamp
+  zone-to-timestamp-compatible z x = zone-to-timestamp Compatible z x
+
+  -- The earlier instant in a gap and in a fold.
+  zone-to-timestamp-earlier :: TimeZone -> DateTime -> Result AmbiguityError Timestamp
+  zone-to-timestamp-earlier z x = zone-to-timestamp Earlier z x
+
+  -- The later instant in a gap and in a fold.
+  zone-to-timestamp-later :: TimeZone -> DateTime -> Result AmbiguityError Timestamp
+  zone-to-timestamp-later z x = zone-to-timestamp Later z x
+
+  -- Refuses a gap and a fold.
+  zone-to-timestamp-reject :: TimeZone -> DateTime -> Result AmbiguityError Timestamp
+  zone-to-timestamp-reject z x = zone-to-timestamp Reject z x
+
+  -- -----------------------------------------------------------------
+  -- Transitions.
+  -- -----------------------------------------------------------------
+
+  -- The first transition strictly after `t`; `None` when there is
+  -- none (a fixed zone, a table without a rule past its end) or it is
+  -- outside the timestamp range.
+  zone-next-transition :: TimeZone -> Timestamp -> Option Timestamp
+  zone-next-transition z t = case zone-next-transition-unix-seconds z (timestamp-to-unix-seconds t) of
+    None -> None
+    Some s -> timestamp-from-unix-seconds s
+
+  -- The last transition strictly before `t`. A transition at `t`'s
+  -- own whole second is before `t` exactly when `t` has a fractional
+  -- part. The seconds are within +-3.8e11, so the increment cannot
+  -- wrap.
+  zone-previous-transition :: TimeZone -> Timestamp -> Option Timestamp
+  zone-previous-transition z t =
+    let s = timestamp-to-unix-seconds t in
+    let bound = if gt-i64 (timestamp-subsec-nanos t) 0 then wrapping-add-i64 s 1 else s in
+    case zone-previous-transition-unix-seconds z bound of
+      None -> None
+      Some p -> timestamp-from-unix-seconds p
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  -- Half of a non-negative count.
+  half :: I64 -> I64
+  half a = case checked-div-i64 a 2 of
+    Some q -> q
+    None -> 0
+
+  -- An ASCII digit for `v` in 0..=9. The clamp never fires for the
+  -- two-digit fields below; it states the byte range in the type.
+  digit :: I64 -> InRange 0 255 Nat
+  digit v =
+    let c = wrapping-add-i64 v 48 in
+    if c < 48 then 48 else if c > 57 then 57 else nat-from-i64 c
+
+  tens :: I64 -> I64
+  tens v = case checked-div-i64 v 10 of
+    Some q -> q
+    None -> 0
+
+  ones :: I64 -> I64
+  ones v = case checked-rem-i64 v 10 of
+    Some r -> r
+    None -> 0
+
+  -- `+hh:mm` or `+hh:mm:ss`. The bytes are ASCII, so the `None` from
+  -- `string-from-bytes` is unreachable and reads as the empty name.
+  offset-label :: Offset -> String
+  offset-label o =
+    let h = offset-hours o in
+    let m = offset-minutes o in
+    let s = offset-seconds o in
+    let out = if eq-i64 s 0 then label-hm o h m else label-hms o h m s in
+    case string-from-bytes out of
+      Some str -> str
+      None -> ""
+
+  sign-byte :: Offset -> InRange 0 255 Nat
+  sign-byte o = if offset-is-negative o then 45 else 43
+
+  label-hm :: Offset -> I64 -> I64 -> Bytes
+  label-hm o h m =
+    let out = bytes-new 6 in
+    let u0 = bytes-set out 0 (sign-byte o) in
+    let u1 = bytes-set out 1 (digit (tens h)) in
+    let u2 = bytes-set out 2 (digit (ones h)) in
+    let u3 = bytes-set out 3 58 in
+    let u4 = bytes-set out 4 (digit (tens m)) in
+    let u5 = bytes-set out 5 (digit (ones m)) in
+    out
+
+  label-hms :: Offset -> I64 -> I64 -> I64 -> Bytes
+  label-hms o h m s =
+    let out = bytes-new 9 in
+    let u0 = bytes-set out 0 (sign-byte o) in
+    let u1 = bytes-set out 1 (digit (tens h)) in
+    let u2 = bytes-set out 2 (digit (ones h)) in
+    let u3 = bytes-set out 3 58 in
+    let u4 = bytes-set out 4 (digit (tens m)) in
+    let u5 = bytes-set out 5 (digit (ones m)) in
+    let u6 = bytes-set out 6 58 in
+    let u7 = bytes-set out 7 (digit (tens s)) in
+    let u8 = bytes-set out 8 (digit (ones s)) in
+    out

@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "base_manifest_sha256": "7dbf2f6c367b379615e42def4c006fad9f05ec4c752105e07377afd77df5a6cc",
+  "base_manifest_sha256": "791984d30e9413d78fff173eddef0d5438278e074ddd19240d10376e6fa27b1e",
   "modules": [
     {
       "module": "Algebra.Arithmetic",
-      "path": "compiler/prelude/Algebra/Arithmetic.cinch",
+      "path": "seed/prelude/Algebra/Arithmetic.cinch",
       "sha256": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0",
       "embedded": true,
       "values": 0,
@@ -12,7 +12,7 @@
     },
     {
       "module": "Algebra.Bits",
-      "path": "compiler/prelude/Algebra/Bits.cinch",
+      "path": "seed/prelude/Algebra/Bits.cinch",
       "sha256": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712",
       "embedded": true,
       "values": 5,
@@ -20,39 +20,39 @@
     },
     {
       "module": "Algebra.Group",
-      "path": "compiler/prelude/Algebra/Group.cinch",
-      "sha256": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c",
+      "path": "seed/prelude/Algebra/Group.cinch",
+      "sha256": "df69dec9c9aeb84c0979241629321d1e975609f5ec487f40ae30a9fa8131d0ee",
       "embedded": true,
       "values": 0,
       "public_methods": 1
     },
     {
       "module": "Algebra.Monoid",
-      "path": "compiler/prelude/Algebra/Monoid.cinch",
-      "sha256": "8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591",
+      "path": "seed/prelude/Algebra/Monoid.cinch",
+      "sha256": "65ad6baacef678beae82ef249f304e9efe7f24487278d91b053f2986bde3e1ac",
       "embedded": true,
       "values": 0,
       "public_methods": 2
     },
     {
       "module": "Algebra.Semigroup",
-      "path": "compiler/prelude/Algebra/Semigroup.cinch",
-      "sha256": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e",
+      "path": "seed/prelude/Algebra/Semigroup.cinch",
+      "sha256": "03b8c3463a181da5deaa4de35921c2bfb69520b4aed1c0a21043fc72f9be6272",
       "embedded": true,
       "values": 3,
       "public_methods": 1
     },
     {
       "module": "Algebra.Semiring",
-      "path": "compiler/prelude/Algebra/Semiring.cinch",
-      "sha256": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03",
+      "path": "seed/prelude/Algebra/Semiring.cinch",
+      "sha256": "9294495f17cdabec65d1e264550d5f3a02ba0456b6ebb95b9a2e36401d14b0d7",
       "embedded": true,
       "values": 0,
       "public_methods": 4
     },
     {
       "module": "Category.Alternative",
-      "path": "compiler/prelude/Category/Alternative.cinch",
+      "path": "seed/prelude/Category/Alternative.cinch",
       "sha256": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc",
       "embedded": true,
       "values": 0,
@@ -60,23 +60,23 @@
     },
     {
       "module": "Category.Applicative",
-      "path": "compiler/prelude/Category/Applicative.cinch",
-      "sha256": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a",
+      "path": "seed/prelude/Category/Applicative.cinch",
+      "sha256": "fe2bc906c714b1d4d01cedc10c1f5b8eb05a1b73e7be0d80c67f17018af0ffa1",
       "embedded": true,
       "values": 5,
       "public_methods": 3
     },
     {
       "module": "Category.Foldable",
-      "path": "compiler/prelude/Category/Foldable.cinch",
-      "sha256": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab",
+      "path": "seed/prelude/Category/Foldable.cinch",
+      "sha256": "6ca66ed68587a97bcf1e3e69c64f47942be1743f898fad08d9020f6bc9f39e33",
       "embedded": true,
       "values": 21,
       "public_methods": 5
     },
     {
       "module": "Category.Functor",
-      "path": "compiler/prelude/Category/Functor.cinch",
+      "path": "seed/prelude/Category/Functor.cinch",
       "sha256": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1",
       "embedded": true,
       "values": 0,
@@ -84,7 +84,7 @@
     },
     {
       "module": "Category.Monad",
-      "path": "compiler/prelude/Category/Monad.cinch",
+      "path": "seed/prelude/Category/Monad.cinch",
       "sha256": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f",
       "embedded": true,
       "values": 2,
@@ -92,26 +92,18 @@
     },
     {
       "module": "Category.Traversable",
-      "path": "compiler/prelude/Category/Traversable.cinch",
-      "sha256": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad",
+      "path": "seed/prelude/Category/Traversable.cinch",
+      "sha256": "ee1061fae41837e7548b47c4e259977b53131d9ecaa18b438594ccb7fe873326",
       "embedded": true,
       "values": 4,
       "public_methods": 2
     },
     {
       "module": "Crypto.ConstantTime",
-      "path": "compiler/prelude/Crypto/ConstantTime.cinch",
+      "path": "seed/prelude/Crypto/ConstantTime.cinch",
       "sha256": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
       "embedded": false,
       "values": 7,
-      "public_methods": 0
-    },
-    {
-      "module": "Data.Array.Edit",
-      "path": "seed/prelude/Data/Array/Edit.cinch",
-      "sha256": "25857a7cd5dff21d743ddb2871c837c770397ac57e05d524349fc39ccc780bdb",
-      "embedded": false,
-      "values": 8,
       "public_methods": 0
     },
     {
@@ -131,8 +123,16 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Array.Edit",
+      "path": "seed/prelude/Data/Array/Edit.cinch",
+      "sha256": "25857a7cd5dff21d743ddb2871c837c770397ac57e05d524349fc39ccc780bdb",
+      "embedded": false,
+      "values": 8,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Array.Packed",
-      "path": "compiler/prelude/Data/Array/Packed.cinch",
+      "path": "seed/prelude/Data/Array/Packed.cinch",
       "sha256": "799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364",
       "embedded": false,
       "values": 13,
@@ -148,7 +148,7 @@
     },
     {
       "module": "Data.Array",
-      "path": "compiler/prelude/Data/Array.cinch",
+      "path": "seed/prelude/Data/Array.cinch",
       "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
       "embedded": false,
       "values": 9,
@@ -156,7 +156,7 @@
     },
     {
       "module": "Data.Ascii",
-      "path": "compiler/prelude/Data/Ascii.cinch",
+      "path": "seed/prelude/Data/Ascii.cinch",
       "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2",
       "embedded": true,
       "values": 1,
@@ -164,7 +164,7 @@
     },
     {
       "module": "Data.BigDecimal",
-      "path": "compiler/prelude/Data/BigDecimal.cinch",
+      "path": "seed/prelude/Data/BigDecimal.cinch",
       "sha256": "0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c",
       "embedded": false,
       "values": 16,
@@ -172,7 +172,7 @@
     },
     {
       "module": "Data.Bool",
-      "path": "compiler/prelude/Data/Bool.cinch",
+      "path": "seed/prelude/Data/Bool.cinch",
       "sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5",
       "embedded": true,
       "values": 12,
@@ -180,7 +180,7 @@
     },
     {
       "module": "Data.Bytes.Build",
-      "path": "compiler/prelude/Data/Bytes/Build.cinch",
+      "path": "seed/prelude/Data/Bytes/Build.cinch",
       "sha256": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
       "embedded": false,
       "values": 4,
@@ -188,7 +188,7 @@
     },
     {
       "module": "Data.Bytes.Fields",
-      "path": "compiler/prelude/Data/Bytes/Fields.cinch",
+      "path": "seed/prelude/Data/Bytes/Fields.cinch",
       "sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
       "embedded": false,
       "values": 20,
@@ -196,7 +196,7 @@
     },
     {
       "module": "Data.Bytes.Search",
-      "path": "compiler/prelude/Data/Bytes/Search.cinch",
+      "path": "seed/prelude/Data/Bytes/Search.cinch",
       "sha256": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",
       "embedded": false,
       "values": 4,
@@ -204,7 +204,7 @@
     },
     {
       "module": "Data.Bytes.Split",
-      "path": "compiler/prelude/Data/Bytes/Split.cinch",
+      "path": "seed/prelude/Data/Bytes/Split.cinch",
       "sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
       "embedded": false,
       "values": 23,
@@ -212,7 +212,7 @@
     },
     {
       "module": "Data.Bytes.Utf8",
-      "path": "compiler/prelude/Data/Bytes/Utf8.cinch",
+      "path": "seed/prelude/Data/Bytes/Utf8.cinch",
       "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
       "embedded": false,
       "values": 28,
@@ -220,7 +220,7 @@
     },
     {
       "module": "Data.Bytes.View",
-      "path": "compiler/prelude/Data/Bytes/View.cinch",
+      "path": "seed/prelude/Data/Bytes/View.cinch",
       "sha256": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
       "embedded": false,
       "values": 50,
@@ -228,7 +228,7 @@
     },
     {
       "module": "Data.Bytes.Word",
-      "path": "compiler/prelude/Data/Bytes/Word.cinch",
+      "path": "seed/prelude/Data/Bytes/Word.cinch",
       "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
       "embedded": false,
       "values": 4,
@@ -236,15 +236,15 @@
     },
     {
       "module": "Data.Bytes",
-      "path": "compiler/prelude/Data/Bytes.cinch",
-      "sha256": "1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146",
+      "path": "seed/prelude/Data/Bytes.cinch",
+      "sha256": "24bb9f3ca7c5420b3abde122e05762f25adaa72df41d27557d22fc69370585da",
       "embedded": true,
       "values": 10,
       "public_methods": 0
     },
     {
       "module": "Data.Char",
-      "path": "compiler/prelude/Data/Char.cinch",
+      "path": "seed/prelude/Data/Char.cinch",
       "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
       "embedded": true,
       "values": 21,
@@ -252,7 +252,7 @@
     },
     {
       "module": "Data.Columnar",
-      "path": "compiler/prelude/Data/Columnar.cinch",
+      "path": "seed/prelude/Data/Columnar.cinch",
       "sha256": "20bf82a9abeddc35eb4abd3c3c6a91d9ee66b40d18848eb40ab674552bbc6506",
       "embedded": false,
       "values": 8,
@@ -260,7 +260,7 @@
     },
     {
       "module": "Data.Compare",
-      "path": "compiler/prelude/Data/Compare.cinch",
+      "path": "seed/prelude/Data/Compare.cinch",
       "sha256": "2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb",
       "embedded": false,
       "values": 7,
@@ -268,7 +268,7 @@
     },
     {
       "module": "Data.Complex",
-      "path": "compiler/prelude/Data/Complex.cinch",
+      "path": "seed/prelude/Data/Complex.cinch",
       "sha256": "16b1436d6025030f3ab3dbfd6955fb926883ead5dc83af6a373ac42919918a51",
       "embedded": false,
       "values": 15,
@@ -276,7 +276,7 @@
     },
     {
       "module": "Data.Compose",
-      "path": "compiler/prelude/Data/Compose.cinch",
+      "path": "seed/prelude/Data/Compose.cinch",
       "sha256": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80",
       "embedded": true,
       "values": 1,
@@ -284,7 +284,7 @@
     },
     {
       "module": "Data.Const",
-      "path": "compiler/prelude/Data/Const.cinch",
+      "path": "seed/prelude/Data/Const.cinch",
       "sha256": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c",
       "embedded": true,
       "values": 2,
@@ -292,7 +292,7 @@
     },
     {
       "module": "Data.Core",
-      "path": "compiler/prelude/Data/Core.cinch",
+      "path": "seed/prelude/Data/Core.cinch",
       "sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
       "embedded": true,
       "values": 0,
@@ -300,15 +300,15 @@
     },
     {
       "module": "Data.Date",
-      "path": "compiler/prelude/Data/Date.cinch",
-      "sha256": "010d01be4d6ef58d6642ba06d09cac5782186ed9f20e2e627864672b9eaa6233",
+      "path": "seed/prelude/Data/Date.cinch",
+      "sha256": "5ab1002e8509257ef7fdfaf392112954771bc4163276747a213e8dd5aadf661e",
       "embedded": false,
       "values": 16,
       "public_methods": 0
     },
     {
       "module": "Data.Enum",
-      "path": "compiler/prelude/Data/Enum.cinch",
+      "path": "seed/prelude/Data/Enum.cinch",
       "sha256": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8",
       "embedded": true,
       "values": 2,
@@ -316,7 +316,7 @@
     },
     {
       "module": "Data.FromList",
-      "path": "compiler/prelude/Data/FromList.cinch",
+      "path": "seed/prelude/Data/FromList.cinch",
       "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8",
       "embedded": true,
       "values": 0,
@@ -324,7 +324,7 @@
     },
     {
       "module": "Data.FromMap",
-      "path": "compiler/prelude/Data/FromMap.cinch",
+      "path": "seed/prelude/Data/FromMap.cinch",
       "sha256": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf",
       "embedded": true,
       "values": 0,
@@ -332,23 +332,23 @@
     },
     {
       "module": "Data.Hash",
-      "path": "compiler/prelude/Data/Hash.cinch",
-      "sha256": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00",
+      "path": "seed/prelude/Data/Hash.cinch",
+      "sha256": "c80d835dfc4224d8eca8375d24058a77034087077186e85f10b2ba48b1fcc991",
       "embedded": true,
       "values": 0,
       "public_methods": 1
     },
     {
       "module": "Data.HashMap",
-      "path": "compiler/prelude/Data/HashMap.cinch",
-      "sha256": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565",
+      "path": "seed/prelude/Data/HashMap.cinch",
+      "sha256": "3f1612214a25a5fa2d2613d8a76da79331430ed7394b56e6203fcd0d51a18d6b",
       "embedded": true,
       "values": 15,
       "public_methods": 0
     },
     {
       "module": "Data.Identity",
-      "path": "compiler/prelude/Data/Identity.cinch",
+      "path": "seed/prelude/Data/Identity.cinch",
       "sha256": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9",
       "embedded": true,
       "values": 7,
@@ -356,23 +356,23 @@
     },
     {
       "module": "Data.Int",
-      "path": "compiler/prelude/Data/Int.cinch",
-      "sha256": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea",
+      "path": "seed/prelude/Data/Int.cinch",
+      "sha256": "4936154410419ff4f5a7b052e2e06ad5d272f541cfd026867f4192549b8a3319",
       "embedded": true,
       "values": 11,
       "public_methods": 0
     },
     {
       "module": "Data.IpAddr",
-      "path": "compiler/prelude/Data/IpAddr.cinch",
-      "sha256": "1315365aa804385982fcb718a6772635be4b70cec5b62aeb30e3478ffa8b39ae",
+      "path": "seed/prelude/Data/IpAddr.cinch",
+      "sha256": "05576a008c5e1b982453d2d7b1e404fc56e21b038d69fbefe6ad6bc3845980ba",
       "embedded": false,
       "values": 12,
       "public_methods": 0
     },
     {
       "module": "Data.Json",
-      "path": "compiler/prelude/Data/Json.cinch",
+      "path": "seed/prelude/Data/Json.cinch",
       "sha256": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b",
       "embedded": true,
       "values": 0,
@@ -380,7 +380,7 @@
     },
     {
       "module": "Data.List",
-      "path": "compiler/prelude/Data/List.cinch",
+      "path": "seed/prelude/Data/List.cinch",
       "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d",
       "embedded": true,
       "values": 41,
@@ -388,31 +388,31 @@
     },
     {
       "module": "Data.Machine",
-      "path": "compiler/prelude/Data/Machine.cinch",
-      "sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+      "path": "seed/prelude/Data/Machine.cinch",
+      "sha256": "e33b8e44a106c71e9b3a5c4d49f8b37704b273aeaa958999f5e9455cb97d1ec6",
       "embedded": true,
       "values": 825,
       "public_methods": 0
     },
     {
       "module": "Data.Map",
-      "path": "compiler/prelude/Data/Map.cinch",
-      "sha256": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32",
+      "path": "seed/prelude/Data/Map.cinch",
+      "sha256": "b7688dd045304cd4a46530683c40f9e15335159ec9a016845d794294e81e538d",
       "embedded": true,
       "values": 15,
       "public_methods": 0
     },
     {
       "module": "Data.Matrix",
-      "path": "compiler/prelude/Data/Matrix.cinch",
-      "sha256": "415f1178cef0922afe6e0d13bad42bd3a495f5236c0e197ee471ba4543968510",
+      "path": "seed/prelude/Data/Matrix.cinch",
+      "sha256": "1c0d2056a1a83186275ef0506d0df7d884ffb167771c00609e076874c88d6688",
       "embedded": false,
       "values": 15,
       "public_methods": 0
     },
     {
       "module": "Data.Mutable.Array",
-      "path": "compiler/prelude/Data/Mutable/Array.cinch",
+      "path": "seed/prelude/Data/Mutable/Array.cinch",
       "sha256": "94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e",
       "embedded": false,
       "values": 13,
@@ -420,7 +420,7 @@
     },
     {
       "module": "Data.Mutable.BTree",
-      "path": "compiler/prelude/Data/Mutable/BTree.cinch",
+      "path": "seed/prelude/Data/Mutable/BTree.cinch",
       "sha256": "9741c4de3eb73bcf097d0dc27f48d9ace038c8a9ca7e4a8062e6e6f41cc19c54",
       "embedded": false,
       "values": 25,
@@ -428,7 +428,7 @@
     },
     {
       "module": "Data.Mutable.BTreeSet",
-      "path": "compiler/prelude/Data/Mutable/BTreeSet.cinch",
+      "path": "seed/prelude/Data/Mutable/BTreeSet.cinch",
       "sha256": "95b4465c365cead885ece4adbe28d10605df080e6a4903123093775f696b0d04",
       "embedded": false,
       "values": 18,
@@ -436,7 +436,7 @@
     },
     {
       "module": "Data.Mutable.BitSet",
-      "path": "compiler/prelude/Data/Mutable/BitSet.cinch",
+      "path": "seed/prelude/Data/Mutable/BitSet.cinch",
       "sha256": "1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc",
       "embedded": false,
       "values": 15,
@@ -444,7 +444,7 @@
     },
     {
       "module": "Data.Mutable.Deque",
-      "path": "compiler/prelude/Data/Mutable/Deque.cinch",
+      "path": "seed/prelude/Data/Mutable/Deque.cinch",
       "sha256": "3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada",
       "embedded": false,
       "values": 18,
@@ -452,7 +452,7 @@
     },
     {
       "module": "Data.Mutable.HashSet",
-      "path": "compiler/prelude/Data/Mutable/HashSet.cinch",
+      "path": "seed/prelude/Data/Mutable/HashSet.cinch",
       "sha256": "dd418d95ba3d0f8453ee803fdd25bbd0ed2fbb4dcdca5669b37fd5acfe477977",
       "embedded": false,
       "values": 13,
@@ -460,15 +460,15 @@
     },
     {
       "module": "Data.Mutable.HashTable",
-      "path": "compiler/prelude/Data/Mutable/HashTable.cinch",
-      "sha256": "ea2ddd0f2f15f5a527f7cfa5b97a12eec135ae4fb34d373f774ad79438fe3a98",
+      "path": "seed/prelude/Data/Mutable/HashTable.cinch",
+      "sha256": "c57f816af4f97eea433112fc430685e554b6fca74cc34406fdbfd840e1f642b1",
       "embedded": false,
       "values": 22,
       "public_methods": 0
     },
     {
       "module": "Data.Mutable.Heap",
-      "path": "compiler/prelude/Data/Mutable/Heap.cinch",
+      "path": "seed/prelude/Data/Mutable/Heap.cinch",
       "sha256": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
       "embedded": false,
       "values": 24,
@@ -476,7 +476,7 @@
     },
     {
       "module": "Data.Mutable.HeapView",
-      "path": "compiler/prelude/Data/Mutable/HeapView.cinch",
+      "path": "seed/prelude/Data/Mutable/HeapView.cinch",
       "sha256": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
       "embedded": false,
       "values": 7,
@@ -484,7 +484,7 @@
     },
     {
       "module": "Data.Mutable.IndexMap",
-      "path": "compiler/prelude/Data/Mutable/IndexMap.cinch",
+      "path": "seed/prelude/Data/Mutable/IndexMap.cinch",
       "sha256": "119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501",
       "embedded": false,
       "values": 18,
@@ -492,7 +492,7 @@
     },
     {
       "module": "Data.Mutable.LinkedList",
-      "path": "compiler/prelude/Data/Mutable/LinkedList.cinch",
+      "path": "seed/prelude/Data/Mutable/LinkedList.cinch",
       "sha256": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
       "embedded": false,
       "values": 28,
@@ -500,15 +500,39 @@
     },
     {
       "module": "Data.Mutable.LruCache",
-      "path": "compiler/prelude/Data/Mutable/LruCache.cinch",
+      "path": "seed/prelude/Data/Mutable/LruCache.cinch",
       "sha256": "4ade3198bc4fd7a8686d5c6ffa38a61a80dfaa62153c15bd9543a4d10e5116de",
       "embedded": false,
       "values": 10,
       "public_methods": 0
     },
     {
+      "module": "Data.Mutable.Map.Float",
+      "path": "seed/prelude/Data/Mutable/Map/Float.cinch",
+      "sha256": "ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a",
+      "embedded": false,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.Map.Optional",
+      "path": "seed/prelude/Data/Mutable/Map/Optional.cinch",
+      "sha256": "7e9b280b6e9d7b0a545479f0ff6c705ecac5ce477608bda3b0c04e644c81620a",
+      "embedded": false,
+      "values": 12,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Mutable.Map",
+      "path": "seed/prelude/Data/Mutable/Map.cinch",
+      "sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
+      "embedded": false,
+      "values": 22,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Mutable.Ring",
-      "path": "compiler/prelude/Data/Mutable/Ring.cinch",
+      "path": "seed/prelude/Data/Mutable/Ring.cinch",
       "sha256": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
       "embedded": false,
       "values": 17,
@@ -516,7 +540,7 @@
     },
     {
       "module": "Data.Mutable.UnionFind",
-      "path": "compiler/prelude/Data/Mutable/UnionFind.cinch",
+      "path": "seed/prelude/Data/Mutable/UnionFind.cinch",
       "sha256": "727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b",
       "embedded": false,
       "values": 8,
@@ -524,7 +548,7 @@
     },
     {
       "module": "Data.Mutable.Var",
-      "path": "compiler/prelude/Data/Mutable/Var.cinch",
+      "path": "seed/prelude/Data/Mutable/Var.cinch",
       "sha256": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
       "embedded": false,
       "values": 5,
@@ -532,15 +556,15 @@
     },
     {
       "module": "Data.Mutable.Vec",
-      "path": "compiler/prelude/Data/Mutable/Vec.cinch",
-      "sha256": "61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7",
+      "path": "seed/prelude/Data/Mutable/Vec.cinch",
+      "sha256": "65dbfe173b5386a2a8f5ee25f8e0896b0ea688534c327e99db165352ee1c474e",
       "embedded": false,
       "values": 29,
       "public_methods": 0
     },
     {
       "module": "Data.Mutable",
-      "path": "compiler/prelude/Data/Mutable.cinch",
+      "path": "seed/prelude/Data/Mutable.cinch",
       "sha256": "6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206",
       "embedded": false,
       "values": 218,
@@ -548,39 +572,39 @@
     },
     {
       "module": "Data.Nat",
-      "path": "compiler/prelude/Data/Nat.cinch",
-      "sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b",
+      "path": "seed/prelude/Data/Nat.cinch",
+      "sha256": "caed61b507f2cd957fb00d45ef663cee44f9fd56036054355079804a6f945afb",
       "embedded": true,
       "values": 16,
       "public_methods": 0
     },
     {
       "module": "Data.NonEmpty",
-      "path": "compiler/prelude/Data/NonEmpty.cinch",
-      "sha256": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900",
+      "path": "seed/prelude/Data/NonEmpty.cinch",
+      "sha256": "858506781fd4dda0bb886cfd2bab77cd6333a1da4e32ff1593eecebafb823ebd",
       "embedded": true,
       "values": 1,
       "public_methods": 0
     },
     {
       "module": "Data.NonZero",
-      "path": "compiler/prelude/Data/NonZero.cinch",
-      "sha256": "dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b",
+      "path": "seed/prelude/Data/NonZero.cinch",
+      "sha256": "d09f99b17ce4e051a2ac0435c0563f094fe8b0fba310ece953a3c67d40f7327a",
       "embedded": true,
       "values": 2,
       "public_methods": 0
     },
     {
       "module": "Data.Option",
-      "path": "compiler/prelude/Data/Option.cinch",
-      "sha256": "907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01",
+      "path": "seed/prelude/Data/Option.cinch",
+      "sha256": "a2ded2aaed9211dacecc4849049bf802ed0d0d701a8ed7453a78508a8b1a8cf7",
       "embedded": true,
       "values": 9,
       "public_methods": 0
     },
     {
       "module": "Data.Ordering",
-      "path": "compiler/prelude/Data/Ordering.cinch",
+      "path": "seed/prelude/Data/Ordering.cinch",
       "sha256": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537",
       "embedded": true,
       "values": 0,
@@ -588,7 +612,7 @@
     },
     {
       "module": "Data.Path",
-      "path": "compiler/prelude/Data/Path.cinch",
+      "path": "seed/prelude/Data/Path.cinch",
       "sha256": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772",
       "embedded": true,
       "values": 10,
@@ -596,7 +620,7 @@
     },
     {
       "module": "Data.Producer",
-      "path": "compiler/prelude/Data/Producer.cinch",
+      "path": "seed/prelude/Data/Producer.cinch",
       "sha256": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f",
       "embedded": true,
       "values": 7,
@@ -604,7 +628,7 @@
     },
     {
       "module": "Data.Rational",
-      "path": "compiler/prelude/Data/Rational.cinch",
+      "path": "seed/prelude/Data/Rational.cinch",
       "sha256": "87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac",
       "embedded": false,
       "values": 12,
@@ -612,8 +636,8 @@
     },
     {
       "module": "Data.Result",
-      "path": "compiler/prelude/Data/Result.cinch",
-      "sha256": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d",
+      "path": "seed/prelude/Data/Result.cinch",
+      "sha256": "0bec72d2b58142da875a16016816e53cbd2d0c2a4be88906893cac93b89e1470",
       "embedded": true,
       "values": 11,
       "public_methods": 0
@@ -628,31 +652,31 @@
     },
     {
       "module": "Data.Set",
-      "path": "compiler/prelude/Data/Set.cinch",
-      "sha256": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64",
+      "path": "seed/prelude/Data/Set.cinch",
+      "sha256": "1c762cb524ccc587696d8927ad46d3fd2c83e42cb7d8590fe096277b45eb6161",
       "embedded": true,
       "values": 15,
       "public_methods": 0
     },
     {
       "module": "Data.Sorted",
-      "path": "compiler/prelude/Data/Sorted.cinch",
-      "sha256": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611",
+      "path": "seed/prelude/Data/Sorted.cinch",
+      "sha256": "1ff30a4df1ec338e447e96442dd13c2cd6f58745f18164326eefe1d5ac692374",
       "embedded": true,
       "values": 2,
       "public_methods": 0
     },
     {
       "module": "Data.String",
-      "path": "compiler/prelude/Data/String.cinch",
-      "sha256": "e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6",
+      "path": "seed/prelude/Data/String.cinch",
+      "sha256": "12324541f68d17a1b5cd0bd6dcac44e9644a626aef4d2f1282f95ef9f34e4e3c",
       "embedded": true,
       "values": 31,
       "public_methods": 0
     },
     {
       "module": "Data.StringIo",
-      "path": "compiler/prelude/Data/StringIo.cinch",
+      "path": "seed/prelude/Data/StringIo.cinch",
       "sha256": "9eaf153aa82781838f853ea18293df64e0bda38a2055952c74da9dd84e94c4e1",
       "embedded": false,
       "values": 12,
@@ -660,15 +684,15 @@
     },
     {
       "module": "Data.Sym",
-      "path": "compiler/prelude/Data/Sym.cinch",
-      "sha256": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73",
+      "path": "seed/prelude/Data/Sym.cinch",
+      "sha256": "ec8210224881ab65802a4ced9f56847e943254dedc7f335f93021be984a32ec4",
       "embedded": true,
       "values": 2,
       "public_methods": 0
     },
     {
       "module": "Data.Target",
-      "path": "compiler/prelude/Data/Target.cinch",
+      "path": "seed/prelude/Data/Target.cinch",
       "sha256": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e",
       "embedded": true,
       "values": 2,
@@ -676,23 +700,159 @@
     },
     {
       "module": "Data.Tensor",
-      "path": "compiler/prelude/Data/Tensor.cinch",
+      "path": "seed/prelude/Data/Tensor.cinch",
       "sha256": "caeef1f823e842a73b16519af6e7baa9de0ac0ddb00d31472ed9461116836eb7",
       "embedded": false,
       "values": 5,
       "public_methods": 0
     },
     {
+      "module": "Data.Time.Arithmetic",
+      "path": "seed/prelude/Data/Time/Arithmetic.cinch",
+      "sha256": "79b5d74e2656408fa3faea242d6cd61e557304402eb839d827fd01645e9c6c38",
+      "embedded": false,
+      "values": 31,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Date",
+      "path": "seed/prelude/Data/Time/Date.cinch",
+      "sha256": "dd1b92039b8c4d39ee8c82843e5eff46a1b324e51b3c8b917c309733227bfc0d",
+      "embedded": false,
+      "values": 35,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.DateTime",
+      "path": "seed/prelude/Data/Time/DateTime.cinch",
+      "sha256": "777d7c3bf5a8ecc3ed4f5c357eadd07019d85f5a77898a1c163e1ca33c9619ce",
+      "embedded": false,
+      "values": 30,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Duration",
+      "path": "seed/prelude/Data/Time/Duration.cinch",
+      "sha256": "65b41d25ea1aafb71542227a9456ccb996d696089b1af1993ff90ba80fd506cc",
+      "embedded": false,
+      "values": 42,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Monotonic",
+      "path": "seed/prelude/Data/Time/Monotonic.cinch",
+      "sha256": "35ad9089126831a35cefed441b34eec60c6b807e9770bd8185dc3eec72c63ca6",
+      "embedded": false,
+      "values": 8,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Offset",
+      "path": "seed/prelude/Data/Time/Offset.cinch",
+      "sha256": "74af282609866c44d75df7392c48eb71cafd85f5e1ee6edb2af30bb4a109cc2c",
+      "embedded": false,
+      "values": 17,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Span",
+      "path": "seed/prelude/Data/Time/Span.cinch",
+      "sha256": "4d4838e0610c2143ead9b6c2cc853f0a9a7c724aa833d6d892ada772a14c39c1",
+      "embedded": false,
+      "values": 72,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.TimeOfDay",
+      "path": "seed/prelude/Data/Time/TimeOfDay.cinch",
+      "sha256": "c5a8af68643957b15c1eabba4f52a562b75b064188e6e588624d7cc415090296",
+      "embedded": false,
+      "values": 21,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Timestamp",
+      "path": "seed/prelude/Data/Time/Timestamp.cinch",
+      "sha256": "c4ac068fadce1317eb55fe3e867e7c85e2e98449390bd95c01eb7c7982380614",
+      "embedded": false,
+      "values": 23,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Unit",
+      "path": "seed/prelude/Data/Time/Unit.cinch",
+      "sha256": "f2dfb80db9ec3788b0d698bb055050c8842b44d14bf47ee8a7c72762175cc8ab",
+      "embedded": false,
+      "values": 16,
+      "public_methods": 4
+    },
+    {
+      "module": "Data.Time.Weekday",
+      "path": "seed/prelude/Data/Time/Weekday.cinch",
+      "sha256": "5f0d65473156ec4f948989a0a1bf99b155c644495f8d29da28f5b31e0e6ddaf8",
+      "embedded": false,
+      "values": 16,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Zone.Posix",
+      "path": "seed/prelude/Data/Time/Zone/Posix.cinch",
+      "sha256": "ab9f6f5fe7365fcf24af9c6d156b80f1de73e01b0edf070d1daf0b430d521ce9",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Zone.Types",
+      "path": "seed/prelude/Data/Time/Zone/Types.cinch",
+      "sha256": "9ae9aa1e61e7319241e258b3bea890069e31bc1c35c689e1f361f2db050b1ebe",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Zone.Tzif",
+      "path": "seed/prelude/Data/Time/Zone/Tzif.cinch",
+      "sha256": "553280395cae4717281c2a60e19cd658e5589197362da4b23b9bc8f89f5b649c",
+      "embedded": false,
+      "values": 1,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Zone",
+      "path": "seed/prelude/Data/Time/Zone.cinch",
+      "sha256": "b97d1abcfcca9d51d317ac70f92284ebe6b3c408d260d1364bc25d73a0548415",
+      "embedded": false,
+      "values": 37,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Zoned.Arithmetic",
+      "path": "seed/prelude/Data/Time/Zoned/Arithmetic.cinch",
+      "sha256": "a1b34d6e327fedb1d1a522b9d956f445c24ad1ee422a7b5b9c77f41c1930af5f",
+      "embedded": false,
+      "values": 41,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Time.Zoned",
+      "path": "seed/prelude/Data/Time/Zoned.cinch",
+      "sha256": "399a55deb46acb1139e9c71c041af7242622cb6f9d798114bdc0e04d561c1de0",
+      "embedded": false,
+      "values": 26,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Time",
-      "path": "compiler/prelude/Data/Time.cinch",
-      "sha256": "6847730c2f3ac9f9200a4eef90a5ab7797facdc3555fb3e2f337f8b07569bc3a",
+      "path": "seed/prelude/Data/Time.cinch",
+      "sha256": "eaebe31539cf831410efab83a69447edab72cad03b00a27d4b515ddd4d54761c",
       "embedded": false,
       "values": 15,
       "public_methods": 0
     },
     {
       "module": "Data.Unicode.Kernel",
-      "path": "compiler/prelude/Data/Unicode/Kernel.cinch",
+      "path": "seed/prelude/Data/Unicode/Kernel.cinch",
       "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
       "embedded": false,
       "values": 70,
@@ -700,7 +860,7 @@
     },
     {
       "module": "Data.Unicode.Names",
-      "path": "compiler/prelude/Data/Unicode/Names.cinch",
+      "path": "seed/prelude/Data/Unicode/Names.cinch",
       "sha256": "443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50",
       "embedded": false,
       "values": 29,
@@ -708,7 +868,7 @@
     },
     {
       "module": "Data.Unicode.Range",
-      "path": "compiler/prelude/Data/Unicode/Range.cinch",
+      "path": "seed/prelude/Data/Unicode/Range.cinch",
       "sha256": "36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8",
       "embedded": false,
       "values": 23,
@@ -716,7 +876,7 @@
     },
     {
       "module": "Data.Unicode.Tables",
-      "path": "compiler/prelude/Data/Unicode/Tables.cinch",
+      "path": "seed/prelude/Data/Unicode/Tables.cinch",
       "sha256": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
       "embedded": false,
       "values": 16,
@@ -724,15 +884,23 @@
     },
     {
       "module": "Data.Unicode",
-      "path": "compiler/prelude/Data/Unicode.cinch",
+      "path": "seed/prelude/Data/Unicode.cinch",
       "sha256": "fba58333635e0995c1ae77eb1947275c7198a557147a95333f8ef52d981da2c0",
       "embedded": false,
       "values": 133,
       "public_methods": 0
     },
     {
+      "module": "Data.Uuid",
+      "path": "seed/prelude/Data/Uuid.cinch",
+      "sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
+      "embedded": false,
+      "values": 20,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Wide",
-      "path": "compiler/prelude/Data/Wide.cinch",
+      "path": "seed/prelude/Data/Wide.cinch",
       "sha256": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133",
       "embedded": true,
       "values": 244,
@@ -740,7 +908,7 @@
     },
     {
       "module": "Data.Word",
-      "path": "compiler/prelude/Data/Word.cinch",
+      "path": "seed/prelude/Data/Word.cinch",
       "sha256": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
       "embedded": false,
       "values": 32,
@@ -748,7 +916,7 @@
     },
     {
       "module": "Effect.Adler32",
-      "path": "compiler/prelude/Effect/Adler32.cinch",
+      "path": "seed/prelude/Effect/Adler32.cinch",
       "sha256": "561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566",
       "embedded": false,
       "values": 3,
@@ -756,7 +924,7 @@
     },
     {
       "module": "Effect.Ascii85",
-      "path": "compiler/prelude/Effect/Ascii85.cinch",
+      "path": "seed/prelude/Effect/Ascii85.cinch",
       "sha256": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
       "embedded": false,
       "values": 5,
@@ -764,7 +932,7 @@
     },
     {
       "module": "Effect.Base32",
-      "path": "compiler/prelude/Effect/Base32.cinch",
+      "path": "seed/prelude/Effect/Base32.cinch",
       "sha256": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
       "embedded": false,
       "values": 5,
@@ -772,7 +940,7 @@
     },
     {
       "module": "Effect.Base64",
-      "path": "compiler/prelude/Effect/Base64.cinch",
+      "path": "seed/prelude/Effect/Base64.cinch",
       "sha256": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
       "embedded": false,
       "values": 5,
@@ -780,7 +948,7 @@
     },
     {
       "module": "Effect.Benchmark",
-      "path": "compiler/prelude/Effect/Benchmark.cinch",
+      "path": "seed/prelude/Effect/Benchmark.cinch",
       "sha256": "59fcce379631b8530523a7370db82c170c0e5d6e0a7b5961e80fd270883e8ba3",
       "embedded": false,
       "values": 5,
@@ -788,7 +956,7 @@
     },
     {
       "module": "Effect.Binary",
-      "path": "compiler/prelude/Effect/Binary.cinch",
+      "path": "seed/prelude/Effect/Binary.cinch",
       "sha256": "ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c",
       "embedded": false,
       "values": 8,
@@ -796,31 +964,63 @@
     },
     {
       "module": "Effect.Buffered.Core",
-      "path": "compiler/prelude/Effect/Buffered/Core.cinch",
-      "sha256": "10f5c2ae23a9171d1cf967de98f6b9e6300c93b7fbb5a8fb45b389d6f411c4b1",
+      "path": "seed/prelude/Effect/Buffered/Core.cinch",
+      "sha256": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
       "embedded": false,
-      "values": 18,
+      "values": 21,
       "public_methods": 0
     },
     {
       "module": "Effect.Buffered.Internal.Cell",
-      "path": "compiler/prelude/Effect/Buffered/Internal/Cell.cinch",
+      "path": "seed/prelude/Effect/Buffered/Internal/Cell.cinch",
       "sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
       "embedded": false,
       "values": 3,
       "public_methods": 0
     },
     {
+      "module": "Effect.Buffered.Internal.Scan",
+      "path": "seed/prelude/Effect/Buffered/Internal/Scan.cinch",
+      "sha256": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Buffered.Reader",
+      "path": "seed/prelude/Effect/Buffered/Reader.cinch",
+      "sha256": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
+      "embedded": false,
+      "values": 23,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Buffered.Writer",
+      "path": "seed/prelude/Effect/Buffered/Writer.cinch",
+      "sha256": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
+      "embedded": false,
+      "values": 29,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Buffered",
+      "path": "seed/prelude/Effect/Buffered.cinch",
+      "sha256": "a9669f4c6996da84707ead19c237498e0b043fcac8dc1e4cc945ccaecff22054",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Clock",
-      "path": "compiler/prelude/Effect/Clock.cinch",
-      "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+      "path": "seed/prelude/Effect/Clock.cinch",
+      "sha256": "df444a92ce56f1388be9014ddcdf637971c3d3c9082eb85f4d5e50c795e6522e",
       "embedded": true,
       "values": 6,
       "public_methods": 0
     },
     {
       "module": "Effect.Concurrent.MVar",
-      "path": "compiler/prelude/Effect/Concurrent/MVar.cinch",
+      "path": "seed/prelude/Effect/Concurrent/MVar.cinch",
       "sha256": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
       "embedded": true,
       "values": 14,
@@ -828,7 +1028,7 @@
     },
     {
       "module": "Effect.Concurrent",
-      "path": "compiler/prelude/Effect/Concurrent.cinch",
+      "path": "seed/prelude/Effect/Concurrent.cinch",
       "sha256": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a",
       "embedded": true,
       "values": 1,
@@ -836,8 +1036,8 @@
     },
     {
       "module": "Effect.Coverage",
-      "path": "compiler/prelude/Effect/Coverage.cinch",
-      "sha256": "62f842a0e3043f00dbfbbbfa26b4c53df3392bd32a44681ad953a1344c21efef",
+      "path": "seed/prelude/Effect/Coverage.cinch",
+      "sha256": "b915528a23ac1a11bf8d7223ba1fbf87c1cc1bfd19ce2e38a0e59a1f8858ef62",
       "embedded": false,
       "values": 6,
       "public_methods": 0
@@ -852,7 +1052,7 @@
     },
     {
       "module": "Effect.Crc64",
-      "path": "compiler/prelude/Effect/Crc64.cinch",
+      "path": "seed/prelude/Effect/Crc64.cinch",
       "sha256": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
       "embedded": false,
       "values": 3,
@@ -860,7 +1060,7 @@
     },
     {
       "module": "Effect.Csv",
-      "path": "compiler/prelude/Effect/Csv.cinch",
+      "path": "seed/prelude/Effect/Csv.cinch",
       "sha256": "115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605",
       "embedded": false,
       "values": 23,
@@ -868,15 +1068,15 @@
     },
     {
       "module": "Effect.FileUtils",
-      "path": "compiler/prelude/Effect/FileUtils.cinch",
-      "sha256": "17e8649cadb5ba3ee76cccdc2f18b9306f7749857f55addaa9f517ffc4e71777",
+      "path": "seed/prelude/Effect/FileUtils.cinch",
+      "sha256": "26ce540b8755def036a6804f9b2da0db29d81d73bee40ac122c89a5b8ead1d00",
       "embedded": false,
       "values": 8,
       "public_methods": 0
     },
     {
       "module": "Effect.Find",
-      "path": "compiler/prelude/Effect/Find.cinch",
+      "path": "seed/prelude/Effect/Find.cinch",
       "sha256": "8897fed1fe39856ce9857902d0a5f5fe258a1064bf3be7cf1ba35c033af98080",
       "embedded": false,
       "values": 3,
@@ -884,7 +1084,7 @@
     },
     {
       "module": "Effect.Fnv",
-      "path": "compiler/prelude/Effect/Fnv.cinch",
+      "path": "seed/prelude/Effect/Fnv.cinch",
       "sha256": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
       "embedded": false,
       "values": 5,
@@ -892,15 +1092,15 @@
     },
     {
       "module": "Effect.Fs",
-      "path": "compiler/prelude/Effect/Fs.cinch",
-      "sha256": "ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f",
+      "path": "seed/prelude/Effect/Fs.cinch",
+      "sha256": "ef52d29afce18d72843cd2704e3a0ebcbeff428436fa047971807c4c56e93a0a",
       "embedded": true,
       "values": 7,
       "public_methods": 0
     },
     {
       "module": "Effect.Hex",
-      "path": "compiler/prelude/Effect/Hex.cinch",
+      "path": "seed/prelude/Effect/Hex.cinch",
       "sha256": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
       "embedded": false,
       "values": 9,
@@ -908,15 +1108,15 @@
     },
     {
       "module": "Effect.Http",
-      "path": "compiler/prelude/Effect/Http.cinch",
-      "sha256": "28ce800080f068afac0b699ae592bf9630a2d20f5ea2246d171a0cdea87e774c",
+      "path": "seed/prelude/Effect/Http.cinch",
+      "sha256": "402d0270a2549a552be4c7f6e243724f9fe1f63eceb0f2597f0b588c4485035e",
       "embedded": false,
       "values": 17,
       "public_methods": 0
     },
     {
       "module": "Effect.Io",
-      "path": "compiler/prelude/Effect/Io.cinch",
+      "path": "seed/prelude/Effect/Io.cinch",
       "sha256": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804",
       "embedded": true,
       "values": 2,
@@ -924,31 +1124,47 @@
     },
     {
       "module": "Effect.Log",
-      "path": "compiler/prelude/Effect/Log.cinch",
+      "path": "seed/prelude/Effect/Log.cinch",
       "sha256": "c32dae495122e7b3963d8fa2fd19fab81031f29093493080206d0191e7db09ed",
       "embedded": false,
       "values": 19,
       "public_methods": 0
     },
     {
+      "module": "Effect.Md5",
+      "path": "seed/prelude/Effect/Md5.cinch",
+      "sha256": "fc92cfe09b3a1ff53d9b2ed9fc70bf130d965602dbacac76c93ec5c4ad21e1c3",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Mime",
-      "path": "compiler/prelude/Effect/Mime.cinch",
+      "path": "seed/prelude/Effect/Mime.cinch",
       "sha256": "1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215",
       "embedded": false,
       "values": 16,
       "public_methods": 0
     },
     {
+      "module": "Effect.Multipart",
+      "path": "seed/prelude/Effect/Multipart.cinch",
+      "sha256": "1969a6077e1aafb84226e9f4457ceb0b17395bdd9ad82a3a8256ec02e22a8044",
+      "embedded": false,
+      "values": 64,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Net",
-      "path": "compiler/prelude/Effect/Net.cinch",
-      "sha256": "a2cb8234289a30c321ff66c01032badecda44207e910c715466821db78321a46",
+      "path": "seed/prelude/Effect/Net.cinch",
+      "sha256": "9bac11640aa56817a5722b1336568f7d1ad80e034c105313934b44c8a7e9cc30",
       "embedded": false,
       "values": 6,
       "public_methods": 0
     },
     {
       "module": "Effect.Pem",
-      "path": "compiler/prelude/Effect/Pem.cinch",
+      "path": "seed/prelude/Effect/Pem.cinch",
       "sha256": "47dfe3101d486d89c2b6e2b78700b36c4c4c3ed80cf467de347ef7ba6ffc2bb4",
       "embedded": false,
       "values": 2,
@@ -956,23 +1172,23 @@
     },
     {
       "module": "Effect.Process",
-      "path": "compiler/prelude/Effect/Process.cinch",
-      "sha256": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60",
+      "path": "seed/prelude/Effect/Process.cinch",
+      "sha256": "57c8c854e61afb03d242709696cda431007cd423220e4e69bbaf112422eaf37b",
       "embedded": true,
       "values": 11,
       "public_methods": 0
     },
     {
       "module": "Effect.Pty",
-      "path": "compiler/prelude/Effect/Pty.cinch",
-      "sha256": "04dfbae47c6b1b0db95b5393eabbe0a509d14e3962e2597f2e24e205f5a9c1be",
+      "path": "seed/prelude/Effect/Pty.cinch",
+      "sha256": "5c376b14e53fa6547230922be94c981f19ccd06b8ca360c6effdb38bec68aa48",
       "embedded": false,
       "values": 10,
       "public_methods": 0
     },
     {
       "module": "Effect.QuotedPrintable",
-      "path": "compiler/prelude/Effect/QuotedPrintable.cinch",
+      "path": "seed/prelude/Effect/QuotedPrintable.cinch",
       "sha256": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97",
       "embedded": false,
       "values": 10,
@@ -980,7 +1196,7 @@
     },
     {
       "module": "Effect.Random",
-      "path": "compiler/prelude/Effect/Random.cinch",
+      "path": "seed/prelude/Effect/Random.cinch",
       "sha256": "75d3f181771dfa42e5c912f04c9a003e943b3e6eb7ebabe45eefa9e028be9216",
       "embedded": false,
       "values": 6,
@@ -988,39 +1204,79 @@
     },
     {
       "module": "Effect.Resolv",
-      "path": "compiler/prelude/Effect/Resolv.cinch",
-      "sha256": "65ca0fab55b2fa3af62a70907a148bc365d53b0282538b8ecb3719310a08d1cf",
+      "path": "seed/prelude/Effect/Resolv.cinch",
+      "sha256": "a965d0886171f2b2cb753518e0dc2dedf3442cb80fe6384d16b92804c61a05f0",
       "embedded": false,
       "values": 5,
       "public_methods": 0
     },
     {
+      "module": "Effect.Scanner.Split",
+      "path": "seed/prelude/Effect/Scanner/Split.cinch",
+      "sha256": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
+      "embedded": false,
+      "values": 8,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Scanner",
+      "path": "seed/prelude/Effect/Scanner.cinch",
+      "sha256": "dd6d190f2b53e1fb80b10e48d64a29363b82041895660675d2b383c637be06aa",
+      "embedded": false,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Sequencing",
-      "path": "compiler/prelude/Effect/Sequencing.cinch",
-      "sha256": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255",
+      "path": "seed/prelude/Effect/Sequencing.cinch",
+      "sha256": "10cce786924bb5062ea0e099b048cc937394920b10c819c99e0a0bae8fdbbe09",
       "embedded": true,
       "values": 0,
       "public_methods": 6
     },
     {
+      "module": "Effect.Sha1",
+      "path": "seed/prelude/Effect/Sha1.cinch",
+      "sha256": "7fe972afface0debe29d9ce3b39d01d7e1dfc16444702fb10b98986343db1201",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Sha256",
-      "path": "compiler/prelude/Effect/Sha256.cinch",
+      "path": "seed/prelude/Effect/Sha256.cinch",
       "sha256": "531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f",
       "embedded": false,
       "values": 3,
       "public_methods": 0
     },
     {
+      "module": "Effect.Sha3",
+      "path": "seed/prelude/Effect/Sha3.cinch",
+      "sha256": "b08dbb1bd12da929f2c38cdad56b119dcc35f59205372e687872ed8ec0d5fe92",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Sha512",
+      "path": "seed/prelude/Effect/Sha512.cinch",
+      "sha256": "4956a484bcf01bbd58f54318c5342a2fe5344879c66b0583c1834641fa151c24",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Signal",
-      "path": "compiler/prelude/Effect/Signal.cinch",
-      "sha256": "93778e910173dd3b7d4cf143c34a1611734bb03524199b2bd125d79ac854a598",
+      "path": "seed/prelude/Effect/Signal.cinch",
+      "sha256": "e64e11d90a176c3f9f3dfe07e218ac54b086a1beab27ae54009f98dde9fc2724",
       "embedded": false,
       "values": 3,
       "public_methods": 0
     },
     {
       "module": "Effect.Stm.TBQueue",
-      "path": "compiler/prelude/Effect/Stm/TBQueue.cinch",
+      "path": "seed/prelude/Effect/Stm/TBQueue.cinch",
       "sha256": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe",
       "embedded": true,
       "values": 10,
@@ -1028,7 +1284,7 @@
     },
     {
       "module": "Effect.Stm.TMVar",
-      "path": "compiler/prelude/Effect/Stm/TMVar.cinch",
+      "path": "seed/prelude/Effect/Stm/TMVar.cinch",
       "sha256": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4",
       "embedded": true,
       "values": 12,
@@ -1036,7 +1292,7 @@
     },
     {
       "module": "Effect.Stm.TQueue",
-      "path": "compiler/prelude/Effect/Stm/TQueue.cinch",
+      "path": "seed/prelude/Effect/Stm/TQueue.cinch",
       "sha256": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2",
       "embedded": true,
       "values": 9,
@@ -1044,7 +1300,7 @@
     },
     {
       "module": "Effect.Stm.TSem",
-      "path": "compiler/prelude/Effect/Stm/TSem.cinch",
+      "path": "seed/prelude/Effect/Stm/TSem.cinch",
       "sha256": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d",
       "embedded": true,
       "values": 7,
@@ -1052,18 +1308,10 @@
     },
     {
       "module": "Effect.Stm",
-      "path": "compiler/prelude/Effect/Stm.cinch",
-      "sha256": "2b71270681ca8f7bc4f84111b851c1c3624cc201ea38c84accf64871ada87810",
+      "path": "seed/prelude/Effect/Stm.cinch",
+      "sha256": "470353674e04c6572a5f941cbba42503281077aa55abd3ed8daf50ff85a9f071",
       "embedded": true,
       "values": 17,
-      "public_methods": 0
-    },
-    {
-      "module": "Effect.Stream",
-      "path": "compiler/prelude/Effect/Stream.cinch",
-      "sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
-      "embedded": false,
-      "values": 24,
       "public_methods": 0
     },
     {
@@ -1083,35 +1331,59 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Stream",
+      "path": "seed/prelude/Effect/Stream.cinch",
+      "sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
+      "embedded": false,
+      "values": 24,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Test",
-      "path": "compiler/prelude/Effect/Test.cinch",
+      "path": "seed/prelude/Effect/Test.cinch",
       "sha256": "25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0",
       "embedded": false,
       "values": 19,
       "public_methods": 0
     },
     {
+      "module": "Effect.Time.Zone",
+      "path": "seed/prelude/Effect/Time/Zone.cinch",
+      "sha256": "00e4316ae15fdfd60d1b89f64409d536b0476812447d505a4a557e05b7139751",
+      "embedded": false,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Time",
+      "path": "seed/prelude/Effect/Time.cinch",
+      "sha256": "55fb18e3413088cd5db3e41302ae0984f1f0039c0e386ae8ca72e4e4fe7be4e4",
+      "embedded": false,
+      "values": 13,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Trace",
-      "path": "compiler/prelude/Effect/Trace.cinch",
+      "path": "seed/prelude/Effect/Trace.cinch",
       "sha256": "fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366",
       "embedded": false,
       "values": 5,
       "public_methods": 0
     },
     {
-      "module": "Function.Combinators",
-      "path": "compiler/prelude/Function/Combinators.cinch",
-      "sha256": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef",
-      "embedded": true,
-      "values": 13,
+      "module": "Effect.Uuid",
+      "path": "seed/prelude/Effect/Uuid.cinch",
+      "sha256": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
+      "embedded": false,
+      "values": 4,
       "public_methods": 0
     },
     {
-      "module": "Image.Color",
-      "path": "seed/prelude/Image/Color.cinch",
-      "sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
-      "embedded": false,
-      "values": 54,
+      "module": "Function.Combinators",
+      "path": "seed/prelude/Function/Combinators.cinch",
+      "sha256": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef",
+      "embedded": true,
+      "values": 13,
       "public_methods": 0
     },
     {
@@ -1123,8 +1395,16 @@
       "public_methods": 0
     },
     {
+      "module": "Image.Color",
+      "path": "seed/prelude/Image/Color.cinch",
+      "sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+      "embedded": false,
+      "values": 54,
+      "public_methods": 0
+    },
+    {
       "module": "Prelude",
-      "path": "compiler/prelude/Prelude.cinch",
+      "path": "seed/prelude/Prelude.cinch",
       "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
       "embedded": true,
       "values": 1043,
@@ -1132,23 +1412,23 @@
     },
     {
       "module": "Prim.Sys.Darwin",
-      "path": "compiler/prelude/Prim/Sys/Darwin.cinch",
-      "sha256": "79c64c81f956d0ca5857d68dc836357090e68f092b975493faf798d9b694101e",
+      "path": "seed/prelude/Prim/Sys/Darwin.cinch",
+      "sha256": "9bff58d77c388a55aeacf09f90e66094177e2a6ea64025674ee9a20e6c453616",
       "embedded": true,
       "values": 18,
       "public_methods": 0
     },
     {
       "module": "Prim.Sys.Linux",
-      "path": "compiler/prelude/Prim/Sys/Linux.cinch",
-      "sha256": "9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd",
+      "path": "seed/prelude/Prim/Sys/Linux.cinch",
+      "sha256": "cf0a9233c9c21c13faa3f5978d0787dd8cfefe0bc5f47b054997800408670a4d",
       "embedded": true,
       "values": 17,
       "public_methods": 0
     },
     {
       "module": "Prim.Sys.Portable",
-      "path": "compiler/prelude/Prim/Sys/Portable.cinch",
+      "path": "seed/prelude/Prim/Sys/Portable.cinch",
       "sha256": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c",
       "embedded": true,
       "values": 9,
@@ -1156,7 +1436,7 @@
     },
     {
       "module": "Prim.Sys",
-      "path": "compiler/prelude/Prim/Sys.cinch",
+      "path": "seed/prelude/Prim/Sys.cinch",
       "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d",
       "embedded": true,
       "values": 17,
@@ -1164,7 +1444,7 @@
     },
     {
       "module": "Relation.Eq",
-      "path": "compiler/prelude/Relation/Eq.cinch",
+      "path": "seed/prelude/Relation/Eq.cinch",
       "sha256": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c",
       "embedded": true,
       "values": 0,
@@ -1172,7 +1452,7 @@
     },
     {
       "module": "Relation.Ord",
-      "path": "compiler/prelude/Relation/Ord.cinch",
+      "path": "seed/prelude/Relation/Ord.cinch",
       "sha256": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd",
       "embedded": true,
       "values": 1,
@@ -1180,7 +1460,7 @@
     },
     {
       "module": "Text.Adler32",
-      "path": "compiler/prelude/Text/Adler32.cinch",
+      "path": "seed/prelude/Text/Adler32.cinch",
       "sha256": "30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c",
       "embedded": false,
       "values": 14,
@@ -1188,15 +1468,15 @@
     },
     {
       "module": "Text.Args",
-      "path": "compiler/prelude/Text/Args.cinch",
-      "sha256": "d32463cc68034db08180c0417761348dd772852b1d99a3d24db7d6e3492a91ec",
+      "path": "seed/prelude/Text/Args.cinch",
+      "sha256": "106fb5aa92d80c508d1047542d28cd0409801cf136e2a03c299532ccfa156496",
       "embedded": false,
       "values": 7,
       "public_methods": 0
     },
     {
       "module": "Text.Ascii85",
-      "path": "compiler/prelude/Text/Ascii85.cinch",
+      "path": "seed/prelude/Text/Ascii85.cinch",
       "sha256": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
       "embedded": false,
       "values": 18,
@@ -1204,7 +1484,7 @@
     },
     {
       "module": "Text.Base32",
-      "path": "compiler/prelude/Text/Base32.cinch",
+      "path": "seed/prelude/Text/Base32.cinch",
       "sha256": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
       "embedded": false,
       "values": 31,
@@ -1212,7 +1492,7 @@
     },
     {
       "module": "Text.Base64.Encoding",
-      "path": "compiler/prelude/Text/Base64/Encoding.cinch",
+      "path": "seed/prelude/Text/Base64/Encoding.cinch",
       "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
       "embedded": false,
       "values": 30,
@@ -1220,7 +1500,7 @@
     },
     {
       "module": "Text.Base64",
-      "path": "compiler/prelude/Text/Base64.cinch",
+      "path": "seed/prelude/Text/Base64.cinch",
       "sha256": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
       "embedded": false,
       "values": 5,
@@ -1228,7 +1508,7 @@
     },
     {
       "module": "Text.Binary.Layout",
-      "path": "compiler/prelude/Text/Binary/Layout.cinch",
+      "path": "seed/prelude/Text/Binary/Layout.cinch",
       "sha256": "2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2",
       "embedded": false,
       "values": 52,
@@ -1236,7 +1516,7 @@
     },
     {
       "module": "Text.Binary",
-      "path": "compiler/prelude/Text/Binary.cinch",
+      "path": "seed/prelude/Text/Binary.cinch",
       "sha256": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
       "embedded": false,
       "values": 13,
@@ -1244,7 +1524,7 @@
     },
     {
       "module": "Text.Builder",
-      "path": "compiler/prelude/Text/Builder.cinch",
+      "path": "seed/prelude/Text/Builder.cinch",
       "sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
       "embedded": false,
       "values": 11,
@@ -1252,7 +1532,7 @@
     },
     {
       "module": "Text.Checksum",
-      "path": "compiler/prelude/Text/Checksum.cinch",
+      "path": "seed/prelude/Text/Checksum.cinch",
       "sha256": "6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684",
       "embedded": false,
       "values": 12,
@@ -1260,8 +1540,8 @@
     },
     {
       "module": "Text.Codec",
-      "path": "compiler/prelude/Text/Codec.cinch",
-      "sha256": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29",
+      "path": "seed/prelude/Text/Codec.cinch",
+      "sha256": "cf4fe97335cb544ed6801e2a770328f15a859371cc2572f54cd16919f719921b",
       "embedded": true,
       "values": 1,
       "public_methods": 4
@@ -1276,7 +1556,7 @@
     },
     {
       "module": "Text.Crc64",
-      "path": "compiler/prelude/Text/Crc64.cinch",
+      "path": "seed/prelude/Text/Crc64.cinch",
       "sha256": "a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2",
       "embedded": false,
       "values": 22,
@@ -1284,7 +1564,7 @@
     },
     {
       "module": "Text.Csv.Record",
-      "path": "compiler/prelude/Text/Csv/Record.cinch",
+      "path": "seed/prelude/Text/Csv/Record.cinch",
       "sha256": "a9f4220c17a27ef09808c2835109cf7b5e9e83fddae72d23bc649e0923c11806",
       "embedded": false,
       "values": 39,
@@ -1292,7 +1572,7 @@
     },
     {
       "module": "Text.Csv",
-      "path": "compiler/prelude/Text/Csv.cinch",
+      "path": "seed/prelude/Text/Csv.cinch",
       "sha256": "d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455",
       "embedded": false,
       "values": 7,
@@ -1300,18 +1580,10 @@
     },
     {
       "module": "Text.Digest",
-      "path": "compiler/prelude/Text/Digest.cinch",
-      "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2",
+      "path": "seed/prelude/Text/Digest.cinch",
+      "sha256": "0a0fafd50f72b5471dde4879ac287f4f3d6a7b752619b66ce9ac8a477b543442",
       "embedded": false,
       "values": 7,
-      "public_methods": 0
-    },
-    {
-      "module": "Text.Fnv.State",
-      "path": "compiler/prelude/Text/Fnv/State.cinch",
-      "sha256": "32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673",
-      "embedded": false,
-      "values": 19,
       "public_methods": 0
     },
     {
@@ -1320,6 +1592,14 @@
       "sha256": "e465f4641efc3618645ed4ff1bfa12c6a1a91c65de4579a2cbc84462642c44a7",
       "embedded": false,
       "values": 4,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Fnv.State",
+      "path": "seed/prelude/Text/Fnv/State.cinch",
+      "sha256": "32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673",
+      "embedded": false,
+      "values": 19,
       "public_methods": 0
     },
     {
@@ -1340,7 +1620,7 @@
     },
     {
       "module": "Text.Hex",
-      "path": "compiler/prelude/Text/Hex.cinch",
+      "path": "seed/prelude/Text/Hex.cinch",
       "sha256": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
       "embedded": false,
       "values": 13,
@@ -1348,7 +1628,7 @@
     },
     {
       "module": "Text.Html",
-      "path": "compiler/prelude/Text/Html.cinch",
+      "path": "seed/prelude/Text/Html.cinch",
       "sha256": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
       "embedded": false,
       "values": 5,
@@ -1356,7 +1636,7 @@
     },
     {
       "module": "Text.Json.Binary32",
-      "path": "compiler/prelude/Text/Json/Binary32.cinch",
+      "path": "seed/prelude/Text/Json/Binary32.cinch",
       "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
       "embedded": false,
       "values": 2,
@@ -1364,23 +1644,23 @@
     },
     {
       "module": "Text.Json.Codec",
-      "path": "compiler/prelude/Text/Json/Codec.cinch",
-      "sha256": "8ea76ca75af1cf37304ef924d06462d0efbde16340eee99a676f57f1d02558f3",
+      "path": "seed/prelude/Text/Json/Codec.cinch",
+      "sha256": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
       "embedded": false,
       "values": 123,
       "public_methods": 0
     },
     {
       "module": "Text.Json.Dynamic",
-      "path": "compiler/prelude/Text/Json/Dynamic.cinch",
-      "sha256": "81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93",
+      "path": "seed/prelude/Text/Json/Dynamic.cinch",
+      "sha256": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
       "embedded": false,
       "values": 23,
       "public_methods": 0
     },
     {
       "module": "Text.Json.Legacy",
-      "path": "compiler/prelude/Text/Json/Legacy.cinch",
+      "path": "seed/prelude/Text/Json/Legacy.cinch",
       "sha256": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826",
       "embedded": false,
       "values": 3,
@@ -1388,39 +1668,55 @@
     },
     {
       "module": "Text.Json.Value",
-      "path": "compiler/prelude/Text/Json/Value.cinch",
-      "sha256": "a330ddfa8c6b0ee57f842efc1f73d3a8c46c9173314704121f644cedba7a3758",
+      "path": "seed/prelude/Text/Json/Value.cinch",
+      "sha256": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
       "embedded": false,
-      "values": 106,
+      "values": 118,
       "public_methods": 0
     },
     {
       "module": "Text.Json",
-      "path": "compiler/prelude/Text/Json.cinch",
-      "sha256": "646cb9dacbfe1f64f18870031ca3fd708bb0b71021dff562f3661954f3e80f6c",
+      "path": "seed/prelude/Text/Json.cinch",
+      "sha256": "2293f2ddacb0a057f8c34771b1a069ab844f420f4b96029c15c74bcce2730089",
       "embedded": false,
-      "values": 25,
+      "values": 28,
       "public_methods": 0
     },
     {
       "module": "Text.Lex",
-      "path": "compiler/prelude/Text/Lex.cinch",
-      "sha256": "bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032",
+      "path": "seed/prelude/Text/Lex.cinch",
+      "sha256": "508d75917d6276c6436a6954e66353680a66b0af9653b6fd8cc6b0e1662147f3",
       "embedded": false,
       "values": 18,
       "public_methods": 0
     },
     {
+      "module": "Text.Md5",
+      "path": "seed/prelude/Text/Md5.cinch",
+      "sha256": "1fcad57a2a9fcdc43ce9b9a03fc3034960e3b9c96977aadf78f55bf0b3c9afed",
+      "embedded": false,
+      "values": 14,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Mime",
-      "path": "compiler/prelude/Text/Mime.cinch",
+      "path": "seed/prelude/Text/Mime.cinch",
       "sha256": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
       "embedded": false,
       "values": 29,
       "public_methods": 0
     },
     {
+      "module": "Text.Multipart",
+      "path": "seed/prelude/Text/Multipart.cinch",
+      "sha256": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
+      "embedded": false,
+      "values": 25,
+      "public_methods": 0
+    },
+    {
       "module": "Text.OptionParser",
-      "path": "compiler/prelude/Text/OptionParser.cinch",
+      "path": "seed/prelude/Text/OptionParser.cinch",
       "sha256": "a98ed14dc7c9027ecc53724e553eaf38be5066a392559916d31036bf5f557eee",
       "embedded": false,
       "values": 18,
@@ -1428,7 +1724,7 @@
     },
     {
       "module": "Text.Otlp",
-      "path": "compiler/prelude/Text/Otlp.cinch",
+      "path": "seed/prelude/Text/Otlp.cinch",
       "sha256": "650ee7a5b2e4c12c7c01d4218d520cc4dbd97432fedd85291c8831abdf543b9d",
       "embedded": false,
       "values": 5,
@@ -1436,7 +1732,7 @@
     },
     {
       "module": "Text.Parse",
-      "path": "compiler/prelude/Text/Parse.cinch",
+      "path": "seed/prelude/Text/Parse.cinch",
       "sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b",
       "embedded": false,
       "values": 45,
@@ -1444,7 +1740,7 @@
     },
     {
       "module": "Text.Path",
-      "path": "compiler/prelude/Text/Path.cinch",
+      "path": "seed/prelude/Text/Path.cinch",
       "sha256": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad",
       "embedded": false,
       "values": 11,
@@ -1452,7 +1748,7 @@
     },
     {
       "module": "Text.Pem",
-      "path": "compiler/prelude/Text/Pem.cinch",
+      "path": "seed/prelude/Text/Pem.cinch",
       "sha256": "9478c3c41a71436180df02c7ac175c309f790f39d131440895f0a81c7f733efd",
       "embedded": false,
       "values": 17,
@@ -1460,7 +1756,7 @@
     },
     {
       "module": "Text.QuotedPrintable",
-      "path": "compiler/prelude/Text/QuotedPrintable.cinch",
+      "path": "seed/prelude/Text/QuotedPrintable.cinch",
       "sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
       "embedded": false,
       "values": 20,
@@ -1468,47 +1764,127 @@
     },
     {
       "module": "Text.Regex",
-      "path": "compiler/prelude/Text/Regex.cinch",
-      "sha256": "ed3a6d5ed60e34766ff22fc61ce1590e0bca20b3e37e3bd3c12a147ece928391",
+      "path": "seed/prelude/Text/Regex.cinch",
+      "sha256": "35adaa7be29d6731181e5e84054b4ef90fa7a40623ae9fe6a1cc2b962b27f9d1",
       "embedded": false,
       "values": 19,
       "public_methods": 0
     },
     {
       "module": "Text.Scan",
-      "path": "compiler/prelude/Text/Scan.cinch",
+      "path": "seed/prelude/Text/Scan.cinch",
       "sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
       "embedded": false,
       "values": 30,
       "public_methods": 0
     },
     {
+      "module": "Text.Sha1",
+      "path": "seed/prelude/Text/Sha1.cinch",
+      "sha256": "7c4c6ab9c67ff50be3b4273fd01b709a4ad61b5a0943835f38b438f1142ea095",
+      "embedded": false,
+      "values": 14,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Sha256",
-      "path": "compiler/prelude/Text/Sha256.cinch",
+      "path": "seed/prelude/Text/Sha256.cinch",
       "sha256": "95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8",
       "embedded": false,
       "values": 17,
       "public_methods": 0
     },
     {
+      "module": "Text.Sha3",
+      "path": "seed/prelude/Text/Sha3.cinch",
+      "sha256": "26c3d9fe682494d2a244a66098253c9a9a0871eb5bbc1f2405c8b9f99c56b30c",
+      "embedded": false,
+      "values": 26,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Sha512",
+      "path": "seed/prelude/Text/Sha512.cinch",
+      "sha256": "545a627c6c71aeb06162bd87ff5e124d792cc8e6280af48cac1177a75de37317",
+      "embedded": false,
+      "values": 23,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Shellwords",
-      "path": "compiler/prelude/Text/Shellwords.cinch",
-      "sha256": "a37ca53b9d6ab728f032df39413d1584cbcbdeea29fd40103c0219cc99e643c9",
+      "path": "seed/prelude/Text/Shellwords.cinch",
+      "sha256": "04b6373930f8b453c532abfa2fa2e52461c7308a62e2c1c00c64eb21411bd5f1",
       "embedded": false,
       "values": 4,
       "public_methods": 0
     },
     {
       "module": "Text.Show",
-      "path": "compiler/prelude/Text/Show.cinch",
-      "sha256": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7",
+      "path": "seed/prelude/Text/Show.cinch",
+      "sha256": "482adc06340f899b8664bfbf7804b45d74db5e200f657faa12a8eb5b66de76e8",
       "embedded": true,
       "values": 6,
       "public_methods": 1
     },
     {
+      "module": "Text.Time.Duration",
+      "path": "seed/prelude/Text/Time/Duration.cinch",
+      "sha256": "20fbc027b1c3295d2ad1d3ede0c48b955604990b27f2ab1d7da45334877cb7c8",
+      "embedded": false,
+      "values": 29,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Time.Iso",
+      "path": "seed/prelude/Text/Time/Iso.cinch",
+      "sha256": "84701811cacba7dc7bbc9790b539521299d85098ecbfe2cd818fa800f761af00",
+      "embedded": false,
+      "values": 39,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Time.Rfc2822",
+      "path": "seed/prelude/Text/Time/Rfc2822.cinch",
+      "sha256": "d264b18fb08807d3449b90d1f0025894e8b1a22b3e67dcf3b06665ce767576bc",
+      "embedded": false,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Time.Rfc9557",
+      "path": "seed/prelude/Text/Time/Rfc9557.cinch",
+      "sha256": "d7827396a4192555b96bbe750ebd54edce0041ad499d7535b231185dd0fc6bb1",
+      "embedded": false,
+      "values": 28,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Time.Scan",
+      "path": "seed/prelude/Text/Time/Scan.cinch",
+      "sha256": "47ad87f939deb5508bdab9756d9ecfc9358a47c3a11b12719065dab101aaaf2c",
+      "embedded": false,
+      "values": 20,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Time.Strtime",
+      "path": "seed/prelude/Text/Time/Strtime.cinch",
+      "sha256": "f38085e1b9841abb2a8cba49b53f7b1cacb1d544ce5d34ab1c06bfdfda12b20f",
+      "embedded": false,
+      "values": 59,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Time.Zoned",
+      "path": "seed/prelude/Text/Time/Zoned.cinch",
+      "sha256": "f4942fd2b7cc3f238527aed3bce3d0a8df17178dbe40fba507c21da52ab15e5b",
+      "embedded": false,
+      "values": 17,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Toml",
-      "path": "compiler/prelude/Text/Toml.cinch",
+      "path": "seed/prelude/Text/Toml.cinch",
       "sha256": "a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce",
       "embedded": false,
       "values": 2,
@@ -1516,15 +1892,15 @@
     },
     {
       "module": "Text.Uri",
-      "path": "compiler/prelude/Text/Uri.cinch",
-      "sha256": "b1b0e152c068b9b4ef4d47b03b84502cd0fc2b506608bdd006b87405934c50f4",
+      "path": "seed/prelude/Text/Uri.cinch",
+      "sha256": "e3098cfb52bdee5813cb985d730d5865cb01c2b687d42464f821b73121bc1749",
       "embedded": false,
       "values": 15,
       "public_methods": 0
     },
     {
       "module": "Text.Url.Codec",
-      "path": "compiler/prelude/Text/Url/Codec.cinch",
+      "path": "seed/prelude/Text/Url/Codec.cinch",
       "sha256": "17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539",
       "embedded": false,
       "values": 11,
@@ -1532,7 +1908,7 @@
     },
     {
       "module": "Text.Url.Error",
-      "path": "compiler/prelude/Text/Url/Error.cinch",
+      "path": "seed/prelude/Text/Url/Error.cinch",
       "sha256": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
       "embedded": false,
       "values": 15,
@@ -1540,7 +1916,7 @@
     },
     {
       "module": "Text.Url.Ip",
-      "path": "compiler/prelude/Text/Url/Ip.cinch",
+      "path": "seed/prelude/Text/Url/Ip.cinch",
       "sha256": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
       "embedded": false,
       "values": 1,
@@ -1548,7 +1924,7 @@
     },
     {
       "module": "Text.Url.Model",
-      "path": "compiler/prelude/Text/Url/Model.cinch",
+      "path": "seed/prelude/Text/Url/Model.cinch",
       "sha256": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
       "embedded": false,
       "values": 29,
@@ -1556,7 +1932,7 @@
     },
     {
       "module": "Text.Url.Parser",
-      "path": "compiler/prelude/Text/Url/Parser.cinch",
+      "path": "seed/prelude/Text/Url/Parser.cinch",
       "sha256": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
       "embedded": false,
       "values": 4,
@@ -1564,7 +1940,7 @@
     },
     {
       "module": "Text.Url.Query",
-      "path": "compiler/prelude/Text/Url/Query.cinch",
+      "path": "seed/prelude/Text/Url/Query.cinch",
       "sha256": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
       "embedded": false,
       "values": 15,
@@ -1572,7 +1948,7 @@
     },
     {
       "module": "Text.Url.Resolve",
-      "path": "compiler/prelude/Text/Url/Resolve.cinch",
+      "path": "seed/prelude/Text/Url/Resolve.cinch",
       "sha256": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
       "embedded": false,
       "values": 5,
@@ -1580,7 +1956,7 @@
     },
     {
       "module": "Text.Url.Scan",
-      "path": "compiler/prelude/Text/Url/Scan.cinch",
+      "path": "seed/prelude/Text/Url/Scan.cinch",
       "sha256": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
       "embedded": false,
       "values": 9,
@@ -1588,7 +1964,7 @@
     },
     {
       "module": "Text.Url.Userinfo",
-      "path": "compiler/prelude/Text/Url/Userinfo.cinch",
+      "path": "seed/prelude/Text/Url/Userinfo.cinch",
       "sha256": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
       "embedded": false,
       "values": 5,
@@ -1596,7 +1972,7 @@
     },
     {
       "module": "Text.Url",
-      "path": "compiler/prelude/Text/Url.cinch",
+      "path": "seed/prelude/Text/Url.cinch",
       "sha256": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
       "embedded": false,
       "values": 84,
@@ -1604,7 +1980,7 @@
     },
     {
       "module": "Text.Utf16",
-      "path": "compiler/prelude/Text/Utf16.cinch",
+      "path": "seed/prelude/Text/Utf16.cinch",
       "sha256": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8",
       "embedded": false,
       "values": 9,
@@ -1612,7 +1988,7 @@
     },
     {
       "module": "Text.Utf8",
-      "path": "compiler/prelude/Text/Utf8.cinch",
+      "path": "seed/prelude/Text/Utf8.cinch",
       "sha256": "1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159",
       "embedded": false,
       "values": 33,
@@ -1620,8 +1996,8 @@
     },
     {
       "module": "Text.Yaml",
-      "path": "compiler/prelude/Text/Yaml.cinch",
-      "sha256": "2b4ec0c04c4395f8f1b42dd0b2e564ed2453dbc570d827a84fd693f7f1b06589",
+      "path": "seed/prelude/Text/Yaml.cinch",
+      "sha256": "1254ed227cac5d100c4132baa92d4ce0773cc78fd1669b269d022f2d5618e7d8",
       "embedded": false,
       "values": 7,
       "public_methods": 0

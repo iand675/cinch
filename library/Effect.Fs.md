@@ -202,4 +202,4 @@ atomic replacement is `fs-rename`). The calls are `Prim.Sys`'s:
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Fs.cinch`. Source SHA-256: `ecc727aab81580727c460bd4188cac015bd581bc500dec690ca1eef9cd3d543f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Fs.cinch`. Source SHA-256: `ef52d29afce18d72843cd2704e3a0ebcbeff428436fa047971807c4c56e93a0a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

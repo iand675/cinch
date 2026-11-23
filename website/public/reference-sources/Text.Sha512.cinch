@@ -1,0 +1,773 @@
+-- | SHA-384, SHA-512, SHA-512/224 and SHA-512/256 digests, persistent streaming states and binary checkpoints.
+-- Compression expands two schedule words per step in independent SIMD lanes and
+-- evaluates every one of the eighty ordered rounds exactly once with native
+-- 64-bit rotates. Updates read exact 128-byte blocks while retaining their input
+-- owner, and copy pending tails into private storage. Retaining a state branches
+-- the computation. Digest and checkpoint words use network order. Byte counts
+-- wrap at 64 bits, so the encoded 128-bit message length is exact for every
+-- input shorter than 2^64 bytes. Checkpoint input and returned buffers never
+-- alias the state.
+module Text.Sha512 where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Binary
+
+  export sha512-size, sha384-size, sha512t224-size, sha512t256-size, sha512-block-size
+  export sha512-sum, sha384-sum, sha512t224-sum, sha512t256-sum
+  export Sha512State, sha512-state, sha384-state, sha512t224-state, sha512t256-state
+  export sha512-state-update, sha512-state-reset, sha512-state-size, sha512-state-block-size
+  export sha512-state-sum, sha512-state-append, sha512-state-save, sha512-state-append-save, sha512-state-load
+  export Sha512StateError, InvalidSha512StateIdentifier, InvalidSha512StateSize, sha512-state-error-message
+
+  -- | SHA-512 digest size in bytes, always 64.
+  sha512-size :: Nat
+  sha512-size = 64
+
+  -- | SHA-384 digest size in bytes, always 48.
+  sha384-size :: Nat
+  sha384-size = 48
+
+  -- | SHA-512/224 digest size in bytes, always 28.
+  sha512t224-size :: Nat
+  sha512t224-size = 28
+
+  -- | SHA-512/256 digest size in bytes, always 32.
+  sha512t256-size :: Nat
+  sha512t256-size = 32
+
+  -- | Compression block size in bytes for every variant, always 128.
+  sha512-block-size :: Nat
+  sha512-block-size = 128
+
+  -- | Private complete chaining value: eight unsigned 64-bit words a through h.
+  data Sha512Words where
+    -- | The working or chaining words in round order.
+    Words512 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha512Words
+
+  -- | An immutable variant code, wrapping byte count, copied partial block and chaining value.
+  data Sha512State where
+    -- | Variant codes 4 to 7 select SHA-384, SHA-512/224, SHA-512/256 and SHA-512.
+    -- Private pending bytes have length count modulo 128, always below one full block.
+    State512 :: Nat -> U64 -> Bytes -> Sha512Words -> Sha512State
+
+  -- | Start a variant with its standard chaining value and no pending bytes.
+  initial :: Nat -> Sha512State
+  initial variant = State512 variant 0 (bytes-new 0) (sha512-initial-words variant)
+
+  -- | Initial SHA-512 state.
+  sha512-state :: Sha512State
+  sha512-state = initial 7
+
+  -- | Initial SHA-384 state, with its distinct chaining value.
+  sha384-state :: Sha512State
+  sha384-state = initial 4
+
+  -- | Initial SHA-512/224 state, whose chaining value comes from the standard generation function.
+  sha512t224-state :: Sha512State
+  sha512t224-state = initial 5
+
+  -- | Initial SHA-512/256 state, whose chaining value comes from the standard generation function.
+  sha512t256-state :: Sha512State
+  sha512t256-state = initial 6
+
+  -- | Compute a fresh 64-byte network-order SHA-512 digest of a complete input.
+  sha512-sum :: Bytes -> Bytes
+  sha512-sum input = one-shot 7 input
+
+  -- | Compute a fresh 48-byte network-order SHA-384 digest of a complete input.
+  sha384-sum :: Bytes -> Bytes
+  sha384-sum input = one-shot 4 input
+
+  -- | Compute a fresh 28-byte network-order SHA-512/224 digest of a complete input.
+  sha512t224-sum :: Bytes -> Bytes
+  sha512t224-sum input = one-shot 5 input
+
+  -- | Compute a fresh 32-byte network-order SHA-512/256 digest of a complete input.
+  sha512t256-sum :: Bytes -> Bytes
+  sha512t256-sum input = one-shot 6 input
+
+  -- | Hash a whole buffer directly, copying only its final partial block into the padding.
+  one-shot :: Nat -> Bytes -> Bytes
+  one-shot variant input =
+    let n = bytes-len input in
+    let count = wrapping-i64-to-u64 (nat-to-i64 n) in
+    let words = hold-input input (blocks (sha512-initial-words variant) (bytes-data input) count) in
+    let tail = nat-rem n 128 in
+    if tail <= n then render variant (finish-interval count input (n - tail) tail words)
+    else render variant words
+
+  -- | Consume a complete chunk without mutating any previous state or retaining the input buffer.
+  -- Empty chunks preserve the supplied state. Counts use explicit unsigned 64-bit wrapping.
+  sha512-state-update :: Sha512State -> Bytes -> Sha512State
+  sha512-state-update state input = if bytes-len input == 0 then state else case state of
+    State512 variant count pending words -> update-fields variant count pending words input
+
+  -- | Complete a pending partial block first, then process the remaining whole blocks.
+  update-fields :: Nat -> U64 -> Bytes -> Sha512Words -> Bytes -> Sha512State
+  update-fields variant count pending words input =
+    let total = wrapping-add-u64 count (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input))) in
+    let have = bytes-len pending in
+    if have < 128 then
+      if have == 0 then process-from variant total words input 0
+      else
+        let needed = 128 - have in
+        if bytes-len input < needed then State512 variant total (join pending input) words
+        else
+          let block = bytes-new 128 in
+          let first = bytes-copy-range block pending 0 0 have in
+          let last = bytes-copy-range block input have 0 needed in
+          let next = hold-input block (compress-at words (bytes-data block)) in
+          process-from variant total next input needed
+    else State512 variant count pending words
+
+  -- | Process every complete suffix block and retain only a fresh final partial block.
+  process-from :: Nat -> U64 -> Sha512Words -> Bytes -> Nat -> Sha512State
+  process-from variant total words input start =
+    if start <= bytes-len input then
+      let remaining = bytes-len input - start in
+      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
+      let next = hold-input input (blocks words address (wrapping-i64-to-u64 (nat-to-i64 remaining))) in
+      let tail = nat-rem remaining 128 in
+      if tail <= bytes-len input then State512 variant total (part input (bytes-len input - tail) tail) next
+      else State512 variant total (bytes-new 0) next
+    else State512 variant total (bytes-new 0) words
+
+  -- | Read only full remaining blocks with machine counters over a retained caller-owned interval.
+  blocks :: Sha512Words -> I64 -> U64 -> Sha512Words
+  blocks words address remaining =
+    if ge-u64 remaining 128 then blocks (compress-at words address) (wrapping-add-i64 address 128) (wrapping-sub-u64 remaining 128)
+    else words
+
+  -- | Load exactly one caller-proved complete block of sixteen network-order words and compress it.
+  compress-at :: Sha512Words -> I64 -> Sha512Words
+  compress-at words address =
+    sha512-compress words (block-word address 0) (block-word address 8) (block-word address 16) (block-word address 24)
+      (block-word address 32) (block-word address 40) (block-word address 48) (block-word address 56)
+      (block-word address 64) (block-word address 72) (block-word address 80) (block-word address 88)
+      (block-word address 96) (block-word address 104) (block-word address 112) (block-word address 120)
+
+  -- | Load one network-order message word from an exact interval inside a proved complete block.
+  prim block-word :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %host = load i64, ptr %at, align 1
+      %value = call i64 @llvm.bswap.i64(i64 %host)
+      ret i64 %value
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %value = load i64, ptr %at, align 1
+      ret i64 %value
+    } when endian big
+
+  -- | Reverse the bytes of a word so an explicit little-endian store writes network order.
+  prim wire-word :: U64 -> U64 where
+    llvm {
+      %value = call i64 @llvm.bswap.i64(i64 %0)
+      ret i64 %value
+    }
+
+  -- | Keep an owner alive until a strict raw-address computation has completed.
+  hold-input :: forall a. Bytes -> a -> a
+  hold-input owner value = case bytes-len owner of _ -> value
+
+  -- | Copy an exact interval into fresh storage without retaining a mutable source alias.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start count = if start + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 start count in out
+    else bytes-new 0
+
+  -- | Concatenate two intervals in fresh storage, preserving both inputs.
+  join :: Bytes -> Bytes -> Bytes
+  join first last =
+    let n = bytes-len first in let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in
+    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+
+  -- | Return the initial state for the same variant, preserving the supplied state.
+  sha512-state-reset :: Sha512State -> Sha512State
+  sha512-state-reset state = case state of State512 variant count pending words -> initial variant
+
+  -- | Digest size in bytes for the state's variant: 48, 28, 32 or 64.
+  sha512-state-size :: Sha512State -> Nat
+  sha512-state-size state = case state of State512 variant count pending words -> digest-size variant
+
+  -- | Map a variant code to its digest size in bytes.
+  digest-size :: Nat -> Nat
+  digest-size variant =
+    if variant == 4 then 48 else if variant == 5 then 28 else if variant == 6 then 32 else 64
+
+  -- | Compression block size in bytes, always 128 for every variant.
+  sha512-state-block-size :: Sha512State -> Nat
+  sha512-state-block-size state = sha512-block-size
+
+  -- | Choose one or two complete finalization blocks: the 0x80 mark and 16 length bytes must fit.
+  padding-size :: Nat -> InRange 128 256 Nat
+  padding-size pending = if pending < 112 then 128 else 256
+
+  -- | Pad an exact interval of fewer than 128 bytes and append the 128-bit network-order bit length.
+  -- The high length word carries the three bits shifted out of the wrapping 64-bit byte count.
+  finish-interval :: U64 -> Bytes -> Nat -> Nat -> Sha512Words -> Sha512Words
+  finish-interval count input start n words =
+    if n < 128 && start + n <= bytes-len input then
+      let size = padding-size n in let padding = bytes-new size in
+      let copied = bytes-copy-range padding input 0 start n in
+      let mark = bytes-set padding n 128 in
+      let high = binary-put-u64 BigEndian padding (size - 16) (wrapping-shr-u64 count 61) in
+      let low = binary-put-u64 BigEndian padding (size - 8) (wrapping-shl-u64 count 3) in
+      hold-input padding (blocks words (bytes-data padding) (wrapping-i64-to-u64 (nat-to-i64 size)))
+    else words
+
+  -- | Store one network-order word only within a checked complete destination interval.
+  put-word :: Bytes -> Nat -> U64 -> Unit
+  put-word out pos word = if pos + 8 <= bytes-len out then bytes-write-le64 out pos (wire-word word) else ()
+
+  -- | Store the leading four network-order bytes of a word, used by the 28-byte truncated variant.
+  put-half :: Bytes -> Nat -> U64 -> Unit
+  put-half out pos word = if pos + 4 <= bytes-len out then bytes-write-le32 out pos (wrapping-u64-to-u32 (wire-word word)) else ()
+
+  -- | Render all eight chaining words into an existing complete network-order interval.
+  put-words :: Bytes -> Nat -> Sha512Words -> Unit
+  put-words out pos words = case words of
+    Words512 a b c d e f g h ->
+      let wa = put-word out pos a in let wb = put-word out (pos + 8) b in
+      let wc = put-word out (pos + 16) c in let wd = put-word out (pos + 24) d in
+      let we = put-word out (pos + 32) e in let wf = put-word out (pos + 40) f in
+      let wg = put-word out (pos + 48) g in put-word out (pos + 56) h
+
+  -- | Render the variant's leading digest bytes of finalized words into a fresh buffer.
+  render :: Nat -> Sha512Words -> Bytes
+  render variant words = case words of
+    Words512 a b c d e f g h ->
+      let size = digest-size variant in
+      let out = bytes-new size in
+      let wa = put-word out 0 a in let wb = put-word out 8 b in let wc = put-word out 16 c in
+      let wd = if size == 28 then put-half out 24 d else put-word out 24 d in
+      let rest = if size >= 48 then put-upper out size e f g h else () in
+      out
+
+  -- | Store words e and f for the 48- and 64-byte variants, and g and h for the full digest.
+  put-upper :: Bytes -> Nat -> U64 -> U64 -> U64 -> U64 -> Unit
+  put-upper out size e f g h =
+    let we = put-word out 32 e in let wf = put-word out 40 f in
+    if size == 64 then let wg = put-word out 48 g in put-word out 56 h else ()
+
+  -- | Return the selected network-order digest in fresh storage without changing the state.
+  sha512-state-sum :: Sha512State -> Bytes
+  sha512-state-sum state = case state of
+    State512 variant count pending words ->
+      render variant (finish-interval count pending 0 (bytes-len pending) words)
+
+  -- | Append the selected digest to a copied prefix, preserving the state and caller buffer.
+  sha512-state-append :: Bytes -> Sha512State -> Bytes
+  sha512-state-append prefix state = join prefix (sha512-state-sum state)
+
+  -- | Return 204 checkpoint bytes: ASCII sha, the variant byte, chaining words, zero-padded tail and count.
+  -- Variant bytes 4, 5, 6 and 7 are SHA-384, SHA-512/224, SHA-512/256 and SHA-512. Numbers use network order.
+  sha512-state-save :: Sha512State -> Bytes
+  sha512-state-save state = case state of
+    State512 variant count pending words ->
+      let out = bytes-new 204 in
+      let h0 = bytes-set out 0 115 in let h1 = bytes-set out 1 104 in
+      let h2 = bytes-set out 2 97 in let h3 = bytes-set out 3 (variant-byte variant) in
+      let w = put-words out 4 words in
+      let p = if bytes-len pending < 128 then bytes-copy-range out pending 68 0 (bytes-len pending) else () in
+      let n = binary-put-u64 BigEndian out 196 count in out
+
+  -- | Normalize a variant code to its checkpoint identifier byte; unknown codes denote SHA-512.
+  variant-byte :: Nat -> InRange 4 7 Nat
+  variant-byte variant = if variant == 4 then 4 else if variant == 5 then 5 else if variant == 6 then 6 else 7
+
+  -- | Append the complete checkpoint to a copied prefix without mutating either input.
+  sha512-state-append-save :: Bytes -> Sha512State -> Bytes
+  sha512-state-append-save prefix state = join prefix (sha512-state-save state)
+
+  -- | A checkpoint's complete variant identifier or exact byte length is invalid.
+  data Sha512StateError where
+    -- | The four-byte sha/variant identifier is absent or differs from the template's variant.
+    InvalidSha512StateIdentifier :: Sha512StateError
+    -- | Expected complete checkpoint length and actual input length, in that order.
+    InvalidSha512StateSize :: Nat -> Nat -> Sha512StateError
+
+  -- | Render identifier errors or complete required and actual checkpoint byte lengths.
+  sha512-state-error-message :: Sha512StateError -> String
+  sha512-state-error-message error = case error of
+    InvalidSha512StateIdentifier -> "SHA-512 state identifier is invalid"
+    InvalidSha512StateSize expected actual -> string-concat "SHA-512 state requires " (string-concat (nat-to-string expected) (string-concat " bytes; received " (nat-to-string actual)))
+
+  -- | Read one network-order chaining word after checking its complete interval.
+  read-word :: Bytes -> Nat -> U64
+  read-word input pos = if pos + 8 <= bytes-len input then wire-word (bytes-read-le64 input pos) else 0
+
+  -- | Restore every chaining and count bit, copying only the live partial block into private storage.
+  -- The template selects the variant. Identifier checks precede exact-size checks; unused
+  -- checkpoint tail bytes are ignored and serialized as zeros on the next save.
+  sha512-state-load :: Sha512State -> Bytes -> Result Sha512StateError Sha512State
+  sha512-state-load template input = case template of
+    State512 variant old-count old-pending old-words ->
+      if 4 <= bytes-len input then
+        if bytes-get input 0 == 115 && bytes-get input 1 == 104 && bytes-get input 2 == 97 && bytes-get input 3 == variant then
+          if bytes-len input == 204 then case binary-read-u64 BigEndian input 196 of
+            Err error -> Err (InvalidSha512StateSize 204 (bytes-len input))
+            Ok count ->
+              let n = u8-to-nat (wrapping-u64-to-u8 (bit-and-u64 count 127)) in
+              let words = Words512 (read-word input 4) (read-word input 12) (read-word input 20) (read-word input 28)
+                    (read-word input 36) (read-word input 44) (read-word input 52) (read-word input 60) in
+              Ok (State512 variant count (part input 68 n) words)
+          else Err (InvalidSha512StateSize 204 (bytes-len input))
+        else Err InvalidSha512StateIdentifier
+      else Err InvalidSha512StateIdentifier
+
+  -- | Generated SHA-512 compression: consume sixteen network-order words without retaining inputs.
+  -- Regenerate with python3 tooling/generate_sha512_kernels.py; do not edit this suffix.
+  sha512-compress :: Sha512Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha512Words
+  sha512-compress prior w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14 w15 = case prior of
+    Words512 a b c d e f g h ->
+      let g0 = sha512-group w0 w1 in
+      let g1 = sha512-group w2 w3 in
+      let g2 = sha512-group w4 w5 in
+      let g3 = sha512-group w6 w7 in
+      let g4 = sha512-group w8 w9 in
+      let g5 = sha512-group w10 w11 in
+      let g6 = sha512-group w12 w13 in
+      let g7 = sha512-group w14 w15 in
+      let g8 = sha512-schedule g0 g1 g4 g5 g7 in
+      let g9 = sha512-schedule g1 g2 g5 g6 g8 in
+      let g10 = sha512-schedule g2 g3 g6 g7 g9 in
+      let g11 = sha512-schedule g3 g4 g7 g8 g10 in
+      let g12 = sha512-schedule g4 g5 g8 g9 g11 in
+      let g13 = sha512-schedule g5 g6 g9 g10 g12 in
+      let g14 = sha512-schedule g6 g7 g10 g11 g13 in
+      let g15 = sha512-schedule g7 g8 g11 g12 g14 in
+      let g16 = sha512-schedule g8 g9 g12 g13 g15 in
+      let g17 = sha512-schedule g9 g10 g13 g14 g16 in
+      let g18 = sha512-schedule g10 g11 g14 g15 g17 in
+      let g19 = sha512-schedule g11 g12 g15 g16 g18 in
+      let g20 = sha512-schedule g12 g13 g16 g17 g19 in
+      let g21 = sha512-schedule g13 g14 g17 g18 g20 in
+      let g22 = sha512-schedule g14 g15 g18 g19 g21 in
+      let g23 = sha512-schedule g15 g16 g19 g20 g22 in
+      let g24 = sha512-schedule g16 g17 g20 g21 g23 in
+      let g25 = sha512-schedule g17 g18 g21 g22 g24 in
+      let g26 = sha512-schedule g18 g19 g22 g23 g25 in
+      let g27 = sha512-schedule g19 g20 g23 g24 g26 in
+      let g28 = sha512-schedule g20 g21 g24 g25 g27 in
+      let g29 = sha512-schedule g21 g22 g25 g26 g28 in
+      let g30 = sha512-schedule g22 g23 g26 g27 g29 in
+      let g31 = sha512-schedule g23 g24 g27 g28 g30 in
+      let g32 = sha512-schedule g24 g25 g28 g29 g31 in
+      let g33 = sha512-schedule g25 g26 g29 g30 g32 in
+      let g34 = sha512-schedule g26 g27 g30 g31 g33 in
+      let g35 = sha512-schedule g27 g28 g31 g32 g34 in
+      let g36 = sha512-schedule g28 g29 g32 g33 g35 in
+      let g37 = sha512-schedule g29 g30 g33 g34 g36 in
+      let g38 = sha512-schedule g30 g31 g34 g35 g37 in
+      let g39 = sha512-schedule g31 g32 g35 g36 g38 in
+      let s0 = sha512-rounds-a prior (sha512-lane0 g0) (sha512-lane1 g0) (sha512-lane0 g1) (sha512-lane1 g1) (sha512-lane0 g2) (sha512-lane1 g2) (sha512-lane0 g3) (sha512-lane1 g3) (sha512-lane0 g4) (sha512-lane1 g4) (sha512-lane0 g5) (sha512-lane1 g5) (sha512-lane0 g6) (sha512-lane1 g6) (sha512-lane0 g7) (sha512-lane1 g7) in
+      let s1 = sha512-rounds-b s0 (sha512-lane0 g8) (sha512-lane1 g8) (sha512-lane0 g9) (sha512-lane1 g9) (sha512-lane0 g10) (sha512-lane1 g10) (sha512-lane0 g11) (sha512-lane1 g11) (sha512-lane0 g12) (sha512-lane1 g12) (sha512-lane0 g13) (sha512-lane1 g13) (sha512-lane0 g14) (sha512-lane1 g14) (sha512-lane0 g15) (sha512-lane1 g15) in
+      let s2 = sha512-rounds-c s1 (sha512-lane0 g16) (sha512-lane1 g16) (sha512-lane0 g17) (sha512-lane1 g17) (sha512-lane0 g18) (sha512-lane1 g18) (sha512-lane0 g19) (sha512-lane1 g19) (sha512-lane0 g20) (sha512-lane1 g20) (sha512-lane0 g21) (sha512-lane1 g21) (sha512-lane0 g22) (sha512-lane1 g22) (sha512-lane0 g23) (sha512-lane1 g23) in
+      let s3 = sha512-rounds-d s2 (sha512-lane0 g24) (sha512-lane1 g24) (sha512-lane0 g25) (sha512-lane1 g25) (sha512-lane0 g26) (sha512-lane1 g26) (sha512-lane0 g27) (sha512-lane1 g27) (sha512-lane0 g28) (sha512-lane1 g28) (sha512-lane0 g29) (sha512-lane1 g29) (sha512-lane0 g30) (sha512-lane1 g30) (sha512-lane0 g31) (sha512-lane1 g31) in
+      let s4 = sha512-rounds-e s3 (sha512-lane0 g32) (sha512-lane1 g32) (sha512-lane0 g33) (sha512-lane1 g33) (sha512-lane0 g34) (sha512-lane1 g34) (sha512-lane0 g35) (sha512-lane1 g35) (sha512-lane0 g36) (sha512-lane1 g36) (sha512-lane0 g37) (sha512-lane1 g37) (sha512-lane0 g38) (sha512-lane1 g38) (sha512-lane0 g39) (sha512-lane1 g39) in
+      case s4 of
+        Words512 na nb nc nd ne nf ng nh ->
+          Words512 (wrapping-add-u64 a na) (wrapping-add-u64 b nb) (wrapping-add-u64 c nc) (wrapping-add-u64 d nd)
+            (wrapping-add-u64 e ne) (wrapping-add-u64 f nf) (wrapping-add-u64 g ng) (wrapping-add-u64 h nh)
+
+  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior working value.
+  sha512-rounds-a :: Sha512Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha512Words
+  sha512-rounds-a prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words512 i0 i1 i2 i3 i4 i5 i6 i7 ->
+      let r0 = sha512-round i0 i1 i2 i3 i4 i5 i6 i7 m0 4794697086780616226 in
+      let a0 = sha512-lane0 r0 in
+      let e0 = sha512-lane1 r0 in
+      let r1 = sha512-round a0 i0 i1 i2 e0 i4 i5 i6 m1 8158064640168781261 in
+      let a1 = sha512-lane0 r1 in
+      let e1 = sha512-lane1 r1 in
+      let r2 = sha512-round a1 a0 i0 i1 e1 e0 i4 i5 m2 13096744586834688815 in
+      let a2 = sha512-lane0 r2 in
+      let e2 = sha512-lane1 r2 in
+      let r3 = sha512-round a2 a1 a0 i0 e2 e1 e0 i4 m3 16840607885511220156 in
+      let a3 = sha512-lane0 r3 in
+      let e3 = sha512-lane1 r3 in
+      let r4 = sha512-round a3 a2 a1 a0 e3 e2 e1 e0 m4 4131703408338449720 in
+      let a4 = sha512-lane0 r4 in
+      let e4 = sha512-lane1 r4 in
+      let r5 = sha512-round a4 a3 a2 a1 e4 e3 e2 e1 m5 6480981068601479193 in
+      let a5 = sha512-lane0 r5 in
+      let e5 = sha512-lane1 r5 in
+      let r6 = sha512-round a5 a4 a3 a2 e5 e4 e3 e2 m6 10538285296894168987 in
+      let a6 = sha512-lane0 r6 in
+      let e6 = sha512-lane1 r6 in
+      let r7 = sha512-round a6 a5 a4 a3 e6 e5 e4 e3 m7 12329834152419229976 in
+      let a7 = sha512-lane0 r7 in
+      let e7 = sha512-lane1 r7 in
+      let r8 = sha512-round a7 a6 a5 a4 e7 e6 e5 e4 m8 15566598209576043074 in
+      let a8 = sha512-lane0 r8 in
+      let e8 = sha512-lane1 r8 in
+      let r9 = sha512-round a8 a7 a6 a5 e8 e7 e6 e5 m9 1334009975649890238 in
+      let a9 = sha512-lane0 r9 in
+      let e9 = sha512-lane1 r9 in
+      let r10 = sha512-round a9 a8 a7 a6 e9 e8 e7 e6 m10 2608012711638119052 in
+      let a10 = sha512-lane0 r10 in
+      let e10 = sha512-lane1 r10 in
+      let r11 = sha512-round a10 a9 a8 a7 e10 e9 e8 e7 m11 6128411473006802146 in
+      let a11 = sha512-lane0 r11 in
+      let e11 = sha512-lane1 r11 in
+      let r12 = sha512-round a11 a10 a9 a8 e11 e10 e9 e8 m12 8268148722764581231 in
+      let a12 = sha512-lane0 r12 in
+      let e12 = sha512-lane1 r12 in
+      let r13 = sha512-round a12 a11 a10 a9 e12 e11 e10 e9 m13 9286055187155687089 in
+      let a13 = sha512-lane0 r13 in
+      let e13 = sha512-lane1 r13 in
+      let r14 = sha512-round a13 a12 a11 a10 e13 e12 e11 e10 m14 11230858885718282805 in
+      let a14 = sha512-lane0 r14 in
+      let e14 = sha512-lane1 r14 in
+      let r15 = sha512-round a14 a13 a12 a11 e14 e13 e12 e11 m15 13951009754708518548 in
+      let a15 = sha512-lane0 r15 in
+      let e15 = sha512-lane1 r15 in
+      Words512 a15 a14 a13 a12 e15 e14 e13 e12
+
+  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior working value.
+  sha512-rounds-b :: Sha512Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha512Words
+  sha512-rounds-b prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words512 i0 i1 i2 i3 i4 i5 i6 i7 ->
+      let r0 = sha512-round i0 i1 i2 i3 i4 i5 i6 i7 m0 16472876342353939154 in
+      let a0 = sha512-lane0 r0 in
+      let e0 = sha512-lane1 r0 in
+      let r1 = sha512-round a0 i0 i1 i2 e0 i4 i5 i6 m1 17275323862435702243 in
+      let a1 = sha512-lane0 r1 in
+      let e1 = sha512-lane1 r1 in
+      let r2 = sha512-round a1 a0 i0 i1 e1 e0 i4 i5 m2 1135362057144423861 in
+      let a2 = sha512-lane0 r2 in
+      let e2 = sha512-lane1 r2 in
+      let r3 = sha512-round a2 a1 a0 i0 e2 e1 e0 i4 m3 2597628984639134821 in
+      let a3 = sha512-lane0 r3 in
+      let e3 = sha512-lane1 r3 in
+      let r4 = sha512-round a3 a2 a1 a0 e3 e2 e1 e0 m4 3308224258029322869 in
+      let a4 = sha512-lane0 r4 in
+      let e4 = sha512-lane1 r4 in
+      let r5 = sha512-round a4 a3 a2 a1 e4 e3 e2 e1 m5 5365058923640841347 in
+      let a5 = sha512-lane0 r5 in
+      let e5 = sha512-lane1 r5 in
+      let r6 = sha512-round a5 a4 a3 a2 e5 e4 e3 e2 m6 6679025012923562964 in
+      let a6 = sha512-lane0 r6 in
+      let e6 = sha512-lane1 r6 in
+      let r7 = sha512-round a6 a5 a4 a3 e6 e5 e4 e3 m7 8573033837759648693 in
+      let a7 = sha512-lane0 r7 in
+      let e7 = sha512-lane1 r7 in
+      let r8 = sha512-round a7 a6 a5 a4 e7 e6 e5 e4 m8 10970295158949994411 in
+      let a8 = sha512-lane0 r8 in
+      let e8 = sha512-lane1 r8 in
+      let r9 = sha512-round a8 a7 a6 a5 e8 e7 e6 e5 m9 12119686244451234320 in
+      let a9 = sha512-lane0 r9 in
+      let e9 = sha512-lane1 r9 in
+      let r10 = sha512-round a9 a8 a7 a6 e9 e8 e7 e6 m10 12683024718118986047 in
+      let a10 = sha512-lane0 r10 in
+      let e10 = sha512-lane1 r10 in
+      let r11 = sha512-round a10 a9 a8 a7 e10 e9 e8 e7 m11 13788192230050041572 in
+      let a11 = sha512-lane0 r11 in
+      let e11 = sha512-lane1 r11 in
+      let r12 = sha512-round a11 a10 a9 a8 e11 e10 e9 e8 m12 14330467153632333762 in
+      let a12 = sha512-lane0 r12 in
+      let e12 = sha512-lane1 r12 in
+      let r13 = sha512-round a12 a11 a10 a9 e12 e11 e10 e9 m13 15395433587784984357 in
+      let a13 = sha512-lane0 r13 in
+      let e13 = sha512-lane1 r13 in
+      let r14 = sha512-round a13 a12 a11 a10 e13 e12 e11 e10 m14 489312712824947311 in
+      let a14 = sha512-lane0 r14 in
+      let e14 = sha512-lane1 r14 in
+      let r15 = sha512-round a14 a13 a12 a11 e14 e13 e12 e11 m15 1452737877330783856 in
+      let a15 = sha512-lane0 r15 in
+      let e15 = sha512-lane1 r15 in
+      Words512 a15 a14 a13 a12 e15 e14 e13 e12
+
+  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior working value.
+  sha512-rounds-c :: Sha512Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha512Words
+  sha512-rounds-c prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words512 i0 i1 i2 i3 i4 i5 i6 i7 ->
+      let r0 = sha512-round i0 i1 i2 i3 i4 i5 i6 i7 m0 2861767655752347644 in
+      let a0 = sha512-lane0 r0 in
+      let e0 = sha512-lane1 r0 in
+      let r1 = sha512-round a0 i0 i1 i2 e0 i4 i5 i6 m1 3322285676063803686 in
+      let a1 = sha512-lane0 r1 in
+      let e1 = sha512-lane1 r1 in
+      let r2 = sha512-round a1 a0 i0 i1 e1 e0 i4 i5 m2 5560940570517711597 in
+      let a2 = sha512-lane0 r2 in
+      let e2 = sha512-lane1 r2 in
+      let r3 = sha512-round a2 a1 a0 i0 e2 e1 e0 i4 m3 5996557281743188959 in
+      let a3 = sha512-lane0 r3 in
+      let e3 = sha512-lane1 r3 in
+      let r4 = sha512-round a3 a2 a1 a0 e3 e2 e1 e0 m4 7280758554555802590 in
+      let a4 = sha512-lane0 r4 in
+      let e4 = sha512-lane1 r4 in
+      let r5 = sha512-round a4 a3 a2 a1 e4 e3 e2 e1 m5 8532644243296465576 in
+      let a5 = sha512-lane0 r5 in
+      let e5 = sha512-lane1 r5 in
+      let r6 = sha512-round a5 a4 a3 a2 e5 e4 e3 e2 m6 9350256976987008742 in
+      let a6 = sha512-lane0 r6 in
+      let e6 = sha512-lane1 r6 in
+      let r7 = sha512-round a6 a5 a4 a3 e6 e5 e4 e3 m7 10552545826968843579 in
+      let a7 = sha512-lane0 r7 in
+      let e7 = sha512-lane1 r7 in
+      let r8 = sha512-round a7 a6 a5 a4 e7 e6 e5 e4 m8 11727347734174303076 in
+      let a8 = sha512-lane0 r8 in
+      let e8 = sha512-lane1 r8 in
+      let r9 = sha512-round a8 a7 a6 a5 e8 e7 e6 e5 m9 12113106623233404929 in
+      let a9 = sha512-lane0 r9 in
+      let e9 = sha512-lane1 r9 in
+      let r10 = sha512-round a9 a8 a7 a6 e9 e8 e7 e6 m10 14000437183269869457 in
+      let a10 = sha512-lane0 r10 in
+      let e10 = sha512-lane1 r10 in
+      let r11 = sha512-round a10 a9 a8 a7 e10 e9 e8 e7 m11 14369950271660146224 in
+      let a11 = sha512-lane0 r11 in
+      let e11 = sha512-lane1 r11 in
+      let r12 = sha512-round a11 a10 a9 a8 e11 e10 e9 e8 m12 15101387698204529176 in
+      let a12 = sha512-lane0 r12 in
+      let e12 = sha512-lane1 r12 in
+      let r13 = sha512-round a12 a11 a10 a9 e12 e11 e10 e9 m13 15463397548674623760 in
+      let a13 = sha512-lane0 r13 in
+      let e13 = sha512-lane1 r13 in
+      let r14 = sha512-round a13 a12 a11 a10 e13 e12 e11 e10 m14 17586052441742319658 in
+      let a14 = sha512-lane0 r14 in
+      let e14 = sha512-lane1 r14 in
+      let r15 = sha512-round a14 a13 a12 a11 e14 e13 e12 e11 m15 1182934255886127544 in
+      let a15 = sha512-lane0 r15 in
+      let e15 = sha512-lane1 r15 in
+      Words512 a15 a14 a13 a12 e15 e14 e13 e12
+
+  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior working value.
+  sha512-rounds-d :: Sha512Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha512Words
+  sha512-rounds-d prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words512 i0 i1 i2 i3 i4 i5 i6 i7 ->
+      let r0 = sha512-round i0 i1 i2 i3 i4 i5 i6 i7 m0 1847814050463011016 in
+      let a0 = sha512-lane0 r0 in
+      let e0 = sha512-lane1 r0 in
+      let r1 = sha512-round a0 i0 i1 i2 e0 i4 i5 i6 m1 2177327727835720531 in
+      let a1 = sha512-lane0 r1 in
+      let e1 = sha512-lane1 r1 in
+      let r2 = sha512-round a1 a0 i0 i1 e1 e0 i4 i5 m2 2830643537854262169 in
+      let a2 = sha512-lane0 r2 in
+      let e2 = sha512-lane1 r2 in
+      let r3 = sha512-round a2 a1 a0 i0 e2 e1 e0 i4 m3 3796741975233480872 in
+      let a3 = sha512-lane0 r3 in
+      let e3 = sha512-lane1 r3 in
+      let r4 = sha512-round a3 a2 a1 a0 e3 e2 e1 e0 m4 4115178125766777443 in
+      let a4 = sha512-lane0 r4 in
+      let e4 = sha512-lane1 r4 in
+      let r5 = sha512-round a4 a3 a2 a1 e4 e3 e2 e1 m5 5681478168544905931 in
+      let a5 = sha512-lane0 r5 in
+      let e5 = sha512-lane1 r5 in
+      let r6 = sha512-round a5 a4 a3 a2 e5 e4 e3 e2 m6 6601373596472566643 in
+      let a6 = sha512-lane0 r6 in
+      let e6 = sha512-lane1 r6 in
+      let r7 = sha512-round a6 a5 a4 a3 e6 e5 e4 e3 m7 7507060721942968483 in
+      let a7 = sha512-lane0 r7 in
+      let e7 = sha512-lane1 r7 in
+      let r8 = sha512-round a7 a6 a5 a4 e7 e6 e5 e4 m8 8399075790359081724 in
+      let a8 = sha512-lane0 r8 in
+      let e8 = sha512-lane1 r8 in
+      let r9 = sha512-round a8 a7 a6 a5 e8 e7 e6 e5 m9 8693463985226723168 in
+      let a9 = sha512-lane0 r9 in
+      let e9 = sha512-lane1 r9 in
+      let r10 = sha512-round a9 a8 a7 a6 e9 e8 e7 e6 m10 9568029438360202098 in
+      let a10 = sha512-lane0 r10 in
+      let e10 = sha512-lane1 r10 in
+      let r11 = sha512-round a10 a9 a8 a7 e10 e9 e8 e7 m11 10144078919501101548 in
+      let a11 = sha512-lane0 r11 in
+      let e11 = sha512-lane1 r11 in
+      let r12 = sha512-round a11 a10 a9 a8 e11 e10 e9 e8 m12 10430055236837252648 in
+      let a12 = sha512-lane0 r12 in
+      let e12 = sha512-lane1 r12 in
+      let r13 = sha512-round a12 a11 a10 a9 e12 e11 e10 e9 m13 11840083180663258601 in
+      let a13 = sha512-lane0 r13 in
+      let e13 = sha512-lane1 r13 in
+      let r14 = sha512-round a13 a12 a11 a10 e13 e12 e11 e10 m14 13761210420658862357 in
+      let a14 = sha512-lane0 r14 in
+      let e14 = sha512-lane1 r14 in
+      let r15 = sha512-round a14 a13 a12 a11 e14 e13 e12 e11 m15 14299343276471374635 in
+      let a15 = sha512-lane0 r15 in
+      let e15 = sha512-lane1 r15 in
+      Words512 a15 a14 a13 a12 e15 e14 e13 e12
+
+  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior working value.
+  sha512-rounds-e :: Sha512Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha512Words
+  sha512-rounds-e prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words512 i0 i1 i2 i3 i4 i5 i6 i7 ->
+      let r0 = sha512-round i0 i1 i2 i3 i4 i5 i6 i7 m0 14566680578165727644 in
+      let a0 = sha512-lane0 r0 in
+      let e0 = sha512-lane1 r0 in
+      let r1 = sha512-round a0 i0 i1 i2 e0 i4 i5 i6 m1 15097957966210449927 in
+      let a1 = sha512-lane0 r1 in
+      let e1 = sha512-lane1 r1 in
+      let r2 = sha512-round a1 a0 i0 i1 e1 e0 i4 i5 m2 16922976911328602910 in
+      let a2 = sha512-lane0 r2 in
+      let e2 = sha512-lane1 r2 in
+      let r3 = sha512-round a2 a1 a0 i0 e2 e1 e0 i4 m3 17689382322260857208 in
+      let a3 = sha512-lane0 r3 in
+      let e3 = sha512-lane1 r3 in
+      let r4 = sha512-round a3 a2 a1 a0 e3 e2 e1 e0 m4 500013540394364858 in
+      let a4 = sha512-lane0 r4 in
+      let e4 = sha512-lane1 r4 in
+      let r5 = sha512-round a4 a3 a2 a1 e4 e3 e2 e1 m5 748580250866718886 in
+      let a5 = sha512-lane0 r5 in
+      let e5 = sha512-lane1 r5 in
+      let r6 = sha512-round a5 a4 a3 a2 e5 e4 e3 e2 m6 1242879168328830382 in
+      let a6 = sha512-lane0 r6 in
+      let e6 = sha512-lane1 r6 in
+      let r7 = sha512-round a6 a5 a4 a3 e6 e5 e4 e3 m7 1977374033974150939 in
+      let a7 = sha512-lane0 r7 in
+      let e7 = sha512-lane1 r7 in
+      let r8 = sha512-round a7 a6 a5 a4 e7 e6 e5 e4 m8 2944078676154940804 in
+      let a8 = sha512-lane0 r8 in
+      let e8 = sha512-lane1 r8 in
+      let r9 = sha512-round a8 a7 a6 a5 e8 e7 e6 e5 m9 3659926193048069267 in
+      let a9 = sha512-lane0 r9 in
+      let e9 = sha512-lane1 r9 in
+      let r10 = sha512-round a9 a8 a7 a6 e9 e8 e7 e6 m10 4368137639120453308 in
+      let a10 = sha512-lane0 r10 in
+      let e10 = sha512-lane1 r10 in
+      let r11 = sha512-round a10 a9 a8 a7 e10 e9 e8 e7 m11 4836135668995329356 in
+      let a11 = sha512-lane0 r11 in
+      let e11 = sha512-lane1 r11 in
+      let r12 = sha512-round a11 a10 a9 a8 e11 e10 e9 e8 m12 5532061633213252278 in
+      let a12 = sha512-lane0 r12 in
+      let e12 = sha512-lane1 r12 in
+      let r13 = sha512-round a12 a11 a10 a9 e12 e11 e10 e9 m13 6448918945643986474 in
+      let a13 = sha512-lane0 r13 in
+      let e13 = sha512-lane1 r13 in
+      let r14 = sha512-round a13 a12 a11 a10 e13 e12 e11 e10 m14 6902733635092675308 in
+      let a14 = sha512-lane0 r14 in
+      let e14 = sha512-lane1 r14 in
+      let r15 = sha512-round a14 a13 a12 a11 e14 e13 e12 e11 m15 7801388544844847127 in
+      let a15 = sha512-lane0 r15 in
+      let e15 = sha512-lane1 r15 in
+      Words512 a15 a14 a13 a12 e15 e14 e13 e12
+
+  -- | Initial chaining words for a checkpoint variant code, derived exactly from the standard definitions.
+  -- Code 4 is SHA-384, 5 is SHA-512/224, 6 is SHA-512/256 and every other code is SHA-512.
+  sha512-initial-words :: Nat -> Sha512Words
+  sha512-initial-words variant =
+    if variant == 4 then Words512 14680500436340154072 7105036623409894663 10473403895298186519 1526699215303891257 7436329637833083697 10282925794625328401 15784041429090275239 5167115440072839076
+    else if variant == 5 then Words512 10105294471447203234 8350123849800275158 2160240930085379202 7466358040605728719 1111592415079452072 8638871050018654530 4583966954114332360 1230299281376055969
+    else if variant == 6 then Words512 2463787394917988140 11481187982095705282 2563595384472711505 10824532655140301501 10819967247969091555 13717434660681038226 3098927326965381290 1060366662362279074
+    else Words512 7640891576956012808 13503953896175478587 4354685564936845355 11912009170470909681 5840696475078001361 11170449401992604703 2270897969802886507 6620516959819538809
+
+  -- | Select word 0 of a packed pair without narrowing the other word's bits.
+  prim sha512-lane0 :: U128 -> U64 where
+    llvm {
+      %value = trunc i128 %0 to i64
+      ret i64 %value
+    }
+
+  -- | Select word 1 of a packed pair without narrowing the other word's bits.
+  prim sha512-lane1 :: U128 -> U64 where
+    llvm {
+      %shift = lshr i128 %0, 64
+      %value = trunc i128 %shift to i64
+      ret i64 %value
+    }
+
+  -- | Pack two consecutive message words with the first word in the low half.
+  prim sha512-group :: U64 -> U64 -> U128 where
+    llvm {
+      %valuel = zext i64 %0 to i128
+      %valueh = zext i64 %1 to i128
+      %valueu = shl i128 %valueh, 64
+      %value = or i128 %valuel, %valueu
+      ret i128 %value
+    }
+
+  -- | Evaluate one ordered round over a..h, the message word and the round constant; return new a low and new e high.
+  prim sha512-round :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %s1a = call i64 @llvm.fshr.i64(i64 %4, i64 %4, i64 14)
+      %s1b = call i64 @llvm.fshr.i64(i64 %4, i64 %4, i64 18)
+      %s1c = call i64 @llvm.fshr.i64(i64 %4, i64 %4, i64 41)
+      %s1ab = xor i64 %s1a, %s1b
+      %s1 = xor i64 %s1ab, %s1c
+      %ef = and i64 %4, %5
+      %not = xor i64 %4, -1
+      %ng = and i64 %not, %6
+      %ch = xor i64 %ef, %ng
+      %t1a = add i64 %7, %s1
+      %t1b = add i64 %t1a, %ch
+      %t1c = add i64 %t1b, %8
+      %t1 = add i64 %t1c, %9
+      %s0a = call i64 @llvm.fshr.i64(i64 %0, i64 %0, i64 28)
+      %s0b = call i64 @llvm.fshr.i64(i64 %0, i64 %0, i64 34)
+      %s0c = call i64 @llvm.fshr.i64(i64 %0, i64 %0, i64 39)
+      %s0ab = xor i64 %s0a, %s0b
+      %s0 = xor i64 %s0ab, %s0c
+      %ab = and i64 %0, %1
+      %ac = and i64 %0, %2
+      %bc = and i64 %1, %2
+      %pair = xor i64 %ab, %ac
+      %maj = xor i64 %pair, %bc
+      %t2 = add i64 %s0, %maj
+      %na = add i64 %t1, %t2
+      %ne = add i64 %3, %t1
+      %valuel = zext i64 %na to i128
+      %valueh = zext i64 %ne to i128
+      %valueu = shl i128 %valueh, 64
+      %value = or i128 %valuel, %valueu
+      ret i128 %value
+    }
+
+  -- | Expand two schedule words in independent SIMD lanes from five earlier word pairs.
+  prim sha512-schedule :: U128 -> U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %p16lo = trunc i128 %0 to i64
+      %p16s = lshr i128 %0, 64
+      %p16hi = trunc i128 %p16s to i64
+      %p16v0 = insertelement <2 x i64> poison, i64 %p16lo, i64 0
+      %p16 = insertelement <2 x i64> %p16v0, i64 %p16hi, i64 1
+      %p14lo = trunc i128 %1 to i64
+      %p14s = lshr i128 %1, 64
+      %p14hi = trunc i128 %p14s to i64
+      %p14v0 = insertelement <2 x i64> poison, i64 %p14lo, i64 0
+      %p14 = insertelement <2 x i64> %p14v0, i64 %p14hi, i64 1
+      %p8lo = trunc i128 %2 to i64
+      %p8s = lshr i128 %2, 64
+      %p8hi = trunc i128 %p8s to i64
+      %p8v0 = insertelement <2 x i64> poison, i64 %p8lo, i64 0
+      %p8 = insertelement <2 x i64> %p8v0, i64 %p8hi, i64 1
+      %p6lo = trunc i128 %3 to i64
+      %p6s = lshr i128 %3, 64
+      %p6hi = trunc i128 %p6s to i64
+      %p6v0 = insertelement <2 x i64> poison, i64 %p6lo, i64 0
+      %p6 = insertelement <2 x i64> %p6v0, i64 %p6hi, i64 1
+      %p2lo = trunc i128 %4 to i64
+      %p2s = lshr i128 %4, 64
+      %p2hi = trunc i128 %p2s to i64
+      %p2v0 = insertelement <2 x i64> poison, i64 %p2lo, i64 0
+      %p2 = insertelement <2 x i64> %p2v0, i64 %p2hi, i64 1
+      %w15 = shufflevector <2 x i64> %p16, <2 x i64> %p14, <2 x i32> <i32 1, i32 2>
+      %w7 = shufflevector <2 x i64> %p8, <2 x i64> %p6, <2 x i32> <i32 1, i32 2>
+      %s0a = call <2 x i64> @llvm.fshr.v2i64(<2 x i64> %w15, <2 x i64> %w15, <2 x i64> <i64 1, i64 1>)
+      %s0b = call <2 x i64> @llvm.fshr.v2i64(<2 x i64> %w15, <2 x i64> %w15, <2 x i64> <i64 8, i64 8>)
+      %s0c = lshr <2 x i64> %w15, <i64 7, i64 7>
+      %s0ab = xor <2 x i64> %s0a, %s0b
+      %s0 = xor <2 x i64> %s0ab, %s0c
+      %s1a = call <2 x i64> @llvm.fshr.v2i64(<2 x i64> %p2, <2 x i64> %p2, <2 x i64> <i64 19, i64 19>)
+      %s1b = call <2 x i64> @llvm.fshr.v2i64(<2 x i64> %p2, <2 x i64> %p2, <2 x i64> <i64 61, i64 61>)
+      %s1c = lshr <2 x i64> %p2, <i64 6, i64 6>
+      %s1ab = xor <2 x i64> %s1a, %s1b
+      %s1 = xor <2 x i64> %s1ab, %s1c
+      %base0 = add <2 x i64> %p16, %s0
+      %base1 = add <2 x i64> %base0, %w7
+      %complete = add <2 x i64> %base1, %s1
+      %low = extractelement <2 x i64> %complete, i64 0
+      %high = extractelement <2 x i64> %complete, i64 1
+      %valuel = zext i64 %low to i128
+      %valueh = zext i64 %high to i128
+      %valueu = shl i128 %valueh, 64
+      %value = or i128 %valuel, %valueu
+      ret i128 %value
+    }

@@ -173,4 +173,4 @@ error on any failure, `Ok ()` when the kernel accepted it.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Signal.cinch`. Source SHA-256: `93778e910173dd3b7d4cf143c34a1611734bb03524199b2bd125d79ac854a598`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Signal.cinch`. Source SHA-256: `e64e11d90a176c3f9f3dfe07e218ac54b086a1beab27ae54009f98dde9fc2724`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

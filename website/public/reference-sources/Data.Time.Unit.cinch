@@ -1,0 +1,381 @@
+-- Data.Time.Unit: the units of a span, the rounding modes and the
+-- rounding kernel.
+--
+-- `TimeUnit` names the ten units a `Span` keeps (design/datetime.md
+-- L3, where it is called `Unit`; see NAMED REFUSALS), ordered from
+-- `Nanosecond` (smallest) to `Year` (largest). `RoundMode`
+-- is TC39 Temporal's nine rounding modes. `round-i128` is the one
+-- rounding kernel every rounding operation in the family goes through:
+-- an exact integer rounding of a signed `I128` quantity to a multiple
+-- of a positive `I128` increment. No float appears anywhere.
+--
+-- Design law shape.
+--   - `unit-rank` is strictly increasing from `Nanosecond` (0) to
+--     `Year` (9); `unit-cmp`, `unit-larger-of` and `unit-smaller-of`
+--     are that order. `unit-next-larger` and `unit-next-smaller` are
+--     inverse steps on it and are `None` at the two ends.
+--   - Units split in two. `Hour` and smaller have a fixed length:
+--     `unit-nanos` is `Some` of it. `Day` and larger are calendar units
+--     (`unit-is-calendar`): their length depends on a date (and, for a
+--     day, on a zone), so `unit-nanos` is `None`. `nanos-per-civil-day` is
+--     the civil 24-hour day, a named constant for the places where
+--     Temporal itself treats a day as 24 hours (civil date-times, which
+--     have no zone).
+--   - `round-i128 mode inc x` is Temporal's RoundNumberToIncrement: the
+--     result is a multiple of `inc`, it equals `x` when `x` already is
+--     one, and otherwise it is one of the two multiples of `inc` that
+--     bracket `x`, chosen by the mode:
+--       Ceil       toward positive infinity
+--       Floor      toward negative infinity
+--       Expand     away from zero
+--       Trunc      toward zero
+--       HalfCeil   to the nearer; a tie toward positive infinity
+--       HalfFloor  to the nearer; a tie toward negative infinity
+--       HalfExpand to the nearer; a tie away from zero
+--       HalfTrunc  to the nearer; a tie toward zero
+--       HalfEven   to the nearer; a tie to the even multiple
+--     so `round-i128 mode inc (neg x)` is
+--     `neg (round-i128 (round-mode-negate mode) inc x)`.
+--   - `round-i128-as-if-positive` is Temporal's
+--     RoundNumberToIncrementAsIfPositive (used for instants, whose sign
+--     is an accident of the epoch): `Expand` behaves as `Ceil`, `Trunc`
+--     as `Floor`, `HalfExpand` as `HalfCeil`, `HalfTrunc` as
+--     `HalfFloor`, for either sign of `x`.
+--   - The three increment validators are Temporal's
+--     ValidateTemporalRoundingIncrement with the three maxima it uses
+--     (see each function).
+--
+-- NAMED REFUSALS:
+--   - the type name `Unit`: the compiler answers "Unit is a builtin
+--     primitive type and cannot be redefined", so the type is
+--     `TimeUnit`. The module keeps the spec's name.
+--   - the name `nanos-per-day-24h` (and any `-24h` spelling): a hyphen
+--     followed by a digit does not lex inside an identifier, so the
+--     24-hour day is `nanos-per-civil-day`.
+--   - a refined increment: a wide scalar has no solver sort, so
+--     "increment > 0" cannot be an `I128` parameter's type. `round-i128`
+--     answers `None` for an increment below 1 (and for the one input
+--     whose magnitude does not exist, `I128`'s minimum, and for a result
+--     that leaves `I128`). Callers in this family pass increments they
+--     validated, and say so.
+--   - a float kernel: not offered; rounding is exact integer work.
+module Data.Time.Unit where
+
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Ordering
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+
+  export TimeUnit, Year, Month, Week, Day, Hour, Minute, Second
+  export Millisecond, Microsecond, Nanosecond
+  export unit-rank, unit-cmp, unit-eq, unit-larger-of, unit-smaller-of
+  export unit-is-calendar, unit-nanos, nanos-per-civil-day
+  export unit-next-larger, unit-next-smaller
+  export RoundMode, Ceil, Floor, Expand, Trunc
+  export HalfCeil, HalfFloor, HalfExpand, HalfTrunc, HalfEven
+  export round-mode-negate, round-i128, round-i128-as-if-positive
+  export unit-span-increment-ok, unit-round-increment-ok
+  export unit-timestamp-increment-ok
+  export LargestOption, with-largest
+  export RoundingOptions, with-smallest, with-increment, with-mode
+
+
+  data TimeUnit where
+    Nanosecond :: TimeUnit
+    Microsecond :: TimeUnit
+    Millisecond :: TimeUnit
+    Second :: TimeUnit
+    Minute :: TimeUnit
+    Hour :: TimeUnit
+    Day :: TimeUnit
+    Week :: TimeUnit
+    Month :: TimeUnit
+    Year :: TimeUnit
+
+  -- -----------------------------------------------------------------
+  -- The order: Nanosecond is the smallest unit, Year the largest.
+  -- -----------------------------------------------------------------
+
+  unit-rank :: TimeUnit -> InRange 0 9 I64
+  unit-rank u = case u of
+    Nanosecond -> 0
+    Microsecond -> 1
+    Millisecond -> 2
+    Second -> 3
+    Minute -> 4
+    Hour -> 5
+    Day -> 6
+    Week -> 7
+    Month -> 8
+    Year -> 9
+
+  unit-cmp :: TimeUnit -> TimeUnit -> Ordering
+  unit-cmp a b =
+    let x = unit-rank a in
+    let y = unit-rank b in
+    if x < y then LT else if x == y then EQ else GT
+
+  unit-eq :: TimeUnit -> TimeUnit -> Bool
+  unit-eq a b = unit-rank a == unit-rank b
+
+  unit-larger-of :: TimeUnit -> TimeUnit -> TimeUnit
+  unit-larger-of a b = if unit-rank a >= unit-rank b then a else b
+
+  unit-smaller-of :: TimeUnit -> TimeUnit -> TimeUnit
+  unit-smaller-of a b = if unit-rank a <= unit-rank b then a else b
+
+  -- Day and larger: units whose length is not a fixed number of
+  -- nanoseconds.
+  unit-is-calendar :: TimeUnit -> Bool
+  unit-is-calendar u = unit-rank u >= 6
+
+  -- The length of a fixed-length unit in nanoseconds; `None` for `Day`
+  -- and larger.
+  unit-nanos :: TimeUnit -> Option I128
+  unit-nanos u = case u of
+    Nanosecond -> Some 1
+    Microsecond -> Some 1000
+    Millisecond -> Some 1000000
+    Second -> Some 1000000000
+    Minute -> Some 60000000000
+    Hour -> Some 3600000000000
+    Day -> None
+    Week -> None
+    Month -> None
+    Year -> None
+
+  -- A civil day of exactly 24 hours, in nanoseconds. Used only where
+  -- Temporal says a day is 24 hours: civil date-time arithmetic (no
+  -- zone, so no transition can change a day's length) and the
+  -- conventions whose names say `days-24h`.
+  nanos-per-civil-day :: I128
+  nanos-per-civil-day = 86400000000000
+
+  unit-next-larger :: TimeUnit -> Option TimeUnit
+  unit-next-larger u = case u of
+    Nanosecond -> Some Microsecond
+    Microsecond -> Some Millisecond
+    Millisecond -> Some Second
+    Second -> Some Minute
+    Minute -> Some Hour
+    Hour -> Some Day
+    Day -> Some Week
+    Week -> Some Month
+    Month -> Some Year
+    Year -> None
+
+  unit-next-smaller :: TimeUnit -> Option TimeUnit
+  unit-next-smaller u = case u of
+    Nanosecond -> None
+    Microsecond -> Some Nanosecond
+    Millisecond -> Some Microsecond
+    Second -> Some Millisecond
+    Minute -> Some Second
+    Hour -> Some Minute
+    Day -> Some Hour
+    Week -> Some Day
+    Month -> Some Week
+    Year -> Some Month
+
+  -- -----------------------------------------------------------------
+  -- Rounding modes.
+  -- -----------------------------------------------------------------
+
+  data RoundMode where
+    Ceil :: RoundMode
+    Floor :: RoundMode
+    Expand :: RoundMode
+    Trunc :: RoundMode
+    HalfCeil :: RoundMode
+    HalfFloor :: RoundMode
+    HalfExpand :: RoundMode
+    HalfTrunc :: RoundMode
+    HalfEven :: RoundMode
+
+  -- Temporal's NegateRoundingMode: the mode that, applied to a negated
+  -- quantity, gives the negated result. Only the four modes that name a
+  -- direction on the number line change.
+  round-mode-negate :: RoundMode -> RoundMode
+  round-mode-negate m = case m of
+    Ceil -> Floor
+    Floor -> Ceil
+    HalfCeil -> HalfFloor
+    HalfFloor -> HalfCeil
+    Expand -> Expand
+    Trunc -> Trunc
+    HalfExpand -> HalfExpand
+    HalfTrunc -> HalfTrunc
+    HalfEven -> HalfEven
+
+  -- Temporal's GetUnsignedRoundingMode, on the magnitude of a quantity
+  -- whose sign is known.
+  data Unsigned where
+    ToZero :: Unsigned
+    ToInfinity :: Unsigned
+    HalfToZero :: Unsigned
+    HalfToInfinity :: Unsigned
+    HalfToEven :: Unsigned
+
+  unsigned-mode :: RoundMode -> Bool -> Unsigned
+  unsigned-mode m negative = case m of
+    Ceil -> if negative then ToZero else ToInfinity
+    Floor -> if negative then ToInfinity else ToZero
+    Expand -> ToInfinity
+    Trunc -> ToZero
+    HalfCeil -> if negative then HalfToZero else HalfToInfinity
+    HalfFloor -> if negative then HalfToInfinity else HalfToZero
+    HalfExpand -> HalfToInfinity
+    HalfTrunc -> HalfToZero
+    HalfEven -> HalfToEven
+
+  -- Whether the magnitude `q * inc + r` (0 < r < inc) rounds up to
+  -- `(q + 1) * inc`. The half test compares `r` with `inc - r` (both
+  -- below `inc`), so it cannot overflow.
+  rounds-up :: Unsigned -> I128 -> I128 -> I128 -> Bool
+  rounds-up um q r inc = case um of
+    ToZero -> False
+    ToInfinity -> True
+    HalfToZero -> gt-i128 r (wrapping-sub-i128 inc r)
+    HalfToInfinity -> ge-i128 r (wrapping-sub-i128 inc r)
+    HalfToEven ->
+      let other = wrapping-sub-i128 inc r in
+      if gt-i128 r other then True
+      else if lt-i128 r other then False
+      else ne-i128 (bit-and-i128 q 1) 0
+
+  -- The kernel: `x` rounded to a multiple of `inc` under `mode`
+  -- (Temporal's RoundNumberToIncrement; the header gives the law).
+  -- `None` when `inc < 1`, when `x` is `I128`'s minimum (its magnitude
+  -- does not exist) or when the rounded value leaves `I128`.
+  --
+  -- The work is on the magnitude `a = |x| = q * inc + r`. `a` is at
+  -- most 2^127 - 1 and `inc >= 1`, so the division is exact machine
+  -- division with no overflow; `q + 1` cannot overflow because
+  -- `q <= a`, and it is only formed when `r > 0`, where `q < a`. The
+  -- final product is checked.
+  round-i128 :: RoundMode -> I128 -> I128 -> Option I128
+  round-i128 mode inc x =
+    if lt-i128 inc 1 then None
+    else
+      let negative = lt-i128 x 0 in
+      case (if negative then checked-neg-i128 x else Some x) of
+        None -> None
+        Some a -> case checked-div-i128 a inc of
+          None -> None
+          Some q -> case checked-rem-i128 a inc of
+            None -> None
+            Some r ->
+              if eq-i128 r 0 then Some x
+              else
+                let up = rounds-up (unsigned-mode mode negative) q r inc in
+                let k = if up then wrapping-add-i128 q 1 else q in
+                case checked-mul-i128 k inc of
+                  None -> None
+                  Some mag -> if negative then Some (wrapping-neg-i128 mag) else Some mag
+
+  -- Temporal's RoundNumberToIncrementAsIfPositive: the direction-free
+  -- modes are read on the number line rather than relative to zero, so
+  -- an instant before the epoch rounds the same way as one after it.
+  round-i128-as-if-positive :: RoundMode -> I128 -> I128 -> Option I128
+  round-i128-as-if-positive mode inc x = case mode of
+    Expand -> round-i128 Ceil inc x
+    Trunc -> round-i128 Floor inc x
+    HalfExpand -> round-i128 HalfCeil inc x
+    HalfTrunc -> round-i128 HalfFloor inc x
+    Ceil -> round-i128 Ceil inc x
+    Floor -> round-i128 Floor inc x
+    HalfCeil -> round-i128 HalfCeil inc x
+    HalfFloor -> round-i128 HalfFloor inc x
+    HalfEven -> round-i128 HalfEven inc x
+
+  -- -----------------------------------------------------------------
+  -- Increment validation (Temporal's ValidateTemporalRoundingIncrement
+  -- over the three maxima its operations use). Every increment must be
+  -- in 1..=1000000000 first (GetRoundingIncrementOption).
+  -- -----------------------------------------------------------------
+
+  -- Whether `n` is in 1..=limit and divides `limit` evenly. The
+  -- `limit`'s type excludes the divisors for which the checked
+  -- remainder is `None`, and the guard excludes `n <= 0`, so the `None`
+  -- arm cannot be taken.
+  divides :: I64 -> (limit :: InRange 2 9223372036854775807 I64) -> Bool
+  divides n limit =
+    if n < 1 || n > limit then False
+    else case checked-rem-i64 limit n of
+      None -> False
+      Some r -> r == 0
+
+  -- For rounding a span and for `until`/`since`
+  -- (MaximumTemporalDurationRoundingIncrement, exclusive): hours must
+  -- divide 24 and be below it, minutes and seconds 60, milliseconds,
+  -- microseconds and nanoseconds 1000. Day and larger have no maximum:
+  -- any increment in 1..=1000000000.
+  unit-span-increment-ok :: TimeUnit -> I64 -> Bool
+  unit-span-increment-ok u n = case u of
+    Nanosecond -> n < 1000 && divides n 1000
+    Microsecond -> n < 1000 && divides n 1000
+    Millisecond -> n < 1000 && divides n 1000
+    Second -> n < 60 && divides n 60
+    Minute -> n < 60 && divides n 60
+    Hour -> n < 24 && divides n 24
+    Day -> n >= 1 && n <= 1000000000
+    Week -> n >= 1 && n <= 1000000000
+    Month -> n >= 1 && n <= 1000000000
+    Year -> n >= 1 && n <= 1000000000
+
+  -- For rounding a `TimeOfDay` or a `DateTime` (PlainTime.round,
+  -- PlainDateTime.round): the same maxima for hour and smaller; a day
+  -- increment must be exactly 1; week and larger are not rounding units
+  -- of a value.
+  unit-round-increment-ok :: TimeUnit -> I64 -> Bool
+  unit-round-increment-ok u n = case u of
+    Day -> n == 1
+    Week -> False
+    Month -> False
+    Year -> False
+    Nanosecond -> unit-span-increment-ok u n
+    Microsecond -> unit-span-increment-ok u n
+    Millisecond -> unit-span-increment-ok u n
+    Second -> unit-span-increment-ok u n
+    Minute -> unit-span-increment-ok u n
+    Hour -> unit-span-increment-ok u n
+
+  -- For rounding a `Timestamp` (Instant.round): the increment, in its
+  -- unit, must divide one 24-hour day evenly, and may equal it
+  -- (inclusive): hours divide 24, minutes 1440, seconds 86400, and so
+  -- on, within the general bound of 1000000000. Day and larger are
+  -- refused.
+  unit-timestamp-increment-ok :: TimeUnit -> I64 -> Bool
+  unit-timestamp-increment-ok u n = case u of
+    Nanosecond -> n <= 1000000000 && divides n 86400000000000
+    Microsecond -> n <= 1000000000 && divides n 86400000000
+    Millisecond -> divides n 86400000
+    Second -> divides n 86400
+    Minute -> divides n 1440
+    Hour -> divides n 24
+    Day -> False
+    Week -> False
+    Month -> False
+    Year -> False
+
+  -- -----------------------------------------------------------------
+  -- The option setters (design/datetime.md T7). Every options value in
+  -- the family (`SpanRound`, `Difference`, `Round`, and the zoned
+  -- lane's) is abstract with one `-default` value; these two
+  -- signatures give their setters one spelling each, so
+  -- `with-smallest Minute (with-mode Trunc difference-default)` and the
+  -- same on `round-default` both read the same way.
+  -- -----------------------------------------------------------------
+
+  -- Options with a smallest unit, an increment and a mode.
+  signature RoundingOptions o where
+    with-smallest :: TimeUnit -> o -> o
+    with-increment :: I64 -> o -> o
+    with-mode :: RoundMode -> o -> o
+
+  -- Options that also choose the largest unit of a result.
+  signature LargestOption o where
+    with-largest :: TimeUnit -> o -> o

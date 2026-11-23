@@ -185,4 +185,4 @@ The sum of every count: the number of hits recorded.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Coverage.cinch`. Source SHA-256: `62f842a0e3043f00dbfbbbfa26b4c53df3392bd32a44681ad953a1344c21efef`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Coverage.cinch`. Source SHA-256: `b915528a23ac1a11bf8d7223ba1fbf87c1cc1bfd19ce2e38a0e59a1f8858ef62`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

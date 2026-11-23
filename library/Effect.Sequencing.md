@@ -10,7 +10,7 @@ Import with `import Effect.Sequencing`. Selected exports may already be in Prelu
 
 # Dependencies
 
-[Data.Option](Data.Option.md), [Data.Result](Data.Result.md).
+[Data.Core](Data.Core.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -48,7 +48,7 @@ types differently per provider: direct sequencing is the default and
 a `using` binder with a provider head selects another. `pure` and
 `bind` are the provider's class methods (decision D2).
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 29
+[Source](/reference-sources/Effect.Sequencing.cinch) · line 28
 
 <a id="method-44697265637453657175656e63696e672e70757265"></a>
 
@@ -62,7 +62,7 @@ a `using` binder with a provider head selects another. `pure` and
 
 ## `DirectSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{|<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
 
 
 
@@ -86,7 +86,7 @@ a `using` binder with a provider head selects another. `pure` and
 
 ## `OptionSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)) -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)))</code></pre>
 
 
 
@@ -110,7 +110,7 @@ a `using` binder with a provider head selects another. `pure` and
 
 ## `ResultSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>)) -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>)))</code></pre>
 
 
 
@@ -124,4 +124,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Sequencing.cinch`. Source SHA-256: `1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Sequencing.cinch`. Source SHA-256: `10cce786924bb5062ea0e099b048cc937394920b10c819c99e0a0bae8fdbbe09`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

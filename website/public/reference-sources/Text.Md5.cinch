@@ -1,0 +1,438 @@
+-- | MD5 digests, persistent streaming states and binary checkpoints.
+-- MD5 is broken for collision resistance: use it only to interoperate with
+-- existing formats and protocols, never for signatures or integrity checks.
+-- The algorithm's rounds are strictly sequential, so compression is one
+-- private primitive per ordered round with native rotates rather than SIMD.
+-- Updates read exact 64-byte blocks while retaining their input owner and copy
+-- pending tails into private storage. Retaining a state branches the
+-- computation. Digest words and the length field use little-endian order as
+-- the algorithm defines; checkpoint fields use network order.
+module Text.Md5 where
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Binary
+
+  export md5-size, md5-block-size, md5-sum
+  export Md5State, md5-state, md5-state-update, md5-state-reset, md5-state-size, md5-state-block-size
+  export md5-state-sum, md5-state-append, md5-state-save, md5-state-append-save, md5-state-load
+  export Md5StateError, InvalidMd5StateIdentifier, InvalidMd5StateSize, md5-state-error-message
+
+  -- | Digest size in bytes, always 16.
+  md5-size :: Nat
+  md5-size = 16
+
+  -- | Compression block size in bytes, always 64.
+  md5-block-size :: Nat
+  md5-block-size = 64
+
+  -- | Private chaining value: four unsigned 32-bit words a through d.
+  data Md5Words where
+    -- | The working or chaining words in round order.
+    Words128 :: U32 -> U32 -> U32 -> U32 -> Md5Words
+
+  -- | An immutable wrapping byte count, copied partial block and chaining value.
+  data Md5State where
+    -- | Private pending bytes have length count modulo 64, always below one full block.
+    State128 :: U64 -> Bytes -> Md5Words -> Md5State
+
+  -- | The standard initial chaining value.
+  initial-words :: Md5Words
+  initial-words = Words128 1732584193 4023233417 2562383102 271733878
+
+  -- | Initial state with no pending bytes.
+  md5-state :: Md5State
+  md5-state = State128 0 (bytes-new 0) initial-words
+
+  -- | Compute a fresh 16-byte digest of a complete input.
+  md5-sum :: Bytes -> Bytes
+  md5-sum input =
+    let n = bytes-len input in
+    let count = wrapping-i64-to-u64 (nat-to-i64 n) in
+    let words = hold-input input (blocks initial-words (bytes-data input) count) in
+    let tail = nat-rem n 64 in
+    if tail <= n then render (finish-interval count input (n - tail) tail words) else render words
+
+  -- | Consume a complete chunk without mutating any previous state or retaining the input buffer.
+  -- Empty chunks preserve the supplied state. Counts use explicit unsigned 64-bit wrapping.
+  md5-state-update :: Md5State -> Bytes -> Md5State
+  md5-state-update state input = if bytes-len input == 0 then state else case state of
+    State128 count pending words ->
+      let total = wrapping-add-u64 count (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input))) in
+      let have = bytes-len pending in
+      if have < 64 then
+        if have == 0 then process-from total words input 0
+        else
+          let needed = 64 - have in
+          if bytes-len input < needed then State128 total (join pending input) words
+          else
+            let block = bytes-new 64 in
+            let first = bytes-copy-range block pending 0 0 have in
+            let last = bytes-copy-range block input have 0 needed in
+            let next = hold-input block (compress-at words (bytes-data block)) in
+            process-from total next input needed
+      else state
+
+  -- | Process every complete suffix block and retain only a fresh final partial block.
+  process-from :: U64 -> Md5Words -> Bytes -> Nat -> Md5State
+  process-from total words input start =
+    if start <= bytes-len input then
+      let remaining = bytes-len input - start in
+      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
+      let next = hold-input input (blocks words address (wrapping-i64-to-u64 (nat-to-i64 remaining))) in
+      let tail = nat-rem remaining 64 in
+      if tail <= bytes-len input then State128 total (part input (bytes-len input - tail) tail) next
+      else State128 total (bytes-new 0) next
+    else State128 total (bytes-new 0) words
+
+  -- | Read only full remaining blocks with machine counters over a retained caller-owned interval.
+  blocks :: Md5Words -> I64 -> U64 -> Md5Words
+  blocks words address remaining =
+    if ge-u64 remaining 64 then blocks (compress-at words address) (wrapping-add-i64 address 64) (wrapping-sub-u64 remaining 64)
+    else words
+
+  -- | Load exactly one caller-proved complete block as eight little-endian word pairs and compress it.
+  compress-at :: Md5Words -> I64 -> Md5Words
+  compress-at words address =
+    md5-compress words (block-word address 0) (block-word address 8) (block-word address 16) (block-word address 24)
+      (block-word address 32) (block-word address 40) (block-word address 48) (block-word address 56)
+
+  -- | Load eight bytes as a little-endian value: the first message word low, the second high.
+  prim block-word :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %value = load i64, ptr %at, align 1
+      ret i64 %value
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %host = load i64, ptr %at, align 1
+      %value = call i64 @llvm.bswap.i64(i64 %host)
+      ret i64 %value
+    } when endian big
+
+  -- | Reverse the bytes of a word so an explicit little-endian store writes network order.
+  prim wire-word :: U32 -> U32 where
+    llvm {
+      %value = call i32 @llvm.bswap.i32(i32 %0)
+      ret i32 %value
+    }
+
+  -- | Keep an owner alive until a strict raw-address computation has completed.
+  hold-input :: forall a. Bytes -> a -> a
+  hold-input owner value = case bytes-len owner of _ -> value
+
+  -- | Copy an exact interval into fresh storage without retaining a mutable source alias.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start count = if start + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 start count in out
+    else bytes-new 0
+
+  -- | Concatenate two intervals in fresh storage, preserving both inputs.
+  join :: Bytes -> Bytes -> Bytes
+  join first last =
+    let n = bytes-len first in let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in
+    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+
+  -- | Return the initial state, preserving the supplied state.
+  md5-state-reset :: Md5State -> Md5State
+  md5-state-reset state = md5-state
+
+  -- | Digest size in bytes, always 16.
+  md5-state-size :: Md5State -> Nat
+  md5-state-size state = md5-size
+
+  -- | Compression block size in bytes, always 64.
+  md5-state-block-size :: Md5State -> Nat
+  md5-state-block-size state = md5-block-size
+
+  -- | Choose one or two complete finalization blocks: the 0x80 mark and 8 length bytes must fit.
+  padding-size :: Nat -> InRange 64 128 Nat
+  padding-size pending = if pending < 56 then 64 else 128
+
+  -- | Pad an exact interval of fewer than 64 bytes and append the wrapping little-endian bit count.
+  finish-interval :: U64 -> Bytes -> Nat -> Nat -> Md5Words -> Md5Words
+  finish-interval count input start n words =
+    if n < 64 && start + n <= bytes-len input then
+      let size = padding-size n in let padding = bytes-new size in
+      let copied = bytes-copy-range padding input 0 start n in
+      let mark = bytes-set padding n 128 in
+      let length = binary-put-u64 LittleEndian padding (size - 8) (wrapping-shl-u64 count 3) in
+      hold-input padding (blocks words (bytes-data padding) (wrapping-i64-to-u64 (nat-to-i64 size)))
+    else words
+
+  -- | Store one network-order word only within a checked complete destination interval.
+  put-word :: Bytes -> Nat -> U32 -> Unit
+  put-word out pos word = if pos + 4 <= bytes-len out then bytes-write-le32 out pos (wire-word word) else ()
+
+  -- | Render all four words into an existing complete network-order interval.
+  put-words :: Bytes -> Nat -> Md5Words -> Unit
+  put-words out pos words = case words of
+    Words128 a b c d ->
+      let wa = put-word out pos a in let wb = put-word out (pos + 4) b in
+      let wc = put-word out (pos + 8) c in put-word out (pos + 12) d
+
+  -- | Store one little-endian digest word only within a checked complete destination interval.
+  put-digest-word :: Bytes -> Nat -> U32 -> Unit
+  put-digest-word out pos word = if pos + 4 <= bytes-len out then bytes-write-le32 out pos word else ()
+
+  -- | Render finalized words as a fresh 16-byte digest with each word in little-endian order.
+  render :: Md5Words -> Bytes
+  render words = case words of
+    Words128 a b c d ->
+      let out = bytes-new 16 in
+      let wa = put-digest-word out 0 a in let wb = put-digest-word out 4 b in
+      let wc = put-digest-word out 8 c in let wd = put-digest-word out 12 d in out
+
+  -- | Return the digest in fresh storage without changing the state.
+  md5-state-sum :: Md5State -> Bytes
+  md5-state-sum state = case state of
+    State128 count pending words -> render (finish-interval count pending 0 (bytes-len pending) words)
+
+  -- | Append the digest to a copied prefix, preserving the state and caller buffer.
+  md5-state-append :: Bytes -> Md5State -> Bytes
+  md5-state-append prefix state = join prefix (md5-state-sum state)
+
+  -- | Return 92 checkpoint bytes: ASCII md5, version byte 1, chaining words, zero-padded tail and count.
+  -- Every numeric field uses network order.
+  md5-state-save :: Md5State -> Bytes
+  md5-state-save state = case state of
+    State128 count pending words ->
+      let out = bytes-new 92 in
+      let h0 = bytes-set out 0 109 in let h1 = bytes-set out 1 100 in
+      let h2 = bytes-set out 2 53 in let h3 = bytes-set out 3 1 in
+      let w = put-words out 4 words in
+      let p = if bytes-len pending < 64 then bytes-copy-range out pending 20 0 (bytes-len pending) else () in
+      let n = binary-put-u64 BigEndian out 84 count in out
+
+  -- | Append the complete checkpoint to a copied prefix without mutating either input.
+  md5-state-append-save :: Bytes -> Md5State -> Bytes
+  md5-state-append-save prefix state = join prefix (md5-state-save state)
+
+  -- | A checkpoint's identifier or exact byte length is invalid.
+  data Md5StateError where
+    -- | The four-byte md5/version identifier is absent or does not match.
+    InvalidMd5StateIdentifier :: Md5StateError
+    -- | Expected complete checkpoint length and actual input length, in that order.
+    InvalidMd5StateSize :: Nat -> Nat -> Md5StateError
+
+  -- | Render identifier errors or complete required and actual checkpoint byte lengths.
+  md5-state-error-message :: Md5StateError -> String
+  md5-state-error-message error = case error of
+    InvalidMd5StateIdentifier -> "MD5 state identifier is invalid"
+    InvalidMd5StateSize expected actual -> string-concat "MD5 state requires " (string-concat (nat-to-string expected) (string-concat " bytes; received " (nat-to-string actual)))
+
+  -- | Read one network-order chaining word after checking its complete interval.
+  read-word :: Bytes -> Nat -> U32
+  read-word input pos = if pos + 4 <= bytes-len input then wire-word (bytes-read-le32 input pos) else 0
+
+  -- | Restore every chaining and count bit, copying only the live partial block into private storage.
+  -- Identifier checks precede exact-size checks; unused tail bytes are ignored and saved as zeros.
+  md5-state-load :: Bytes -> Result Md5StateError Md5State
+  md5-state-load input =
+    if 4 <= bytes-len input then
+      if bytes-get input 0 == 109 && bytes-get input 1 == 100 && bytes-get input 2 == 53 && bytes-get input 3 == 1 then
+        if bytes-len input == 92 then case binary-read-u64 BigEndian input 84 of
+          Err error -> Err (InvalidMd5StateSize 92 (bytes-len input))
+          Ok count ->
+            let n = u8-to-nat (wrapping-u64-to-u8 (bit-and-u64 count 63)) in
+            let words = Words128 (read-word input 4) (read-word input 8) (read-word input 12) (read-word input 16) in
+            Ok (State128 count (part input 20 n) words)
+        else Err (InvalidMd5StateSize 92 (bytes-len input))
+      else Err InvalidMd5StateIdentifier
+    else Err InvalidMd5StateIdentifier
+
+  -- | Generated MD5 compression: consume sixteen little-endian words without retaining inputs.
+  -- Regenerate with python3 tooling/generate_sha1_md5_kernels.py; do not edit this suffix.
+  md5-compress :: Md5Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Md5Words
+  md5-compress prior w0 w1 w2 w3 w4 w5 w6 w7 = case prior of
+    Words128 a b c d ->
+      let m0 = md5-low w0 in
+      let m1 = md5-high w0 in
+      let m2 = md5-low w1 in
+      let m3 = md5-high w1 in
+      let m4 = md5-low w2 in
+      let m5 = md5-high w2 in
+      let m6 = md5-low w3 in
+      let m7 = md5-high w3 in
+      let m8 = md5-low w4 in
+      let m9 = md5-high w4 in
+      let m10 = md5-low w5 in
+      let m11 = md5-high w5 in
+      let m12 = md5-low w6 in
+      let m13 = md5-high w6 in
+      let m14 = md5-low w7 in
+      let m15 = md5-high w7 in
+      let s0 = md5-rounds-a prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 in
+      let s1 = md5-rounds-b s0 m1 m6 m11 m0 m5 m10 m15 m4 m9 m14 m3 m8 m13 m2 m7 m12 in
+      let s2 = md5-rounds-c s1 m5 m8 m11 m14 m1 m4 m7 m10 m13 m0 m3 m6 m9 m12 m15 m2 in
+      let s3 = md5-rounds-d s2 m0 m7 m14 m5 m12 m3 m10 m1 m8 m15 m6 m13 m4 m11 m2 m9 in
+      case s3 of
+        Words128 na nb nc nd ->
+          Words128 (wrapping-add-u32 a na) (wrapping-add-u32 b nb) (wrapping-add-u32 c nc) (wrapping-add-u32 d nd)
+
+  -- | Advance sixteen ordered rounds with the F function over message words in schedule order.
+  md5-rounds-a :: Md5Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Md5Words
+  md5-rounds-a prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words128 i0 i1 i2 i3 ->
+      let x0 = md5-f i0 i1 i2 i3 m0 3614090360 7 in
+      let x1 = md5-f i3 x0 i1 i2 m1 3905402710 12 in
+      let x2 = md5-f i2 x1 x0 i1 m2 606105819 17 in
+      let x3 = md5-f i1 x2 x1 x0 m3 3250441966 22 in
+      let x4 = md5-f x0 x3 x2 x1 m4 4118548399 7 in
+      let x5 = md5-f x1 x4 x3 x2 m5 1200080426 12 in
+      let x6 = md5-f x2 x5 x4 x3 m6 2821735955 17 in
+      let x7 = md5-f x3 x6 x5 x4 m7 4249261313 22 in
+      let x8 = md5-f x4 x7 x6 x5 m8 1770035416 7 in
+      let x9 = md5-f x5 x8 x7 x6 m9 2336552879 12 in
+      let x10 = md5-f x6 x9 x8 x7 m10 4294925233 17 in
+      let x11 = md5-f x7 x10 x9 x8 m11 2304563134 22 in
+      let x12 = md5-f x8 x11 x10 x9 m12 1804603682 7 in
+      let x13 = md5-f x9 x12 x11 x10 m13 4254626195 12 in
+      let x14 = md5-f x10 x13 x12 x11 m14 2792965006 17 in
+      let x15 = md5-f x11 x14 x13 x12 m15 1236535329 22 in
+      Words128 x12 x15 x14 x13
+
+  -- | Advance sixteen ordered rounds with the G function over message words in schedule order.
+  md5-rounds-b :: Md5Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Md5Words
+  md5-rounds-b prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words128 i0 i1 i2 i3 ->
+      let x0 = md5-g i0 i1 i2 i3 m0 4129170786 5 in
+      let x1 = md5-g i3 x0 i1 i2 m1 3225465664 9 in
+      let x2 = md5-g i2 x1 x0 i1 m2 643717713 14 in
+      let x3 = md5-g i1 x2 x1 x0 m3 3921069994 20 in
+      let x4 = md5-g x0 x3 x2 x1 m4 3593408605 5 in
+      let x5 = md5-g x1 x4 x3 x2 m5 38016083 9 in
+      let x6 = md5-g x2 x5 x4 x3 m6 3634488961 14 in
+      let x7 = md5-g x3 x6 x5 x4 m7 3889429448 20 in
+      let x8 = md5-g x4 x7 x6 x5 m8 568446438 5 in
+      let x9 = md5-g x5 x8 x7 x6 m9 3275163606 9 in
+      let x10 = md5-g x6 x9 x8 x7 m10 4107603335 14 in
+      let x11 = md5-g x7 x10 x9 x8 m11 1163531501 20 in
+      let x12 = md5-g x8 x11 x10 x9 m12 2850285829 5 in
+      let x13 = md5-g x9 x12 x11 x10 m13 4243563512 9 in
+      let x14 = md5-g x10 x13 x12 x11 m14 1735328473 14 in
+      let x15 = md5-g x11 x14 x13 x12 m15 2368359562 20 in
+      Words128 x12 x15 x14 x13
+
+  -- | Advance sixteen ordered rounds with the H function over message words in schedule order.
+  md5-rounds-c :: Md5Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Md5Words
+  md5-rounds-c prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words128 i0 i1 i2 i3 ->
+      let x0 = md5-h i0 i1 i2 i3 m0 4294588738 4 in
+      let x1 = md5-h i3 x0 i1 i2 m1 2272392833 11 in
+      let x2 = md5-h i2 x1 x0 i1 m2 1839030562 16 in
+      let x3 = md5-h i1 x2 x1 x0 m3 4259657740 23 in
+      let x4 = md5-h x0 x3 x2 x1 m4 2763975236 4 in
+      let x5 = md5-h x1 x4 x3 x2 m5 1272893353 11 in
+      let x6 = md5-h x2 x5 x4 x3 m6 4139469664 16 in
+      let x7 = md5-h x3 x6 x5 x4 m7 3200236656 23 in
+      let x8 = md5-h x4 x7 x6 x5 m8 681279174 4 in
+      let x9 = md5-h x5 x8 x7 x6 m9 3936430074 11 in
+      let x10 = md5-h x6 x9 x8 x7 m10 3572445317 16 in
+      let x11 = md5-h x7 x10 x9 x8 m11 76029189 23 in
+      let x12 = md5-h x8 x11 x10 x9 m12 3654602809 4 in
+      let x13 = md5-h x9 x12 x11 x10 m13 3873151461 11 in
+      let x14 = md5-h x10 x13 x12 x11 m14 530742520 16 in
+      let x15 = md5-h x11 x14 x13 x12 m15 3299628645 23 in
+      Words128 x12 x15 x14 x13
+
+  -- | Advance sixteen ordered rounds with the I function over message words in schedule order.
+  md5-rounds-d :: Md5Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Md5Words
+  md5-rounds-d prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
+    Words128 i0 i1 i2 i3 ->
+      let x0 = md5-i i0 i1 i2 i3 m0 4096336452 6 in
+      let x1 = md5-i i3 x0 i1 i2 m1 1126891415 10 in
+      let x2 = md5-i i2 x1 x0 i1 m2 2878612391 15 in
+      let x3 = md5-i i1 x2 x1 x0 m3 4237533241 21 in
+      let x4 = md5-i x0 x3 x2 x1 m4 1700485571 6 in
+      let x5 = md5-i x1 x4 x3 x2 m5 2399980690 10 in
+      let x6 = md5-i x2 x5 x4 x3 m6 4293915773 15 in
+      let x7 = md5-i x3 x6 x5 x4 m7 2240044497 21 in
+      let x8 = md5-i x4 x7 x6 x5 m8 1873313359 6 in
+      let x9 = md5-i x5 x8 x7 x6 m9 4264355552 10 in
+      let x10 = md5-i x6 x9 x8 x7 m10 2734768916 15 in
+      let x11 = md5-i x7 x10 x9 x8 m11 1309151649 21 in
+      let x12 = md5-i x8 x11 x10 x9 m12 4149444226 6 in
+      let x13 = md5-i x9 x12 x11 x10 m13 3174756917 10 in
+      let x14 = md5-i x10 x13 x12 x11 m14 718787259 15 in
+      let x15 = md5-i x11 x14 x13 x12 m15 3951481745 21 in
+      Words128 x12 x15 x14 x13
+
+  -- | One ordered round with the F function: b + rotl(a + F(b, c, d) + message + constant, shift).
+  prim md5-f :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 where
+    llvm {
+      %bc = and i32 %1, %2
+      %nb = xor i32 %1, -1
+      %nd = and i32 %nb, %3
+      %fn = or i32 %bc, %nd
+      %s0 = add i32 %0, %fn
+      %s1 = add i32 %s0, %4
+      %s2 = add i32 %s1, %5
+      %r = call i32 @llvm.fshl.i32(i32 %s2, i32 %s2, i32 %6)
+      %value = add i32 %1, %r
+      ret i32 %value
+    }
+
+  -- | One ordered round with the G function: b + rotl(a + G(b, c, d) + message + constant, shift).
+  prim md5-g :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 where
+    llvm {
+      %bd = and i32 %1, %3
+      %nd0 = xor i32 %3, -1
+      %cn = and i32 %2, %nd0
+      %fn = or i32 %bd, %cn
+      %s0 = add i32 %0, %fn
+      %s1 = add i32 %s0, %4
+      %s2 = add i32 %s1, %5
+      %r = call i32 @llvm.fshl.i32(i32 %s2, i32 %s2, i32 %6)
+      %value = add i32 %1, %r
+      ret i32 %value
+    }
+
+  -- | One ordered round with the H function: b + rotl(a + H(b, c, d) + message + constant, shift).
+  prim md5-h :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 where
+    llvm {
+      %bc = xor i32 %1, %2
+      %fn = xor i32 %bc, %3
+      %s0 = add i32 %0, %fn
+      %s1 = add i32 %s0, %4
+      %s2 = add i32 %s1, %5
+      %r = call i32 @llvm.fshl.i32(i32 %s2, i32 %s2, i32 %6)
+      %value = add i32 %1, %r
+      ret i32 %value
+    }
+
+  -- | One ordered round with the I function: b + rotl(a + I(b, c, d) + message + constant, shift).
+  prim md5-i :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 where
+    llvm {
+      %nd0 = xor i32 %3, -1
+      %bn = or i32 %1, %nd0
+      %fn = xor i32 %2, %bn
+      %s0 = add i32 %0, %fn
+      %s1 = add i32 %s0, %4
+      %s2 = add i32 %s1, %5
+      %r = call i32 @llvm.fshl.i32(i32 %s2, i32 %s2, i32 %6)
+      %value = add i32 %1, %r
+      ret i32 %value
+    }
+
+  -- | Select the first little-endian message word of a loaded pair.
+  prim md5-low :: U64 -> U32 where
+    llvm {
+      %value = trunc i64 %0 to i32
+      ret i32 %value
+    }
+
+  -- | Select the second little-endian message word of a loaded pair.
+  prim md5-high :: U64 -> U32 where
+    llvm {
+      %shift = lshr i64 %0, 32
+      %value = trunc i64 %shift to i32
+      ret i32 %value
+    }

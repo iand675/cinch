@@ -184,4 +184,4 @@ The HMAC-SHA-256 tag as lower-case hex (the same rendering as
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Digest.cinch`. Source SHA-256: `91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Digest.cinch`. Source SHA-256: `0a0fafd50f72b5471dde4879ac287f4f3d6a7b752619b66ce9ac8a477b543442`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

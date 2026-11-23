@@ -6762,4 +6762,4 @@ is `Ok x`), with the named range error.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Machine.cinch`. Source SHA-256: `c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Machine.cinch`. Source SHA-256: `e33b8e44a106c71e9b3a5c4d49f8b37704b273aeaa958999f5e9455cb97d1ec6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

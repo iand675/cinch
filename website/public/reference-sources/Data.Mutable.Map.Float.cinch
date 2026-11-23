@@ -1,0 +1,47 @@
+-- | Explicit IEEE floating key policies without global equality or hashing instances.
+-- Signed zeros share a digest and compare equally. NaNs remain non-reflexive:
+-- they can be stored and enumerated but cannot be found or deleted by key.
+module Data.Mutable.Map.Float where
+  import Data.Machine
+  import Data.Nat (nat-from-i64)
+  import Data.Mutable.Map (MapKeyPolicy, map-key-policy)
+
+  export map-f32-ieee-policy, map-f64-ieee-policy
+
+  -- | Observe binary32 bits without changing zeros, NaN signs or payloads.
+  prim bits-f32 :: F32 -> U32 where
+    llvm {
+      %bits = bitcast float %0 to i32
+      ret i32 %bits
+    }
+
+  -- | Observe binary64 bits without numeric conversion or payload canonicalization.
+  prim bits-f64 :: F64 -> U64 where
+    llvm {
+      %bits = bitcast double %0 to i64
+      ret i64 %bits
+    }
+
+  -- | Hash binary32 keys with both zeros normalized and all other bit patterns retained.
+  hash-f32 :: F32 -> Nat
+  hash-f32 value =
+    let bits = bits-f32 value in
+    let normalized = if eq-u32 (bit-and-u32 bits 2147483647) 0 then (0 :: U32) else bits in
+    nat-from-i64 (mask-i64 (wrapping-u64-to-i64 (wrapping-u32-to-u64 normalized)) 4294967295)
+
+  -- | Fold binary64 sign into a nonnegative digest after normalizing both zero representations.
+  -- Distinct bit patterns may collide; key comparison always decides membership.
+  hash-f64 :: F64 -> Nat
+  hash-f64 value =
+    let bits = bits-f64 value in
+    let normalized = if eq-u64 (bit-and-u64 bits 9223372036854775807) 0 then (0 :: U64) else bits in
+    let folded = bit-xor-u64 normalized (wrapping-shr-u64 normalized 63) in
+    nat-from-i64 (mask-i64 (wrapping-u64-to-i64 folded) 9223372036854775807)
+
+  -- | Select binary32 IEEE equality explicitly, including non-reflexive NaN keys.
+  map-f32-ieee-policy :: MapKeyPolicy F32
+  map-f32-ieee-policy = map-key-policy hash-f32 feq-f32
+
+  -- | Select binary64 IEEE equality explicitly, including equivalent signed zeros.
+  map-f64-ieee-policy :: MapKeyPolicy F64
+  map-f64-ieee-policy = map-key-policy hash-f64 feq-f64

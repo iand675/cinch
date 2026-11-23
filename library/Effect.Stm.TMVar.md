@@ -75,7 +75,7 @@ A full variable holding `x`.
 
 ## `tmvar-new-empty-io`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-new-empty-io</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">STM</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-new-empty-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">STM</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Effect.Stm.TMVar.cinch)
 
@@ -83,7 +83,7 @@ A full variable holding `x`.
 
 ## `tmvar-new-io`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-new-io</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-new-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Effect.Stm.TMVar.cinch)
 

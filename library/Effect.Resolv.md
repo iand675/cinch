@@ -165,4 +165,4 @@ onto each line); the addresses are the same for every port.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Resolv.cinch`. Source SHA-256: `65ca0fab55b2fa3af62a70907a148bc365d53b0282538b8ecb3719310a08d1cf`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Resolv.cinch`. Source SHA-256: `a965d0886171f2b2cb753518e0dc2dedf3442cb80fe6384d16b92804c61a05f0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

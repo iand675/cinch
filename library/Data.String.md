@@ -416,4 +416,4 @@ with its type).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/String.cinch`. Source SHA-256: `e5b79f9ddb1266a75a198096921b62e4fd6db172fc9111496f37bf7fa9cd04d6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/String.cinch`. Source SHA-256: `12324541f68d17a1b5cd0bd6dcac44e9644a626aef4d2f1282f95ef9f34e4e3c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

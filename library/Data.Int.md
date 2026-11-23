@@ -10,7 +10,7 @@ Import with `import Data.Int`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Group](Algebra.Group.md), [Algebra.Semiring](Algebra.Semiring.md), [Data.Core](Data.Core.md), [Data.Hash](Data.Hash.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Group](Algebra.Group.md), [Algebra.Semiring](Algebra.Semiring.md), [Data.Core](Data.Core.md), [Data.Enum](Data.Enum.md), [Data.Hash](Data.Hash.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -79,7 +79,7 @@ range is no `I64`, so `int-to-i64` states the range it needs (a
 guard or a conversion result supplies it) and `checked-int-to-i64`
 answers `None` outside it.
 
-[Source](/reference-sources/Data.Int.cinch) · line 35
+[Source](/reference-sources/Data.Int.cinch) · line 36
 
 <a id="value-696e742d6d6f642d6e6174"></a>
 
@@ -91,7 +91,7 @@ The floored residue of `x` modulo `d` as a `Nat`, `0 <= r < d`
 for every `x` (a negative `x` counts up from `d`): an encoding into
 `d` values that needs no range of `x`.
 
-[Source](/reference-sources/Data.Int.cinch) · line 45
+[Source](/reference-sources/Data.Int.cinch) · line 46
 
 <a id="value-696e742d6d756c"></a>
 
@@ -172,4 +172,4 @@ identities (see the header).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Int.cinch`. Source SHA-256: `3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Int.cinch`. Source SHA-256: `4936154410419ff4f5a7b052e2e06ad5d272f541cfd026867f4192549b8a3319`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

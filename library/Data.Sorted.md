@@ -80,4 +80,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Sorted.cinch`. Source SHA-256: `860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Sorted.cinch`. Source SHA-256: `1ff30a4df1ec338e447e96442dd13c2cd6f58745f18164326eefe1d5ac692374`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

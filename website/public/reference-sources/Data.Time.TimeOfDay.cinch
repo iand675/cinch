@@ -1,0 +1,276 @@
+-- Data.Time.TimeOfDay: a civil wall-clock time.
+--
+-- A `TimeOfDay` is what a wall clock shows, attached to no date and no
+-- place: an hour in 0..=23, a minute and a second in 0..=59 and a
+-- subsecond in 0..=999999999 nanoseconds. There is no leap second
+-- (second 60 has no representation) and no 24:00.
+--
+-- Representation. One `I64` behind a private constructor: the
+-- nanoseconds since midnight, in 0..=86399999999999. The order of
+-- times is the order of that count, so `cmp`, `Eq` and `Ord` are one
+-- machine compare, and each field is a division of the count by a
+-- constant.
+--
+-- How the value is held (verified against the emitted LLVM): the
+-- declaration carries `#[repr(transparent)]`, which the compiler
+-- admits and records as size 8, align 8, but the code generator holds
+-- a `TimeOfDay` as a reference to a one-field heap object with the
+-- `I64` unboxed inside it. See Data.Time.Date's NAMED REFUSALS for the
+-- evidence and for why this is a `data` and not a `record`.
+--
+-- Design law shape. `time-of-day h m s ns` followed by the four
+-- accessors returns `h`, `m`, `s`, `ns`; `to-nanos-of-day` and
+-- `from-nanos-of-day` invert on 0..=86399999999999, and
+-- `from-nanos-of-day` is `None` outside it. The subsecond splits as
+-- `subsec-nanosecond t == millisecond t * 1000000 + microsecond t *
+-- 1000 + nanosecond t` (Jiff's three three-digit components).
+-- `add-seconds-nanos-wrapping s n t` answers `(carry, t')` with
+-- `carry * 86400000000000 + to-nanos-of-day t'` equal to
+-- `to-nanos-of-day t + s * 1000000000 + n` as an exact integer, for
+-- EVERY pair of `I64`s; `add-nanos-wrapping n` is that with `s = 0`.
+-- `diff-nanos start finish` is finish minus start, in
+-- -86399999999999..=86399999999999, and `cmp` is its sign.
+--
+-- No operation faults (T2): the constructors are total over refined
+-- fields or answer `Option`, and the arithmetic is total by its named
+-- `wrapping` convention (it wraps around midnight and reports how many
+-- midnights it crossed; it never discards them silently).
+--
+-- NAMED REFUSALS:
+--   - an unboxed `TimeOfDay`: as for `Date`, `#[repr(transparent)]` is
+--     accepted and recorded but the value is a one-field heap object.
+--   - refined results by proof: machine integer arithmetic is opaque to
+--     the checker, so each accessor establishes its declared range with
+--     a clamp that never changes a value.
+--   - a total machine division: `Data.Machine` has only
+--     `checked-div-i64`/`checked-rem-i64`; the private `quot`/`rem`
+--     take a divisor at `InRange 2 9223372036854775807 I64` (which
+--     excludes both `None` cases) and still must match the `None` arm.
+--   - leap seconds, 24:00:00, and rounding (Data.Time.Arithmetic owns
+--     `round`); text (Text.Time.Iso).
+--   - a `Duration`- or `Span`-typed surface: this module is plain `I64`
+--     so machine time and civil time stay independent layers; the
+--     typed wrappers are Data.Time.Arithmetic's.
+module Data.Time.TimeOfDay where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+
+  export TimeOfDay, time-of-day, time-of-day-checked, hms
+  export from-nanos-of-day, to-nanos-of-day
+  export hour, minute, second, subsec-nanosecond
+  export millisecond, microsecond, nanosecond
+  export midnight, noon, min-time, max-time
+  export add-nanos-wrapping, add-seconds-nanos-wrapping, diff-nanos
+  export nanos-per-day, cmp
+
+
+  -- Nanoseconds since midnight (header). Not exported.
+  #[repr(transparent)]
+  data TimeOfDay where
+    MkTimeOfDay :: I64 -> TimeOfDay
+
+  -- -----------------------------------------------------------------
+  -- Construction.
+  -- -----------------------------------------------------------------
+
+  -- Total: every range is in an argument type, so
+  -- `time-of-day 13 45 30 0` checks with nothing else written and
+  -- `time-of-day 24 0 0 0` is refused at compile time. The count is at
+  -- most 23 * 3600e9 + 59 * 60e9 + 59 * 1e9 + 999999999 =
+  -- 86399999999999, so nothing wraps.
+  time-of-day :: (h :: InRange 0 23 I64) -> (m :: InRange 0 59 I64) -> (s :: InRange 0 59 I64) -> (ns :: InRange 0 999999999 I64) -> TimeOfDay
+  time-of-day h m s ns = pack h m s ns
+
+  -- Hour, minute, second with a zero subsecond.
+  hms :: (h :: InRange 0 23 I64) -> (m :: InRange 0 59 I64) -> (s :: InRange 0 59 I64) -> TimeOfDay
+  hms h m s = pack h m s 0
+
+  -- The same over plain `I64` fields: `None` when any field is outside
+  -- its range.
+  time-of-day-checked :: I64 -> I64 -> I64 -> I64 -> Option TimeOfDay
+  time-of-day-checked h m s ns =
+    if h < 0 || h > 23 then None
+    else if m < 0 || m > 59 then None
+    else if s < 0 || s > 59 then None
+    else if ns < 0 || ns > 999999999 then None
+    else Some (pack h m s ns)
+
+  -- From nanoseconds since midnight: `None` outside 0..=86399999999999.
+  from-nanos-of-day :: I64 -> Option TimeOfDay
+  from-nanos-of-day n =
+    if n < 0 || n > 86399999999999 then None else Some (MkTimeOfDay n)
+
+  -- Nanoseconds since midnight, in 0..=86399999999999.
+  to-nanos-of-day :: TimeOfDay -> I64
+  to-nanos-of-day t = case t of
+    MkTimeOfDay n -> n
+
+  -- 00:00:00 (also the least time) and 12:00:00.
+  midnight :: TimeOfDay
+  midnight = MkTimeOfDay 0
+
+  noon :: TimeOfDay
+  noon = MkTimeOfDay 43200000000000
+
+  min-time :: TimeOfDay
+  min-time = MkTimeOfDay 0
+
+  -- 23:59:59.999999999.
+  max-time :: TimeOfDay
+  max-time = MkTimeOfDay 86399999999999
+
+  -- The length of a civil day in nanoseconds (no leap seconds).
+  nanos-per-day :: I64
+  nanos-per-day = 86400000000000
+
+  -- -----------------------------------------------------------------
+  -- Fields. Each is a division of the count; the clamp states the
+  -- range in the type and never fires (see NAMED REFUSALS).
+  -- -----------------------------------------------------------------
+
+  hour :: TimeOfDay -> InRange 0 23 I64
+  hour t =
+    let v = quot (to-nanos-of-day t) 3600000000000 in
+    if v < 0 then 0 else if v > 23 then 23 else v
+
+  minute :: TimeOfDay -> InRange 0 59 I64
+  minute t =
+    let v = rem (quot (to-nanos-of-day t) 60000000000) 60 in
+    if v < 0 then 0 else if v > 59 then 59 else v
+
+  second :: TimeOfDay -> InRange 0 59 I64
+  second t =
+    let v = rem (quot (to-nanos-of-day t) 1000000000) 60 in
+    if v < 0 then 0 else if v > 59 then 59 else v
+
+  -- The whole fractional second, in nanoseconds.
+  subsec-nanosecond :: TimeOfDay -> InRange 0 999999999 I64
+  subsec-nanosecond t =
+    let v = rem (to-nanos-of-day t) 1000000000 in
+    if v < 0 then 0 else if v > 999999999 then 999999999 else v
+
+  -- The fractional second's three three-digit components (Jiff's
+  -- `millisecond`, `microsecond`, `nanosecond`): 12:00:00.123456789 has
+  -- millisecond 123, microsecond 456, nanosecond 789.
+  millisecond :: TimeOfDay -> InRange 0 999 I64
+  millisecond t =
+    let v = rem (quot (to-nanos-of-day t) 1000000) 1000 in
+    if v < 0 then 0 else if v > 999 then 999 else v
+
+  microsecond :: TimeOfDay -> InRange 0 999 I64
+  microsecond t =
+    let v = rem (quot (to-nanos-of-day t) 1000) 1000 in
+    if v < 0 then 0 else if v > 999 then 999 else v
+
+  nanosecond :: TimeOfDay -> InRange 0 999 I64
+  nanosecond t =
+    let v = rem (to-nanos-of-day t) 1000 in
+    if v < 0 then 0 else if v > 999 then 999 else v
+
+  -- -----------------------------------------------------------------
+  -- Arithmetic.
+  -- -----------------------------------------------------------------
+
+  -- Adds `secs` seconds and `nanos` nanoseconds (each signed, each any
+  -- `I64`), wrapping around midnight. The result is the signed number
+  -- of whole days carried (negative when the sum went back past
+  -- midnight) and the wrapped time, so that exactly
+  --   carry * 86400000000000 + result
+  --     == start + secs * 1000000000 + nanos.
+  --
+  -- Overflow argument (a division argument, no wide intermediate): the
+  -- seconds are split by truncated division into whole days `qs`
+  -- (|qs| <= 2^63 / 86400 < 1.07e14) and a remainder that is moved
+  -- into 0..=86399; the nanoseconds likewise into whole days `qn`
+  -- (|qn| <= 2^63 / 86400e9 < 106752) and a remainder in
+  -- 0..=86399999999999. The three non-negative parts (the start, the
+  -- second remainder times 1e9, the nanosecond remainder) are each
+  -- below one day, so their sum is below three days (2.6e14) and is
+  -- reduced by at most two subtractions. The carry is `qs + qn` plus
+  -- at most 2 minus at most 2, far inside `I64`.
+  add-seconds-nanos-wrapping :: I64 -> I64 -> TimeOfDay -> (I64, TimeOfDay)
+  add-seconds-nanos-wrapping secs nanos t =
+    let rs0 = rem secs 86400 in
+    let qs0 = quot secs 86400 in
+    let rs = if rs0 < 0 then plus rs0 86400 else rs0 in
+    let qs = if rs0 < 0 then minus qs0 1 else qs0 in
+    let rn0 = rem nanos 86400000000000 in
+    let qn0 = quot nanos 86400000000000 in
+    let rn = if rn0 < 0 then plus rn0 86400000000000 else rn0 in
+    let qn = if rn0 < 0 then minus qn0 1 else qn0 in
+    let total = plus (plus (to-nanos-of-day t) (times rs 1000000000)) rn in
+    let days = plus qs qn in
+    if total >= 172800000000000 then (plus days 2, MkTimeOfDay (minus total 172800000000000))
+    else if total >= 86400000000000 then (plus days 1, MkTimeOfDay (minus total 86400000000000))
+    else (days, MkTimeOfDay total)
+
+  -- Adds `n` nanoseconds (signed, any `I64`), wrapping around midnight:
+  -- the signed whole-day carry and the wrapped time.
+  -- `add-nanos-wrapping 1 max-time` is `(1, midnight)` and
+  -- `add-nanos-wrapping (-1) midnight` is `(-1, max-time)`.
+  add-nanos-wrapping :: I64 -> TimeOfDay -> (I64, TimeOfDay)
+  add-nanos-wrapping n t = add-seconds-nanos-wrapping 0 n t
+
+  -- `diff-nanos start finish`: finish minus start in nanoseconds,
+  -- negative when `finish` is the earlier time. Both counts are in
+  -- 0..=86399999999999, so the difference cannot wrap.
+  diff-nanos :: TimeOfDay -> TimeOfDay -> I64
+  diff-nanos start finish = minus (to-nanos-of-day finish) (to-nanos-of-day start)
+
+  -- -----------------------------------------------------------------
+  -- Order: a compare of the nanosecond counts.
+  -- -----------------------------------------------------------------
+
+  cmp :: TimeOfDay -> TimeOfDay -> Ordering
+  cmp a b =
+    let x = to-nanos-of-day a in
+    let y = to-nanos-of-day b in
+    if x < y then LT else if x == y then EQ else GT
+
+  implicit instance Eq_TimeOfDay :: Eq TimeOfDay where
+    (==) a b = to-nanos-of-day a == to-nanos-of-day b
+    (/=) a b = to-nanos-of-day a /= to-nanos-of-day b
+
+  implicit instance Ord_TimeOfDay :: Ord TimeOfDay where
+    (<) a b = to-nanos-of-day a < to-nanos-of-day b
+    (<=) a b = to-nanos-of-day a <= to-nanos-of-day b
+    (>) a b = to-nanos-of-day a > to-nanos-of-day b
+    (>=) a b = to-nanos-of-day a >= to-nanos-of-day b
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  -- Machine arithmetic under short names; each use states or inherits
+  -- a bound that keeps the wrapping operation from wrapping.
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b
+
+  -- Truncated quotient and remainder. The divisor's type excludes zero
+  -- and -1, the only inputs for which the checked operations answer
+  -- `None`, so the `None` arms cannot be taken.
+  quot :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  quot a d = case checked-div-i64 a d of
+    Some q -> q
+    None -> 0
+
+  rem :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  rem a d = case checked-rem-i64 a d of
+    Some r -> r
+    None -> 0
+
+  -- Fields the caller has in range.
+  pack :: I64 -> I64 -> I64 -> I64 -> TimeOfDay
+  pack h m s ns =
+    MkTimeOfDay (plus (plus (times h 3600000000000) (times m 60000000000)) (plus (times s 1000000000) ns))

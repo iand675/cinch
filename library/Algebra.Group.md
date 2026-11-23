@@ -73,4 +73,4 @@ constraint.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Group.cinch`. Source SHA-256: `e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Group.cinch`. Source SHA-256: `df69dec9c9aeb84c0979241629321d1e975609f5ec487f40ae30a9fa8131d0ee`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

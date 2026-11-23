@@ -1647,8 +1647,8 @@ module Text.Yaml where
   write-text s = if plain-safe s then s else quote-text s
 
   plain-safe :: String -> Bool
-  plain-safe s =
-    if string-length s == 0 then False
+  plain-safe s = let size = string-length s in
+    if size == 0 then False
     else if is-null-text s then False
     else case bool-text s of
       Some b -> False
@@ -1657,7 +1657,7 @@ module Text.Yaml where
         else if non-finite-text s then False
         else case string-char-at s 0 of
           Some c -> if plain-indicator c then False
-            else case string-char-at s (string-length s - 1) of
+            else case string-char-at s (size - 1) of
               Some c2 -> if c2 == ' ' || c2 == ':' then False
                 else plain-body-ok s 0 && not (contains-text s ": ")
               None -> False

@@ -1,0 +1,590 @@
+-- Data.Time.Zone.Posix: POSIX TZ rule strings
+-- (design/datetime.md, layer L2, lane C).
+--
+-- A POSIX TZ string (`EST5EDT,M3.2.0,M11.1.0`) names a standard time,
+-- optionally a daylight saving time, and the two yearly dates on
+-- which the clocks change. It is the footer of a TZif file (RFC 9636
+-- section 3.3), where it gives the rule for every instant after the
+-- file's last transition, and the portable form of the `TZ`
+-- environment variable.
+--
+-- GRAMMAR (POSIX.1 "TZ", with the RFC 9636 extension):
+--
+--   rule   = name offset [ name [ offset ] "," date [ "/" time ] "," date [ "/" time ] ]
+--   name   = 3 or more ASCII letters
+--          | "<" 3 or more of (ASCII letter, digit, "+", "-") ">"
+--   offset = [ "+" | "-" ] hh [ ":" mm [ ":" ss ] ]     hh 0..24
+--   date   = "J" n            n 1..365, February 29 is never counted
+--          | n                n 0..365, February 29 is counted
+--          | "M" m "." w "." d   month 1..12, week 1..5 (5 is "last"),
+--                                weekday 0..6 (0 is Sunday)
+--   time   = [ "+" | "-" ] h[h[h]] [ ":" mm [ ":" ss ] ]   hours 0..167
+--
+-- A POSIX offset counts hours WEST of UTC (`EST5` is UTC-05:00), the
+-- opposite of `Data.Time.Offset`; the parser negates it. A daylight
+-- name without an offset is one hour ahead of standard time. A date
+-- without a time changes at 02:00:00 local time. The signed time and
+-- the hours beyond 24 are the RFC 9636 extension (version 3 footers),
+-- e.g. `<-03>3<-02>,M3.5.0/-2,M10.5.0/-1`.
+--
+-- The parser is a scanner over the string's bytes: its whole state is
+-- one byte index, each production is a function from an index to a
+-- value and the index after it (`Scan`), and the digit runs are
+-- loops over the index. No `List Char` is built.
+--
+-- Design law shape. For a rule with daylight time, each year `y` has
+-- two transition instants: `start y` (to daylight time; the start
+-- date and time read in STANDARD time) and `end y` (back; the end
+-- date and time read in DAYLIGHT time), as POSIX specifies. The
+-- offset in force at an instant is decided by the latest transition
+-- at or before it (daylight after a start, standard after an end; a
+-- start wins a tie, which is what makes the `0/0,J365/25` "always
+-- daylight" spelling work). Nothing assumes `start y < end y`, so a
+-- southern rule whose daylight time spans the new year needs no
+-- special case. `posix-to-ambiguous` is derived from these same two
+-- lookups (`ambiguous-from-lookups`), so the civil side agrees with
+-- the instant side by construction. A rule without daylight time is
+-- one fixed offset and has no transitions.
+--
+-- NAMED REFUSALS:
+--   - a daylight name with no rule (`EST5EDT`): POSIX leaves the dates
+--     to the implementation; this parser answers
+--     `PosixMissingRule` rather than guess the United States' rule.
+--   - the `:characters` implementation-defined form of `TZ` (a file
+--     name): `PosixBadName`; `Effect.Time.Zone` looks names up.
+--   - standard or daylight offsets beyond 24:59:59, and a daylight
+--     offset beyond `Data.Time.Offset`'s range: `PosixBadOffset`.
+--   - years outside -9999..=9999: transitions are only generated for
+--     representable years, so within a year of either end of the
+--     timestamp range the rule may read as standard time.
+--   - anything after the rule (trailing bytes): `PosixTrailing`.
+module Data.Time.Zone.Posix where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Timestamp
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone.Types
+
+  export PosixRule, PosixTzError
+  export PosixEmpty, PosixBadName, PosixBadOffset, PosixMissingRule
+  export PosixBadDate, PosixBadTime, PosixTrailing
+  export parse-posix-tz, parse-posix-tz-bytes
+  export posix-has-dst, posix-std-offset, posix-std-abbreviation
+  export posix-dst-offset, posix-dst-abbreviation
+  export posix-offset-at, posix-info-at, posix-to-ambiguous
+  export posix-next-transition, posix-previous-transition
+  export posix-info-at-unix-seconds, posix-next-transition-unix-seconds
+  export posix-previous-transition-unix-seconds
+
+
+  -- A yearly date in a rule.
+  data RuleDate where
+    -- `Jn`: day 1..365, February 29 never counted.
+    JulianDay :: I64 -> RuleDate
+    -- `n`: day 0..365, February 29 counted.
+    ZeroDay :: I64 -> RuleDate
+    -- `Mm.w.d`: month 1..12, week 1..5, weekday 0..6 (Sunday 0).
+    MonthWeekDay :: I64 -> I64 -> I64 -> RuleDate
+
+  -- The daylight half of a rule: its `OffsetInfo`, the start date and
+  -- local time (seconds, -604799..=604799), the end date and time.
+  data DstRule where
+    MkDstRule :: OffsetInfo -> RuleDate -> I64 -> RuleDate -> I64 -> DstRule
+
+  -- A parsed rule: standard time and, optionally, daylight time. Not
+  -- constructible outside this module: every field passed the parser.
+  data PosixRule where
+    MkPosixRule :: OffsetInfo -> Option DstRule -> PosixRule
+
+  -- Why a string is not a rule (the header's grammar).
+  data PosixTzError where
+    -- The string is empty.
+    PosixEmpty :: PosixTzError
+    -- A name is missing, shorter than three characters, has a
+    -- character outside its alphabet, or a `<` is not closed.
+    PosixBadName :: PosixTzError
+    -- An offset is missing or malformed, or out of range.
+    PosixBadOffset :: PosixTzError
+    -- A daylight name without the `,date,date` rule.
+    PosixMissingRule :: PosixTzError
+    -- A date is malformed or a field is out of range.
+    PosixBadDate :: PosixTzError
+    -- A `/time` is malformed or out of range.
+    PosixBadTime :: PosixTzError
+    -- Bytes follow a complete rule.
+    PosixTrailing :: PosixTzError
+
+  -- -----------------------------------------------------------------
+  -- The scanner.
+  -- -----------------------------------------------------------------
+
+  -- A production's result: the value and the index after it.
+  data Scan a where
+    ScanErr :: PosixTzError -> Scan a
+    ScanOk :: a -> Nat -> Scan a
+
+  -- The byte at `i`, or -1 at or past the end.
+  byte-at :: Bytes -> Nat -> I64
+  byte-at b i = if i < bytes-len b then nat-to-i64 (bytes-get b i) else -1
+
+  is-digit :: I64 -> Bool
+  is-digit c = ge-i64 c 48 && le-i64 c 57
+
+  is-alpha :: I64 -> Bool
+  is-alpha c = (ge-i64 c 65 && le-i64 c 90) || (ge-i64 c 97 && le-i64 c 122)
+
+  -- A quoted name's alphabet.
+  is-quoted-char :: I64 -> Bool
+  is-quoted-char c = is-alpha c || is-digit c || eq-i64 c 43 || eq-i64 c 45
+
+  -- The index of the first byte at or after `i` that is not a letter.
+  skip-alpha :: Bytes -> Nat -> Nat
+  skip-alpha b i = if is-alpha (byte-at b i) then skip-alpha b (i + 1) else i
+
+  skip-quoted :: Bytes -> Nat -> Nat
+  skip-quoted b i = if is-quoted-char (byte-at b i) then skip-quoted b (i + 1) else i
+
+  -- The bytes `[start, stop)` as a string. The scanner only calls this on
+  -- runs of ASCII it has just walked, so both `None` arms (a range
+  -- outside the buffer, bytes that are not UTF-8) are unreachable and
+  -- read as a refusal of the name.
+  slice :: Bytes -> Nat -> Nat -> Option String
+  slice b start stop =
+    if start <= stop then
+      if stop <= bytes-len b then
+        let n = stop - start in
+        let out = bytes-new n in
+        let u = bytes-copy-range out b 0 start n in
+        string-from-bytes out
+      else None
+    else None
+
+  -- name: letters, or `<...>`. At least three characters.
+  scan-name :: Bytes -> Nat -> Scan String
+  scan-name b i =
+    if eq-i64 (byte-at b i) 60 then
+      let j = skip-quoted b (i + 1) in
+      if eq-i64 (byte-at b j) 62 then name-of b (i + 1) j (j + 1) else ScanErr PosixBadName
+    else
+      let j = skip-alpha b i in
+      name-of b i j j
+
+  name-of :: Bytes -> Nat -> Nat -> Nat -> Scan String
+  name-of b start stop after =
+    if stop < start + 3 then ScanErr PosixBadName
+    else case slice b start stop of
+      None -> ScanErr PosixBadName
+      Some s -> ScanOk s after
+
+  -- A run of at most `left` digits: the value so far and the count.
+  -- At most three digits are ever asked for, so the value is below
+  -- 1000 and the wrapping arithmetic is exact.
+  data Digits where
+    MkDigits :: I64 -> I64 -> Nat -> Digits
+
+  scan-digits :: Bytes -> Nat -> I64 -> I64 -> I64 -> Digits
+  scan-digits b i left acc count =
+    let c = byte-at b i in
+    if gt-i64 left 0 && is-digit c then
+      scan-digits b (i + 1) (wrapping-sub-i64 left 1) (wrapping-add-i64 (wrapping-mul-i64 acc 10) (wrapping-sub-i64 c 48)) (wrapping-add-i64 count 1)
+    else MkDigits acc count i
+
+  -- `[":" mm [":" ss]]` after an hour field: the seconds they add
+  -- (0..=3599), each field exactly two digits within 0..=59.
+  scan-minutes-seconds :: Bytes -> Nat -> PosixTzError -> Scan I64
+  scan-minutes-seconds b i bad =
+    if eq-i64 (byte-at b i) 58 then case scan-digits b (i + 1) 2 0 0 of
+      MkDigits m mc j ->
+        if ne-i64 mc 2 || gt-i64 m 59 then ScanErr bad
+        else if eq-i64 (byte-at b j) 58 then case scan-digits b (j + 1) 2 0 0 of
+          MkDigits s sc k ->
+            if ne-i64 sc 2 || gt-i64 s 59 then ScanErr bad
+            else ScanOk (wrapping-add-i64 (wrapping-mul-i64 m 60) s) k
+        else ScanOk (wrapping-mul-i64 m 60) j
+    else ScanOk 0 i
+
+  -- A signed `h[:mm[:ss]]` quantity in seconds: an optional sign, one
+  -- to `width` hour digits with value at most `max-hours`, then the
+  -- optional minutes and seconds. At most 167 * 3600 + 3599 = 604799.
+  scan-hms :: Bytes -> Nat -> I64 -> I64 -> PosixTzError -> Scan I64
+  scan-hms b i width max-hours bad =
+    let c = byte-at b i in
+    let negative = eq-i64 c 45 in
+    let start = if negative || eq-i64 c 43 then i + 1 else i in
+    case scan-digits b start width 0 0 of
+      MkDigits h hc j ->
+        if eq-i64 hc 0 || gt-i64 h max-hours then ScanErr bad
+        else if is-digit (byte-at b j) then ScanErr bad
+        else case scan-minutes-seconds b j bad of
+          ScanErr e -> ScanErr e
+          ScanOk ms k ->
+            let total = wrapping-add-i64 (wrapping-mul-i64 h 3600) ms in
+            if negative then ScanOk (wrapping-neg-i64 total) k else ScanOk total k
+
+  -- offset: POSIX seconds WEST of UTC, so the `Offset` is its
+  -- negation. Hours 0..24, so the magnitude is at most 89999.
+  scan-offset :: Bytes -> Nat -> Scan Offset
+  scan-offset b i = case scan-hms b i 2 24 PosixBadOffset of
+    ScanErr e -> ScanErr e
+    ScanOk west j -> case offset-from-seconds (wrapping-neg-i64 west) of
+      None -> ScanErr PosixBadOffset
+      Some o -> ScanOk o j
+
+  -- A decimal field of at most `width` digits within `lo..=hi`.
+  scan-field :: Bytes -> Nat -> I64 -> I64 -> I64 -> Scan I64
+  scan-field b i width lo hi = case scan-digits b i width 0 0 of
+    MkDigits v c j ->
+      if eq-i64 c 0 || lt-i64 v lo || gt-i64 v hi || is-digit (byte-at b j) then ScanErr PosixBadDate
+      else ScanOk v j
+
+  -- date: `Jn`, `n` or `Mm.w.d`.
+  scan-date :: Bytes -> Nat -> Scan RuleDate
+  scan-date b i =
+    let c = byte-at b i in
+    if eq-i64 c 74 then case scan-field b (i + 1) 3 1 365 of
+      ScanErr e -> ScanErr e
+      ScanOk n j -> ScanOk (JulianDay n) j
+    else if eq-i64 c 77 then case scan-field b (i + 1) 2 1 12 of
+      ScanErr e -> ScanErr e
+      ScanOk m j ->
+        if ne-i64 (byte-at b j) 46 then ScanErr PosixBadDate
+        else case scan-field b (j + 1) 1 1 5 of
+          ScanErr e -> ScanErr e
+          ScanOk w k ->
+            if ne-i64 (byte-at b k) 46 then ScanErr PosixBadDate
+            else case scan-field b (k + 1) 1 0 6 of
+              ScanErr e -> ScanErr e
+              ScanOk d l -> ScanOk (MonthWeekDay m w d) l
+    else case scan-field b i 3 0 365 of
+      ScanErr e -> ScanErr e
+      ScanOk n j -> ScanOk (ZeroDay n) j
+
+  -- A date and its time of change in seconds (02:00:00 by default).
+  data DateAt where
+    MkDateAt :: RuleDate -> I64 -> DateAt
+
+  scan-date-time :: Bytes -> Nat -> Scan DateAt
+  scan-date-time b i = case scan-date b i of
+    ScanErr e -> ScanErr e
+    ScanOk d j ->
+      if eq-i64 (byte-at b j) 47 then case scan-hms b (j + 1) 3 167 PosixBadTime of
+        ScanErr e -> ScanErr e
+        ScanOk s k -> ScanOk (MkDateAt d s) k
+      else ScanOk (MkDateAt d 7200) j
+
+  -- `"," date ["/" time] "," date ["/" time]` and the end of input.
+  scan-rule :: Bytes -> Nat -> OffsetInfo -> OffsetInfo -> Result PosixTzError PosixRule
+  scan-rule b i std dst =
+    if ne-i64 (byte-at b i) 44 then
+      (if i >= bytes-len b then Err PosixMissingRule else Err PosixTrailing)
+    else case scan-date-time b (i + 1) of
+      ScanErr e -> Err e
+      ScanOk first j ->
+        if ne-i64 (byte-at b j) 44 then Err PosixBadDate
+        else case scan-date-time b (j + 1) of
+          ScanErr e -> Err e
+          ScanOk second k ->
+            if k < bytes-len b then Err PosixTrailing
+            else case first of
+              MkDateAt fd ft -> case second of
+                MkDateAt td tt -> Ok (MkPosixRule std (Some (MkDstRule dst fd ft td tt)))
+
+  -- After the standard name and offset: the end, or the daylight
+  -- name (anything that cannot begin a name is trailing bytes), its optional offset (one hour ahead by default; the sum is
+  -- at most 89999 + 3600 = 93599, checked by `offset-from-seconds`)
+  -- and the rule.
+  scan-dst :: Bytes -> Nat -> OffsetInfo -> Result PosixTzError PosixRule
+  scan-dst b i std =
+    if i >= bytes-len b then Ok (MkPosixRule std None)
+    else if not (is-alpha (byte-at b i) || eq-i64 (byte-at b i) 60) then Err PosixTrailing
+    else case scan-name b i of
+      ScanErr e -> Err e
+      ScanOk name j ->
+        let c = byte-at b j in
+        if eq-i64 c 44 || lt-i64 c 0 then
+          case offset-from-seconds (wrapping-add-i64 (offset-to-seconds (offset-info-offset std)) 3600) of
+            None -> Err PosixBadOffset
+            Some o -> scan-rule b j std (offset-info o True name)
+        else case scan-offset b j of
+          ScanErr e -> Err e
+          ScanOk o k -> scan-rule b k std (offset-info o True name)
+
+  -- Parse a rule from its bytes (the header's grammar).
+  parse-posix-tz-bytes :: Bytes -> Result PosixTzError PosixRule
+  parse-posix-tz-bytes b =
+    if bytes-len b == 0 then Err PosixEmpty
+    else case scan-name b 0 of
+      ScanErr e -> Err e
+      ScanOk name i -> case scan-offset b i of
+        ScanErr e -> Err e
+        ScanOk o j -> scan-dst b j (offset-info o False name)
+
+  parse-posix-tz :: String -> Result PosixTzError PosixRule
+  parse-posix-tz s = parse-posix-tz-bytes (string-to-bytes s)
+
+  -- -----------------------------------------------------------------
+  -- Reading a rule.
+  -- -----------------------------------------------------------------
+
+  std-info :: PosixRule -> OffsetInfo
+  std-info r = case r of
+    MkPosixRule s _ -> s
+
+  dst-rule :: PosixRule -> Option DstRule
+  dst-rule r = case r of
+    MkPosixRule _ d -> d
+
+  dst-info :: DstRule -> OffsetInfo
+  dst-info d = case d of
+    MkDstRule i _ _ _ _ -> i
+
+  posix-has-dst :: PosixRule -> Bool
+  posix-has-dst r = case dst-rule r of
+    None -> False
+    Some _ -> True
+
+  posix-std-offset :: PosixRule -> Offset
+  posix-std-offset r = offset-info-offset (std-info r)
+
+  posix-std-abbreviation :: PosixRule -> String
+  posix-std-abbreviation r = offset-info-abbreviation (std-info r)
+
+  posix-dst-offset :: PosixRule -> Option Offset
+  posix-dst-offset r = case dst-rule r of
+    None -> None
+    Some d -> Some (offset-info-offset (dst-info d))
+
+  posix-dst-abbreviation :: PosixRule -> Option String
+  posix-dst-abbreviation r = case dst-rule r of
+    None -> None
+    Some d -> Some (offset-info-abbreviation (dst-info d))
+
+  -- -----------------------------------------------------------------
+  -- The yearly transitions.
+  -- -----------------------------------------------------------------
+
+  -- The epoch day of January 1 of `y`, for a representable year.
+  jan-first :: I64 -> Option I64
+  jan-first y = case D.date y 1 1 of
+    None -> None
+    Some d -> Some (D.to-epoch-days d)
+
+  month-first :: I64 -> I64 -> Option I64
+  month-first y m = case D.date y m 1 of
+    None -> None
+    Some d -> Some (D.to-epoch-days d)
+
+  -- Floored remainder by 7, in 0..=6. `a` is an epoch day or a small
+  -- difference, so nothing wraps.
+  mod7 :: I64 -> I64
+  mod7 a =
+    let r = rem a 7 in
+    if lt-i64 r 0 then wrapping-add-i64 r 7 else r
+
+  -- The epoch day a rule date falls on in year `y`. Epoch days are
+  -- within +-3.7 million, so the sums cannot wrap.
+  rule-day :: RuleDate -> I64 -> Option I64
+  rule-day d y = case d of
+    JulianDay n -> case jan-first y of
+      None -> None
+      Some j ->
+        -- Day 60 is March 1 in every year: skip February 29.
+        if D.is-leap-year y && ge-i64 n 60 then Some (wrapping-add-i64 j n)
+        else Some (wrapping-add-i64 j (wrapping-sub-i64 n 1))
+    ZeroDay n -> case jan-first y of
+      None -> None
+      Some j -> Some (wrapping-add-i64 j n)
+    MonthWeekDay m w wd -> case month-first y m of
+      None -> None
+      Some first ->
+        -- 1970-01-01 (epoch day 0) was a Thursday, weekday 4.
+        let first-wd = mod7 (wrapping-add-i64 first 4) in
+        let day = wrapping-add-i64 first (wrapping-add-i64 (mod7 (wrapping-sub-i64 wd first-wd)) (wrapping-mul-i64 7 (wrapping-sub-i64 w 1))) in
+        -- Week 5 means "last": the fourth occurrence always exists
+        -- (at most day 28), the fifth may run past the month's end.
+        let len = month-length y m first in
+        if ge-i64 day (wrapping-add-i64 first len) then Some (wrapping-sub-i64 day 7) else Some day
+
+  -- Days in month `m` whose first day is epoch day `first`.
+  month-length :: I64 -> I64 -> I64 -> I64
+  month-length y m first =
+    if ge-i64 m 12 then 31
+    else case month-first y (wrapping-add-i64 m 1) of
+      None -> 31
+      Some next -> wrapping-sub-i64 next first
+
+  -- The instant (Unix seconds) of the change to daylight time in year
+  -- `y`: the start date and time read in standard time. Within
+  -- +-3.2e11 + 604799 + 93599, so nothing wraps.
+  start-instant :: I64 -> DstRule -> I64 -> Option I64
+  start-instant std d y = case d of
+    MkDstRule _ fd ft _ _ -> case rule-day fd y of
+      None -> None
+      Some day -> Some (wrapping-sub-i64 (wrapping-add-i64 (wrapping-mul-i64 day 86400) ft) std)
+
+  -- The change back: the end date and time read in daylight time.
+  end-instant :: DstRule -> I64 -> Option I64
+  end-instant d y = case d of
+    MkDstRule i _ _ td tt -> case rule-day td y of
+      None -> None
+      Some day -> Some (wrapping-sub-i64 (wrapping-add-i64 (wrapping-mul-i64 day 86400) tt) (offset-to-seconds (offset-info-offset i)))
+
+  -- The UTC year of a Unix second, clamped to the representable
+  -- years for seconds outside the civil range.
+  year-of :: I64 -> I64
+  year-of t = case DT.from-epoch-seconds-nanos-utc t 0 of
+    Some x -> DT.year x
+    None -> if lt-i64 t 0 then -9999 else 9999
+
+  -- The transitions that can be the nearest to an instant in UTC year
+  -- `y` on either side are those of years `y - 1`, `y` and `y + 1`: a
+  -- transition's instant is within 366 days + 167 hours + 26 hours of
+  -- the start of its own year, and every year has both transitions.
+  --
+  -- `latest-at-or-before`: over years `k..=last`, the latest
+  -- transition instant not after `t`, as `best` with `kind` true for
+  -- a start; `best` begins at `I64`'s minimum, meaning none. Within a
+  -- year the end is considered before the start and a later equal
+  -- instant replaces an end, so a start wins a tie.
+  dst-at :: I64 -> DstRule -> I64 -> I64 -> I64 -> I64 -> Bool -> Bool
+  dst-at std d t k last best kind =
+    if gt-i64 k last then kind
+    else
+      let e = case end-instant d k of
+            Some v -> v
+            None -> min-bound-i64 in
+      let s = case start-instant std d k of
+            Some v -> v
+            None -> min-bound-i64 in
+      let take-e = le-i64 e t && gt-i64 e best in
+      let b1 = if take-e then e else best in
+      let k1 = if take-e then False else kind in
+      let take-s = le-i64 s t && ge-i64 s b1 && gt-i64 s min-bound-i64 in
+      let b2 = if take-s then s else b1 in
+      let k2 = if take-s then True else k1 in
+      dst-at std d t (wrapping-add-i64 k 1) last b2 k2
+
+  -- The least transition instant strictly after `t` over years
+  -- `k..=last`; `best` begins at `I64`'s maximum, meaning none.
+  least-after :: I64 -> DstRule -> I64 -> I64 -> I64 -> I64 -> I64
+  least-after std d t k last best =
+    if gt-i64 k last then best
+    else
+      let e = case end-instant d k of
+            Some v -> v
+            None -> max-bound-i64 in
+      let s = case start-instant std d k of
+            Some v -> v
+            None -> max-bound-i64 in
+      let b1 = if gt-i64 e t && lt-i64 e best then e else best in
+      let b2 = if gt-i64 s t && lt-i64 s b1 then s else b1 in
+      least-after std d t (wrapping-add-i64 k 1) last b2
+
+  -- The greatest transition instant strictly before `t`.
+  greatest-before :: I64 -> DstRule -> I64 -> I64 -> I64 -> I64 -> I64
+  greatest-before std d t k last best =
+    if gt-i64 k last then best
+    else
+      let e = case end-instant d k of
+            Some v -> v
+            None -> min-bound-i64 in
+      let s = case start-instant std d k of
+            Some v -> v
+            None -> min-bound-i64 in
+      let b1 = if lt-i64 e t && gt-i64 e best then e else best in
+      let b2 = if lt-i64 s t && gt-i64 s b1 then s else b1 in
+      greatest-before std d t (wrapping-add-i64 k 1) last b2
+
+  -- -----------------------------------------------------------------
+  -- Lookups by Unix second (the zone modules' entry points).
+  -- -----------------------------------------------------------------
+
+  -- What the rule says at Unix second `t`.
+  posix-info-at-unix-seconds :: PosixRule -> I64 -> OffsetInfo
+  posix-info-at-unix-seconds r t = case r of
+    MkPosixRule std od -> case od of
+      None -> std
+      Some d ->
+        let y = year-of t in
+        if dst-at (offset-to-seconds (offset-info-offset std)) d t (wrapping-sub-i64 y 1) (wrapping-add-i64 y 1) min-bound-i64 False
+          then dst-info d else std
+
+  -- The first transition strictly after Unix second `t`.
+  posix-next-transition-unix-seconds :: PosixRule -> I64 -> Option I64
+  posix-next-transition-unix-seconds r t = case r of
+    MkPosixRule std od -> case od of
+      None -> None
+      Some d ->
+        let y = year-of t in
+        let n = least-after (offset-to-seconds (offset-info-offset std)) d t (wrapping-sub-i64 y 1) (wrapping-add-i64 y 1) max-bound-i64 in
+        if eq-i64 n max-bound-i64 then None else Some n
+
+  -- The last transition strictly before Unix second `t`.
+  posix-previous-transition-unix-seconds :: PosixRule -> I64 -> Option I64
+  posix-previous-transition-unix-seconds r t = case r of
+    MkPosixRule std od -> case od of
+      None -> None
+      Some d ->
+        let y = year-of t in
+        let n = greatest-before (offset-to-seconds (offset-info-offset std)) d t (wrapping-sub-i64 y 1) (wrapping-add-i64 y 1) min-bound-i64 in
+        if eq-i64 n min-bound-i64 then None else Some n
+
+  -- -----------------------------------------------------------------
+  -- The public lookups.
+  -- -----------------------------------------------------------------
+
+  -- Offset, daylight flag and abbreviation at an instant.
+  posix-info-at :: PosixRule -> Timestamp -> OffsetInfo
+  posix-info-at r t = posix-info-at-unix-seconds r (timestamp-to-unix-seconds t)
+
+  posix-offset-at :: PosixRule -> Timestamp -> Offset
+  posix-offset-at r t = offset-info-offset (posix-info-at r t)
+
+  -- The offsets a civil reading can have under the rule.
+  posix-to-ambiguous :: PosixRule -> DateTime -> Ambiguous
+  posix-to-ambiguous r x = case dst-rule r of
+    None -> Unambiguous (posix-std-offset r)
+    Some _ -> ambiguous-from-lookups (offset-at-seconds r) (posix-next-transition-unix-seconds r) x
+
+  offset-at-seconds :: PosixRule -> I64 -> Offset
+  offset-at-seconds r t = offset-info-offset (posix-info-at-unix-seconds r t)
+
+  -- The first transition strictly after `t`, and the last strictly
+  -- before it; `None` for a rule without daylight time or when the
+  -- instant is outside the timestamp range. A transition whose second
+  -- is `t`'s own second counts as before `t` only if `t` has a
+  -- fractional part.
+  posix-next-transition :: PosixRule -> Timestamp -> Option Timestamp
+  posix-next-transition r t = case posix-next-transition-unix-seconds r (timestamp-to-unix-seconds t) of
+    None -> None
+    Some s -> timestamp-from-unix-seconds s
+
+  posix-previous-transition :: PosixRule -> Timestamp -> Option Timestamp
+  posix-previous-transition r t =
+    let s = timestamp-to-unix-seconds t in
+    -- With a fractional part, a transition at second `s` is before `t`.
+    let bound = if gt-i64 (timestamp-subsec-nanos t) 0 then wrapping-add-i64 s 1 else s in
+    case posix-previous-transition-unix-seconds r bound of
+      None -> None
+      Some p -> timestamp-from-unix-seconds p
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  rem :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  rem a d = case checked-rem-i64 a d of
+    Some r -> r
+    None -> 0

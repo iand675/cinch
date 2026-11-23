@@ -222,7 +222,7 @@ The ordered map: an unbalanced binary search tree over `Ord k`
 smaller and the right strictly greater, so a repeated key replaces
 the stored value in place.
 
-[Source](/reference-sources/Data.Map.cinch) · line 24
+[Source](/reference-sources/Data.Map.cinch) · line 25
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
 
@@ -561,7 +561,7 @@ types differently per provider: direct sequencing is the default and
 a `using` binder with a provider head selects another. `pure` and
 `bind` are the provider's class methods (decision D2).
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 29
+[Source](/reference-sources/Effect.Sequencing.cinch) · line 28
 
 <a id="method-44697265637453657175656e63696e672e70757265"></a>
 
@@ -575,7 +575,7 @@ a `using` binder with a provider head selects another. `pure` and
 
 ## `DirectSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{|<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
 
 
 
@@ -749,7 +749,7 @@ they default to `List` and `Map`. Instances opt in per container.
 
 ## `OptionSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)) -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)))</code></pre>
 
 
 
@@ -839,7 +839,7 @@ checked family only, per the primitive types specification.
 
 ## `ResultSequencing.bind`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">ef</span> . <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) -&gt;{<span class="tok-variable">ef</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>)) -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>)))</code></pre>
 
 
 

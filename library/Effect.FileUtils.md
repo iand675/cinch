@@ -135,7 +135,7 @@ state, never a partial) and it preserves the object's identity; the
 price is the OS's own rule that a rename cannot cross a filesystem
 (that failure surfaces as `FileUtilsIoError`).
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 155
+[Source](/reference-sources/Effect.FileUtils.cinch) · line 161
 
 <a id="value-726d"></a>
 
@@ -177,7 +177,7 @@ directory is created with a bare `mkdir` (no parents), so a name
 the OS already knows is reported as `FileUtilsAlreadyExists`
 rather than reused.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 199
+[Source](/reference-sources/Effect.FileUtils.cinch) · line 205
 
 <a id="value-74656d702d66696c65"></a>
 
@@ -196,7 +196,7 @@ check and the create are not one atomic step; the entropy, not the
 check, is what makes a collision negligible, and the refusal is
 named rather than guessed away by a retry loop.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 221
+[Source](/reference-sources/Effect.FileUtils.cinch) · line 227
 
 <a id="value-746f756368"></a>
 
@@ -209,8 +209,8 @@ leave an existing file's contents unchanged (the cheap touch; it
 does NOT bump a timestamp, see the refusals). The create is
 `fs-write` of no bytes, so a missing parent is reported.
 
-[Source](/reference-sources/Effect.FileUtils.cinch) · line 164
+[Source](/reference-sources/Effect.FileUtils.cinch) · line 170
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/FileUtils.cinch`. Source SHA-256: `17e8649cadb5ba3ee76cccdc2f18b9306f7749857f55addaa9f517ffc4e71777`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/FileUtils.cinch`. Source SHA-256: `26ce540b8755def036a6804f9b2da0db29d81d73bee40ac122c89a5b8ead1d00`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

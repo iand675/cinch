@@ -1,0 +1,1562 @@
+-- Text.Time.Duration: ISO 8601 durations and Jiff's "friendly"
+-- duration format, printing and parsing, for `Span` (Data.Time.Span,
+-- each unit kept) and `Duration` (Data.Time.Duration, an exact count
+-- of nanoseconds).
+--
+-- THE ISO GRAMMAR (ISO 8601 as TC39 Temporal reads it; strict):
+--
+--     duration = [sign] "P" (date [ "T" time ] | "T" time)
+--     sign     = "+" | "-"                       ; of the whole duration
+--     date     = [n "Y"] [n "M"] [n "W"] [n "D"]  ; at least one
+--     time     = [n "H"] [n "M"] [n "S"]          ; at least one
+--     n        = 1*38DIGIT
+--
+-- and the LAST time component present (hours, minutes or seconds, and
+-- only that one) may carry a fraction: ("." | ",") 1*9DIGIT. The
+-- fraction is converted exactly into the smaller units: `PT1.5H` is 1
+-- hour 30 minutes, `PT0.5M` is 30 seconds, `PT1.5S` is 1 second 500
+-- milliseconds. Units appear at most once and in that order.
+--
+-- Strict means upper case designators only (`P`, `T`, `Y`, `M`, `W`,
+-- `D`, `H`, `S`). Temporal and Jiff accept lower case; here that is
+-- the `-lenient` parsers (T9: the default accepts exactly the grammar,
+-- the lenient form has its own name), and the strict parsers refuse a
+-- lower case designator with its own error,
+-- `DurationTextLowercaseDesignator`.
+--
+-- THE FRIENDLY GRAMMAR (Jiff's `jiff::fmt::friendly`):
+--
+--     friendly = [sign] units | units [ws "ago"]
+--     units    = clock | component *(sep component) [sep clock]
+--     component = n [fraction] *ws designator
+--     sep      = "," *ws | *ws                  ; a comma, or space, or nothing
+--     clock    = n ":" n ":" n [fraction]        ; hours, minutes, seconds
+--     fraction = ("." | ",") 1*9DIGIT
+--     ws       = space, tab, LF, VT, FF, CR
+--
+-- Components are in strictly descending unit order, each unit at most
+-- once. Designators (lower case only):
+--
+--     years         y yr yrs year years
+--     months        mo mos month months
+--     weeks         w wk wks week weeks
+--     days          d day days
+--     hours         h hr hrs hour hours
+--     minutes       m min mins minute minutes
+--     seconds       s sec secs second seconds
+--     milliseconds  ms msec msecs milli millis millisecond milliseconds
+--     microseconds  us usec usecs micro micros microsecond microseconds
+--                   and `s` after U+00B5 MICRO SIGN or U+03BC GREEK
+--                   SMALL LETTER MU (their UTF-8 bytes)
+--     nanoseconds   ns nsec nsecs nano nanos nanosecond nanoseconds
+--
+-- A fraction is allowed only on the last component and only on hours,
+-- minutes, seconds, milliseconds (at most 6 digits) and microseconds
+-- (at most 3 digits), so that it is always a whole number of
+-- nanoseconds; it is converted exactly into the smaller units
+-- (`0.0021s` is 2 milliseconds 100 microseconds). The clock form
+-- stands in place of the hour, minute and second components and may
+-- only follow days or larger (`1 day, 01:01:01.1`); its three numbers
+-- are plain unit values (any number of digits, not limited to 59).
+-- ` ago` negates; a sign prefix and ` ago` together are refused.
+--
+-- Design law shape.
+--   - LOSSLESS FRIENDLY. For every span `s`, every designator style,
+--     every spacing, with or without the comma, and every sign style,
+--     `span-from-friendly-string (span-print-friendly p s)` is `Ok` of
+--     a span fieldwise equal to `s` (each non-zero unit is printed
+--     with its own designator: 2000 milliseconds is `2000ms`, never
+--     `2s`), provided the printer has neither a fractional unit nor
+--     the clock form set. Those two options fold smaller units into a
+--     fraction and so keep the length but not the breakdown (and a
+--     fraction of an hour or a minute is cut at nine digits).
+--   - LOSSY ISO. ISO 8601 has no designator below seconds, so
+--     `span-to-iso-string` folds milliseconds, microseconds and
+--     nanoseconds into the seconds field as a fraction: 2000
+--     milliseconds prints `PT2S`, which parses as 2 seconds. THE UNIT
+--     BREAKDOWN BELOW HOURS-MINUTES-SECONDS IS LOST; the length is
+--     not. Years, months, weeks, days, hours and minutes come back
+--     fieldwise, and for a clock span the parsed span `span-compare`s
+--     `EQ` with the original. One more limit: the folded seconds can
+--     exceed the seconds limit of a span (three sub-second units near
+--     their limits add up to about three times it); such a span still
+--     prints, and the parser refuses the text with
+--     `DurationTextUnitLimit`.
+--   - EXACT DURATIONS. For every `Duration` `d`, in both formats and
+--     under every printer option that does not truncate (no fixed
+--     precision; no fractional hour or minute), parsing the print is
+--     `Ok d`. A duration prints hours, minutes, seconds and (friendly)
+--     the non-zero sub-second units, never days: the largest duration,
+--     2^127 - 1 nanoseconds, prints
+--     `PT47261439850130342147690917H41M55.884105727S` and round trips,
+--     as does its negation, the smallest.
+--   - `span-from-string` and `duration-from-string` read either
+--     format, as Jiff's `FromStr` does: ISO when the first byte after
+--     an optional sign is `P` or `p`, friendly otherwise.
+--   - A parser for `Duration` or for `Span Clock` refuses every
+--     component of days or larger, whatever its value (`P0D`
+--     included), with `DurationTextCalendarUnit`: Jiff's "requires
+--     that the duration contain a time component and no components of
+--     days or greater".
+--   - Parsers are state machines over the input's bytes (the `st-*`
+--     and `fr-*` functions, one per state, named below); no `Char`, no
+--     list, and no slice is built. Printers run their writer twice,
+--     once to measure and once to fill a `Bytes` of exactly that
+--     length (a write outside a buffer is skipped by Text.Time.Scan,
+--     so the measuring run writes nothing).
+--   - Negative values print a leading `-` in ISO. The friendly
+--     printer's default sign style is Jiff's `Auto`: the suffix ` ago`
+--     when units are spaced, a `-` prefix with `SpacingNone` or the
+--     clock form.
+--
+-- No operation faults: every parser answers
+-- `Result DurationTextError`, each constructor carrying the byte
+-- position of the refusal, and every printer is total.
+--
+-- NAMED REFUSALS:
+--   - lower case ISO designators in the default parsers (above).
+--   - white space before or after either format, and anything else
+--     outside the grammar: `DurationTextTrailingInput` or the error of
+--     the state that met it.
+--   - a sign inside an ISO duration (`P-1D`): one sign, before `P`.
+--   - an ISO fraction on years, months, weeks or days, or on a
+--     component that is not the last (`PT1.5H30M`).
+--   - a friendly fraction finer than a nanosecond (seven or more
+--     digits on milliseconds, four or more on microseconds): Jiff
+--     truncates it; here it is `DurationTextTooManyFractionDigits`.
+--   - numbers of more than 38 digits (`DurationTextNumberTooLarge`):
+--     38 digits always fit an `I128`, which is what lets the largest
+--     `Duration` (26 digits of hours) be read back.
+--   - the friendly `ago` after a comma, and a comma before the clock
+--     form's ` ago`; white space is what precedes `ago`.
+--   - upper case or abbreviated-with-period friendly designators
+--     (`1 Hour`, `1 hr.`), and Jiff's `HumanTime` designator style and
+--     padding option: not offered.
+--   - white space between the sign and the first number.
+--   - a `+` for a positive zero under `SignForce`: zero prints
+--     unsigned.
+--   - rounding in the printer: a fixed precision truncates (rounding
+--     can carry into a larger unit; round the span first).
+--   - `Text.Builder` forms: as in Text.Time.Iso, the builder is not in
+--     the base package.
+--   - a wide argument late in a long parameter list: a state function
+--     of eleven parameters whose eighth was the `I128` number just
+--     read (seven word arguments, then the wide one, so it is passed
+--     on the stack at an odd word) compiled and then crashed at run
+--     time (a segmentation fault in the `tailcc` body). The three
+--     designator and clock states therefore take the number as their
+--     second or third parameter, where it travels in registers.
+--   - a positioned backstop: the per-unit limits are checked as each
+--     component is read (the table is Data.Time.Span's header; that
+--     module does not export it, so it is repeated in `limit-of`), and
+--     `span-from-units` is called once at the end; its `Err`, which
+--     the earlier checks make unreachable, would read as
+--     `DurationTextUnitLimit 0`.
+module Text.Time.Duration where
+
+  import Data.Machine
+  import Data.Wide
+  import Data.Option
+  import Data.Result
+  import Data.Bytes
+  import Data.String
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Scan
+  import Data.Time.Unit
+  import Data.Time.Duration
+  import Data.Time.Span
+
+  export DurationTextError
+  export DurationTextEmpty, DurationTextMissingP, DurationTextLowercaseDesignator
+  export DurationTextMissingComponent, DurationTextExpectedNumber, DurationTextBadDesignator
+  export DurationTextUnitsOutOfOrder, DurationTextRepeatedUnit
+  export DurationTextFractionNotLast, DurationTextFractionOnUnit
+  export DurationTextTooManyFractionDigits, DurationTextEmptyFraction
+  export DurationTextNumberTooLarge, DurationTextUnitLimit
+  export DurationTextTimeWithoutComponent, DurationTextSignTwice
+  export DurationTextTrailingInput, DurationTextCalendarUnit
+  export DurationTextExpectedColon, DurationTextOutOfRange
+  export duration-text-error-position
+  export span-to-iso-string, span-to-friendly-string, span-print-friendly
+  export duration-to-iso-string, duration-to-friendly-string, duration-print-friendly
+  export span-from-iso-string, span-from-iso-string-lenient
+  export span-from-friendly-string, span-from-string
+  export span-clock-from-iso-string, span-clock-from-friendly-string, span-clock-from-string
+  export duration-from-iso-string, duration-from-iso-string-lenient
+  export duration-from-friendly-string, duration-from-string
+  export FriendlyPrinter, friendly-printer-default
+  export FriendlyDesignator, DesignatorCompact, DesignatorShort, DesignatorVerbose
+  export FriendlySpacing, SpacingNone, SpacingBetweenUnits, SpacingBetweenUnitsAndDesignators
+  export FriendlySign, SignAuto, SignPrefix, SignForce, SignSuffix
+  export FriendlyFractional, FractionalNone, FractionalHour, FractionalMinute
+  export FractionalSecond, FractionalMillisecond, FractionalMicrosecond
+  export friendly-with-designator, friendly-with-spacing, friendly-with-comma
+  export friendly-with-sign, friendly-with-fractional
+  export friendly-with-precision, friendly-with-shortest-precision
+  export friendly-with-clock-form, friendly-with-zero-unit, friendly-with-unicode-micro
+
+
+  -- Every refusal, each with the byte position it was detected at.
+  data DurationTextError where
+    -- The input is empty.
+    DurationTextEmpty :: I64 -> DurationTextError
+    -- An ISO duration does not begin (after its sign) with `P`.
+    DurationTextMissingP :: I64 -> DurationTextError
+    -- A lower case ISO designator in a strict parser.
+    DurationTextLowercaseDesignator :: I64 -> DurationTextError
+    -- The input ends where a component is required: nothing after `P`,
+    -- after a sign, or after a separating comma.
+    DurationTextMissingComponent :: I64 -> DurationTextError
+    -- A byte that is not a digit where a component's number must begin.
+    DurationTextExpectedNumber :: I64 -> DurationTextError
+    -- No designator after a number, or one the format does not have at
+    -- that place (`P1H`, `1 fortnight`).
+    DurationTextBadDesignator :: I64 -> DurationTextError
+    -- A unit after a smaller one (`P1M1Y`, `1h 1d`).
+    DurationTextUnitsOutOfOrder :: I64 -> DurationTextError
+    -- The same unit twice (`P1Y1Y`, `1h 2h`).
+    DurationTextRepeatedUnit :: I64 -> DurationTextError
+    -- A component follows one that carries a fraction.
+    DurationTextFractionNotLast :: I64 -> DurationTextError
+    -- A fraction on a unit that cannot take one (days or larger; in the
+    -- friendly format also nanoseconds).
+    DurationTextFractionOnUnit :: I64 -> DurationTextError
+    -- More than nine fraction digits (six on friendly milliseconds,
+    -- three on friendly microseconds).
+    DurationTextTooManyFractionDigits :: I64 -> DurationTextError
+    -- A `.` or `,` with no digit after it.
+    DurationTextEmptyFraction :: I64 -> DurationTextError
+    -- A number of more than 38 digits.
+    DurationTextNumberTooLarge :: I64 -> DurationTextError
+    -- A unit's value is beyond its `Span` limit.
+    DurationTextUnitLimit :: I64 -> DurationTextError
+    -- `T` with no time component after it.
+    DurationTextTimeWithoutComponent :: I64 -> DurationTextError
+    -- A sign prefix and the suffix ` ago` together.
+    DurationTextSignTwice :: I64 -> DurationTextError
+    -- Input after the end of the grammar.
+    DurationTextTrailingInput :: I64 -> DurationTextError
+    -- A component of days or larger where only hours and smaller are
+    -- accepted (a `Duration` or a `Span Clock`).
+    DurationTextCalendarUnit :: I64 -> DurationTextError
+    -- Not the `:` between the fields of the friendly clock form.
+    DurationTextExpectedColon :: I64 -> DurationTextError
+    -- The total is beyond the `Duration` range.
+    DurationTextOutOfRange :: I64 -> DurationTextError
+
+  duration-text-error-position :: DurationTextError -> I64
+  duration-text-error-position e = case e of
+    DurationTextEmpty p -> p
+    DurationTextMissingP p -> p
+    DurationTextLowercaseDesignator p -> p
+    DurationTextMissingComponent p -> p
+    DurationTextExpectedNumber p -> p
+    DurationTextBadDesignator p -> p
+    DurationTextUnitsOutOfOrder p -> p
+    DurationTextRepeatedUnit p -> p
+    DurationTextFractionNotLast p -> p
+    DurationTextFractionOnUnit p -> p
+    DurationTextTooManyFractionDigits p -> p
+    DurationTextEmptyFraction p -> p
+    DurationTextNumberTooLarge p -> p
+    DurationTextUnitLimit p -> p
+    DurationTextTimeWithoutComponent p -> p
+    DurationTextSignTwice p -> p
+    DurationTextTrailingInput p -> p
+    DurationTextCalendarUnit p -> p
+    DurationTextExpectedColon p -> p
+    DurationTextOutOfRange p -> p
+
+  -- -----------------------------------------------------------------
+  -- Private arithmetic. The `I64` uses are byte positions (below 2^62),
+  -- digit counts, or unit magnitudes within the span limits, so the
+  -- wrapping operations never wrap; each `I128` use states its bound.
+  -- Units are numbered by rank throughout: 0 years, 1 months, 2 weeks,
+  -- 3 days, 4 hours, 5 minutes, 6 seconds, 7 milliseconds,
+  -- 8 microseconds, 9 nanoseconds.
+  -- -----------------------------------------------------------------
+
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b
+
+  -- -1 for a negative value, 1 otherwise.
+  sign-factor :: Bool -> I64
+  sign-factor neg = if neg then -1 else 1
+
+  -- The width of a sign at the start: 1 for `-` or `+`, else 0.
+  sign-width :: I64 -> I64
+  sign-width c = if c == 45 || c == 43 then 1 else 0
+
+  mag64 :: I64 -> I64
+  mag64 n = if n < 0 then minus 0 n else n
+
+  wide :: I64 -> I128
+  wide n = i64-to-i128 n
+
+  low64 :: I128 -> I64
+  low64 n = wrapping-i128-to-i64 n
+
+  add128 :: I128 -> I128 -> I128
+  add128 a b = wrapping-add-i128 a b
+
+  mul128 :: I128 -> I128 -> I128
+  mul128 a b = wrapping-mul-i128 a b
+
+  -- Truncated quotient and remainder of a non-negative value by a
+  -- positive divisor (every caller's is a constant or `unit-ns`), so
+  -- the `None` arms are unreachable.
+  q128 :: I128 -> I128 -> I128
+  q128 a d = case checked-div-i128 a d of
+    Some q -> q
+    None -> 0
+
+  r128 :: I128 -> I128 -> I128
+  r128 a d = case checked-rem-i128 a d of
+    Some r -> r
+    None -> 0
+
+  q64 :: I64 -> I64 -> I64
+  q64 a d = case checked-div-i64 a d of
+    Some q -> q
+    None -> 0
+
+  r64 :: I64 -> I64 -> I64
+  r64 a d = case checked-rem-i64 a d of
+    Some r -> r
+    None -> 0
+
+  -- Nanoseconds in one unit of rank 4..=9 (hours down to nanoseconds).
+  unit-ns :: I64 -> I64
+  unit-ns r =
+    if r <= 4 then 3600000000000
+    else if r == 5 then 60000000000
+    else if r == 6 then 1000000000
+    else if r == 7 then 1000000
+    else if r == 8 then 1000
+    else 1
+
+  -- The `Span` limit of each unit (Data.Time.Span's header table).
+  limit-of :: I64 -> I128
+  limit-of r =
+    if r == 0 then 19998
+    else if r == 1 then 239976
+    else if r == 2 then 1043497
+    else if r == 3 then 7304484
+    else if r == 4 then 175307616
+    else if r == 5 then 10518456960
+    else if r == 6 then 631107417600
+    else if r == 7 then 631107417600000
+    else if r == 8 then 631107417600000000
+    else 9223372036854775807
+
+  -- -----------------------------------------------------------------
+  -- Writing numbers.
+  -- -----------------------------------------------------------------
+
+  -- The number of decimal digits of a non-negative `I64`.
+  digits64 :: I64 -> I64
+  digits64 v = if v < 10 then 1 else plus 1 (digits64 (scan-quot v 10))
+
+  -- A non-negative wide value in decimal, no padding. Values below
+  -- 10^18 (every span field) take the `I64` path; a larger one (the
+  -- hours of a huge `Duration`) is written as its head and its low 18
+  -- digits.
+  put-wide :: Bytes -> I64 -> I128 -> I64
+  put-wide b i n =
+    if lt-i128 n 1000000000000000000 then
+      let v = low64 n in
+      scan-put-digits b i (digits64 v) v
+    else
+      let j = put-wide b i (q128 n 1000000000000000000) in
+      scan-put-digits b j 18 (low64 (r128 n 1000000000000000000))
+
+  -- The same, padded with a zero to at least two digits.
+  put-wide-pad2 :: Bytes -> I64 -> I128 -> I64
+  put-wide-pad2 b i n =
+    if lt-i128 n 10 then put-wide b (scan-put-byte b i 48) n else put-wide b i n
+
+  -- `.` and the first `digits` digits of a nine-digit fraction; nothing
+  -- for `digits` of 0.
+  put-fraction :: Bytes -> I64 -> I64 -> I64 -> I64
+  put-fraction b i digits f9 =
+    if digits <= 0 then i
+    else scan-put-digits b (scan-put-byte b i 46) digits (scan-fraction-head f9 digits)
+
+  -- Runs a writer twice: on an empty buffer to measure (writes outside
+  -- a buffer are skipped) and on a buffer of exactly that length.
+  render :: (Bytes -> I64) -> String
+  render f =
+    let n = f (scan-new 0) in
+    let b = scan-new n in
+    let u = f b in
+    scan-string-of-bytes b
+
+  -- -----------------------------------------------------------------
+  -- What a printer prints: the sign and ten magnitudes, wide so that a
+  -- `Duration`'s hours fit.
+  -- -----------------------------------------------------------------
+
+  data Parts where
+    MkParts :: Bool -> I128 -> I128 -> I128 -> I128 -> I128 -> I128 -> I128 -> I128 -> I128 -> I128 -> Parts
+
+  parts-negative :: Parts -> Bool
+  parts-negative x = case x of
+    MkParts neg _ _ _ _ _ _ _ _ _ _ -> neg
+
+  part :: Parts -> I64 -> I128
+  part x r = case x of
+    MkParts _ y mo w d h mi sc ms us ns ->
+      if r == 0 then y
+      else if r == 1 then mo
+      else if r == 2 then w
+      else if r == 3 then d
+      else if r == 4 then h
+      else if r == 5 then mi
+      else if r == 6 then sc
+      else if r == 7 then ms
+      else if r == 8 then us
+      else ns
+
+  -- The magnitudes of a span's fields (each within its limit, so the
+  -- negation in `mag64` is exact).
+  span-parts :: forall (c :: SpanClass). Span c -> Parts
+  span-parts s =
+    MkParts (span-is-negative s)
+      (wide (mag64 (span-years s))) (wide (mag64 (span-months s)))
+      (wide (mag64 (span-weeks s))) (wide (mag64 (span-days s)))
+      (wide (mag64 (span-hours s))) (wide (mag64 (span-minutes s)))
+      (wide (mag64 (span-seconds s))) (wide (mag64 (span-milliseconds s)))
+      (wide (mag64 (span-microseconds s))) (wide (mag64 (span-nanoseconds s)))
+
+  -- A duration balanced into hours and smaller. The count is never
+  -- `I128`'s minimum (Data.Time.Duration's range), so the negation is
+  -- exact; every remainder is below 3.6e12 and fits an `I64`.
+  duration-parts :: Duration -> Parts
+  duration-parts x =
+    let t = duration-total-nanos x in
+    let neg = lt-i128 t 0 in
+    let n = if neg then wrapping-neg-i128 t else t in
+    let h = q128 n 3600000000000 in
+    let r = low64 (r128 n 3600000000000) in
+    let mi = scan-quot r 60000000000 in
+    let r2 = scan-rem r 60000000000 in
+    let sc = scan-quot r2 1000000000 in
+    let f = scan-rem r2 1000000000 in
+    MkParts neg 0 0 0 0 h (wide mi) (wide sc)
+      (wide (scan-quot f 1000000)) (wide (scan-rem (scan-quot f 1000) 1000)) (wide (scan-rem f 1000))
+
+  -- The nanoseconds in the units of rank `r` and smaller (`r` in
+  -- 4..=9). For a span this is below 2^72 (Data.Time.Span's header);
+  -- for a duration it is at most the duration's own count.
+  nanos-from :: Parts -> I64 -> I128
+  nanos-from x r =
+    if r > 9 then 0
+    else add128 (mul128 (part x r) (wide (unit-ns r))) (nanos-from x (plus r 1))
+
+  parts-all-zero :: Parts -> Bool
+  parts-all-zero x =
+    eq-i128 (part x 0) 0 && eq-i128 (part x 1) 0 && eq-i128 (part x 2) 0 && eq-i128 (part x 3) 0
+    && eq-i128 (nanos-from x 4) 0
+
+  -- -----------------------------------------------------------------
+  -- The ISO printer.
+  -- -----------------------------------------------------------------
+
+  -- One date or time component: the number and its letter, nothing for
+  -- zero.
+  iso-put-unit :: Bytes -> I64 -> I128 -> I64 -> I64
+  iso-put-unit b i v letter =
+    if eq-i128 v 0 then i else scan-put-byte b (put-wide b i v) letter
+
+  -- The seconds component: whole seconds and the shortest exact
+  -- fraction, nothing when both are zero.
+  iso-put-seconds :: Bytes -> I64 -> I128 -> I64 -> I64
+  iso-put-seconds b i secs f9 =
+    if eq-i128 secs 0 && f9 == 0 then i
+    else scan-put-byte b (put-fraction b (put-wide b i secs) (scan-fraction-digits f9) f9) 83
+
+  iso-emit :: Parts -> Bytes -> I64
+  iso-emit x b =
+    let sub = nanos-from x 6 in
+    let secs = q128 sub 1000000000 in
+    let f9 = low64 (r128 sub 1000000000) in
+    let has-time = (eq-i128 (part x 4) 0 && eq-i128 (part x 5) 0 && eq-i128 sub 0) == False in
+    let zero = parts-all-zero x in
+    let i0 = if parts-negative x && zero == False then scan-put-byte b 0 45 else 0 in
+    let i1 = scan-put-byte b i0 80 in
+    let i2 = iso-put-unit b i1 (part x 0) 89 in
+    let i3 = iso-put-unit b i2 (part x 1) 77 in
+    let i4 = iso-put-unit b i3 (part x 2) 87 in
+    let i5 = iso-put-unit b i4 (part x 3) 68 in
+    if zero then scan-put-byte b (scan-put-byte b (scan-put-byte b i5 84) 48) 83
+    else if has-time then
+      let i6 = scan-put-byte b i5 84 in
+      let i7 = iso-put-unit b i6 (part x 4) 72 in
+      let i8 = iso-put-unit b i7 (part x 5) 77 in
+      iso-put-seconds b i8 secs f9
+    else i5
+
+  -- The ISO 8601 form. LOSSY for the breakdown below seconds:
+  -- milliseconds, microseconds and nanoseconds fold into fractional
+  -- seconds (2000 milliseconds prints `PT2S`); see the header. The
+  -- zero span prints `PT0S`; a negative span has a leading `-`.
+  span-to-iso-string :: forall (c :: SpanClass). Span c -> String
+  span-to-iso-string s =
+    let x = span-parts s in
+    render (\b -> iso-emit x b)
+
+  -- Hours, minutes and fractional seconds only (`PT5H30M`,
+  -- `PT0.000000001S`, `-PT1.5S`); never days. Exact.
+  duration-to-iso-string :: Duration -> String
+  duration-to-iso-string d =
+    let x = duration-parts d in
+    render (\b -> iso-emit x b)
+
+  -- -----------------------------------------------------------------
+  -- What a parser builds: the ten magnitudes (for a span), the total
+  -- nanoseconds (for a duration; only one of the two is filled, by
+  -- target) and whether the friendly suffix ` ago` was read.
+  -- -----------------------------------------------------------------
+
+  data Acc where
+    MkAcc :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I128 -> Bool -> Acc
+
+  acc-zero :: Acc
+  acc-zero = MkAcc 0 0 0 0 0 0 0 0 0 0 0 False
+
+  pick :: I64 -> I64 -> I64 -> I64 -> I64
+  pick slot r v old = if slot == r then v else old
+
+  acc-put :: I64 -> I64 -> Acc -> Acc
+  acc-put r v acc = case acc of
+    MkAcc y mo w d h mi sc ms us ns t ago ->
+      MkAcc (pick 0 r v y) (pick 1 r v mo) (pick 2 r v w) (pick 3 r v d) (pick 4 r v h)
+        (pick 5 r v mi) (pick 6 r v sc) (pick 7 r v ms) (pick 8 r v us) (pick 9 r v ns) t ago
+
+  acc-total :: Acc -> I128
+  acc-total acc = case acc of
+    MkAcc _ _ _ _ _ _ _ _ _ _ t _ -> t
+
+  acc-with-total :: I128 -> Acc -> Acc
+  acc-with-total t acc = case acc of
+    MkAcc y mo w d h mi sc ms us ns _ ago -> MkAcc y mo w d h mi sc ms us ns t ago
+
+  acc-with-ago :: Acc -> Acc
+  acc-with-ago acc = case acc of
+    MkAcc y mo w d h mi sc ms us ns t _ -> MkAcc y mo w d h mi sc ms us ns t True
+
+  acc-ago :: Acc -> Bool
+  acc-ago acc = case acc of
+    MkAcc _ _ _ _ _ _ _ _ _ _ _ ago -> ago
+
+  -- What is being parsed for.
+  data Target where
+    ToSpan :: Target
+    ToClock :: Target
+    ToDuration :: Target
+
+  takes-calendar :: Target -> Bool
+  takes-calendar tg = case tg of
+    ToSpan -> True
+    ToClock -> False
+    ToDuration -> False
+
+  is-duration :: Target -> Bool
+  is-duration tg = case tg of
+    ToSpan -> False
+    ToClock -> False
+    ToDuration -> True
+
+  -- Adds nanoseconds to a duration's running total. Checked: this is
+  -- where a caller's unbounded numbers enter.
+  add-total :: I64 -> I128 -> Acc -> Result DurationTextError Acc
+  add-total at n acc = case checked-add-i128 (acc-total acc) n of
+    None -> Err (DurationTextOutOfRange at)
+    Some t -> Ok (acc-with-total t acc)
+
+  -- Records the value `v` (at most 38 digits) of the unit of rank `r`,
+  -- read at byte `at`. A span field is checked against its limit, after
+  -- which it fits an `I64`; a duration's is multiplied out, checked.
+  commit :: Target -> I64 -> I64 -> I128 -> Acc -> Result DurationTextError Acc
+  commit tg at r v acc =
+    if r < 4 && takes-calendar tg == False then Err (DurationTextCalendarUnit at)
+    else if is-duration tg then
+      (case checked-mul-i128 v (wide (unit-ns r)) of
+        None -> Err (DurationTextOutOfRange at)
+        Some n -> add-total at n acc)
+    else if gt-i128 v (limit-of r) then Err (DurationTextUnitLimit at)
+    else Ok (acc-put r (low64 v) acc)
+
+  -- The nanoseconds a nine-digit fraction `f9` (below 10^9) of the unit
+  -- of rank `r` (4..=8) is: at most 3600 * 10^9. For milliseconds and
+  -- microseconds the caller has limited the digits so the division is
+  -- exact.
+  fraction-nanos :: I64 -> I64 -> I64
+  fraction-nanos r f9 =
+    if r <= 4 then times f9 3600
+    else if r == 5 then times f9 60
+    else if r == 6 then f9
+    else if r == 7 then scan-quot f9 1000
+    else scan-quot f9 1000000
+
+  -- Spreads `rem` nanoseconds over the units of rank `k` and smaller,
+  -- largest first. Each value is below its unit's natural bound (60
+  -- minutes, 1000 milliseconds, ...), far inside the limits.
+  spread :: I64 -> I64 -> Acc -> Acc
+  spread k rem acc =
+    if k > 9 || rem == 0 then acc
+    else
+      let u = unit-ns k in
+      let q = q64 rem u in
+      if q == 0 then spread (plus k 1) rem acc
+      else spread (plus k 1) (r64 rem u) (acc-put k q acc)
+
+  -- Records the fraction of the component just committed.
+  commit-fraction :: Target -> I64 -> I64 -> I64 -> Acc -> Result DurationTextError Acc
+  commit-fraction tg at r f9 acc =
+    let n = fraction-nanos r f9 in
+    if is-duration tg then add-total at (wide n) acc
+    else Ok (spread (plus r 1) n acc)
+
+  -- A run of `n` digits (1..=38) at `i` as a number. 10^38 is below
+  -- 2^127, so the wrapping operations never wrap; up to 18 digits take
+  -- the `I64` reader.
+  read-wide :: Bytes -> I64 -> I64 -> I128
+  read-wide b i n =
+    if n <= 18 then wide (scan-digits b i n)
+    else read-wide-loop b i n 0
+
+  read-wide-loop :: Bytes -> I64 -> I64 -> I128 -> I128
+  read-wide-loop b i n acc =
+    if n <= 0 then acc
+    else read-wide-loop b (plus i 1) (minus n 1) (add128 (mul128 acc 10) (wide (scan-digit-at b i)))
+
+  -- The nine-digit value of a `k`-digit fraction (1..=9) at `i`.
+  read-fraction :: Bytes -> I64 -> I64 -> I64
+  read-fraction b i k = times (scan-digits b i k) (scan-pow10 (minus 9 k))
+
+  is-digit :: I64 -> Bool
+  is-digit c = c >= 48 && c <= 57
+
+  -- -----------------------------------------------------------------
+  -- Finishing: the sign applied and the value built.
+  -- -----------------------------------------------------------------
+
+  finish-span :: Bool -> Acc -> Result DurationTextError (Span Calendar)
+  finish-span neg acc = case acc of
+    MkAcc y mo w d h mi sc ms us ns _ _ ->
+      let s = sign-factor neg in
+      case span-from-units (times s y) (times s mo) (times s w) (times s d) (times s h) (times s mi) (times s sc) (times s ms) (times s us) (times s ns) of
+        Err _ -> Err (DurationTextUnitLimit 0)
+        Ok x -> Ok x
+
+  finish-clock :: Bool -> Acc -> Result DurationTextError (Span Clock)
+  finish-clock neg acc = case acc of
+    MkAcc _ _ _ _ h mi sc ms us ns _ _ ->
+      let s = sign-factor neg in
+      case span-clock-from-units (times s h) (times s mi) (times s sc) (times s ms) (times s us) (times s ns) of
+        Err _ -> Err (DurationTextUnitLimit 0)
+        Ok x -> Ok x
+
+  -- The total is in 0..=2^127 - 1 (checked sums of non-negatives), so
+  -- the negation is exact and both signs are in `Duration`'s range.
+  finish-duration :: Bool -> Acc -> Result DurationTextError Duration
+  finish-duration neg acc =
+    let t = acc-total acc in
+    case duration-from-i128-nanos (if neg then wrapping-neg-i128 t else t) of
+      None -> Err (DurationTextOutOfRange 0)
+      Some x -> Ok x
+
+  -- -----------------------------------------------------------------
+  -- The ISO machine. States:
+  --   st-iso-start (sign, `P`) -> st-iso-date (a date component, `T`,
+  --   or the end) -> st-iso-time (a time component or the end);
+  --   a component is st-iso-number (digits, optional fraction) ->
+  --   st-iso-designator (the letter, order and limit checks), which
+  --   returns to st-iso-date or st-iso-time, or after a fraction goes
+  --   to st-iso-after-fraction (the end only).
+  -- `last` is the rank of the last unit read: -1 at the start, 3 on
+  -- entering the time part (so "no time component yet" is `last < 4`).
+  -- -----------------------------------------------------------------
+
+  iso-date-rank :: I64 -> I64
+  iso-date-rank c =
+    if c == 89 then 0 else if c == 77 then 1 else if c == 87 then 2 else if c == 68 then 3 else -1
+
+  iso-time-rank :: I64 -> I64
+  iso-time-rank c =
+    if c == 72 then 4 else if c == 77 then 5 else if c == 83 then 6 else -1
+
+  fold-upper :: I64 -> I64
+  fold-upper c = if c >= 97 && c <= 122 then minus c 32 else c
+
+  iso-rank :: Bool -> I64 -> I64
+  iso-rank in-time c = if in-time then iso-time-rank c else iso-date-rank c
+
+  st-iso-start :: Target -> Bool -> Bytes -> Result DurationTextError (Bool, Acc)
+  st-iso-start tg lenient b =
+    if scan-length b == 0 then Err (DurationTextEmpty 0)
+    else
+      let c = scan-byte-at b 0 in
+      let i = sign-width c in
+      let p = scan-byte-at b i in
+      if p == 80 || (lenient && p == 112) then
+        (case st-iso-date tg lenient b (plus i 1) -1 acc-zero of
+          Err e -> Err e
+          Ok acc -> Ok (c == 45, acc))
+      else if p == 112 then Err (DurationTextLowercaseDesignator i)
+      else Err (DurationTextMissingP i)
+
+  st-iso-date :: Target -> Bool -> Bytes -> I64 -> I64 -> Acc -> Result DurationTextError Acc
+  st-iso-date tg lenient b i last acc =
+    let c = scan-byte-at b i in
+    if c < 0 then (if last < 0 then Err (DurationTextMissingComponent i) else Ok acc)
+    else if c == 84 || (lenient && c == 116) then st-iso-time tg lenient b (plus i 1) 3 acc
+    else if is-digit c then st-iso-number tg lenient False b i last acc
+    else if c == 116 then Err (DurationTextLowercaseDesignator i)
+    else if last < 0 then Err (DurationTextExpectedNumber i)
+    else Err (DurationTextTrailingInput i)
+
+  st-iso-time :: Target -> Bool -> Bytes -> I64 -> I64 -> Acc -> Result DurationTextError Acc
+  st-iso-time tg lenient b i last acc =
+    let c = scan-byte-at b i in
+    if c < 0 then (if last < 4 then Err (DurationTextTimeWithoutComponent i) else Ok acc)
+    else if is-digit c then st-iso-number tg lenient True b i last acc
+    else if last < 4 then Err (DurationTextExpectedNumber i)
+    else Err (DurationTextTrailingInput i)
+
+  -- `i` is at the first digit.
+  st-iso-number :: Target -> Bool -> Bool -> Bytes -> I64 -> I64 -> Acc -> Result DurationTextError Acc
+  st-iso-number tg lenient in-time b i last acc =
+    let n = scan-count-digits b i 39 in
+    if n > 38 then Err (DurationTextNumberTooLarge i)
+    else
+      let v = read-wide b i n in
+      let j = plus i n in
+      let c = scan-byte-at b j in
+      if c == 46 || c == 44 then
+        let k = scan-count-digits b (plus j 1) 10 in
+        if k == 0 then Err (DurationTextEmptyFraction (plus j 1))
+        else if k > 9 then Err (DurationTextTooManyFractionDigits (plus j 1))
+        else st-iso-designator tg lenient v in-time b i (plus (plus j 1) k) last acc j (read-fraction b (plus j 1) k)
+      else st-iso-designator tg lenient v in-time b i j last acc -1 0
+
+  -- `at` is the number's first digit, `d` the designator's position,
+  -- `fpos` the fraction separator's position (-1 without a fraction).
+  st-iso-designator :: Target -> Bool -> I128 -> Bool -> Bytes -> I64 -> I64 -> I64 -> Acc -> I64 -> I64 -> Result DurationTextError Acc
+  st-iso-designator tg lenient v in-time b at d last acc fpos f9 =
+    let c = scan-byte-at b d in
+    let r = iso-rank in-time (if lenient then fold-upper c else c) in
+    if r < 0 then
+      (if c >= 97 && c <= 122 && iso-rank in-time (fold-upper c) >= 0 then Err (DurationTextLowercaseDesignator d)
+       else Err (DurationTextBadDesignator d))
+    else if r == last then Err (DurationTextRepeatedUnit d)
+    else if r < last then Err (DurationTextUnitsOutOfOrder d)
+    else if fpos >= 0 && r < 4 then Err (DurationTextFractionOnUnit fpos)
+    else case commit tg at r v acc of
+      Err e -> Err e
+      Ok acc2 ->
+        if fpos >= 0 then
+          (case commit-fraction tg at r f9 acc2 of
+            Err e -> Err e
+            Ok acc3 -> st-iso-after-fraction b (plus d 1) acc3)
+        else if in-time then st-iso-time tg lenient b (plus d 1) r acc2
+        else st-iso-date tg lenient b (plus d 1) r acc2
+
+  st-iso-after-fraction :: Bytes -> I64 -> Acc -> Result DurationTextError Acc
+  st-iso-after-fraction b i acc =
+    let c = scan-byte-at b i in
+    if c < 0 then Ok acc
+    else if is-digit c then Err (DurationTextFractionNotLast i)
+    else Err (DurationTextTrailingInput i)
+
+  iso-span :: Bool -> Bytes -> Result DurationTextError (Span Calendar)
+  iso-span lenient b = case st-iso-start ToSpan lenient b of
+    Err e -> Err e
+    Ok p -> case p of
+      (neg, acc) -> finish-span neg acc
+
+  iso-clock :: Bool -> Bytes -> Result DurationTextError (Span Clock)
+  iso-clock lenient b = case st-iso-start ToClock lenient b of
+    Err e -> Err e
+    Ok p -> case p of
+      (neg, acc) -> finish-clock neg acc
+
+  iso-duration :: Bool -> Bytes -> Result DurationTextError Duration
+  iso-duration lenient b = case st-iso-start ToDuration lenient b of
+    Err e -> Err e
+    Ok p -> case p of
+      (neg, acc) -> finish-duration neg acc
+
+  -- An ISO 8601 duration as a span, each unit as written (strict: the
+  -- grammar in the header, upper case designators).
+  span-from-iso-string :: String -> Result DurationTextError (Span Calendar)
+  span-from-iso-string s = iso-span False (scan-bytes-of-string s)
+
+  -- Also accepts lower case designators (`p1y2m3dt4h`), as Temporal and
+  -- Jiff do.
+  span-from-iso-string-lenient :: String -> Result DurationTextError (Span Calendar)
+  span-from-iso-string-lenient s = iso-span True (scan-bytes-of-string s)
+
+  -- The same as a clock span: a component of days or larger is refused
+  -- with `DurationTextCalendarUnit`.
+  span-clock-from-iso-string :: String -> Result DurationTextError (Span Clock)
+  span-clock-from-iso-string s = iso-clock False (scan-bytes-of-string s)
+
+  -- An ISO 8601 duration of hours, minutes and seconds as an exact
+  -- duration. A component of days or larger is refused with
+  -- `DurationTextCalendarUnit`; a total beyond the range with
+  -- `DurationTextOutOfRange`.
+  duration-from-iso-string :: String -> Result DurationTextError Duration
+  duration-from-iso-string s = iso-duration False (scan-bytes-of-string s)
+
+  duration-from-iso-string-lenient :: String -> Result DurationTextError Duration
+  duration-from-iso-string-lenient s = iso-duration True (scan-bytes-of-string s)
+
+  -- -----------------------------------------------------------------
+  -- Friendly designators. A designator is packed into two `I64` keys,
+  -- its first seven bytes and its next seven, each big-endian base 256
+  -- (the longest, `milliseconds`, is twelve bytes; seven bytes are 56
+  -- bits, so a key is never negative). The parser packs the word it
+  -- finds and compares numbers; the printer unpacks a key into the
+  -- buffer. No string or byte buffer is built for either.
+  -- -----------------------------------------------------------------
+
+  is-word-byte :: I64 -> Bool
+  is-word-byte c = (c >= 97 && c <= 122) || c >= 128
+
+  -- The length of the run of lower case letters and non-ASCII bytes at
+  -- `i`, counted to at most 15 (one more than any key holds).
+  word-length :: Bytes -> I64 -> I64 -> I64
+  word-length b i k =
+    if k >= 15 then k
+    else if is-word-byte (scan-byte-at b (plus i k)) then word-length b i (plus k 1)
+    else k
+
+  -- The key of the `n` bytes (at most 7) at `i`; 0 for none.
+  word-key :: Bytes -> I64 -> I64 -> I64 -> I64
+  word-key b i n acc =
+    if n <= 0 then acc
+    else word-key b (plus i 1) (minus n 1) (plus (times acc 256) (scan-byte-at b i))
+
+  -- The rank of the designator of length `n` at `i`, or -1.
+  designator-rank :: Bytes -> I64 -> I64 -> I64
+  designator-rank b i n =
+    if n < 1 || n > 14 then -1
+    else if n <= 7 then word-rank (word-key b i n 0) 0
+    else word-rank (word-key b i 7 0) (word-key b (plus i 7) (minus n 7) 0)
+
+  -- Writes a key's bytes, most significant first.
+  put-key :: Bytes -> I64 -> I64 -> I64
+  put-key b i k =
+    if k <= 0 then i
+    else scan-put-byte b (put-key b i (scan-quot k 256)) (scan-rem k 256)
+
+  -- The rank of a designator from its two keys, -1 for none (the
+  -- header's table; the two keys with a byte above 127 are `s` after
+  -- U+00B5 and after U+03BC in UTF-8).
+  word-rank :: I64 -> I64 -> I64
+  word-rank a c = if c == 0 then word-rank-short a else word-rank-long a c
+
+  word-rank-short :: I64 -> I64
+  word-rank-short a =
+    if a == 121 then 0  -- y
+    else if a == 31090 then 0  -- yr
+    else if a == 7959155 then 0  -- yrs
+    else if a == 2036687218 then 0  -- year
+    else if a == 521391927923 then 0  -- years
+    else if a == 28015 then 1  -- mo
+    else if a == 7171955 then 1  -- mos
+    else if a == 470020945000 then 1  -- month
+    else if a == 120325361920115 then 1  -- months
+    else if a == 119 then 2  -- w
+    else if a == 30571 then 2  -- wk
+    else if a == 7826291 then 2  -- wks
+    else if a == 2003133803 then 2  -- week
+    else if a == 512802253683 then 2  -- weeks
+    else if a == 100 then 3  -- d
+    else if a == 6578553 then 3  -- day
+    else if a == 1684109683 then 3  -- days
+    else if a == 104 then 4  -- h
+    else if a == 26738 then 4  -- hr
+    else if a == 6845043 then 4  -- hrs
+    else if a == 1752135026 then 4  -- hour
+    else if a == 448546566771 then 4  -- hours
+    else if a == 109 then 5  -- m
+    else if a == 7170414 then 5  -- min
+    else if a == 1835626099 then 5  -- mins
+    else if a == 120299592184933 then 5  -- minute
+    else if a == 30796695599342963 then 5  -- minutes
+    else if a == 115 then 6  -- s
+    else if a == 7562595 then 6  -- sec
+    else if a == 1936024435 then 6  -- secs
+    else if a == 126879297138276 then 6  -- second
+    else if a == 32481100067398771 then 6  -- seconds
+    else if a == 28019 then 7  -- ms
+    else if a == 1836279139 then 7  -- msec
+    else if a == 470087459699 then 7  -- msecs
+    else if a == 469920148585 then 7  -- milli
+    else if a == 120299558037875 then 7  -- millis
+    else if a == 30067 then 8  -- us
+    else if a == 12760435 then 8  -- <U+00B5>s
+    else if a == 13548659 then 8  -- <U+03BC>s
+    else if a == 1970496867 then 8  -- usec
+    else if a == 504447198067 then 8  -- usecs
+    else if a == 469919560303 then 8  -- micro
+    else if a == 120299407437683 then 8  -- micros
+    else if a == 28275 then 9  -- ns
+    else if a == 1853056355 then 9  -- nsec
+    else if a == 474382426995 then 9  -- nsecs
+    else if a == 1851879023 then 9  -- nano
+    else if a == 474081030003 then 9  -- nanos
+    else -1
+
+  word-rank-long :: I64 -> I64 -> I64
+  word-rank-long a c =
+    if a == 30796686857696101 && c == 1668247140 then 7  -- millisecond
+    else if a == 30796686857696101 && c == 427071267955 then 7  -- milliseconds
+    else if a == 30796648304046949 && c == 1668247140 then 8  -- microsecond
+    else if a == 30796648304046949 && c == 427071267955 then 8  -- microseconds
+    else if a == 31069374382302563 && c == 7302756 then 9  -- nanosecond
+    else if a == 31069374382302563 && c == 1869505651 then 9  -- nanoseconds
+    else -1
+
+  -- The printer's designators as keys, by rank. `12760435` in
+  -- `label-head` is `s` after U+00B5 in UTF-8.
+  label-compact :: I64 -> I64
+  label-compact r =
+    if r == 0 then 121  -- y
+    else if r == 1 then 28015  -- mo
+    else if r == 2 then 119  -- w
+    else if r == 3 then 100  -- d
+    else if r == 4 then 104  -- h
+    else if r == 5 then 109  -- m
+    else if r == 6 then 115  -- s
+    else if r == 7 then 28019  -- ms
+    else if r == 8 then 30067  -- us
+    else 28275  -- ns
+
+  label-short-one :: I64 -> I64
+  label-short-one r =
+    if r == 0 then 31090  -- yr
+    else if r == 1 then 28015  -- mo
+    else if r == 2 then 30571  -- wk
+    else if r == 3 then 6578553  -- day
+    else if r == 4 then 26738  -- hr
+    else if r == 5 then 7170414  -- min
+    else if r == 6 then 7562595  -- sec
+    else if r == 7 then 1836279139  -- msec
+    else if r == 8 then 1970496867  -- usec
+    else 1853056355  -- nsec
+
+  label-short-many :: I64 -> I64
+  label-short-many r =
+    if r == 0 then 7959155  -- yrs
+    else if r == 1 then 7171955  -- mos
+    else if r == 2 then 7826291  -- wks
+    else if r == 3 then 1684109683  -- days
+    else if r == 4 then 6845043  -- hrs
+    else if r == 5 then 1835626099  -- mins
+    else if r == 6 then 1936024435  -- secs
+    else if r == 7 then 470087459699  -- msecs
+    else if r == 8 then 504447198067  -- usecs
+    else 474382426995  -- nsecs
+
+  label-verbose-one :: I64 -> I64
+  label-verbose-one r =
+    if r == 0 then 2036687218  -- year
+    else if r == 1 then 470020945000  -- month
+    else if r == 2 then 2003133803  -- week
+    else if r == 3 then 6578553  -- day
+    else if r == 4 then 1752135026  -- hour
+    else if r == 5 then 120299592184933  -- minute
+    else if r == 6 then 126879297138276  -- second
+    else if r == 7 then 30796686857696101  -- millisecond
+    else if r == 8 then 30796648304046949  -- microsecond
+    else 31069374382302563  -- nanosecond
+
+  label-verbose-many :: I64 -> I64
+  label-verbose-many r =
+    if r == 0 then 521391927923  -- years
+    else if r == 1 then 120325361920115  -- months
+    else if r == 2 then 512802253683  -- weeks
+    else if r == 3 then 1684109683  -- days
+    else if r == 4 then 448546566771  -- hours
+    else if r == 5 then 30796695599342963  -- minutes
+    else if r == 6 then 32481100067398771  -- seconds
+    else if r == 7 then 30796686857696101  -- milliseconds
+    else if r == 8 then 30796648304046949  -- microseconds
+    else 31069374382302563  -- nanoseconds
+
+  label-verbose-one-tail :: I64 -> I64
+  label-verbose-one-tail r =
+    if r == 0 then 0  -- year
+    else if r == 1 then 0  -- month
+    else if r == 2 then 0  -- week
+    else if r == 3 then 0  -- day
+    else if r == 4 then 0  -- hour
+    else if r == 5 then 0  -- minute
+    else if r == 6 then 0  -- second
+    else if r == 7 then 1668247140  -- millisecond
+    else if r == 8 then 1668247140  -- microsecond
+    else 7302756  -- nanosecond
+
+  label-verbose-many-tail :: I64 -> I64
+  label-verbose-many-tail r =
+    if r == 0 then 0  -- years
+    else if r == 1 then 0  -- months
+    else if r == 2 then 0  -- weeks
+    else if r == 3 then 0  -- days
+    else if r == 4 then 0  -- hours
+    else if r == 5 then 0  -- minutes
+    else if r == 6 then 0  -- seconds
+    else if r == 7 then 427071267955  -- milliseconds
+    else if r == 8 then 427071267955  -- microseconds
+    else 1869505651  -- nanoseconds
+
+  -- -----------------------------------------------------------------
+  -- The friendly machine. States:
+  --   fr-start (sign) -> fr-component (a number; then a fraction, a
+  --   `:` or neither) -> fr-designator (white space, the word, order,
+  --   fraction and limit checks) -> fr-after (a comma, white space,
+  --   the next component, ` ago`, or the end), which returns to
+  --   fr-component; the clock form is fr-clock (from fr-component at
+  --   the first `:`) -> fr-clock-seconds -> fr-tail (` ago` or the
+  --   end); fr-ago (the suffix, then the end).
+  -- `last` is the rank of the last unit read, -1 at the start.
+  -- `signed` is whether a sign prefix was read. The number just read,
+  -- `v`, is passed third: see NAMED REFUSALS (a wide argument late in a
+  -- long parameter list); likewise in st-iso-designator.
+  -- -----------------------------------------------------------------
+
+  skip-space :: Bytes -> I64 -> I64
+  skip-space b i = if scan-is-space (scan-byte-at b i) then skip-space b (plus i 1) else i
+
+  is-ago :: Bytes -> I64 -> Bool
+  is-ago b i =
+    scan-byte-at b i == 97 && scan-byte-at b (plus i 1) == 103 && scan-byte-at b (plus i 2) == 111
+
+  -- Negative by exactly one of the prefix `-` and the suffix ` ago`
+  -- (both together are refused before this is reached).
+  negated :: Bool -> Bool -> Bool
+  negated prefix ago = if prefix then ago == False else ago
+
+  fr-start :: Target -> Bytes -> Result DurationTextError (Bool, Acc)
+  fr-start tg b =
+    if scan-length b == 0 then Err (DurationTextEmpty 0)
+    else
+      let c = scan-byte-at b 0 in
+      let i = sign-width c in
+      case fr-component tg b i -1 acc-zero (i == 1) of
+        Err e -> Err e
+        Ok acc -> Ok (negated (c == 45) (acc-ago acc), acc)
+
+  -- `i` is where a number must begin.
+  fr-component :: Target -> Bytes -> I64 -> I64 -> Acc -> Bool -> Result DurationTextError Acc
+  fr-component tg b i last acc signed =
+    let n = scan-count-digits b i 39 in
+    if n == 0 then
+      (if scan-byte-at b i < 0 then Err (DurationTextMissingComponent i) else Err (DurationTextExpectedNumber i))
+    else if n > 38 then Err (DurationTextNumberTooLarge i)
+    else
+      let v = read-wide b i n in
+      let j = plus i n in
+      let c = scan-byte-at b j in
+      if c == 58 then fr-clock tg b v i j last acc signed
+      else if c == 46 || c == 44 then
+        let k = scan-count-digits b (plus j 1) 10 in
+        if k == 0 then Err (DurationTextEmptyFraction (plus j 1))
+        else if k > 9 then Err (DurationTextTooManyFractionDigits (plus j 1))
+        else fr-designator tg b v i (skip-space b (plus (plus j 1) k)) last acc signed j k (read-fraction b (plus j 1) k)
+      else fr-designator tg b v i (skip-space b j) last acc signed -1 0 0
+
+  -- `at` is the number's first digit, `d` the designator's position,
+  -- `fpos` the fraction separator's (-1 without one), `k` its digits.
+  fr-designator :: Target -> Bytes -> I128 -> I64 -> I64 -> I64 -> Acc -> Bool -> I64 -> I64 -> I64 -> Result DurationTextError Acc
+  fr-designator tg b v at d last acc signed fpos k f9 =
+    let n = word-length b d 0 in
+    let r = designator-rank b d n in
+    if r < 0 then Err (DurationTextBadDesignator d)
+    else if r == last then Err (DurationTextRepeatedUnit at)
+    else if r < last then Err (DurationTextUnitsOutOfOrder at)
+    else if fpos >= 0 && (r < 4 || r > 8) then Err (DurationTextFractionOnUnit fpos)
+    else if fpos >= 0 && ((r == 7 && k > 6) || (r == 8 && k > 3)) then Err (DurationTextTooManyFractionDigits (plus fpos 1))
+    else case commit tg at r v acc of
+      Err e -> Err e
+      Ok acc2 ->
+        if fpos >= 0 then
+          (case commit-fraction tg at r f9 acc2 of
+            Err e -> Err e
+            Ok acc3 -> fr-after tg b (plus d n) r acc3 signed True)
+        else fr-after tg b (plus d n) r acc2 signed False
+
+  -- `i` is just after a designator.
+  fr-after :: Target -> Bytes -> I64 -> I64 -> Acc -> Bool -> Bool -> Result DurationTextError Acc
+  fr-after tg b i last acc signed fraction =
+    let c = scan-byte-at b i in
+    if c < 0 then Ok acc
+    else if c == 44 then
+      let j = skip-space b (plus i 1) in
+      if is-digit (scan-byte-at b j) then fr-next tg b j last acc signed fraction
+      else if scan-byte-at b j < 0 then Err (DurationTextMissingComponent j)
+      else Err (DurationTextExpectedNumber j)
+    else if is-digit c then fr-next tg b i last acc signed fraction
+    else if scan-is-space c then
+      let j = skip-space b i in
+      if is-digit (scan-byte-at b j) then fr-next tg b j last acc signed fraction
+      else if is-ago b j then fr-ago b j acc signed
+      else if scan-byte-at b j < 0 then Err (DurationTextTrailingInput i)
+      else Err (DurationTextTrailingInput j)
+    else Err (DurationTextTrailingInput i)
+
+  -- Another component at `j`: refused when the previous one carried a
+  -- fraction.
+  fr-next :: Target -> Bytes -> I64 -> I64 -> Acc -> Bool -> Bool -> Result DurationTextError Acc
+  fr-next tg b j last acc signed fraction =
+    if fraction then Err (DurationTextFractionNotLast j)
+    else fr-component tg b j last acc signed
+
+  -- `at` is the hours' first digit, `j` the first `:`; `v` the hours.
+  -- The clock form stands for hours, minutes and seconds, so it is out
+  -- of order after any of them.
+  fr-clock :: Target -> Bytes -> I128 -> I64 -> I64 -> I64 -> Acc -> Bool -> Result DurationTextError Acc
+  fr-clock tg b v at j last acc signed =
+    if last >= 4 then Err (DurationTextUnitsOutOfOrder at)
+    else
+      let m = plus j 1 in
+      let n = scan-count-digits b m 39 in
+      if n == 0 then Err (DurationTextExpectedNumber m)
+      else if n > 38 then Err (DurationTextNumberTooLarge m)
+      else if scan-byte-at b (plus m n) /= 58 then Err (DurationTextExpectedColon (plus m n))
+      else case commit tg at 4 v acc of
+        Err e -> Err e
+        Ok acc2 -> case commit tg m 5 (read-wide b m n) acc2 of
+          Err e -> Err e
+          Ok acc3 -> fr-clock-seconds tg b (plus (plus m n) 1) acc3 signed
+
+  -- `i` is where the seconds must begin.
+  fr-clock-seconds :: Target -> Bytes -> I64 -> Acc -> Bool -> Result DurationTextError Acc
+  fr-clock-seconds tg b i acc signed =
+    let n = scan-count-digits b i 39 in
+    if n == 0 then Err (DurationTextExpectedNumber i)
+    else if n > 38 then Err (DurationTextNumberTooLarge i)
+    else case commit tg i 6 (read-wide b i n) acc of
+      Err e -> Err e
+      Ok acc2 ->
+        let j = plus i n in
+        let c = scan-byte-at b j in
+        if c == 46 || c == 44 then
+          let k = scan-count-digits b (plus j 1) 10 in
+          if k == 0 then Err (DurationTextEmptyFraction (plus j 1))
+          else if k > 9 then Err (DurationTextTooManyFractionDigits (plus j 1))
+          else
+            (case commit-fraction tg i 6 (read-fraction b (plus j 1) k) acc2 of
+              Err e -> Err e
+              Ok acc3 -> fr-tail b (plus (plus j 1) k) acc3 signed)
+        else fr-tail b j acc2 signed
+
+  -- After the clock form: ` ago` or the end.
+  fr-tail :: Bytes -> I64 -> Acc -> Bool -> Result DurationTextError Acc
+  fr-tail b i acc signed =
+    let c = scan-byte-at b i in
+    if c < 0 then Ok acc
+    else if scan-is-space c && is-ago b (skip-space b i) then fr-ago b (skip-space b i) acc signed
+    else Err (DurationTextTrailingInput i)
+
+  -- `i` is at `ago`.
+  fr-ago :: Bytes -> I64 -> Acc -> Bool -> Result DurationTextError Acc
+  fr-ago b i acc signed =
+    if signed then Err (DurationTextSignTwice i)
+    else if scan-byte-at b (plus i 3) >= 0 then Err (DurationTextTrailingInput (plus i 3))
+    else Ok (acc-with-ago acc)
+
+  -- Whether the bytes are an ISO duration by Jiff's `FromStr` test: the
+  -- first byte after an optional sign is `P` or `p`.
+  looks-iso :: Bytes -> Bool
+  looks-iso b =
+    let p = scan-byte-at b (sign-width (scan-byte-at b 0)) in
+    p == 80 || p == 112
+
+  friendly-span :: Bytes -> Result DurationTextError (Span Calendar)
+  friendly-span b = case fr-start ToSpan b of
+    Err e -> Err e
+    Ok p -> case p of
+      (neg, acc) -> finish-span neg acc
+
+  friendly-clock :: Bytes -> Result DurationTextError (Span Clock)
+  friendly-clock b = case fr-start ToClock b of
+    Err e -> Err e
+    Ok p -> case p of
+      (neg, acc) -> finish-clock neg acc
+
+  friendly-duration :: Bytes -> Result DurationTextError Duration
+  friendly-duration b = case fr-start ToDuration b of
+    Err e -> Err e
+    Ok p -> case p of
+      (neg, acc) -> finish-duration neg acc
+
+  -- A friendly duration as a span, each unit as written (`1.5h` is 1
+  -- hour 30 minutes; see the header's grammar).
+  span-from-friendly-string :: String -> Result DurationTextError (Span Calendar)
+  span-from-friendly-string s = friendly-span (scan-bytes-of-string s)
+
+  -- The same as a clock span: a component of days or larger is refused
+  -- with `DurationTextCalendarUnit`.
+  span-clock-from-friendly-string :: String -> Result DurationTextError (Span Clock)
+  span-clock-from-friendly-string s = friendly-clock (scan-bytes-of-string s)
+
+  -- A friendly duration of hours and smaller as an exact duration.
+  duration-from-friendly-string :: String -> Result DurationTextError Duration
+  duration-from-friendly-string s = friendly-duration (scan-bytes-of-string s)
+
+  -- Either format (strict ISO when the first byte after an optional
+  -- sign is `P` or `p`, friendly otherwise), as Jiff's `FromStr`.
+  span-from-string :: String -> Result DurationTextError (Span Calendar)
+  span-from-string s =
+    let b = scan-bytes-of-string s in
+    if looks-iso b then iso-span False b else friendly-span b
+
+  span-clock-from-string :: String -> Result DurationTextError (Span Clock)
+  span-clock-from-string s =
+    let b = scan-bytes-of-string s in
+    if looks-iso b then iso-clock False b else friendly-clock b
+
+  duration-from-string :: String -> Result DurationTextError Duration
+  duration-from-string s =
+    let b = scan-bytes-of-string s in
+    if looks-iso b then iso-duration False b else friendly-duration b
+
+  -- -----------------------------------------------------------------
+  -- The friendly printer's options (design/datetime.md T7): an
+  -- abstract value, one default and one setter per knob.
+  -- -----------------------------------------------------------------
+
+  -- How units are named. Compact: `y mo w d h m s ms us ns`. Short:
+  -- `yr mo wk day hr min sec msec usec nsec`, with `s` added for any
+  -- value but 1. Verbose: `year month week day hour minute second
+  -- millisecond microsecond nanosecond`, likewise.
+  data FriendlyDesignator where
+    DesignatorCompact :: FriendlyDesignator
+    DesignatorShort :: FriendlyDesignator
+    DesignatorVerbose :: FriendlyDesignator
+
+  -- `1y2mo`, `1y 2mo` (the default), `1 y 2 mo`.
+  data FriendlySpacing where
+    SpacingNone :: FriendlySpacing
+    SpacingBetweenUnits :: FriendlySpacing
+    SpacingBetweenUnitsAndDesignators :: FriendlySpacing
+
+  -- How a negative value is marked. `SignAuto` (the default, Jiff's):
+  -- the suffix ` ago` when units are spaced, the prefix `-` with
+  -- `SpacingNone` or the clock form. `SignPrefix`: always `-`.
+  -- `SignForce`: `-`, and `+` on a positive value (zero is unsigned).
+  -- `SignSuffix`: always ` ago`.
+  data FriendlySign where
+    SignAuto :: FriendlySign
+    SignPrefix :: FriendlySign
+    SignForce :: FriendlySign
+    SignSuffix :: FriendlySign
+
+  -- The unit, if any, that the smaller units fold into as a fraction.
+  data FriendlyFractional where
+    FractionalNone :: FriendlyFractional
+    FractionalHour :: FriendlyFractional
+    FractionalMinute :: FriendlyFractional
+    FractionalSecond :: FriendlyFractional
+    FractionalMillisecond :: FriendlyFractional
+    FractionalMicrosecond :: FriendlyFractional
+
+  -- Designator style (0 compact, 1 short, 2 verbose); spacing (0, 1,
+  -- 2); comma; sign style (0 auto, 1 prefix, 2 force, 3 suffix);
+  -- fractional unit's rank (-1 for none, else 4..=8); precision (-1 for
+  -- the shortest exact, else 0..=9); clock form; zero unit's rank;
+  -- Unicode micro sign.
+  data FriendlyPrinter where
+    MkFriendlyPrinter :: I64 -> I64 -> Bool -> I64 -> I64 -> I64 -> Bool -> I64 -> Bool -> FriendlyPrinter
+
+  -- Compact designators, a space between units, no comma, `SignAuto`,
+  -- no fractional unit, the shortest exact precision, no clock form,
+  -- zero printed in seconds, ASCII `us`.
+  friendly-printer-default :: FriendlyPrinter
+  friendly-printer-default = MkFriendlyPrinter 0 1 False 0 -1 -1 False 6 False
+
+  friendly-with-designator :: FriendlyDesignator -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-designator x p = case p of
+    MkFriendlyPrinter _ sp co sg fr pr ck ze un -> case x of
+      DesignatorCompact -> MkFriendlyPrinter 0 sp co sg fr pr ck ze un
+      DesignatorShort -> MkFriendlyPrinter 1 sp co sg fr pr ck ze un
+      DesignatorVerbose -> MkFriendlyPrinter 2 sp co sg fr pr ck ze un
+
+  friendly-with-spacing :: FriendlySpacing -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-spacing x p = case p of
+    MkFriendlyPrinter de _ co sg fr pr ck ze un -> case x of
+      SpacingNone -> MkFriendlyPrinter de 0 co sg fr pr ck ze un
+      SpacingBetweenUnits -> MkFriendlyPrinter de 1 co sg fr pr ck ze un
+      SpacingBetweenUnitsAndDesignators -> MkFriendlyPrinter de 2 co sg fr pr ck ze un
+
+  -- Whether a comma follows each designator but the last
+  -- (`1 year, 2 months`).
+  friendly-with-comma :: Bool -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-comma x p = case p of
+    MkFriendlyPrinter de sp _ sg fr pr ck ze un -> MkFriendlyPrinter de sp x sg fr pr ck ze un
+
+  friendly-with-sign :: FriendlySign -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-sign x p = case p of
+    MkFriendlyPrinter de sp co _ fr pr ck ze un -> case x of
+      SignAuto -> MkFriendlyPrinter de sp co 0 fr pr ck ze un
+      SignPrefix -> MkFriendlyPrinter de sp co 1 fr pr ck ze un
+      SignForce -> MkFriendlyPrinter de sp co 2 fr pr ck ze un
+      SignSuffix -> MkFriendlyPrinter de sp co 3 fr pr ck ze un
+
+  -- With a fractional unit, that unit and every smaller one print as
+  -- one number with a fraction of up to nine digits (1 hour 30 minutes
+  -- 30 seconds under `FractionalMinute` is `1h 30.5m`), and a zero
+  -- value prints in that unit. Lossy for the breakdown; a fraction of
+  -- an hour or a minute is cut at nine digits.
+  friendly-with-fractional :: FriendlyFractional -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-fractional x p = case p of
+    MkFriendlyPrinter de sp co sg _ pr ck ze un -> case x of
+      FractionalNone -> MkFriendlyPrinter de sp co sg -1 pr ck ze un
+      FractionalHour -> MkFriendlyPrinter de sp co sg 4 pr ck ze un
+      FractionalMinute -> MkFriendlyPrinter de sp co sg 5 pr ck ze un
+      FractionalSecond -> MkFriendlyPrinter de sp co sg 6 pr ck ze un
+      FractionalMillisecond -> MkFriendlyPrinter de sp co sg 7 pr ck ze un
+      FractionalMicrosecond -> MkFriendlyPrinter de sp co sg 8 pr ck ze un
+
+  -- Exactly `digits` fraction digits wherever a fraction is printed
+  -- (the fractional unit, or the clock form's seconds), truncating.
+  friendly-with-precision :: (digits :: InRange 0 9 I64) -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-precision digits p = case p of
+    MkFriendlyPrinter de sp co sg fr _ ck ze un -> MkFriendlyPrinter de sp co sg fr digits ck ze un
+
+  -- The default: the shortest fraction that is exact in nine digits.
+  friendly-with-shortest-precision :: FriendlyPrinter -> FriendlyPrinter
+  friendly-with-shortest-precision p = case p of
+    MkFriendlyPrinter de sp co sg fr _ ck ze un -> MkFriendlyPrinter de sp co sg fr -1 ck ze un
+
+  -- Whether hours and smaller print as `HH:MM:SS[.fraction]` (at least
+  -- two digits each; the sub-second units fold into the fraction, so
+  -- the breakdown below seconds is lost). Takes precedence over a
+  -- fractional unit. Zero prints `00:00:00`.
+  friendly-with-clock-form :: Bool -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-clock-form x p = case p of
+    MkFriendlyPrinter de sp co sg fr pr _ ze un -> MkFriendlyPrinter de sp co sg fr pr x ze un
+
+  -- The unit a zero value prints in (`0s` by default). A `Duration`
+  -- printed with a zero unit of days or larger prints `0s`, so that it
+  -- parses back as a `Duration`.
+  friendly-with-zero-unit :: TimeUnit -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-zero-unit x p = case p of
+    MkFriendlyPrinter de sp co sg fr pr ck _ un -> MkFriendlyPrinter de sp co sg fr pr ck (rank-of-unit x) un
+
+  -- Whether the compact microsecond designator is `s` after U+00B5
+  -- MICRO SIGN (UTF-8) in place of the ASCII `us`.
+  friendly-with-unicode-micro :: Bool -> FriendlyPrinter -> FriendlyPrinter
+  friendly-with-unicode-micro x p = case p of
+    MkFriendlyPrinter de sp co sg fr pr ck ze _ -> MkFriendlyPrinter de sp co sg fr pr ck ze x
+
+  rank-of-unit :: TimeUnit -> I64
+  rank-of-unit u = case u of
+    Year -> 0
+    Month -> 1
+    Week -> 2
+    Day -> 3
+    Hour -> 4
+    Minute -> 5
+    Second -> 6
+    Millisecond -> 7
+    Microsecond -> 8
+    Nanosecond -> 9
+
+  opt-designator :: FriendlyPrinter -> I64
+  opt-designator p = case p of
+    MkFriendlyPrinter de _ _ _ _ _ _ _ _ -> de
+
+  opt-spacing :: FriendlyPrinter -> I64
+  opt-spacing p = case p of
+    MkFriendlyPrinter _ sp _ _ _ _ _ _ _ -> sp
+
+  opt-comma :: FriendlyPrinter -> Bool
+  opt-comma p = case p of
+    MkFriendlyPrinter _ _ co _ _ _ _ _ _ -> co
+
+  opt-sign :: FriendlyPrinter -> I64
+  opt-sign p = case p of
+    MkFriendlyPrinter _ _ _ sg _ _ _ _ _ -> sg
+
+  opt-fractional :: FriendlyPrinter -> I64
+  opt-fractional p = case p of
+    MkFriendlyPrinter _ _ _ _ fr _ _ _ _ -> fr
+
+  opt-precision :: FriendlyPrinter -> I64
+  opt-precision p = case p of
+    MkFriendlyPrinter _ _ _ _ _ pr _ _ _ -> pr
+
+  opt-clock :: FriendlyPrinter -> Bool
+  opt-clock p = case p of
+    MkFriendlyPrinter _ _ _ _ _ _ ck _ _ -> ck
+
+  opt-zero :: FriendlyPrinter -> I64
+  opt-zero p = case p of
+    MkFriendlyPrinter _ _ _ _ _ _ _ ze _ -> ze
+
+  opt-unicode :: FriendlyPrinter -> Bool
+  opt-unicode p = case p of
+    MkFriendlyPrinter _ _ _ _ _ _ _ _ un -> un
+
+  -- A zero unit of days or larger replaced by seconds (for durations).
+  clock-zero-unit :: FriendlyPrinter -> FriendlyPrinter
+  clock-zero-unit p = case p of
+    MkFriendlyPrinter de sp co sg fr pr ck ze un ->
+      if ze < 4 then MkFriendlyPrinter de sp co sg fr pr ck 6 un else p
+
+  -- -----------------------------------------------------------------
+  -- The friendly printer.
+  -- -----------------------------------------------------------------
+
+  -- Whether a negative value is marked by the suffix ` ago`.
+  uses-suffix :: FriendlyPrinter -> Bool
+  uses-suffix p =
+    let sg = opt-sign p in
+    if sg == 3 then True
+    else if sg == 0 then opt-spacing p /= 0 && opt-clock p == False
+    else False
+
+  -- The first key of the designator of rank `r`.
+  label-head :: FriendlyPrinter -> I64 -> Bool -> I64
+  label-head p r plural =
+    let de = opt-designator p in
+    if de == 0 then (if r == 8 && opt-unicode p then 12760435 else label-compact r)
+    else if de == 1 then (if plural then label-short-many r else label-short-one r)
+    else if plural then label-verbose-many r
+    else label-verbose-one r
+
+  -- Its second key (only the verbose sub-second names have one).
+  label-tail :: FriendlyPrinter -> I64 -> Bool -> I64
+  label-tail p r plural =
+    if opt-designator p /= 2 then 0
+    else if plural then label-verbose-many-tail r
+    else label-verbose-one-tail r
+
+  -- The designator after a number: a space first under
+  -- `SpacingBetweenUnitsAndDesignators`.
+  put-label :: FriendlyPrinter -> Bytes -> I64 -> I64 -> Bool -> I64
+  put-label p b i r plural =
+    let j = if opt-spacing p == 2 then scan-put-byte b i 32 else i in
+    put-key b (put-key b j (label-head p r plural)) (label-tail p r plural)
+
+  -- What separates two items: the comma if asked for, then a space
+  -- unless the spacing is `SpacingNone`. Nothing before the first item
+  -- (`i == start`).
+  put-separator :: FriendlyPrinter -> Bytes -> I64 -> I64 -> I64
+  put-separator p b start i =
+    if i == start then i
+    else
+      let j = if opt-comma p then scan-put-byte b i 44 else i in
+      if opt-spacing p == 0 then j else scan-put-byte b j 32
+
+  -- One unit with a whole value; nothing for zero.
+  put-unit :: FriendlyPrinter -> Bytes -> I64 -> I64 -> I64 -> I128 -> I64
+  put-unit p b start i r v =
+    if eq-i128 v 0 then i
+    else put-label p b (put-wide b (put-separator p b start i) v) r (eq-i128 v 1 == False)
+
+  -- The units of rank `r` up to but not including `stop`.
+  put-units :: FriendlyPrinter -> Parts -> Bytes -> I64 -> I64 -> I64 -> I64 -> I64
+  put-units p x b start i r stop =
+    if r >= stop then i
+    else put-units p x b start (put-unit p b start i r (part x r)) (plus r 1) stop
+
+  -- How many fraction digits to write for the nine-digit fraction
+  -- `f9`: the fixed precision, or the shortest exact.
+  fraction-width :: FriendlyPrinter -> I64 -> I64
+  fraction-width p f9 =
+    let pr = opt-precision p in
+    if pr >= 0 then pr else scan-fraction-digits f9
+
+  -- The fractional unit of rank `r`: it and every smaller unit as one
+  -- number. `rem` is below the unit (at most 3.6e12), so `rem * 10^9`
+  -- is below 2^72. Nothing when the value is zero, unless nothing else
+  -- was written.
+  put-fractional :: FriendlyPrinter -> Parts -> Bytes -> I64 -> I64 -> I64 -> I64
+  put-fractional p x b start i r =
+    let total = nanos-from x r in
+    let u = wide (unit-ns r) in
+    let whole = q128 total u in
+    let f9 = low64 (q128 (mul128 (r128 total u) 1000000000) u) in
+    let digits = fraction-width p f9 in
+    if eq-i128 total 0 && i > start then i
+    else
+      let j = put-wide b (put-separator p b start i) whole in
+      let k = put-fraction b j digits f9 in
+      put-label p b k r ((eq-i128 whole 1 && k == j) == False)
+
+  -- The clock form: hours, minutes, and the seconds with every smaller
+  -- unit folded in. Nothing when all are zero, unless nothing else was
+  -- written.
+  put-clock :: FriendlyPrinter -> Parts -> Bytes -> I64 -> I64 -> I64
+  put-clock p x b start i =
+    let sub = nanos-from x 6 in
+    let f9 = low64 (r128 sub 1000000000) in
+    if eq-i128 (nanos-from x 4) 0 && i > start then i
+    else
+      let j = put-wide-pad2 b (put-separator p b start i) (part x 4) in
+      let k = put-wide-pad2 b (scan-put-byte b j 58) (part x 5) in
+      let l = put-wide-pad2 b (scan-put-byte b k 58) (q128 sub 1000000000) in
+      put-fraction b l (fraction-width p f9) f9
+
+  -- The sign prefix, if the style has one for this value.
+  put-sign :: FriendlyPrinter -> Parts -> Bytes -> Bool -> I64
+  put-sign p x b zero =
+    if zero then 0
+    else if parts-negative x then (if uses-suffix p then 0 else scan-put-byte b 0 45)
+    else if opt-sign p == 2 then scan-put-byte b 0 43
+    else 0
+
+  put-ago :: Bytes -> I64 -> I64
+  put-ago b i =
+    scan-put-byte b (scan-put-byte b (scan-put-byte b (scan-put-byte b i 32) 97) 103) 111
+
+  friendly-emit :: FriendlyPrinter -> Parts -> Bytes -> I64
+  friendly-emit p x b =
+    let zero = parts-all-zero x in
+    let start = put-sign p x b zero in
+    let fr = opt-fractional p in
+    let i =
+          if opt-clock p then put-clock p x b start (put-units p x b start start 0 4)
+          else if fr >= 0 then put-fractional p x b start (put-units p x b start start 0 fr) fr
+          else if zero then put-label p b (scan-put-byte b start 48) (opt-zero p) True
+          else put-units p x b start start 0 10 in
+    if zero == False && parts-negative x && uses-suffix p then put-ago b i else i
+
+  -- The friendly form under the given options.
+  span-print-friendly :: forall (c :: SpanClass). FriendlyPrinter -> Span c -> String
+  span-print-friendly p s =
+    let x = span-parts s in
+    render (\b -> friendly-emit p x b)
+
+  -- The friendly form with the default options. LOSSLESS: every
+  -- non-zero unit with its own compact designator, a space between
+  -- units (`6y 10mo 3d 23h`, `2000ms`), `0s` for the zero span, and
+  -- ` ago` after a negative one.
+  span-to-friendly-string :: forall (c :: SpanClass). Span c -> String
+  span-to-friendly-string s = span-print-friendly friendly-printer-default s
+
+  -- A duration balanced into hours, minutes, seconds and the non-zero
+  -- sub-second units (`2h 30m`, `1s 500ms`), under the given options.
+  duration-print-friendly :: FriendlyPrinter -> Duration -> String
+  duration-print-friendly p d =
+    let x = duration-parts d in
+    let q = clock-zero-unit p in
+    render (\b -> friendly-emit q x b)
+
+  duration-to-friendly-string :: Duration -> String
+  duration-to-friendly-string d = duration-print-friendly friendly-printer-default d

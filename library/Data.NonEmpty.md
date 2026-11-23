@@ -88,4 +88,4 @@ yielding the refined shape (the representation is the list).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/NonEmpty.cinch`. Source SHA-256: `62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/NonEmpty.cinch`. Source SHA-256: `858506781fd4dda0bb886cfd2bab77cd6333a1da4e32ff1593eecebafb823ebd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

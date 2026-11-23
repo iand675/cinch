@@ -59,4 +59,4 @@ module order.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Hash.cinch`. Source SHA-256: `3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Hash.cinch`. Source SHA-256: `c80d835dfc4224d8eca8375d24058a77034087077186e85f10b2ba48b1fcc991`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

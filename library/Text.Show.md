@@ -145,4 +145,4 @@ bootstrap).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Show.cinch`. Source SHA-256: `0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Show.cinch`. Source SHA-256: `482adc06340f899b8664bfbf7804b45d74db5e200f657faa12a8eb5b66de76e8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

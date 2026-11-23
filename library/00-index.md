@@ -130,6 +130,9 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md) | Ship source | An insertion-ordered hash map: dense entries with a tagged chunk index over them, positional access, O(1) swap-remove and order-keeping shift-remove. |
 | [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md) | Ship source | Stable typed list elements, checked membership and movement, detached value access and bounded self-copy. |
 | [Data.Mutable.LruCache](Data.Mutable.LruCache.md) | Ship source | A bounded least-recently-used cache: a hash table to nodes threaded on a recency list, with O(1) get, put and eviction. |
+| [Data.Mutable.Map.Float](Data.Mutable.Map.Float.md) | Ship source | Explicit IEEE floating key policies without global equality or hashing instances. |
+| [Data.Mutable.Map.Optional](Data.Mutable.Map.Optional.md) | Ship source | Explicit absent-map adapters without hidden null handles. |
+| [Data.Mutable.Map](Data.Mutable.Map.md) | Ship source | A mutable map with captured key policies and deletion-aware live traversal. |
 | [Data.Mutable.Ring](Data.Mutable.Ring.md) | Ship source | Mutable circular sequences with stable cursors, alias-preserving joins and splits, explicit value ownership and bounded arena growth. |
 | [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md) | Ship source | Disjoint sets with union by size and path halving: near-constant find, union and same-set queries, and appendable elements. |
 | [Data.Mutable.Var](Data.Mutable.Var.md) | Ship source | A single mutable cell, written in place; not synchronized (TVar is the shared cell). |
@@ -152,12 +155,30 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Sym](Data.Sym.md) | Embedded | Interned symbols with identity equality, deterministic spelling order, and String conversions. |
 | [Data.Target](Data.Target.md) | Embedded | Target/platform and worker vocabulary used by the compiler-supported runtime and target examples. |
 | [Data.Tensor](Data.Tensor.md) | Ship source | Immutable row-major tensors with checked runtime shapes of any rank. |
+| [Data.Time.Arithmetic](Data.Time.Arithmetic.md) | Ship source | Calendar-aware spans applied to dates, wall-clock times, date-times and instants, with explicit overflow results. |
+| [Data.Time.Date](Data.Time.Date.md) | Ship source | Civil calendar dates with validated construction, weekday and ordinal queries, and day arithmetic. |
+| [Data.Time.DateTime](Data.Time.DateTime.md) | Ship source | Civil date and wall-clock time pairs without a time zone. |
+| [Data.Time.Duration](Data.Time.Duration.md) | Ship source | Exact signed elapsed-time durations with nanosecond precision and checked arithmetic. |
+| [Data.Time.Monotonic](Data.Time.Monotonic.md) | Ship source | Monotonic clock readings for measuring elapsed time; never related to the civil calendar. |
+| [Data.Time.Offset](Data.Time.Offset.md) | Ship source | Fixed offsets from UTC with validated ranges. |
+| [Data.Time.Span](Data.Time.Span.md) | Ship source | Calendar-aware spans that keep each unit (years through nanoseconds), with balancing and rounding. |
+| [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md) | Ship source | Civil wall-clock times of day with nanosecond precision. |
+| [Data.Time.Timestamp](Data.Time.Timestamp.md) | Ship source | Instants on the Unix time line with nanosecond precision and checked arithmetic. |
+| [Data.Time.Unit](Data.Time.Unit.md) | Ship source | Span units, rounding modes and the shared rounding kernel. |
+| [Data.Time.Weekday](Data.Time.Weekday.md) | Ship source | The seven days of the week with ordering and offset arithmetic. |
+| [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md) | Ship source | POSIX TZ rule strings: parsing and evaluating standard/daylight transition rules. |
+| [Data.Time.Zone.Types](Data.Time.Zone.Types.md) | Ship source | Shared vocabulary for time zones: transitions, ambiguity and disambiguation policies. |
+| [Data.Time.Zone.Tzif](Data.Time.Zone.Tzif.md) | Ship source | Reading TZif time zone files (RFC 9636) into checked transition tables. |
+| [Data.Time.Zone](Data.Time.Zone.md) | Ship source | Time zones: offsets for instants, resolution of civil times, and fixed or rule-based zones. |
+| [Data.Time.Zoned.Arithmetic](Data.Time.Zoned.Arithmetic.md) | Ship source | Arithmetic, differences and rounding on zoned date-times. |
+| [Data.Time.Zoned](Data.Time.Zoned.md) | Ship source | Instants paired with a time zone, with civil field access. |
 | [Data.Time](Data.Time.md) | Ship source | Time values, durations, and conversions with explicit units and admitted ranges. |
 | [Data.Unicode.Kernel](Data.Unicode.Kernel.md) | Ship source | Unicode scalar and numeric classification, simple case mappings, fold cycles and checked locale overrides. |
 | [Data.Unicode.Names](Data.Unicode.Names.md) | Ship source | Named Unicode category, script and property tables with deterministic catalog observations. |
 | [Data.Unicode.Range](Data.Unicode.Range.md) | Ship source | Immutable Unicode range tables with checked construction, exact membership and copied observations. |
 | [Data.Unicode.Tables](Data.Unicode.Tables.md) | Ship source | Generated Unicode property, case and folding data with a pinned version and source provenance. |
 | [Data.Unicode](Data.Unicode.md) | Ship source | Versioned Unicode classification, simple case mappings, fold cycles, named tables and checked custom ranges. |
+| [Data.Uuid](Data.Uuid.md) | Ship source | Immutable 128-bit identifiers with RFC 9562 text, ordering and explicit version 7 state. |
 | [Data.Wide](Data.Wide.md) | Embedded | Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies. |
 | [Data.Word](Data.Word.md) | Ship source | Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words. |
 
@@ -181,8 +202,8 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Csv.Record](Text.Csv.Record.md) | Ship source | Configurable Unicode-delimited and lossless byte CSV records, checked partial results, positions and incremental parser state. |
 | [Text.Csv](Text.Csv.md) | Ship source | CSV parsing/rendering with explicit field, record, and malformed-input handling. |
 | [Text.Digest](Text.Digest.md) | Ship source | Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol. |
-| [Text.Fnv.State](Text.Fnv.State.md) | Ship source | Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints. |
 | [Text.FilePath](Text.FilePath.md) | Ship source | POSIX lexical relative paths, locality tests, filesystem-name conversion and search-list splitting. |
+| [Text.Fnv.State](Text.Fnv.State.md) | Ship source | Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints. |
 | [Text.Fnv](Text.Fnv.md) | Ship source | Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
 | [Text.Gzip](Text.Gzip.md) | Ship source | Whole-buffer gzip member encoding, checked decompression and concatenated members. |
 | [Text.Hex](Text.Hex.md) | Ship source | SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps. |
@@ -194,7 +215,9 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients. |
+| [Text.Md5](Text.Md5.md) | Ship source | MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints. |
 | [Text.Mime](Text.Mime.md) | Ship source | Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries. |
+| [Text.Multipart](Text.Multipart.md) | Ship source | Multipart wire primitives over arbitrary bytes, exact multi-value headers and explicit delimiter observations. |
 | [Text.OptionParser](Text.OptionParser.md) | Ship source | Declarative option specifications, short/long forms, conversion, positionals, usage, and named parse errors. |
 | [Text.Otlp](Text.Otlp.md) | Ship source | OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers. |
 | [Text.Parse](Text.Parse.md) | Ship source | A source-distributed parser toolkit over the lexer/scanner vocabulary. |
@@ -203,9 +226,19 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.QuotedPrintable](Text.QuotedPrintable.md) | Ship source | Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies. |
 | [Text.Regex](Text.Regex.md) | Ship source | Regular-expression parsing/matching and replacement under the module's admitted regex language. |
 | [Text.Scan](Text.Scan.md) | Ship source | Scanning primitives over input text and the shared position/error vocabulary. |
+| [Text.Sha1](Text.Sha1.md) | Ship source | SHA-1 for legacy interoperability, with a four-lane SIMD schedule, persistent states and checked binary checkpoints. |
 | [Text.Sha256](Text.Sha256.md) | Ship source | Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints. |
+| [Text.Sha3](Text.Sha3.md) | Ship source | SHA3-224/256/384/512, SHAKE128/256 and cSHAKE128/256 over a register-resident Keccak permutation, with persistent sponges, output readers and checkpoints. |
+| [Text.Sha512](Text.Sha512.md) | Ship source | Portable SHA-384, SHA-512, SHA-512/224 and SHA-512/256 with two-lane SIMD schedules, native rotates, persistent states and checked binary checkpoints. |
 | [Text.Shellwords](Text.Shellwords.md) | Ship source | Shell-style word splitting/joining; this is data parsing, not execution of a shell command. |
 | [Text.Show](Text.Show.md) | Embedded | Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself. |
+| [Text.Time.Duration](Text.Time.Duration.md) | Ship source | ISO 8601 and friendly duration text for spans and exact durations, printing and parsing. |
+| [Text.Time.Iso](Text.Time.Iso.md) | Ship source | ISO 8601 extended format and RFC 3339 printing and parsing for dates, times, date-times and timestamps. |
+| [Text.Time.Rfc2822](Text.Time.Rfc2822.md) | Ship source | RFC 2822/5322 internet-message date-time printing and parsing. |
+| [Text.Time.Rfc9557](Text.Time.Rfc9557.md) | Ship source | RFC 9557 date-time text with bracketed time zone annotations for zoned values. |
+| [Text.Time.Scan](Text.Time.Scan.md) | Ship source | Shared byte cursor, digit readers and digit writers for the time text modules. |
+| [Text.Time.Strtime](Text.Time.Strtime.md) | Ship source | POSIX strftime/strptime-style formatting and parsing over broken-down time fields. |
+| [Text.Time.Zoned](Text.Time.Zoned.md) | Ship source | Offset and zoned-value text functions. |
 | [Text.Toml](Text.Toml.md) | Ship source | The module's supported TOML parsing/rendering surface and explicit unsupported/malformed cases. |
 | [Text.Uri](Text.Uri.md) | Ship source | URI parsing, rendering, components, and validation/error vocabulary. |
 | [Text.Url.Codec](Text.Url.Codec.md) | Ship source | Checked percent codecs for URL components, exact escaped sizing and optional UTF-8 text views. |
@@ -235,6 +268,10 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Binary](Effect.Binary.md) | Ship source | Explicit fixed and variable binary stream codecs preserving progress and advanced handles after failures. |
 | [Effect.Buffered.Core](Effect.Buffered.Core.md) | Ship source | Byte-stream events with signed progress, simultaneous failures, shared advanced continuations and explicit transfer capabilities. |
 | [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md) | Ship source | Initialized opaque continuation cells whose allocation, observation and replacement require their I/O region. |
+| [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md) | Ship source | Exact bounded byte scans shared by buffered input and token splitters. |
+| [Effect.Buffered.Reader](Effect.Buffered.Reader.md) | Ship source | Buffered byte reading with explicit advanced handles and independently owned observations. |
+| [Effect.Buffered.Writer](Effect.Buffered.Writer.md) | Ship source | Buffered byte output with sticky failures, exact partial progress and independently owned reservations. |
+| [Effect.Buffered](Effect.Buffered.md) | Ship source | Buffered input and output components with explicit independent advanced handles. |
 | [Effect.Clock](Effect.Clock.md) | Embedded | Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs. |
 | [Effect.Concurrent.MVar](Effect.Concurrent.MVar.md) | Embedded | Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
@@ -250,7 +287,9 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Http](Effect.Http.md) | Ship source | A bounded plaintext HTTP client with response framing and named errors. HTTPS is explicitly refused; this module has no TLS implementation. |
 | [Effect.Io](Effect.Io.md) | Embedded | A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration. |
 | [Effect.Log](Effect.Log.md) | Ship source | Structured log operations and records with runtime capability/effect accounting. |
+| [Effect.Md5](Effect.Md5.md) | Ship source | Inspectable MD5 states, generic digest sinks and bounded reader-to-hash copying for legacy formats. |
 | [Effect.Mime](Effect.Mime.md) | Ship source | Encoded-word and header decoding with explicit charset reader capabilities, typed errors and advanced writer continuations. |
+| [Effect.Multipart](Effect.Multipart.md) | Ship source | Explicit shared multipart sessions with borrowed byte I/O capabilities. |
 | [Effect.Net](Effect.Net.md) | Ship source | Socket operations with explicit handles, address values, errors, and runtime effects. |
 | [Effect.Pem](Effect.Pem.md) | Ship source | Validated envelope output through explicit advanced writer continuations, bounded chunks and linear short-write draining. |
 | [Effect.Process](Effect.Process.md) | Embedded | One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments. |
@@ -258,19 +297,27 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.QuotedPrintable](Effect.QuotedPrintable.md) | Ship source | Incremental quoted-printable readers and writers with explicit binary policy, partial progress and sticky errors. |
 | [Effect.Random](Effect.Random.md) | Ship source | Runtime entropy/random utilities with explicit effectful access. |
 | [Effect.Resolv](Effect.Resolv.md) | Ship source | Hostname/address resolution through the runtime, with named failure results. |
+| [Effect.Scanner.Split](Effect.Scanner.Split.md) | Ship source | Byte-preserving token splitters with explicit absent, empty and final token states. |
+| [Effect.Scanner](Effect.Scanner.md) | Ship source | Advanced byte-stream tokenization with bounded buffers, fresh tokens and explicit checked protocol failures. |
 | [Effect.Sequencing](Effect.Sequencing.md) | Embedded | The direct, Result, and Option do providers. One lexical provider/container is selected per definition. |
+| [Effect.Sha1](Effect.Sha1.md) | Ship source | Inspectable SHA-1 states, generic digest sinks and bounded reader-to-hash copying for legacy formats. |
 | [Effect.Sha256](Effect.Sha256.md) | Ship source | Inspectable SHA-224/SHA-256 states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations. |
+| [Effect.Sha3](Effect.Sha3.md) | Ship source | Inspectable SHA-3/SHAKE states, generic digest sinks, bounded reader-to-hash copying and SHAKE output as a generic reader. |
+| [Effect.Sha512](Effect.Sha512.md) | Ship source | Inspectable SHA-384/SHA-512/SHA-512/t states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations. |
 | [Effect.Signal](Effect.Signal.md) | Ship source | Operating-system signal vocabulary and runtime operations with explicit error/effect handling. |
 | [Effect.Stm.TBQueue](Effect.Stm.TBQueue.md) | Embedded | A bounded first-in first-out queue for transactions: a write waits while the queue is at capacity, a read waits while it is empty. |
 | [Effect.Stm.TMVar](Effect.Stm.TMVar.md) | Embedded | A transactional variable that is either empty or full: take waits while empty, put waits while full. The building block for handoff and mutual exclusion inside transactions. |
 | [Effect.Stm.TQueue](Effect.Stm.TQueue.md) | Embedded | An unbounded first-in first-out queue for transactions, as two lists so that writers and readers touch different variables. |
 | [Effect.Stm.TSem](Effect.Stm.TSem.md) | Embedded | A counting semaphore for transactions: wait takes a permit or retries, signal returns one. |
 | [Effect.Stm](Effect.Stm.md) | Embedded | Software transactional memory: TVar cells, composable STM transactions run by atomically, retry and or-else for blocking and choice, and the STM do provider. The transaction algorithm is Cinch source over inline target IR. |
-| [Effect.Stream](Effect.Stream.md) | Ship source | Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers. |
 | [Effect.Stream.Offset](Effect.Stream.Offset.md) | Ship source | Positional byte writers, signed cursor movement and streaming at a base offset. |
 | [Effect.Stream.Section](Effect.Stream.Section.md) | Ship source | Positional byte sources, immutable bounded sections, signed seeks and sequential reader adapters. |
+| [Effect.Stream](Effect.Stream.md) | Ship source | Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers. |
 | [Effect.Test](Effect.Test.md) | Ship source | A subprocess-based test runner and named test-result/report vocabulary. |
+| [Effect.Time.Zone](Effect.Time.Zone.md) | Ship source | The system time zone database and the current system zone. |
+| [Effect.Time](Effect.Time.md) | Ship source | Typed readers for the system and monotonic clocks. |
 | [Effect.Trace](Effect.Trace.md) | Ship source | Scoped tracing/span vocabulary and context propagation tied to the runtime identity. |
+| [Effect.Uuid](Effect.Uuid.md) | Ship source | Secure UUID generation with explicit serialized version 7 ownership. |
 
 ## Image
 
@@ -281,7 +328,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **204 source modules**: **66 embedded** and **138 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **251 source modules**: **66 embedded** and **185 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

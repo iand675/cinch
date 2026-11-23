@@ -1,0 +1,1479 @@
+-- Text.Time.Strtime: POSIX `strftime`/`strptime` as Jiff supports them,
+-- over a `BrokenDown` value.
+--
+-- A `BrokenDown` is a bag of optional fields (year, month, day, hour,
+-- twelve-hour clock hour, minute, second, subsecond nanoseconds,
+-- weekday, day of year, UTC offset in seconds, meridiem, ISO week year
+-- and week, the two POSIX week numbers, Unix seconds, a zone
+-- abbreviation and an IANA zone name). Parsing fills the fields a
+-- format names and nothing else; the conversions out
+-- (`broken-down-to-date` and friends) decide whether the fields make a
+-- value and refuse by name when one is missing or two disagree.
+-- Formatting reads a field, or derives it from the others when it is
+-- absent (the weekday from the date, the twelve-hour hour from the
+-- hour, the Unix second from the civil fields and the offset).
+--
+-- Conversions (the same set for printing and parsing unless noted):
+--
+--   %Y year, sign and at least 4 digits   %C century   %y year in century
+--   %m month 01..12      %d day 01..31     %e day, space padded
+--   %j day of year 001..366
+--   %H hour 00..23       %I hour 01..12    %M minute    %S second 00..59
+--   %f fraction of a second: `%f` the shortest exact digits (at least
+--      one), `%3f` `%6f` `%9f` (any 1..9) exactly that many, truncating;
+--      `%.f` a point and the shortest digits, or nothing when zero;
+--      `%.3f` a point and exactly that many digits
+--   %p AM/PM   %P am/pm
+--   %A %a weekday name, full and abbreviated   %B %b %h month name
+--   %u weekday 1..7 (Monday 1)   %w weekday 0..6 (Sunday 0)
+--   %G ISO week year   %g its last two digits   %V ISO week 01..53
+--   %U week of the year, Sunday first, 00..53   %W the same, Monday first
+--   %z offset `+HHMM`   %:z `+HH:MM`   %::z `+HH:MM:SS` (the first two
+--      add the seconds only when the offset has them)
+--   %Z zone abbreviation (PRINT ONLY)   %Q IANA zone name, or the
+--      offset as `%:z` when there is no name
+--   %s Unix seconds
+--   %D `%m/%d/%y`   %F `%Y-%m-%d`   %T `%H:%M:%S`   %R `%H:%M`
+--   %n newline   %t tab   %% a percent sign
+--
+-- Between `%` and the conversion: one optional flag, an optional width
+-- (at most 255), then colons (before `z`) or a point and an optional
+-- precision (before `f`).
+--   `-` no padding     `_` pad with spaces    `0` pad with zeros
+--   `^` upper case     `#` swap case: names and `%P` become upper case,
+--                      `%p` and `%Z` become lower case (as glibc and Jiff)
+-- A width pads numbers to that many digits (the sign, if any, comes
+-- before the digits and is not counted) and pads text on the left with
+-- spaces. Flags and widths are read but have no effect when parsing,
+-- except that `_` (and `%e`) skips leading spaces.
+--
+-- Parsing rules (Jiff's): a numeric conversion reads one to its maximum
+-- number of digits (`%d` reads `7` or `07`); `%Y` and `%G` take an
+-- optional sign and up to four digits; names match in any letter case
+-- and `%a`/`%A` (and `%b`/`%B`) each accept either the abbreviated or
+-- the full name; white space in the format (and `%n`, `%t`) matches any
+-- run of white space in the input, including none; every other format
+-- byte must match exactly; the whole input must be consumed. `%y`
+-- without `%C` reads 69..99 as 1969..1999 and 00..68 as 2000..2068.
+-- A second of 60 is refused (no value represents it).
+--
+-- Design law shape.
+--   - A format is compiled once, left to right, by a state machine over
+--     its bytes (`fmt-literal`, `fmt-flag`, `fmt-width`, `fmt-modifier`,
+--     `fmt-colons`, `fmt-precision`, `fmt-conversion`) into a `Format`:
+--     a spine of literal bytes and conversions. `strtime-format-compile`
+--     exposes it so a format is parsed once and applied many times;
+--     `strftime`/`strptime` compile and apply. Every format refusal
+--     (unknown conversion, a format ending inside a conversion, a
+--     modifier on a conversion that has none) is found at compile time,
+--     before any value or input is looked at.
+--   - `strftime` allocates one buffer whose size bounds the output
+--     (every conversion writes at most 32 bytes plus its width plus the
+--     zone strings), fills it left to right, and takes the written
+--     prefix. No list of pieces and no `string-concat`.
+--   - `strptime` reads the input's bytes by index, one state per
+--     conversion kind (`p-*`), never going back and allocating only the
+--     updated `BrokenDown`.
+--   - Round trip: for a format that names enough fields,
+--     `strptime f (strftime f b)` has the same named fields as `b`.
+--   - `broken-down-to-date` builds the date from year, month and day;
+--     or year and day of year; or ISO week year, ISO week and weekday;
+--     or year, a POSIX week number and weekday; and then every other
+--     date field that is present must agree with it (a parsed weekday
+--     that contradicts the date is `StrtimeWeekdayMismatch`).
+--
+-- NAMED REFUSALS:
+--   - locales: month, weekday and meridiem names are English only, and
+--     `%c`, `%x`, `%X`, `%r`, `%E*`, `%O*` are unknown conversions.
+--     Locale-aware formatting is out of scope (design/datetime.md 10.6).
+--   - parsing `%Z`: a zone abbreviation is ambiguous (`CST` is three
+--     zones), so `strptime` refuses a format with `%Z`
+--     (`StrtimeZoneAbbreviationNotParsed`). Printing one is fine.
+--   - more than one flag (`%-^a`): the second flag is an unknown
+--     conversion, as in Jiff.
+--   - leap seconds: `%S` refuses 60.
+--   - `Offset`, `TimeZone` and `Zoned`: offsets here are plain `I64`
+--     seconds east of UTC within +-93599; the zone layer wraps them.
+--     `%Q` only carries the name; resolving it needs a `TzDb`.
+--   - `Text.Builder`: not imported (it is outside the base package);
+--     the printer writes one preallocated `Bytes` instead.
+--   - a no-copy view of the format or the input: see Text.Time.Scan.
+module Text.Time.Strtime where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.Bytes
+  import Data.String
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Scan
+  import Data.Time.Weekday (Weekday)
+  import Data.Time.Weekday as W
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Timestamp
+
+  export StrtimeError
+  export StrtimeUnknownConversion, StrtimeDanglingPercent, StrtimeWidthTooLarge, StrtimeModifierNotAllowed
+  export StrtimeMissingField
+  export StrtimeUnexpectedEnd, StrtimeExpectedDigit, StrtimeExpectedName, StrtimeExpectedOffset
+  export StrtimeLiteralMismatch, StrtimeFieldOutOfRange, StrtimeTrailingInput
+  export StrtimeZoneAbbreviationNotParsed
+  export StrtimeMissingYear, StrtimeMissingMonth, StrtimeMissingDay, StrtimeMissingHour
+  export StrtimeMissingMeridiem, StrtimeMissingOffset
+  export StrtimeInvalidDate, StrtimeDateMismatch, StrtimeWeekdayMismatch, StrtimeDayOfYearMismatch
+  export StrtimeIsoWeekMismatch, StrtimeWeekNumberMismatch, StrtimeHourMismatch
+  export StrtimeTimestampOutOfRange
+  export Meridiem, Am, Pm
+  export BrokenDown, broken-down-empty
+  export broken-down-year, broken-down-month, broken-down-day
+  export broken-down-hour, broken-down-hour12, broken-down-minute, broken-down-second
+  export broken-down-subsec-nanosecond, broken-down-weekday, broken-down-day-of-year
+  export broken-down-offset, broken-down-meridiem
+  export broken-down-iso-week-year, broken-down-iso-week
+  export broken-down-week-sunday, broken-down-week-monday, broken-down-unix-seconds
+  export broken-down-zone-abbreviation, broken-down-zone-name
+  export broken-down-with-year, broken-down-with-month, broken-down-with-day
+  export broken-down-with-hour, broken-down-with-hour12, broken-down-with-minute, broken-down-with-second
+  export broken-down-with-subsec-nanosecond, broken-down-with-weekday, broken-down-with-day-of-year
+  export broken-down-with-offset, broken-down-with-meridiem
+  export broken-down-with-iso-week-year, broken-down-with-iso-week
+  export broken-down-with-week-sunday, broken-down-with-week-monday, broken-down-with-unix-seconds
+  export broken-down-with-zone-abbreviation, broken-down-with-zone-name
+  export broken-down-from-date, broken-down-from-time, broken-down-from-datetime
+  export broken-down-from-timestamp-utc, broken-down-from-timestamp-at-offset
+  export broken-down-to-date, broken-down-to-time, broken-down-to-datetime, broken-down-to-timestamp
+  export Format, strtime-format-compile, strftime-format, strptime-format
+  export strftime, strptime
+  export date-strftime, time-strftime, datetime-strftime
+  export date-strptime, time-strptime, datetime-strptime
+
+
+  -- One constructor per refusal. A position is a byte index: into the
+  -- FORMAT for the first four, into the INPUT for the parse refusals.
+  -- A conversion is named by its letter's byte (`Y` is 89).
+  data StrtimeError where
+    -- Format refusals (found when the format is compiled).
+    -- `%` followed by a byte that is no conversion: position, byte.
+    StrtimeUnknownConversion :: I64 -> I64 -> StrtimeError
+    -- The format ends inside a conversion (a bare `%`, `%-`, `%10`).
+    -- The position is the `%`.
+    StrtimeDanglingPercent :: I64 -> StrtimeError
+    -- A width above 255. The position is the `%`.
+    StrtimeWidthTooLarge :: I64 -> StrtimeError
+    -- A flag, width, colon or precision on a conversion that takes
+    -- none (`%5%`, `%-F`, `%:Y`, `%12f`). The position is the `%`.
+    StrtimeModifierNotAllowed :: I64 -> StrtimeError
+    -- Formatting: the value has no field for this conversion.
+    StrtimeMissingField :: I64 -> StrtimeError
+    -- Parse refusals.
+    StrtimeUnexpectedEnd :: I64 -> StrtimeError
+    StrtimeExpectedDigit :: I64 -> StrtimeError
+    -- No month, weekday, meridiem or zone name here.
+    StrtimeExpectedName :: I64 -> StrtimeError
+    -- No `+` or `-` where an offset starts.
+    StrtimeExpectedOffset :: I64 -> StrtimeError
+    -- The input byte is not the format's literal byte.
+    StrtimeLiteralMismatch :: I64 -> StrtimeError
+    -- A number outside its conversion's range: position, conversion.
+    StrtimeFieldOutOfRange :: I64 -> I64 -> StrtimeError
+    StrtimeTrailingInput :: I64 -> StrtimeError
+    -- `%Z` in a format given to `strptime`.
+    StrtimeZoneAbbreviationNotParsed :: I64 -> StrtimeError
+    -- Conversions out of a `BrokenDown`.
+    StrtimeMissingYear :: StrtimeError
+    StrtimeMissingMonth :: StrtimeError
+    StrtimeMissingDay :: StrtimeError
+    StrtimeMissingHour :: StrtimeError
+    -- A twelve-hour clock hour with no AM/PM.
+    StrtimeMissingMeridiem :: StrtimeError
+    StrtimeMissingOffset :: StrtimeError
+    -- The fields name no date (30 February, day 366 of a common year,
+    -- ISO week 53 of a 52-week year).
+    StrtimeInvalidDate :: StrtimeError
+    -- A year, month or day that contradicts the date the other fields
+    -- give.
+    StrtimeDateMismatch :: StrtimeError
+    StrtimeWeekdayMismatch :: StrtimeError
+    StrtimeDayOfYearMismatch :: StrtimeError
+    StrtimeIsoWeekMismatch :: StrtimeError
+    StrtimeWeekNumberMismatch :: StrtimeError
+    -- The hour contradicts the twelve-hour hour or the meridiem.
+    StrtimeHourMismatch :: StrtimeError
+    StrtimeTimestampOutOfRange :: StrtimeError
+
+  data Meridiem where
+    Am :: Meridiem
+    Pm :: Meridiem
+
+  -- -----------------------------------------------------------------
+  -- BrokenDown. Nineteen numeric fields, each an `I64` that is either
+  -- in its range or the private sentinel `absent`, and two optional
+  -- strings. Field indexes: 0 year, 1 month, 2 day, 3 hour, 4 hour12,
+  -- 5 minute, 6 second, 7 nanos, 8 weekday (Monday 1 .. Sunday 7),
+  -- 9 day of year, 10 offset, 11 meridiem (0 AM, 1 PM), 12 ISO week
+  -- year, 13 ISO week, 14 week (Sunday first), 15 week (Monday first),
+  -- 16 Unix seconds, 17 century, 18 year in century. The last two are
+  -- parse intermediates with no public accessor: `strptime` folds them
+  -- into the year when it finishes.
+  -- -----------------------------------------------------------------
+
+  -- No field holds this: it is below every range.
+  absent :: I64
+  absent = -9223372036854775807
+
+  pick :: I64 -> I64 -> I64 -> I64 -> I64
+  pick j k v old = if k == j then v else old
+
+  data BrokenDown where
+    MkBrokenDown :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Option String -> Option String -> BrokenDown
+
+  f-year :: BrokenDown -> I64
+  f-year b = case b of
+    MkBrokenDown x _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-month :: BrokenDown -> I64
+  f-month b = case b of
+    MkBrokenDown _ x _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-day :: BrokenDown -> I64
+  f-day b = case b of
+    MkBrokenDown _ _ x _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-hour :: BrokenDown -> I64
+  f-hour b = case b of
+    MkBrokenDown _ _ _ x _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-hour12 :: BrokenDown -> I64
+  f-hour12 b = case b of
+    MkBrokenDown _ _ _ _ x _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-minute :: BrokenDown -> I64
+  f-minute b = case b of
+    MkBrokenDown _ _ _ _ _ x _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-second :: BrokenDown -> I64
+  f-second b = case b of
+    MkBrokenDown _ _ _ _ _ _ x _ _ _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-nanos :: BrokenDown -> I64
+  f-nanos b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ x _ _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-weekday :: BrokenDown -> I64
+  f-weekday b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ x _ _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-yday :: BrokenDown -> I64
+  f-yday b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ x _ _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-offset :: BrokenDown -> I64
+  f-offset b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ x _ _ _ _ _ _ _ _ _ _ -> x
+
+  f-meridiem :: BrokenDown -> I64
+  f-meridiem b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ x _ _ _ _ _ _ _ _ _ -> x
+
+  f-iso-year :: BrokenDown -> I64
+  f-iso-year b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ x _ _ _ _ _ _ _ _ -> x
+
+  f-iso-week :: BrokenDown -> I64
+  f-iso-week b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ _ x _ _ _ _ _ _ _ -> x
+
+  f-week-sun :: BrokenDown -> I64
+  f-week-sun b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ _ _ x _ _ _ _ _ _ -> x
+
+  f-week-mon :: BrokenDown -> I64
+  f-week-mon b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ x _ _ _ _ _ -> x
+
+  f-unix :: BrokenDown -> I64
+  f-unix b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ x _ _ _ _ -> x
+
+  f-century :: BrokenDown -> I64
+  f-century b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ x _ _ _ -> x
+
+  f-year2 :: BrokenDown -> I64
+  f-year2 b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ x _ _ -> x
+
+  -- Field `k` (the index in the list above) replaced by `v`.
+  bd-set :: I64 -> I64 -> BrokenDown -> BrokenDown
+  bd-set k v b = case b of
+    MkBrokenDown x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 za zn ->
+      MkBrokenDown (pick 0 k v x0) (pick 1 k v x1) (pick 2 k v x2) (pick 3 k v x3) (pick 4 k v x4) (pick 5 k v x5) (pick 6 k v x6) (pick 7 k v x7) (pick 8 k v x8) (pick 9 k v x9) (pick 10 k v x10) (pick 11 k v x11) (pick 12 k v x12) (pick 13 k v x13) (pick 14 k v x14) (pick 15 k v x15) (pick 16 k v x16) (pick 17 k v x17) (pick 18 k v x18) za zn
+
+  f-zone-abbreviation :: BrokenDown -> Option String
+  f-zone-abbreviation b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ za _ -> za
+
+  f-zone-name :: BrokenDown -> Option String
+  f-zone-name b = case b of
+    MkBrokenDown _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ zn -> zn
+
+  set-zone-abbreviation :: Option String -> BrokenDown -> BrokenDown
+  set-zone-abbreviation s b = case b of
+    MkBrokenDown x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 _ zn -> MkBrokenDown x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 s zn
+
+  set-zone-name :: Option String -> BrokenDown -> BrokenDown
+  set-zone-name s b = case b of
+    MkBrokenDown x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 za _ -> MkBrokenDown x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 za s
+
+  broken-down-empty :: BrokenDown
+  broken-down-empty = MkBrokenDown absent absent absent absent absent absent absent absent absent absent absent absent absent absent absent absent absent absent absent None None
+
+  present :: I64 -> Option I64
+  present v = if v == absent then None else Some v
+
+  or-zero :: I64 -> I64
+  or-zero v = if v == absent then 0 else v
+
+  -- -----------------------------------------------------------------
+  -- Getters: `None` for a field that is not set. The hour, twelve-hour
+  -- hour and meridiem are read as stored (not derived from each other).
+  -- -----------------------------------------------------------------
+
+  broken-down-year :: BrokenDown -> Option I64
+  broken-down-year b = present (f-year b)
+
+  broken-down-month :: BrokenDown -> Option I64
+  broken-down-month b = present (f-month b)
+
+  broken-down-day :: BrokenDown -> Option I64
+  broken-down-day b = present (f-day b)
+
+  broken-down-hour :: BrokenDown -> Option I64
+  broken-down-hour b = present (f-hour b)
+
+  broken-down-hour12 :: BrokenDown -> Option I64
+  broken-down-hour12 b = present (f-hour12 b)
+
+  broken-down-minute :: BrokenDown -> Option I64
+  broken-down-minute b = present (f-minute b)
+
+  broken-down-second :: BrokenDown -> Option I64
+  broken-down-second b = present (f-second b)
+
+  broken-down-subsec-nanosecond :: BrokenDown -> Option I64
+  broken-down-subsec-nanosecond b = present (f-nanos b)
+
+  broken-down-weekday :: BrokenDown -> Option Weekday
+  broken-down-weekday b = W.from-monday-one-checked (f-weekday b)
+
+  broken-down-day-of-year :: BrokenDown -> Option I64
+  broken-down-day-of-year b = present (f-yday b)
+
+  -- Seconds east of UTC.
+  broken-down-offset :: BrokenDown -> Option I64
+  broken-down-offset b = present (f-offset b)
+
+  broken-down-meridiem :: BrokenDown -> Option Meridiem
+  broken-down-meridiem b =
+    let m = f-meridiem b in
+    if m == 0 then Some Am else if m == 1 then Some Pm else None
+
+  broken-down-iso-week-year :: BrokenDown -> Option I64
+  broken-down-iso-week-year b = present (f-iso-year b)
+
+  broken-down-iso-week :: BrokenDown -> Option I64
+  broken-down-iso-week b = present (f-iso-week b)
+
+  -- `%U`: the week of the year with Sunday first, 0..=53.
+  broken-down-week-sunday :: BrokenDown -> Option I64
+  broken-down-week-sunday b = present (f-week-sun b)
+
+  -- `%W`: the week of the year with Monday first, 0..=53.
+  broken-down-week-monday :: BrokenDown -> Option I64
+  broken-down-week-monday b = present (f-week-mon b)
+
+  broken-down-unix-seconds :: BrokenDown -> Option I64
+  broken-down-unix-seconds b = present (f-unix b)
+
+  broken-down-zone-abbreviation :: BrokenDown -> Option String
+  broken-down-zone-abbreviation b = f-zone-abbreviation b
+
+  broken-down-zone-name :: BrokenDown -> Option String
+  broken-down-zone-name b = f-zone-name b
+
+  -- -----------------------------------------------------------------
+  -- Setters: the range is the argument's type, so a literal checks at
+  -- compile time and no setter can store a value outside its field.
+  -- -----------------------------------------------------------------
+
+  broken-down-with-year :: (y :: InRange (-9999) 9999 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-year y b = bd-set 0 y b
+
+  broken-down-with-month :: (m :: InRange 1 12 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-month m b = bd-set 1 m b
+
+  broken-down-with-day :: (d :: InRange 1 31 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-day d b = bd-set 2 d b
+
+  broken-down-with-hour :: (h :: InRange 0 23 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-hour h b = bd-set 3 h b
+
+  broken-down-with-hour12 :: (h :: InRange 1 12 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-hour12 h b = bd-set 4 h b
+
+  broken-down-with-minute :: (m :: InRange 0 59 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-minute m b = bd-set 5 m b
+
+  broken-down-with-second :: (s :: InRange 0 59 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-second s b = bd-set 6 s b
+
+  broken-down-with-subsec-nanosecond :: (ns :: InRange 0 999999999 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-subsec-nanosecond ns b = bd-set 7 ns b
+
+  broken-down-with-weekday :: Weekday -> BrokenDown -> BrokenDown
+  broken-down-with-weekday wd b = bd-set 8 (W.to-monday-one wd) b
+
+  broken-down-with-day-of-year :: (n :: InRange 1 366 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-day-of-year n b = bd-set 9 n b
+
+  broken-down-with-offset :: (off :: InRange (-93599) 93599 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-offset off b = bd-set 10 off b
+
+  broken-down-with-meridiem :: Meridiem -> BrokenDown -> BrokenDown
+  broken-down-with-meridiem m b = case m of
+    Am -> bd-set 11 0 b
+    Pm -> bd-set 11 1 b
+
+  broken-down-with-iso-week-year :: (y :: InRange (-9999) 9999 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-iso-week-year y b = bd-set 12 y b
+
+  broken-down-with-iso-week :: (w :: InRange 1 53 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-iso-week w b = bd-set 13 w b
+
+  broken-down-with-week-sunday :: (w :: InRange 0 53 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-week-sunday w b = bd-set 14 w b
+
+  broken-down-with-week-monday :: (w :: InRange 0 53 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-week-monday w b = bd-set 15 w b
+
+  -- The `Timestamp` range in whole seconds.
+  broken-down-with-unix-seconds :: (s :: InRange (-377705023201) 253402207200 I64) -> BrokenDown -> BrokenDown
+  broken-down-with-unix-seconds s b = bd-set 16 s b
+
+  broken-down-with-zone-abbreviation :: String -> BrokenDown -> BrokenDown
+  broken-down-with-zone-abbreviation s b = set-zone-abbreviation (Some s) b
+
+  broken-down-with-zone-name :: String -> BrokenDown -> BrokenDown
+  broken-down-with-zone-name s b = set-zone-name (Some s) b
+
+  -- -----------------------------------------------------------------
+  -- Conversions in. Only the defining fields are set; the printer
+  -- derives the rest (weekday, day of year, week numbers).
+  -- -----------------------------------------------------------------
+
+  broken-down-from-date :: Date -> BrokenDown
+  broken-down-from-date d = add-date d broken-down-empty
+
+  broken-down-from-time :: TimeOfDay -> BrokenDown
+  broken-down-from-time t = add-time t broken-down-empty
+
+  broken-down-from-datetime :: DateTime -> BrokenDown
+  broken-down-from-datetime x = add-time (DT.time-part x) (add-date (DT.date-part x) broken-down-empty)
+
+  -- The UTC reading, offset 0 and the Unix second.
+  broken-down-from-timestamp-utc :: Timestamp -> BrokenDown
+  broken-down-from-timestamp-utc ts = case broken-down-from-timestamp-at-offset 0 ts of
+    Some b -> b
+    None -> broken-down-empty
+
+  -- The civil reading at `off` seconds east of UTC, that offset and the
+  -- Unix second. `None` for an offset outside +-93599 (every timestamp
+  -- has a civil reading at every offset inside it, T3). The seconds are
+  -- within +-3.8e11, so the sum does not wrap.
+  broken-down-from-timestamp-at-offset :: I64 -> Timestamp -> Option BrokenDown
+  broken-down-from-timestamp-at-offset off ts =
+    if off < -93599 || off > 93599 then None
+    else case timestamp-to-unix-seconds-and-nanos ts of
+      (secs, nanos) -> case DT.from-epoch-seconds-nanos-utc (plus secs off) nanos of
+        None -> None
+        Some x -> Some (bd-set 16 secs (bd-set 10 off (broken-down-from-datetime x)))
+
+  add-date :: Date -> BrokenDown -> BrokenDown
+  add-date d b = bd-set 2 (D.day d) (bd-set 1 (D.month d) (bd-set 0 (D.year d) b))
+
+  add-time :: TimeOfDay -> BrokenDown -> BrokenDown
+  add-time t b =
+    bd-set 7 (T.subsec-nanosecond t) (bd-set 6 (T.second t) (bd-set 5 (T.minute t) (bd-set 3 (T.hour t) b)))
+
+  -- -----------------------------------------------------------------
+  -- Conversions out.
+  -- -----------------------------------------------------------------
+
+  -- The date the fields name (see the header for the four ways), after
+  -- which every other date field that is present must agree with it.
+  broken-down-to-date :: BrokenDown -> Result StrtimeError Date
+  broken-down-to-date b =
+    let y = f-year b in
+    let m = f-month b in
+    let d = f-day b in
+    let wd = f-weekday b in
+    if y /= absent && m /= absent && d /= absent then
+      (case D.date y m d of
+        None -> Err StrtimeInvalidDate
+        Some x -> check-date b x)
+    else if y /= absent && f-yday b /= absent then date-from-yday b y (f-yday b)
+    else if f-iso-year b /= absent && f-iso-week b /= absent && wd /= absent then
+      date-from-iso-week b (f-iso-year b) (f-iso-week b) wd
+    else if y /= absent && wd /= absent && f-week-sun b /= absent then
+      date-from-week b y (f-week-sun b) (scan-rem wd 7) True
+    else if y /= absent && wd /= absent && f-week-mon b /= absent then
+      date-from-week b y (f-week-mon b) (minus wd 1) False
+    else if y == absent then Err StrtimeMissingYear
+    else if m == absent then Err StrtimeMissingMonth
+    else Err StrtimeMissingDay
+
+  date-from-yday :: BrokenDown -> I64 -> I64 -> Result StrtimeError Date
+  date-from-yday b y n =
+    if n > D.days-in-year y then Err StrtimeInvalidDate
+    else case D.date y 1 1 of
+      None -> Err StrtimeInvalidDate
+      Some jan1 -> case D.add-days (minus n 1) jan1 of
+        None -> Err StrtimeInvalidDate
+        Some x -> check-date b x
+
+  -- 4 January is always in ISO week 1, so the Monday of week 1 is
+  -- 4 January less its weekday offset; the date is that Monday plus
+  -- whole weeks plus the weekday. All terms are below 400.
+  date-from-iso-week :: BrokenDown -> I64 -> I64 -> I64 -> Result StrtimeError Date
+  date-from-iso-week b gy wk wd = case D.date gy 1 4 of
+    None -> Err StrtimeInvalidDate
+    Some jan4 ->
+      let back = minus 1 (W.to-monday-one (D.weekday jan4)) in
+      case D.add-days (plus back (plus (times (minus wk 1) 7) (minus wd 1))) jan4 of
+        None -> Err StrtimeInvalidDate
+        Some x ->
+          if D.iso-week-year x == gy && D.iso-week x == wk then check-date b x
+          else Err StrtimeInvalidDate
+
+  -- POSIX week numbers: week 1 starts at the year's first Sunday
+  -- (`%U`) or Monday (`%W`); earlier days are week 0. `wd0` is the
+  -- weekday counted from that first day (0..=6).
+  date-from-week :: BrokenDown -> I64 -> I64 -> I64 -> Bool -> Result StrtimeError Date
+  date-from-week b y wk wd0 sunday = case D.date y 1 1 of
+    None -> Err StrtimeInvalidDate
+    Some jan1 ->
+      let w1 = week-index (D.weekday jan1) sunday in
+      let r = scan-rem (minus 7 w1) 7 in
+      let yday0 = plus (minus (plus (times wk 7) r) 7) wd0 in
+      if yday0 < 0 || yday0 >= D.days-in-year y then Err StrtimeInvalidDate
+      else case D.add-days yday0 jan1 of
+        None -> Err StrtimeInvalidDate
+        Some x -> check-date b x
+
+  -- A weekday counted from Sunday (0..=6) or from Monday (0..=6).
+  week-index :: Weekday -> Bool -> I64
+  week-index wd sunday = if sunday then W.to-sunday-zero wd else W.to-monday-zero wd
+
+  -- `%U` or `%W` of a date: `(day of year - 1 + 7 - weekday index) / 7`.
+  week-number :: Date -> Bool -> I64
+  week-number x sunday =
+    scan-quot (minus (plus (D.day-of-year x) 6) (week-index (D.weekday x) sunday)) 7
+
+  agrees :: I64 -> I64 -> Bool
+  agrees field actual = field == absent || field == actual
+
+  check-date :: BrokenDown -> Date -> Result StrtimeError Date
+  check-date b x =
+    if agrees (f-year b) (D.year x) && agrees (f-month b) (D.month x) && agrees (f-day b) (D.day x) then
+      (if agrees (f-weekday b) (W.to-monday-one (D.weekday x)) then
+        (if agrees (f-yday b) (D.day-of-year x) then
+          (if agrees (f-iso-year b) (D.iso-week-year x) && agrees (f-iso-week b) (D.iso-week x) then
+            (if agrees (f-week-sun b) (week-number x True) && agrees (f-week-mon b) (week-number x False) then Ok x
+             else Err StrtimeWeekNumberMismatch)
+           else Err StrtimeIsoWeekMismatch)
+         else Err StrtimeDayOfYearMismatch)
+       else Err StrtimeWeekdayMismatch)
+    else Err StrtimeDateMismatch
+
+  -- The hour comes from the hour field, or from the twelve-hour hour
+  -- and the meridiem; when several are present they must agree. A
+  -- missing minute, second or subsecond is zero.
+  broken-down-to-time :: BrokenDown -> Result StrtimeError TimeOfDay
+  broken-down-to-time b =
+    let h = f-hour b in
+    let h12 = f-hour12 b in
+    let mer = f-meridiem b in
+    if h /= absent then
+      (if agrees mer (meridiem-of h) && agrees h12 (hour12-of h) then time-with-hour b h
+       else Err StrtimeHourMismatch)
+    else if h12 == absent then Err StrtimeMissingHour
+    else if mer == absent then Err StrtimeMissingMeridiem
+    else time-with-hour b (hour-of h12 mer)
+
+  time-with-hour :: BrokenDown -> I64 -> Result StrtimeError TimeOfDay
+  time-with-hour b h =
+    case T.time-of-day-checked h (or-zero (f-minute b)) (or-zero (f-second b)) (or-zero (f-nanos b)) of
+      None -> Err StrtimeMissingHour
+      Some t -> Ok t
+
+  meridiem-of :: I64 -> I64
+  meridiem-of h = if h >= 12 then 1 else 0
+
+  hour12-of :: I64 -> I64
+  hour12-of h =
+    let r = scan-rem h 12 in
+    if r == 0 then 12 else r
+
+  -- 12 AM is hour 0 and 12 PM is hour 12.
+  hour-of :: I64 -> I64 -> I64
+  hour-of h12 mer = plus (scan-rem h12 12) (times mer 12)
+
+  has-time :: BrokenDown -> Bool
+  has-time b =
+    f-hour b /= absent || f-hour12 b /= absent || f-minute b /= absent
+    || f-second b /= absent || f-nanos b /= absent || f-meridiem b /= absent
+
+  -- A date is required; with no time field at all the time is midnight.
+  broken-down-to-datetime :: BrokenDown -> Result StrtimeError DateTime
+  broken-down-to-datetime b = case broken-down-to-date b of
+    Err e -> Err e
+    Ok d ->
+      if has-time b then
+        (case broken-down-to-time b of
+          Err e -> Err e
+          Ok t -> Ok (DT.datetime d t))
+      else Ok (DT.from-date d)
+
+  -- The instant: the Unix second when it is set (`%s`; the subsecond
+  -- field is added), otherwise the civil date-time read at the offset,
+  -- which is then required (`StrtimeMissingOffset`: a civil reading is
+  -- not an instant). The civil seconds are within +-3.8e11 and the
+  -- offset within +-93599, so the subtraction does not wrap.
+  broken-down-to-timestamp :: BrokenDown -> Result StrtimeError Timestamp
+  broken-down-to-timestamp b =
+    let u = f-unix b in
+    if u /= absent then instant u (or-zero (f-nanos b))
+    else case broken-down-to-datetime b of
+      Err e -> Err e
+      Ok x ->
+        let off = f-offset b in
+        if off == absent then Err StrtimeMissingOffset
+        else case DT.to-epoch-seconds-nanos-utc x of
+          (secs, nanos) -> instant (minus secs off) nanos
+
+  instant :: I64 -> I64 -> Result StrtimeError Timestamp
+  instant secs nanos = case timestamp-from-unix-seconds-and-nanos secs nanos of
+    None -> Err StrtimeTimestampOutOfRange
+    Some ts -> Ok ts
+
+  -- -----------------------------------------------------------------
+  -- The compiled format: a spine of literal bytes and conversions.
+  -- `IConv conversion flag width extra`: the conversion's letter, the
+  -- flag byte (0 for none), the width (-1 for none; for `%.Nf` the
+  -- precision) and the extra modifier (the colon count before `z`; 1
+  -- for the point before `f`). `IBad` ends a spine whose format was
+  -- refused; `strtime-format-compile` never hands one out.
+  -- -----------------------------------------------------------------
+
+  data Items where
+    IEnd :: Items
+    ILit :: I64 -> Items -> Items
+    IConv :: I64 -> I64 -> I64 -> I64 -> Items -> Items
+    IBad :: StrtimeError -> Items
+
+  data Format where
+    MkFormat :: Items -> Format
+
+  -- Compiles a format once; every format refusal is reported here.
+  strtime-format-compile :: String -> Result StrtimeError Format
+  strtime-format-compile s =
+    let items = fmt-literal (scan-bytes-of-string s) 0 in
+    case items-error items of
+      Some e -> Err e
+      None -> Ok (MkFormat items)
+
+  items-error :: Items -> Option StrtimeError
+  items-error items = case items of
+    IEnd -> None
+    ILit _ rest -> items-error rest
+    IConv _ _ _ _ rest -> items-error rest
+    IBad e -> Some e
+
+  -- State: outside a conversion. A `%` opens one; any other byte is a
+  -- literal.
+  fmt-literal :: Bytes -> I64 -> Items
+  fmt-literal f i =
+    let c = scan-byte-at f i in
+    if c < 0 then IEnd
+    else if c == 37 then fmt-flag f (plus i 1) i
+    else ILit c (fmt-literal f (plus i 1))
+
+  -- State: after `%`. One optional flag: `-` `_` `0` `^` `#`.
+  fmt-flag :: Bytes -> I64 -> I64 -> Items
+  fmt-flag f i start =
+    let c = scan-byte-at f i in
+    if c == 45 || c == 95 || c == 48 || c == 94 || c == 35 then fmt-width f (plus i 1) start c
+    else fmt-width f i start 0
+
+  -- State: the optional width, at most three digits and at most 255.
+  fmt-width :: Bytes -> I64 -> I64 -> I64 -> Items
+  fmt-width f i start flag =
+    let k = scan-count-digits f i 4 in
+    if k == 0 then fmt-modifier f i start flag (-1)
+    else if k > 3 then IBad (StrtimeWidthTooLarge start)
+    else
+      let w = scan-digits f i k in
+      if w > 255 then IBad (StrtimeWidthTooLarge start)
+      else fmt-modifier f (plus i k) start flag w
+
+  -- State: after the width. Colons lead to `z`, a point to `f`.
+  fmt-modifier :: Bytes -> I64 -> I64 -> I64 -> I64 -> Items
+  fmt-modifier f i start flag w =
+    let c = scan-byte-at f i in
+    if c == 58 then fmt-colons f i start flag w 0
+    else if c == 46 then fmt-precision f (plus i 1) start flag w
+    else fmt-conversion f i start flag w
+
+  -- State: counting colons; then the conversion must be `z` and the
+  -- count at most two.
+  fmt-colons :: Bytes -> I64 -> I64 -> I64 -> I64 -> I64 -> Items
+  fmt-colons f i start flag w n =
+    let c = scan-byte-at f i in
+    if c == 58 then fmt-colons f (plus i 1) start flag w (plus n 1)
+    else if c < 0 then IBad (StrtimeDanglingPercent start)
+    else if c == 122 then
+      (if n > 2 then IBad (StrtimeModifierNotAllowed start)
+       else IConv 122 flag w n (fmt-literal f (plus i 1)))
+    else if is-conversion c then IBad (StrtimeModifierNotAllowed start)
+    else IBad (StrtimeUnknownConversion i c)
+
+  -- State: after the point. An optional precision 0..=9, then `f`. A
+  -- width and a precision together are refused.
+  fmt-precision :: Bytes -> I64 -> I64 -> I64 -> I64 -> Items
+  fmt-precision f i start flag w =
+    let k = scan-count-digits f i 2 in
+    let c = scan-byte-at f (plus i k) in
+    if c < 0 then IBad (StrtimeDanglingPercent start)
+    else if c /= 102 then
+      (if is-conversion c then IBad (StrtimeModifierNotAllowed start)
+       else IBad (StrtimeUnknownConversion (plus i k) c))
+    else if w >= 0 || k > 1 then IBad (StrtimeModifierNotAllowed start)
+    else if k == 0 then IConv 102 flag (-1) 1 (fmt-literal f (plus i 1))
+    else IConv 102 flag (scan-digits f i 1) 1 (fmt-literal f (plus i 2))
+
+  -- State: the conversion letter.
+  fmt-conversion :: Bytes -> I64 -> I64 -> I64 -> I64 -> Items
+  fmt-conversion f i start flag w =
+    let c = scan-byte-at f i in
+    let rest = plus i 1 in
+    let bare = flag == 0 && w < 0 in
+    if c < 0 then IBad (StrtimeDanglingPercent start)
+    else if c == 102 then
+      (if w == 0 || w > 9 then IBad (StrtimeModifierNotAllowed start)
+       else IConv 102 flag w 0 (fmt-literal f rest))
+    else if c == 104 then IConv 98 flag w 0 (fmt-literal f rest)
+    else if is-simple c then IConv c flag w 0 (fmt-literal f rest)
+    else if is-composite c then
+      (if bare then expand c (fmt-literal f rest) else IBad (StrtimeModifierNotAllowed start))
+    else IBad (StrtimeUnknownConversion i c)
+
+  -- The conversions that take a flag and a width.
+  is-simple :: I64 -> Bool
+  is-simple c =
+    c == 89 || c == 67 || c == 121 || c == 109 || c == 100 || c == 101 || c == 106
+    || c == 72 || c == 73 || c == 77 || c == 83 || c == 112 || c == 80
+    || c == 65 || c == 97 || c == 66 || c == 98 || c == 117 || c == 119
+    || c == 71 || c == 103 || c == 86 || c == 85 || c == 87
+    || c == 122 || c == 90 || c == 81 || c == 115
+
+  -- `%D %F %T %R %n %t %%`: no modifiers.
+  is-composite :: I64 -> Bool
+  is-composite c = c == 68 || c == 70 || c == 84 || c == 82 || c == 110 || c == 116 || c == 37
+
+  is-conversion :: I64 -> Bool
+  is-conversion c = is-simple c || is-composite c || c == 102 || c == 104
+
+  cv :: I64 -> Items -> Items
+  cv c rest = IConv c 0 (-1) 0 rest
+
+  expand :: I64 -> Items -> Items
+  expand c rest =
+    if c == 68 then cv 109 (ILit 47 (cv 100 (ILit 47 (cv 121 rest))))
+    else if c == 70 then cv 89 (ILit 45 (cv 109 (ILit 45 (cv 100 rest))))
+    else if c == 84 then cv 72 (ILit 58 (cv 77 (ILit 58 (cv 83 rest))))
+    else if c == 82 then cv 72 (ILit 58 (cv 77 rest))
+    else if c == 110 then ILit 10 rest
+    else if c == 116 then ILit 9 rest
+    else ILit 37 rest
+
+  -- -----------------------------------------------------------------
+  -- Formatting.
+  -- -----------------------------------------------------------------
+
+  strftime :: String -> BrokenDown -> Result StrtimeError String
+  strftime fmt b = case strtime-format-compile fmt of
+    Err e -> Err e
+    Ok f -> strftime-format f b
+
+  strftime-format :: Format -> BrokenDown -> Result StrtimeError String
+  strftime-format f b = case f of
+    MkFormat items ->
+      let buf = scan-new (capacity items b 0) in
+      let end = emit-items items b (date-option b) buf 0 in
+      if end < 0 then Err (StrtimeMissingField (minus (-1) end))
+      else Ok (scan-string-of-bytes (scan-take buf end))
+
+  date-option :: BrokenDown -> Option Date
+  date-option b = case broken-down-to-date b of
+    Ok d -> Some d
+    Err _ -> None
+
+  -- An upper bound on the output: a literal is one byte; a conversion
+  -- writes at most 14 bytes of its own (the longest are `%s`, a sign
+  -- and 12 digits, and `%::z`, 9), or its width, or a zone string.
+  capacity :: Items -> BrokenDown -> I64 -> I64
+  capacity items b acc = case items of
+    IEnd -> acc
+    IBad _ -> acc
+    ILit _ rest -> capacity rest b (plus acc 1)
+    IConv c _ w _ rest -> capacity rest b (plus acc (plus (plus 32 (if w > 0 then w else 0)) (zone-length c b)))
+
+  zone-length :: I64 -> BrokenDown -> I64
+  zone-length c b =
+    if c == 90 then option-length (f-zone-abbreviation b)
+    else if c == 81 then option-length (f-zone-name b)
+    else 0
+
+  option-length :: Option String -> I64
+  option-length o = case o of
+    None -> 0
+    Some s -> scan-length (scan-bytes-of-string s)
+
+  -- Writes the items at `pos`; answers the end position, or
+  -- `-1 - conversion` when the value has no field for a conversion.
+  emit-items :: Items -> BrokenDown -> Option Date -> Bytes -> I64 -> I64
+  emit-items items b dopt buf pos = case items of
+    IEnd -> pos
+    IBad _ -> pos
+    ILit c rest -> emit-items rest b dopt buf (scan-put-byte buf pos c)
+    IConv c flag w x rest ->
+      let p = emit-conv c flag w x b dopt buf pos in
+      if p < 0 then p else emit-items rest b dopt buf p
+
+  missing :: I64 -> I64
+  missing c = minus (-1) c
+
+  emit-conv :: I64 -> I64 -> I64 -> I64 -> BrokenDown -> Option Date -> Bytes -> I64 -> I64
+  emit-conv c flag w x b dopt buf pos =
+    if c == 89 then emit-num c (eff-date b dopt 0) flag w 48 4 buf pos
+    else if c == 109 then emit-num c (eff-date b dopt 1) flag w 48 2 buf pos
+    else if c == 100 then emit-num c (eff-date b dopt 2) flag w 48 2 buf pos
+    else if c == 101 then emit-num c (eff-date b dopt 2) flag w 32 2 buf pos
+    else if c == 72 then emit-num c (eff-hour b) flag w 48 2 buf pos
+    else if c == 77 then emit-num c (f-minute b) flag w 48 2 buf pos
+    else if c == 83 then emit-num c (f-second b) flag w 48 2 buf pos
+    else if c == 102 then emit-fraction b w x buf pos
+    else if c == 73 then emit-num c (eff-hour12 b) flag w 48 2 buf pos
+    else if c == 112 || c == 80 then emit-meridiem c flag w b buf pos
+    else if c == 97 then emit-weekday c 0 flag w b dopt buf pos
+    else if c == 65 then emit-weekday c 1 flag w b dopt buf pos
+    else if c == 98 then emit-month c 0 flag w b dopt buf pos
+    else if c == 66 then emit-month c 1 flag w b dopt buf pos
+    else if c == 106 then emit-num c (eff-date b dopt 4) flag w 48 3 buf pos
+    else if c == 117 then emit-num c (eff-date b dopt 3) flag w 0 1 buf pos
+    else if c == 119 then emit-num c (sunday-zero (eff-date b dopt 3)) flag w 0 1 buf pos
+    else if c == 67 then emit-num c (century-of (eff-date b dopt 0)) flag w 48 2 buf pos
+    else if c == 121 then emit-num c (year-in-century (eff-date b dopt 0)) flag w 48 2 buf pos
+    else if c == 71 then emit-num c (eff-date b dopt 5) flag w 48 4 buf pos
+    else if c == 103 then emit-num c (year-in-century (eff-date b dopt 5)) flag w 48 2 buf pos
+    else if c == 86 then emit-num c (eff-date b dopt 6) flag w 48 2 buf pos
+    else if c == 85 then emit-num c (eff-date b dopt 7) flag w 48 2 buf pos
+    else if c == 87 then emit-num c (eff-date b dopt 8) flag w 48 2 buf pos
+    else if c == 122 then emit-offset c x b buf pos
+    else if c == 90 then emit-zone-abbreviation c flag w b buf pos
+    else if c == 81 then emit-zone-name c flag w b buf pos
+    else emit-num c (eff-unix b dopt) flag w 0 1 buf pos
+
+  -- A date field: as set, or else derived from the date the fields
+  -- name. Selectors: 0 year, 1 month, 2 day, 3 weekday (Monday 1),
+  -- 4 day of year, 5 ISO week year, 6 ISO week, 7 `%U`, 8 `%W`.
+  eff-date :: BrokenDown -> Option Date -> I64 -> I64
+  eff-date b dopt sel =
+    let v = own-date b sel in
+    if v /= absent then v
+    else case dopt of
+      None -> absent
+      Some d -> derived-date d sel
+
+  own-date :: BrokenDown -> I64 -> I64
+  own-date b sel =
+    if sel == 0 then f-year b
+    else if sel == 1 then f-month b
+    else if sel == 2 then f-day b
+    else if sel == 3 then f-weekday b
+    else if sel == 4 then f-yday b
+    else if sel == 5 then f-iso-year b
+    else if sel == 6 then f-iso-week b
+    else if sel == 7 then f-week-sun b
+    else f-week-mon b
+
+  derived-date :: Date -> I64 -> I64
+  derived-date d sel =
+    if sel == 0 then D.year d
+    else if sel == 1 then D.month d
+    else if sel == 2 then D.day d
+    else if sel == 3 then W.to-monday-one (D.weekday d)
+    else if sel == 4 then D.day-of-year d
+    else if sel == 5 then D.iso-week-year d
+    else if sel == 6 then D.iso-week d
+    else if sel == 7 then week-number d True
+    else week-number d False
+
+  eff-hour :: BrokenDown -> I64
+  eff-hour b =
+    let h = f-hour b in
+    if h /= absent then h
+    else if f-hour12 b == absent || f-meridiem b == absent then absent
+    else hour-of (f-hour12 b) (f-meridiem b)
+
+  eff-hour12 :: BrokenDown -> I64
+  eff-hour12 b =
+    let h = f-hour12 b in
+    if h /= absent then h
+    else if f-hour b == absent then absent
+    else hour12-of (f-hour b)
+
+  eff-meridiem :: BrokenDown -> I64
+  eff-meridiem b =
+    let m = f-meridiem b in
+    if m /= absent then m
+    else if f-hour b == absent then absent
+    else meridiem-of (f-hour b)
+
+  -- The Unix second: as set, or the civil fields read at the offset.
+  eff-unix :: BrokenDown -> Option Date -> I64
+  eff-unix b dopt =
+    let u = f-unix b in
+    let off = f-offset b in
+    let h = eff-hour b in
+    if u /= absent then u
+    else if off == absent || h == absent then absent
+    else case dopt of
+      None -> absent
+      Some d ->
+        let sod = plus (plus (times h 3600) (times (or-zero (f-minute b)) 60)) (or-zero (f-second b)) in
+        minus (plus (times (D.to-epoch-days d) 86400) sod) off
+
+  sunday-zero :: I64 -> I64
+  sunday-zero wd = if wd == absent then absent else scan-rem wd 7
+
+  -- Floored century and the year within it, so that
+  -- `century * 100 + year-in-century == year` for negative years too.
+  century-of :: I64 -> I64
+  century-of y =
+    if y == absent then absent
+    else if scan-rem y 100 < 0 then minus (scan-quot y 100) 1
+    else scan-quot y 100
+
+  year-in-century :: I64 -> I64
+  year-in-century y =
+    if y == absent then absent
+    else minus y (times (century-of y) 100)
+
+  emit-num :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Bytes -> I64 -> I64
+  emit-num c v flag w defpad defw buf pos =
+    if v == absent then missing c else put-number buf pos v flag w defpad defw
+
+  -- The padding byte (0 for none): the flag decides; with no flag, the
+  -- conversion's default, or zeros when an unpadded conversion is given
+  -- a width.
+  pad-of :: I64 -> I64 -> I64 -> I64
+  pad-of flag w defpad =
+    if flag == 45 then 0
+    else if flag == 95 then 32
+    else if flag == 48 then 48
+    else if defpad == 0 && w >= 0 then 48
+    else defpad
+
+  width-of :: I64 -> I64 -> I64 -> I64
+  width-of pad w defw = if pad == 0 then 0 else if w >= 0 then w else defw
+
+  dec-length :: I64 -> I64
+  dec-length v = if v < 10 then 1 else plus 1 (dec-length (scan-quot v 10))
+
+  -- A number: the magnitude padded to the width, the sign (if any)
+  -- before the digits. Magnitudes are below 10^13.
+  put-number :: Bytes -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64
+  put-number buf pos v flag w defpad defw =
+    let pad = pad-of flag w defpad in
+    let width = width-of pad w defw in
+    let mag = if v < 0 then minus 0 v else v in
+    let n = dec-length mag in
+    let fill = if width > n then minus width n else 0 in
+    if pad == 32 then
+      let p = put-fill buf pos 32 fill in
+      let q = if v < 0 then scan-put-byte buf p 45 else p in
+      scan-put-digits buf q n mag
+    else
+      let q = if v < 0 then scan-put-byte buf pos 45 else pos in
+      scan-put-digits buf q (plus fill n) mag
+
+  put-fill :: Bytes -> I64 -> I64 -> I64 -> I64
+  put-fill buf pos c n = if n <= 0 then pos else put-fill buf (scan-put-byte buf pos c) c (minus n 1)
+
+  -- `%f` and `%.f` (see the header). An unset subsecond is zero.
+  emit-fraction :: BrokenDown -> I64 -> I64 -> Bytes -> I64 -> I64
+  emit-fraction b w x buf pos =
+    let ns = or-zero (f-nanos b) in
+    let short = scan-fraction-digits ns in
+    if x == 0 then
+      (if w >= 0 then put-fraction buf pos ns w
+       else if short == 0 then put-fraction buf pos ns 1
+       else put-fraction buf pos ns short)
+    else if w < 0 then
+      (if short == 0 then pos else put-fraction buf (scan-put-byte buf pos 46) ns short)
+    else if w == 0 then pos
+    else put-fraction buf (scan-put-byte buf pos 46) ns w
+
+  put-fraction :: Bytes -> I64 -> I64 -> I64 -> I64
+  put-fraction buf pos ns digits = scan-put-digits buf pos digits (scan-fraction-head ns digits)
+
+  -- Left padding for text: spaces up to the width, none with `-`.
+  text-fill :: I64 -> I64 -> I64 -> I64
+  text-fill flag w len = if flag == 45 then 0 else if w > len then minus w len else 0
+
+  -- `len` bytes held big-endian in `packed`, written at `pos`; lower
+  -- case letters become upper case when `upper`. Written from the last
+  -- byte backward; answers `pos + len`.
+  put-packed :: Bytes -> I64 -> I64 -> I64 -> Bool -> I64
+  put-packed buf pos packed len upper =
+    if len <= 0 then pos
+    else
+      let u = scan-put-byte buf (plus pos (minus len 1)) (cased (scan-rem packed 256) upper) in
+      let v = put-packed buf pos (scan-quot packed 256) (minus len 1) upper in
+      plus pos len
+
+  cased :: I64 -> Bool -> I64
+  cased c upper = if upper && c >= 97 && c <= 122 then minus c 32 else c
+
+  -- A name: the three-letter abbreviation and, for the full name, its
+  -- tail. Title case by default; `^` and `#` make it upper case.
+  put-name :: Bytes -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64
+  put-name buf pos abbrev tail tlen flag w =
+    let upper = flag == 94 || flag == 35 in
+    let p = put-fill buf pos 32 (text-fill flag w (plus 3 tlen)) in
+    let q = put-packed buf p (scan-quot abbrev 65536) 1 True in
+    let r = put-packed buf q (scan-rem abbrev 65536) 2 upper in
+    put-packed buf r tail tlen upper
+
+  emit-month :: I64 -> I64 -> I64 -> I64 -> BrokenDown -> Option Date -> Bytes -> I64 -> I64
+  emit-month c full flag w b dopt buf pos =
+    let m = eff-date b dopt 1 in
+    if m == absent then missing c
+    else put-name buf pos (month-abbrev m) (month-tail m) (times full (month-tail-length m)) flag w
+
+  emit-weekday :: I64 -> I64 -> I64 -> I64 -> BrokenDown -> Option Date -> Bytes -> I64 -> I64
+  emit-weekday c full flag w b dopt buf pos =
+    let wd = eff-date b dopt 3 in
+    if wd == absent then missing c
+    else put-name buf pos (weekday-abbrev wd) (weekday-tail wd) (times full (weekday-tail-length wd)) flag w
+
+  -- `%p` is upper case unless `#`; `%P` is lower case unless `^` or `#`.
+  emit-meridiem :: I64 -> I64 -> I64 -> BrokenDown -> Bytes -> I64 -> I64
+  emit-meridiem c flag w b buf pos =
+    let m = eff-meridiem b in
+    let upper = if c == 112 then flag /= 35 else flag == 94 || flag == 35 in
+    if m == absent then missing c
+    else put-packed buf (put-fill buf pos 32 (text-fill flag w 2)) (if m == 0 then 24941 else 28781) 2 upper
+
+  emit-offset :: I64 -> I64 -> BrokenDown -> Bytes -> I64 -> I64
+  emit-offset c x b buf pos =
+    let off = f-offset b in
+    if off == absent then missing c else put-offset buf pos off x
+
+  -- `x` colons: 0 `+HHMM[SS]`, 1 `+HH:MM[:SS]`, 2 `+HH:MM:SS`.
+  put-offset :: Bytes -> I64 -> I64 -> I64 -> I64
+  put-offset buf pos off x =
+    let a = if off < 0 then minus 0 off else off in
+    let s = scan-rem a 60 in
+    let p = scan-put-digits buf (scan-put-byte buf pos (if off < 0 then 45 else 43)) 2 (scan-quot a 3600) in
+    let q = scan-put-digits buf (put-colon buf p x) 2 (scan-rem (scan-quot a 60) 60) in
+    if x >= 2 || s /= 0 then scan-put-digits buf (put-colon buf q x) 2 s else q
+
+  put-colon :: Bytes -> I64 -> I64 -> I64
+  put-colon buf pos x = if x >= 1 then scan-put-byte buf pos 58 else pos
+
+  -- `%Z`: as stored; `^` upper case, `#` lower case.
+  emit-zone-abbreviation :: I64 -> I64 -> I64 -> BrokenDown -> Bytes -> I64 -> I64
+  emit-zone-abbreviation c flag w b buf pos = case f-zone-abbreviation b of
+    None -> missing c
+    Some s -> put-string buf pos (scan-bytes-of-string s) flag w (if flag == 94 then 1 else if flag == 35 then 2 else 0)
+
+  -- `%Q`: the IANA name as stored, or the offset as `%:z`.
+  emit-zone-name :: I64 -> I64 -> I64 -> BrokenDown -> Bytes -> I64 -> I64
+  emit-zone-name c flag w b buf pos = case f-zone-name b of
+    Some s -> put-string buf pos (scan-bytes-of-string s) flag w 0
+    None -> emit-offset c 1 b buf pos
+
+  -- `mode`: 0 as is, 1 upper case, 2 lower case (ASCII letters only).
+  put-string :: Bytes -> I64 -> Bytes -> I64 -> I64 -> I64 -> I64
+  put-string buf pos src flag w mode =
+    let len = scan-length src in
+    let p = put-fill buf pos 32 (text-fill flag w len) in
+    copy-cased buf p src 0 len mode
+
+  copy-cased :: Bytes -> I64 -> Bytes -> I64 -> I64 -> I64 -> I64
+  copy-cased buf pos src i len mode =
+    if i >= len then pos
+    else copy-cased buf (scan-put-byte buf pos (recase (scan-byte-at src i) mode)) src (plus i 1) len mode
+
+  recase :: I64 -> I64 -> I64
+  recase c mode =
+    if mode == 1 && c >= 97 && c <= 122 then minus c 32
+    else if mode == 2 && c >= 65 && c <= 90 then plus c 32
+    else c
+
+  -- -----------------------------------------------------------------
+  -- English names, held as numbers: the lower case abbreviation's three
+  -- bytes and the rest of the full name's bytes, big-endian, so that
+  -- printing and case-blind matching need no string.
+  -- -----------------------------------------------------------------
+
+  -- jan feb mar apr may jun jul aug sep oct nov dec.
+  month-abbrev :: I64 -> I64
+  month-abbrev m =
+    if m == 1 then 6971758 else if m == 2 then 6710626 else if m == 3 then 7168370
+    else if m == 4 then 6385778 else if m == 5 then 7168377 else if m == 6 then 6976878
+    else if m == 7 then 6976876 else if m == 8 then 6387047 else if m == 9 then 7562608
+    else if m == 10 then 7299956 else if m == 11 then 7237494 else 6579555
+
+  -- uary ruary ch il (none) e y ust tember ober ember ember.
+  month-tail :: I64 -> I64
+  month-tail m =
+    if m == 1 then 1969320569 else if m == 2 then 491595592313 else if m == 3 then 25448
+    else if m == 4 then 26988 else if m == 5 then 0 else if m == 6 then 101
+    else if m == 7 then 121 else if m == 8 then 7697268 else if m == 9 then 127978975683954
+    else if m == 10 then 1868719474 else 435626861938
+
+  month-tail-length :: I64 -> I64
+  month-tail-length m =
+    if m == 1 then 4 else if m == 2 then 5 else if m == 3 then 2
+    else if m == 4 then 2 else if m == 5 then 0 else if m == 6 then 1
+    else if m == 7 then 1 else if m == 8 then 3 else if m == 9 then 6
+    else if m == 10 then 4 else 5
+
+  -- The month whose abbreviation is `key`, 0 for none.
+  month-of-key :: I64 -> I64
+  month-of-key key =
+    if key == 6971758 then 1 else if key == 6710626 then 2 else if key == 7168370 then 3
+    else if key == 6385778 then 4 else if key == 7168377 then 5 else if key == 6976878 then 6
+    else if key == 6976876 then 7 else if key == 6387047 then 8 else if key == 7562608 then 9
+    else if key == 7299956 then 10 else if key == 7237494 then 11 else if key == 6579555 then 12
+    else 0
+
+  -- mon tue wed thu fri sat sun (Monday 1).
+  weekday-abbrev :: I64 -> I64
+  weekday-abbrev wd =
+    if wd == 1 then 7171950 else if wd == 2 then 7632229 else if wd == 3 then 7824740
+    else if wd == 4 then 7628917 else if wd == 5 then 6713961 else if wd == 6 then 7561588
+    else 7566702
+
+  -- day sday nesday rsday day urday day.
+  weekday-tail :: I64 -> I64
+  weekday-tail wd =
+    if wd == 2 then 1935958393 else if wd == 3 then 121382006710649
+    else if wd == 4 then 491562230137 else if wd == 6 then 504430354809
+    else 6578553
+
+  weekday-tail-length :: I64 -> I64
+  weekday-tail-length wd =
+    if wd == 2 then 4 else if wd == 3 then 6 else if wd == 4 then 5 else if wd == 6 then 5 else 3
+
+  weekday-of-key :: I64 -> I64
+  weekday-of-key key =
+    if key == 7171950 then 1 else if key == 7632229 then 2 else if key == 7824740 then 3
+    else if key == 7628917 then 4 else if key == 6713961 then 5 else if key == 7561588 then 6
+    else if key == 7566702 then 7 else 0
+
+  -- -----------------------------------------------------------------
+  -- Parsing. `parse-items` is the driver state; each `p-*` state reads
+  -- one conversion at `i`, stores its field and returns to the driver
+  -- with the rest of the format.
+  -- -----------------------------------------------------------------
+
+  strptime :: String -> String -> Result StrtimeError BrokenDown
+  strptime fmt input = case strtime-format-compile fmt of
+    Err e -> Err e
+    Ok f -> strptime-format f input
+
+  strptime-format :: Format -> String -> Result StrtimeError BrokenDown
+  strptime-format f input = case f of
+    MkFormat items -> parse-items items (scan-bytes-of-string input) 0 broken-down-empty
+
+  parse-items :: Items -> Bytes -> I64 -> BrokenDown -> Result StrtimeError BrokenDown
+  parse-items items inp i b = case items of
+    IEnd -> if i == scan-length inp then Ok (finish b) else Err (StrtimeTrailingInput i)
+    IBad e -> Err e
+    ILit c rest ->
+      if scan-is-space c then parse-items rest inp (skip-space inp i) b
+      else if scan-byte-at inp i == c then parse-items rest inp (plus i 1) b
+      else Err (end-or inp i (StrtimeLiteralMismatch i))
+    IConv c flag w x rest -> parse-conv c x rest inp (if flag == 95 || c == 101 then skip-space inp i else i) b
+
+  skip-space :: Bytes -> I64 -> I64
+  skip-space inp i = if scan-is-space (scan-byte-at inp i) then skip-space inp (plus i 1) else i
+
+  -- The end of input takes precedence over the more specific refusal.
+  end-or :: Bytes -> I64 -> StrtimeError -> StrtimeError
+  end-or inp i e = if scan-byte-at inp i < 0 then StrtimeUnexpectedEnd i else e
+
+  -- `%y` and `%C` fold into the year unless `%Y` set it.
+  finish :: BrokenDown -> BrokenDown
+  finish b =
+    let y2 = f-year2 b in
+    let c = f-century b in
+    if f-year b /= absent then b
+    else if y2 /= absent then
+      (if c /= absent then bd-set 0 (plus (times c 100) y2) b else bd-set 0 (pivot y2) b)
+    else if c /= absent then bd-set 0 (times c 100) b
+    else b
+
+  -- POSIX: 69..99 are 1969..1999, 00..68 are 2000..2068.
+  pivot :: I64 -> I64
+  pivot y2 = if y2 >= 69 then plus 1900 y2 else plus 2000 y2
+
+  parse-conv :: I64 -> I64 -> Items -> Bytes -> I64 -> BrokenDown -> Result StrtimeError BrokenDown
+  parse-conv c x rest inp i b =
+    if c == 89 then p-signed rest inp i b c 0 4 (-9999) 9999
+    else if c == 109 then p-number rest inp i i b c 1 2 1 12 False
+    else if c == 100 || c == 101 then p-number rest inp i i b c 2 2 1 31 False
+    else if c == 72 then p-number rest inp i i b c 3 2 0 23 False
+    else if c == 77 then p-number rest inp i i b c 5 2 0 59 False
+    else if c == 83 then p-number rest inp i i b c 6 2 0 59 False
+    else if c == 102 then p-fraction rest inp i b x
+    else if c == 73 then p-number rest inp i i b c 4 2 1 12 False
+    else if c == 112 || c == 80 then p-meridiem rest inp i b
+    else if c == 97 || c == 65 then p-weekday rest inp i b
+    else if c == 98 || c == 66 then p-month rest inp i b
+    else if c == 106 then p-number rest inp i i b c 9 3 1 366 False
+    else if c == 117 then p-number rest inp i i b c 8 1 1 7 False
+    else if c == 119 then p-number rest inp i i b c 100 1 0 6 False
+    else if c == 67 then p-number rest inp i i b c 17 2 0 99 False
+    else if c == 121 then p-number rest inp i i b c 18 2 0 99 False
+    else if c == 71 then p-signed rest inp i b c 12 4 (-9999) 9999
+    else if c == 103 then p-number rest inp i i b c 101 2 0 99 False
+    else if c == 86 then p-number rest inp i i b c 13 2 1 53 False
+    else if c == 85 then p-number rest inp i i b c 14 2 0 53 False
+    else if c == 87 then p-number rest inp i i b c 15 2 0 53 False
+    else if c == 122 then p-offset rest inp i b x
+    else if c == 90 then Err (StrtimeZoneAbbreviationNotParsed i)
+    else if c == 81 then p-zone-name rest inp i b
+    else p-signed rest inp i b c 16 12 (-377705023201) 253402207200
+
+  -- State: an optional sign, then a number.
+  p-signed :: Items -> Bytes -> I64 -> BrokenDown -> I64 -> I64 -> I64 -> I64 -> I64 -> Result StrtimeError BrokenDown
+  p-signed rest inp i b c key maxd lo hi =
+    let s = scan-byte-at inp i in
+    if s == 45 then p-number rest inp i (plus i 1) b c key maxd lo hi True
+    else if s == 43 then p-number rest inp i (plus i 1) b c key maxd lo hi False
+    else p-number rest inp i i b c key maxd lo hi False
+
+  -- State: one to `maxd` digits at `i` (the conversion began at
+  -- `start`), range-checked and stored under `key`. At most 12 digits,
+  -- so the value is below 10^12.
+  p-number :: Items -> Bytes -> I64 -> I64 -> BrokenDown -> I64 -> I64 -> I64 -> I64 -> I64 -> Bool -> Result StrtimeError BrokenDown
+  p-number rest inp start i b c key maxd lo hi negative =
+    let k = scan-count-digits inp i maxd in
+    if k == 0 then Err (end-or inp i (StrtimeExpectedDigit i))
+    else
+      let m = scan-digits inp i k in
+      let v = if negative then minus 0 m else m in
+      if v < lo || v > hi then Err (StrtimeFieldOutOfRange start c)
+      else parse-items rest inp (plus i k) (store key v b)
+
+  -- Keys 100 and 101 are `%w` (Sunday 0 stored as weekday 7) and `%g`
+  -- (the two-digit ISO year, pivoted like `%y`).
+  store :: I64 -> I64 -> BrokenDown -> BrokenDown
+  store key v b =
+    if key == 100 then bd-set 8 (if v == 0 then 7 else v) b
+    else if key == 101 then bd-set 12 (pivot v) b
+    else bd-set key v b
+
+  -- State: `%f` needs 1..=9 digits; `%.f` needs them only after a point.
+  p-fraction :: Items -> Bytes -> I64 -> BrokenDown -> I64 -> Result StrtimeError BrokenDown
+  p-fraction rest inp i b x =
+    if x == 0 then p-fraction-digits rest inp i b
+    else if scan-byte-at inp i == 46 then p-fraction-digits rest inp (plus i 1) b
+    else parse-items rest inp i b
+
+  p-fraction-digits :: Items -> Bytes -> I64 -> BrokenDown -> Result StrtimeError BrokenDown
+  p-fraction-digits rest inp i b =
+    let k = scan-count-digits inp i 10 in
+    if k == 0 then Err (end-or inp i (StrtimeExpectedDigit i))
+    else if k > 9 then Err (StrtimeFieldOutOfRange i 102)
+    else parse-items rest inp (plus i k) (bd-set 7 (times (scan-digits inp i k) (scan-pow10 (minus 9 k))) b)
+
+  -- State: `am` or `pm`, any case.
+  p-meridiem :: Items -> Bytes -> I64 -> BrokenDown -> Result StrtimeError BrokenDown
+  p-meridiem rest inp i b =
+    let a = scan-lower-at inp i in
+    if scan-lower-at inp (plus i 1) /= 109 then Err (end-or inp i (StrtimeExpectedName i))
+    else if a == 97 then parse-items rest inp (plus i 2) (bd-set 11 0 b)
+    else if a == 112 then parse-items rest inp (plus i 2) (bd-set 11 1 b)
+    else Err (StrtimeExpectedName i)
+
+  -- The three bytes at `i`, lower-cased, as an abbreviation key; -1 at
+  -- the end of input.
+  key3 :: Bytes -> I64 -> I64
+  key3 inp i =
+    let a = scan-lower-at inp i in
+    let b = scan-lower-at inp (plus i 1) in
+    let c = scan-lower-at inp (plus i 2) in
+    if a < 0 || b < 0 || c < 0 then -1
+    else plus (plus (times a 65536) (times b 256)) c
+
+  -- `n` bytes at `i`, lower-cased, big-endian; -1 at the end of input.
+  -- `n` is at most 6, so the value is below 2^48.
+  read-packed :: Bytes -> I64 -> I64 -> I64 -> I64
+  read-packed inp i n acc =
+    if n <= 0 then acc
+    else
+      let c = scan-lower-at inp i in
+      if c < 0 then -1 else read-packed inp (plus i 1) (minus n 1) (plus (times acc 256) c)
+
+  -- The position after the rest of a full name, when it is there.
+  after-tail :: Bytes -> I64 -> I64 -> I64 -> I64
+  after-tail inp i tail tlen =
+    if tlen > 0 && read-packed inp i tlen 0 == tail then plus i tlen else i
+
+  -- State: a month name, abbreviated or full.
+  p-month :: Items -> Bytes -> I64 -> BrokenDown -> Result StrtimeError BrokenDown
+  p-month rest inp i b =
+    let m = month-of-key (key3 inp i) in
+    if m == 0 then Err (end-or inp i (StrtimeExpectedName i))
+    else parse-items rest inp (after-tail inp (plus i 3) (month-tail m) (month-tail-length m)) (bd-set 1 m b)
+
+  -- State: a weekday name, abbreviated or full.
+  p-weekday :: Items -> Bytes -> I64 -> BrokenDown -> Result StrtimeError BrokenDown
+  p-weekday rest inp i b =
+    let wd = weekday-of-key (key3 inp i) in
+    if wd == 0 then Err (end-or inp i (StrtimeExpectedName i))
+    else parse-items rest inp (after-tail inp (plus i 3) (weekday-tail wd) (weekday-tail-length wd)) (bd-set 8 wd b)
+
+  -- State: the sign of an offset. `x` colons: 0 `+HHMM[SS]`,
+  -- 1 `+HH:MM[:SS]`, 2 `+HH:MM:SS`.
+  p-offset :: Items -> Bytes -> I64 -> BrokenDown -> I64 -> Result StrtimeError BrokenDown
+  p-offset rest inp i b x =
+    let s = scan-byte-at inp i in
+    if s == 43 then p-offset-hour rest inp i b x False
+    else if s == 45 then p-offset-hour rest inp i b x True
+    else Err (end-or inp i (StrtimeExpectedOffset i))
+
+  -- State: the hour digits, at `i + 1`.
+  p-offset-hour :: Items -> Bytes -> I64 -> BrokenDown -> I64 -> Bool -> Result StrtimeError BrokenDown
+  p-offset-hour rest inp i b x negative =
+    let h = scan-digits inp (plus i 1) 2 in
+    if h < 0 then Err (digits-refusal inp (plus i 1) 2)
+    else if x == 0 then p-offset-minute rest inp i (plus i 3) b x negative h
+    else if scan-byte-at inp (plus i 3) == 58 then p-offset-minute rest inp i (plus i 4) b x negative h
+    else Err (end-or inp (plus i 3) (StrtimeLiteralMismatch (plus i 3)))
+
+  -- State: the minute digits, at `j`.
+  p-offset-minute :: Items -> Bytes -> I64 -> I64 -> BrokenDown -> I64 -> Bool -> I64 -> Result StrtimeError BrokenDown
+  p-offset-minute rest inp i j b x negative h =
+    let m = scan-digits inp j 2 in
+    let k = plus j 2 in
+    if m < 0 then Err (digits-refusal inp j 2)
+    else if x == 0 then
+      (if scan-count-digits inp k 2 == 2 then p-offset-second rest inp i k b negative h m
+       else p-offset-store rest inp i k b negative h m 0)
+    else if scan-byte-at inp k == 58 then p-offset-second rest inp i (plus k 1) b negative h m
+    else if x == 2 then Err (end-or inp k (StrtimeLiteralMismatch k))
+    else p-offset-store rest inp i k b negative h m 0
+
+  -- State: the second digits, at `j`.
+  p-offset-second :: Items -> Bytes -> I64 -> I64 -> BrokenDown -> Bool -> I64 -> I64 -> Result StrtimeError BrokenDown
+  p-offset-second rest inp i j b negative h m =
+    let s = scan-digits inp j 2 in
+    if s < 0 then Err (digits-refusal inp j 2)
+    else p-offset-store rest inp i (plus j 2) b negative h m s
+
+  -- The magnitude is at most 25:59:59 = 93599 seconds.
+  p-offset-store :: Items -> Bytes -> I64 -> I64 -> BrokenDown -> Bool -> I64 -> I64 -> I64 -> Result StrtimeError BrokenDown
+  p-offset-store rest inp i next b negative h m s =
+    let a = plus (plus (times h 3600) (times m 60)) s in
+    if h > 25 || m > 59 || s > 59 then Err (StrtimeFieldOutOfRange i 122)
+    else parse-items rest inp next (bd-set 10 (if negative then minus 0 a else a) b)
+
+  digits-refusal :: Bytes -> I64 -> I64 -> StrtimeError
+  digits-refusal inp i n =
+    let at = plus i (scan-count-digits inp i n) in
+    end-or inp at (StrtimeExpectedDigit at)
+
+  -- State: `%Q`. A sign starts an offset (`%:z`); otherwise the run of
+  -- zone name bytes (letters, digits, `_ / + - .`) is the name.
+  p-zone-name :: Items -> Bytes -> I64 -> BrokenDown -> Result StrtimeError BrokenDown
+  p-zone-name rest inp i b =
+    let c = scan-byte-at inp i in
+    let n = name-run inp i 0 in
+    if c == 43 || c == 45 then p-offset rest inp i b 1
+    else if n == 0 then Err (end-or inp i (StrtimeExpectedName i))
+    else parse-items rest inp (plus i n) (set-zone-name (Some (scan-string-of-bytes (scan-slice inp i (plus i n)))) b)
+
+  name-run :: Bytes -> I64 -> I64 -> I64
+  name-run inp i n = if is-name-byte (scan-byte-at inp (plus i n)) then name-run inp i (plus n 1) else n
+
+  is-name-byte :: I64 -> Bool
+  is-name-byte c =
+    (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57)
+    || c == 95 || c == 47 || c == 43 || c == 45 || c == 46
+
+  -- -----------------------------------------------------------------
+  -- Convenience.
+  -- -----------------------------------------------------------------
+
+  date-strftime :: String -> Date -> Result StrtimeError String
+  date-strftime fmt d = strftime fmt (broken-down-from-date d)
+
+  time-strftime :: String -> TimeOfDay -> Result StrtimeError String
+  time-strftime fmt t = strftime fmt (broken-down-from-time t)
+
+  datetime-strftime :: String -> DateTime -> Result StrtimeError String
+  datetime-strftime fmt x = strftime fmt (broken-down-from-datetime x)
+
+  date-strptime :: String -> String -> Result StrtimeError Date
+  date-strptime fmt input = case strptime fmt input of
+    Err e -> Err e
+    Ok b -> broken-down-to-date b
+
+  time-strptime :: String -> String -> Result StrtimeError TimeOfDay
+  time-strptime fmt input = case strptime fmt input of
+    Err e -> Err e
+    Ok b -> broken-down-to-time b
+
+  datetime-strptime :: String -> String -> Result StrtimeError DateTime
+  datetime-strptime fmt input = case strptime fmt input of
+    Err e -> Err e
+    Ok b -> broken-down-to-datetime b
+
+  -- -----------------------------------------------------------------
+  -- Private arithmetic. Every use is on a byte position (below 2^62), a
+  -- calendar field, or seconds within +-3.8e11 times small constants,
+  -- so the wrapping operations never wrap.
+  -- -----------------------------------------------------------------
+
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b
