@@ -1588,10 +1588,18 @@
     },
     {
       "reference_package": "image/gif",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 22
+      "status": "partial",
+      "cinch_modules": [
+        "Image.Gif",
+        "Image.Raster"
+      ],
+      "remaining": [
+        "Quantization and dithering when encoding non-indexed rasters (Options.Quantizer, Options.Drawer, NumColors)"
+      ],
+      "reference_declarations": 22,
+      "tests": [
+        "lib_gif"
+      ]
     },
     {
       "reference_package": "image/jpeg",

@@ -20,6 +20,7 @@ module Text.Lzw where
 
   export LzwOrder, LzwLsb, LzwMsb, LzwError, InvalidLiteralWidth, LiteralTooLarge, InvalidLzwCode, UnexpectedLzwEnd
   export lzw-error-message, lzw-compress, lzw-decompress
+  export LzwEnd, LzwEnded, LzwExhausted, LzwOverflow, lzw-decompress-bounded
 
   -- | Bit order used to pack codes into bytes.
   data LzwOrder where
@@ -229,17 +230,36 @@ module Text.Lzw where
   -- | Decompress a complete stream through its end-of-data code.
   lzw-decompress :: LzwOrder -> Nat -> Bytes -> Result LzwError Bytes
   lzw-decompress order width input =
-    if width < 2 || width > 8 then Err (InvalidLiteralWidth width) else decode-fresh order width input
+    if width < 2 || width > 8 then Err (InvalidLiteralWidth width)
+    else case decode-fresh order width input None of
+      Err error -> Err error
+      Ok (out, end) -> Ok out
+
+  -- | How a bounded decompression stopped.
+  data LzwEnd where
+    -- | The end-of-data code was read; the output may be shorter than the limit.
+    LzwEnded :: LzwEnd
+    -- | The input ran out without an end-of-data code after the limit was reached.
+    LzwExhausted :: LzwEnd
+    -- | More output follows the limit: the bytes returned extend past it, or another data code was read.
+    LzwOverflow :: LzwEnd
+
+  -- | Decompress until the end-of-data code or until limit bytes have been produced, whichever comes first.
+  -- After the limit only clear codes are consumed: a data code stops with LzwOverflow, the end of the input
+  -- with LzwExhausted. Running out of input before the limit is still UnexpectedLzwEnd.
+  lzw-decompress-bounded :: LzwOrder -> Nat -> Bytes -> Nat -> Result LzwError (Bytes, LzwEnd)
+  lzw-decompress-bounded order width input limit =
+    if width < 2 || width > 8 then Err (InvalidLiteralWidth width) else decode-fresh order width input (Some limit)
 
   -- | Allocate the decoder dictionary: a 16-bit prefix code, a suffix byte and a 16-bit expansion
   -- length per code, with every literal expanding to one byte, then decode from the first code.
-  decode-fresh :: LzwOrder -> Nat -> Bytes -> Result LzwError Bytes
-  decode-fresh order width input =
+  decode-fresh :: LzwOrder -> Nat -> Bytes -> Option Nat -> Result LzwError (Bytes, LzwEnd)
+  decode-fresh order width input limit =
     let prefixes = bytes-new 8192 in
     let suffixes = bytes-new 4096 in
     let lengths = bytes-new 8192 in
     let initialized = literal-lengths lengths 0 (power2 width) in
-    decode input prefixes suffixes lengths width (width + 1) (power2 width + 2) 4096 (Reader order 0 0 0) Nil 0
+    decode input prefixes suffixes lengths width (width + 1) (power2 width + 2) 4096 (Reader order 0 0 0) Nil 0 0 limit
 
   -- | Every literal expands to one byte.
   literal-lengths :: Bytes -> Nat -> Nat -> Unit
@@ -257,23 +277,35 @@ module Text.Lzw where
     else ()
 
   -- | Decode codes until end-of-data. last is the previous code plus one (zero after a clear);
-  -- hi is the next free code; chunks are output pieces (most recent first); index counts codes read.
-  decode :: Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> BitReader -> List Bytes -> Nat -> Result LzwError Bytes
-  decode input prefixes suffixes lengths literal width hi last reader out index =
+  -- hi is the next free code; chunks are output pieces (most recent first); index counts codes read;
+  -- produced counts output bytes against the optional limit.
+  decode :: Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> BitReader -> List Bytes -> Nat -> Nat -> Option Nat -> Result LzwError (Bytes, LzwEnd)
+  decode input prefixes suffixes lengths literal width hi last reader out index produced limit =
     let clear = power2 literal in
     case get-code input reader width of
-      None -> Err UnexpectedLzwEnd
+      None -> if reached produced limit then Ok (bytes-concat (reverse out), LzwExhausted) else Err UnexpectedLzwEnd
       Some (code, next) ->
-        if code == clear then decode input prefixes suffixes lengths literal (literal + 1) (clear + 2) 4096 next out (index + 1)
-        else if code == clear + 1 then Ok (bytes-concat (reverse out))
+        if code == clear then decode input prefixes suffixes lengths literal (literal + 1) (clear + 2) 4096 next out (index + 1) produced limit
+        else if code == clear + 1 then Ok (bytes-concat (reverse out), LzwEnded)
         else if code > hi || (code == hi && last == 4096) || (code > clear && code < clear + 2) then Err (InvalidLzwCode code index)
+        else if reached produced limit then Ok (bytes-concat (reverse out), LzwOverflow)
         else
           let previous = if last < 4096 then last else 0 in
           let expansion = if code == hi then expand-repeat prefixes suffixes lengths previous clear else expand prefixes suffixes lengths code clear in
           let recorded = if last < 4096 && hi <= max-code && 0 < bytes-len expansion then define-entry prefixes suffixes lengths hi previous (bytes-get expansion 0) else () in
           let grown = if last < 4096 && hi <= max-code then hi + 1 else hi in
           let wider = if grown >= power2 width && width < 12 then width + 1 else width in
-          decode input prefixes suffixes lengths literal wider grown code next (Cons expansion out) (index + 1)
+          let total = produced + bytes-len expansion in
+          if past total limit then Ok (bytes-concat (reverse (Cons expansion out)), LzwOverflow)
+          else decode input prefixes suffixes lengths literal wider grown code next (Cons expansion out) (index + 1) total limit
+
+  -- | Whether the output has reached a limit.
+  reached :: Nat -> Option Nat -> Bool
+  reached produced limit = case limit of Some n -> produced >= n; None -> False
+
+  -- | Whether the output has gone beyond a limit.
+  past :: Nat -> Option Nat -> Bool
+  past produced limit = case limit of Some n -> produced > n; None -> False
 
   -- | Define dictionary entry hi as the previous code's expansion followed by one byte.
   define-entry :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit

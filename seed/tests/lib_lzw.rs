@@ -112,7 +112,18 @@ module Main where
       && (case lzw-decompress LzwLsb 8 (bytes-from-u8s [0, 1]) of Err UnexpectedLzwEnd -> True; other -> False)
       && (case lzw-decompress LzwLsb 2 (bytes-from-u8s [7]) of Err (InvalidLzwCode 7 0) -> True; other -> False)
       && lzw-error-message UnexpectedLzwEnd == "LZW data ended before the end-of-data code"
+      && bounded ()
       && lzw-error-message (InvalidLzwCode 9 2) == "invalid LZW code 9 at code index 2"
+  -- | Bounded decompression stops at the end code, after the limit, or at data beyond the limit.
+  bounded :: Unit -> Bool
+  bounded unit = case lzw-compress LzwLsb 8 (bytes-from-u8s [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) of
+    Err e -> False
+    Ok packed ->
+      (case lzw-decompress-bounded LzwLsb 8 packed 10 of Ok (out, LzwEnded) -> bytes-len out == 10; other -> False)
+        && (case lzw-decompress-bounded LzwLsb 8 packed 20 of Ok (out, LzwEnded) -> bytes-len out == 10; other -> False)
+        && (case lzw-decompress-bounded LzwLsb 8 packed 4 of Ok (out, LzwOverflow) -> bytes-len out == 4; other -> False)
+        && (case lzw-decompress-bounded LzwLsb 8 (bytes-from-u8s [65, 0]) 1 of Ok (out, LzwExhausted) -> bytes-len out == 1; other -> False)
+        && (case lzw-decompress-bounded LzwLsb 8 (bytes-from-u8s [65, 0]) 2 of Err UnexpectedLzwEnd -> True; other -> False)
   -- | Index of the first failing row, or 200 when all pass.
   first :: List Bool -> Int -> Int
   first values i = case values of Nil -> 200; Cons x rest -> if x then first rest (i + 1) else i

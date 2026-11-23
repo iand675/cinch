@@ -1467,6 +1467,14 @@
       "public_methods": 0
     },
     {
+      "module": "Image.Gif",
+      "path": "seed/prelude/Image/Gif.cinch",
+      "sha256": "ff3c8851f3f303ba6dd255d062414ba3fb90b555e403a852f245d25589aeaeeb",
+      "embedded": false,
+      "values": 19,
+      "public_methods": 0
+    },
+    {
       "module": "Image.Png",
       "path": "seed/prelude/Image/Png.cinch",
       "sha256": "8040ff6891b589157daeda5d4d55e83daf7543d91591dc202a193f662fe44060",
@@ -1789,9 +1797,9 @@
     {
       "module": "Text.Lzw",
       "path": "seed/prelude/Text/Lzw.cinch",
-      "sha256": "a05290159cc1bf00c05c187f3ea923214af760b73dac2de0911d858797ff5c15",
+      "sha256": "afc9d6247c42c1a0e7acd3cedbd0febb7fdfe91b87de5092078a9d731ec734c4",
       "embedded": false,
-      "values": 3,
+      "values": 4,
       "public_methods": 0
     },
     {
