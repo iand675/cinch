@@ -40,7 +40,7 @@ This module exports no type declarations.
 Compute 128-bit FNV-1 with the standard offset basis, returning high word then low word.
 Two U64 words preserve the full hash on every target without a wide-scalar ABI dependency.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 208
+[Source](/reference-sources/Text.Fnv.cinch) · line 260
 
 <a id="value-666e763132382d757064617465"></a>
 
@@ -50,7 +50,7 @@ Two U64 words preserve the full hash on every target without a wide-scalar ABI d
 
 Continue a 128-bit FNV-1 state given as high and low words. Empty input preserves both words.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 217
+[Source](/reference-sources/Text.Fnv.cinch) · line 269
 
 <a id="value-666e7631323861"></a>
 
@@ -61,7 +61,7 @@ Continue a 128-bit FNV-1 state given as high and low words. Empty input preserve
 Compute 128-bit FNV-1a, returning high word then low word.
 This deterministic hash is non-cryptographic; serialization byte order is chosen separately.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 213
+[Source](/reference-sources/Text.Fnv.cinch) · line 265
 
 <a id="value-666e76313238612d757064617465"></a>
 
@@ -71,7 +71,7 @@ This deterministic hash is non-cryptographic; serialization byte order is chosen
 
 Continue a high/low 128-bit FNV-1a state; arbitrary input chunking preserves the final result.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 221
+[Source](/reference-sources/Text.Fnv.cinch) · line 273
 
 <a id="value-666e763332"></a>
 
@@ -155,4 +155,4 @@ Continue a finished 64-bit FNV-1a hash with more bytes; an empty update preserve
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Fnv.cinch`. Source SHA-256: `54f79c14c3b528db170df4b405e0b00c111b2e7968ec892d4d5cc20cc2a71670`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Fnv.cinch`. Source SHA-256: `b09f33aa54974a8b67ccac104a8e08a3a2d6e2bfd0f8756e9ea0764aff93f529`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

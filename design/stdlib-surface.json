@@ -1320,7 +1320,7 @@
       "status": "partial",
       "cinch_modules": [],
       "remaining": [
-        "Native frontend and short-transfer/error qualification for candidate snapshot streams",
+        "Native frontend qualification for candidate snapshot streams",
         "General raw-byte regular-expression integration or explicit reviewed capability adaptation",
         "Complete callback/owner/error/IO+Mut qualification beyond first unit",
         "Public pipeline benchmarks and code-generation review",

@@ -204,6 +204,8 @@ fn new_library_declarations_have_canonical_documentation() {
             "Text.Checksum",
             include_str!("../prelude/Text/Checksum.cinch"),
         ),
+        ("Text.Crc32", include_str!("../prelude/Text/Crc32.cinch")),
+        ("Effect.Crc32", include_str!("../prelude/Effect/Crc32.cinch")),
         ("Text.Fnv", include_str!("../prelude/Text/Fnv.cinch")),
     ] {
         let parsed = cinch::cinchdoc::parse_source(source, Some(name), name, None, false).unwrap();

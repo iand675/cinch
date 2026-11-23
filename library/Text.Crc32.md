@@ -30,7 +30,7 @@ Prepared reflected CRC-32 tables, immutable accumulators and portable binary che
 
 An immutable checksum accumulator retaining its immutable prepared table.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 104
+[Source](/reference-sources/Text.Crc32.cinch) · line 110
 
 <a id="type-437263333253746174654572726f72"></a>
 
@@ -40,7 +40,7 @@ An immutable checksum accumulator retaining its immutable prepared table.
 
 A checkpoint's identifier, exact byte size or prepared table does not match.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 159
+[Source](/reference-sources/Text.Crc32.cinch) · line 165
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidCrc32StateIdentifier</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Crc32</span>.<span class="tok-constructor">Crc32StateError</span></code></pre>
 
@@ -78,7 +78,7 @@ Number of bytes in a CRC-32 digest.
 
 Start an accumulator at zero with the supplied prepared table.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 109
+[Source](/reference-sources/Text.Crc32.cinch) · line 115
 
 <a id="value-63726333322d73746174652d617070656e64"></a>
 
@@ -88,7 +88,7 @@ Start an accumulator at zero with the supplied prepared table.
 
 Append the network-order digest to a copied prefix without changing either argument.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 144
+[Source](/reference-sources/Text.Crc32.cinch) · line 150
 
 <a id="value-63726333322d73746174652d617070656e642d73617665"></a>
 
@@ -98,7 +98,7 @@ Append the network-order digest to a copied prefix without changing either argum
 
 Append a complete checkpoint to a copied prefix, preserving the state.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 155
+[Source](/reference-sources/Text.Crc32.cinch) · line 161
 
 <a id="value-63726333322d73746174652d626c6f636b2d73697a65"></a>
 
@@ -108,7 +108,7 @@ Append a complete checkpoint to a copied prefix, preserving the state.
 
 Input block size in bytes, always one; updates accept any chunk length.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 125
+[Source](/reference-sources/Text.Crc32.cinch) · line 131
 
 <a id="value-63726333322d73746174652d6572726f722d6d657373616765"></a>
 
@@ -118,7 +118,7 @@ Input block size in bytes, always one; updates accept any chunk length.
 
 Render a checkpoint diagnostic, including complete expected and actual byte lengths.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 168
+[Source](/reference-sources/Text.Crc32.cinch) · line 174
 
 <a id="value-63726333322d73746174652d6c6f6164"></a>
 
@@ -129,7 +129,7 @@ Render a checkpoint diagnostic, including complete expected and actual byte leng
 Restore a checkpoint against the supplied immutable table without retaining input bytes.
 Identifier checks precede exact-size checks, which precede table matching. Every checksum word is accepted.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 176
+[Source](/reference-sources/Text.Crc32.cinch) · line 182
 
 <a id="value-63726333322d73746174652d7265736574"></a>
 
@@ -139,7 +139,7 @@ Identifier checks precede exact-size checks, which precede table matching. Every
 
 Return a zero accumulator retaining the same prepared polynomial table.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 117
+[Source](/reference-sources/Text.Crc32.cinch) · line 123
 
 <a id="value-63726333322d73746174652d73617665"></a>
 
@@ -150,7 +150,7 @@ Return a zero accumulator retaining the same prepared polynomial table.
 Return a twelve-byte checkpoint: ASCII crc, version 1, table fingerprint and checksum.
 Both words use network order. The fingerprint identifies the complete base table.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 149
+[Source](/reference-sources/Text.Crc32.cinch) · line 155
 
 <a id="value-63726333322d73746174652d73697a65"></a>
 
@@ -160,7 +160,7 @@ Both words use network order. The fingerprint identifies the complete base table
 
 Digest size in bytes, always four.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 121
+[Source](/reference-sources/Text.Crc32.cinch) · line 127
 
 <a id="value-63726333322d73746174652d73756d"></a>
 
@@ -170,7 +170,7 @@ Digest size in bytes, always four.
 
 Return four fresh digest bytes in network order without changing the state.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 133
+[Source](/reference-sources/Text.Crc32.cinch) · line 139
 
 <a id="value-63726333322d73746174652d757064617465"></a>
 
@@ -180,7 +180,7 @@ Return four fresh digest bytes in network order without changing the state.
 
 Consume a chunk without changing any earlier state, input buffer or table.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 113
+[Source](/reference-sources/Text.Crc32.cinch) · line 119
 
 <a id="value-63726333322d73746174652d776f7264"></a>
 
@@ -190,7 +190,7 @@ Consume a chunk without changing any earlier state, input buffer or table.
 
 Observe the complete numeric checksum without advancing or resetting.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 129
+[Source](/reference-sources/Text.Crc32.cinch) · line 135
 
 <a id="value-63726333322d7461626c65"></a>
 
@@ -200,7 +200,7 @@ Observe the complete numeric checksum without advancing or resetting.
 
 Prepare all 256 entries for any reflected polynomial.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 31
+[Source](/reference-sources/Text.Crc32.cinch) · line 32
 
 <a id="value-63726333322d7461626c652d656e7472696573"></a>
 
@@ -210,7 +210,7 @@ Prepare all 256 entries for any reflected polynomial.
 
 Return all 256 base entries in index order without exposing the owned backing bytes.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 73
+[Source](/reference-sources/Text.Crc32.cinch) · line 78
 
 <a id="value-63726333322d7461626c652d656e747279"></a>
 
@@ -220,7 +220,7 @@ Return all 256 base entries in index order without exposing the owned backing by
 
 Observe a base entry at an index in 0..255; other indices return None.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 66
+[Source](/reference-sources/Text.Crc32.cinch) · line 71
 
 <a id="value-63726333322d7461626c652d73756d"></a>
 
@@ -230,7 +230,7 @@ Observe a base entry at an index in 0..255; other indices return None.
 
 Checksum all bytes from the initial zero state with a reusable prepared table.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 85
+[Source](/reference-sources/Text.Crc32.cinch) · line 90
 
 <a id="value-63726333322d7461626c652d757064617465"></a>
 
@@ -241,8 +241,8 @@ Checksum all bytes from the initial zero state with a reusable prepared table.
 Continue any finished checksum using a prepared polynomial table.
 Empty input preserves every supplied bit; inputs and table storage are never modified.
 
-[Source](/reference-sources/Text.Crc32.cinch) · line 90
+[Source](/reference-sources/Text.Crc32.cinch) · line 95
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Crc32.cinch`. Source SHA-256: `10edb92937712606bbe37c1a25e9adc63f8847507cd968ad3a28f553c0baf4bc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Crc32.cinch`. Source SHA-256: `f12c03f0ef5f001f56a823a066de69aaea06dea088b89059822d5ce1ed9d5aaa`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

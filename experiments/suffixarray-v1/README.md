@@ -80,8 +80,10 @@ caller sets a byte limit. Length checks precede payload reads, so a refused
 payload stays available through the returned reader. The codec uses Cinch's
 snapshot format. Go's private index serialization uses a different format.
 `consumer-snapshot.cinch` exercises a binary round trip, trailing bytes,
-limit rejection, a high-bit length and truncated input with the Rust seed.
-Native-frontend and short-transfer qualification remain open.
+limit rejection, a high-bit length, truncated input, byte-at-a-time readers
+and writers, zero-progress errors and suffix lookup after restoration. The
+optimized Rust-seed executable completed with zero leaks. Native-frontend
+qualification remains open.
 
 `prepare_callbacks.py` independently decodes UTF8 boundaries and enumerates
 empty, optional-byte and greedy-byte search policies without a regex library.

@@ -25,6 +25,7 @@ module Text.Crc32 where
 
   -- | Private little-endian base entries and their IEEE fingerprint.
   data Crc32Table where
+    -- | Private owned base entries and their checkpoint fingerprint.
     CrcTable :: Bytes -> U32 -> Crc32Table
 
   -- | Prepare all 256 entries for any reflected polynomial.
@@ -44,21 +45,25 @@ module Text.Crc32 where
       fill-table storage poly (index + 1) (fingerprint-word acc word)
     else acc
 
+  -- | Apply a reflected polynomial for the requested number of bits.
   advance :: U32 -> U32 -> Nat -> U32
   advance poly word remaining =
     if remaining == 0 then word
     else let shifted = wrapping-shr-u32 word 1 in
       advance poly (if eq-u32 (bit-and-u32 word 1) 1 then bit-xor-u32 poly shifted else shifted) (remaining - 1)
 
+  -- | Fold the low eight bits of a byte into the IEEE table fingerprint.
   fingerprint-byte :: U32 -> U32 -> U32
   fingerprint-byte acc byte = advance 0xEDB88320 (bit-xor-u32 acc (bit-and-u32 byte 255)) 8
 
+  -- | Fold a table entry in network byte order.
   fingerprint-word :: U32 -> U32 -> U32
   fingerprint-word acc word =
     let a = fingerprint-byte acc (wrapping-shr-u32 word 24) in
     let b = fingerprint-byte a (wrapping-shr-u32 word 16) in
     let c = fingerprint-byte b (wrapping-shr-u32 word 8) in fingerprint-byte c word
 
+  -- | Read a complete little-endian entry from private table storage.
   table-word :: Bytes -> Nat -> U32
   table-word storage pos = if pos + 4 <= bytes-len storage then bytes-read-le32 storage pos else 0
 
@@ -92,6 +97,7 @@ module Text.Crc32 where
   crc32-table-update table previous input = case table of
     CrcTable storage sum -> bit-not-u32 (update-from storage input 0 (bit-not-u32 previous))
 
+  -- | Fold each remaining byte using a prepared table and a complemented accumulator.
   update-from :: Bytes -> Bytes -> Nat -> U32 -> U32
   update-from storage input pos acc =
     if pos < bytes-len input then

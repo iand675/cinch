@@ -58,7 +58,7 @@ module Text.Fnv where
       fold32 alternate b (i + 1) next
     else acc
 
-  -- Borrow the payload once. Native offsets stay in the unboxed machine
+  -- | Borrow the payload once. Native offsets stay in the unboxed machine
   -- representation and the buffer remains live throughout both loops.
   fold64 :: U8 -> Bytes -> U64 -> U64
   fold64 alternate b initial =
@@ -67,6 +67,7 @@ module Text.Fnv where
     let result = fold64-blocks alternate (bytes-data b) 0 complete end initial in
     case bytes-len b of _ -> result
 
+  -- | Consume complete eight-byte blocks, then pass the remaining bytes to the tail loop.
   fold64-blocks :: U8 -> I64 -> I64 -> I64 -> I64 -> U64 -> U64
   fold64-blocks alternate address offset complete end acc =
     if lt-i64 offset complete then
@@ -74,6 +75,7 @@ module Text.Fnv where
         (fnv64-word acc (fnv64-load-word address offset) alternate)
     else fold64-tail alternate address offset end acc
 
+  -- | Fold the final zero through seven bytes in input order.
   fold64-tail :: U8 -> I64 -> I64 -> I64 -> U64 -> U64
   fold64-tail alternate address offset end acc =
     if lt-i64 offset end then
@@ -81,7 +83,7 @@ module Text.Fnv where
         (fnv64-byte acc (fnv64-load-byte address offset) alternate)
     else acc
 
-  -- Both load helpers are private to the bounds-checked loops.
+  -- | Load a complete eight-byte block in low-byte-first order at the checked offset.
   prim fnv64-load-word :: I64 -> I64 -> U64 where
     unsafe llvm {
       %base = inttoptr i64 %0 to ptr
@@ -97,6 +99,7 @@ module Text.Fnv where
       ret i64 %ordered
     } when endian big
 
+  -- | Load one checked tail byte and zero-extend it to a 64-bit word.
   prim fnv64-load-byte :: I64 -> I64 -> U64 where
     unsafe llvm {
       %base = inttoptr i64 %0 to ptr
@@ -106,6 +109,7 @@ module Text.Fnv where
       ret i64 %word
     }
 
+  -- | Advance one FNV-1 or FNV-1a byte step with wrapping multiplication.
   prim fnv64-byte :: U64 -> U64 -> U8 -> U64 where
     llvm {
       %alternate = icmp ne i8 %2, 0

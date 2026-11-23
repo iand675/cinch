@@ -41,11 +41,11 @@ module Text.Fnv where
 
   -- | Continue a finished 64-bit FNV-1 hash with more bytes; an empty update preserves the hash.
   fnv64-update :: U64 -> Bytes -> U64
-  fnv64-update previous b = fold64 False b 0 previous
+  fnv64-update previous b = fold64 0 b previous
 
   -- | Continue a finished 64-bit FNV-1a hash with more bytes; an empty update preserves the hash.
   fnv64a-update :: U64 -> Bytes -> U64
-  fnv64a-update previous b = fold64 True b 0 previous
+  fnv64a-update previous b = fold64 1 b previous
 
   -- | Hash native eight-byte blocks in order, then the exact byte tail; the flag selects xor-before-multiply.
   fold32 :: Bool -> Bytes -> Nat -> U32 -> U32
@@ -58,16 +58,68 @@ module Text.Fnv where
       fold32 alternate b (i + 1) next
     else acc
 
-  -- | Hash native eight-byte blocks without reassociating the recurrence, followed by a scalar tail.
-  fold64 :: Bool -> Bytes -> Nat -> U64 -> U64
-  fold64 alternate b i acc =
-    if i + 8 <= bytes-len b then
-      fold64 alternate b (i + 8) (fnv64-word acc (bytes-read-le64 b i) (if alternate then 1 else 0))
-    else if i < bytes-len b then
-      let v = wrapping-i64-to-u64 (nat-to-i64 (bytes-get b i)) in
-      let next = if alternate then wrapping-mul-u64 (bit-xor-u64 acc v) 0x00000100000001B3 else bit-xor-u64 (wrapping-mul-u64 acc 0x00000100000001B3) v in
-      fold64 alternate b (i + 1) next
+  -- | Borrow the payload once. Native offsets stay in the unboxed machine
+  -- representation and the buffer remains live throughout both loops.
+  fold64 :: U8 -> Bytes -> U64 -> U64
+  fold64 alternate b initial =
+    let end = nat-to-i64 (bytes-len b) in
+    let complete = wrapping-sub-i64 end 7 in
+    let result = fold64-blocks alternate (bytes-data b) 0 complete end initial in
+    case bytes-len b of _ -> result
+
+  -- | Consume complete eight-byte blocks, then pass the remaining bytes to the tail loop.
+  fold64-blocks :: U8 -> I64 -> I64 -> I64 -> I64 -> U64 -> U64
+  fold64-blocks alternate address offset complete end acc =
+    if lt-i64 offset complete then
+      fold64-blocks alternate address (wrapping-add-i64 offset 8) complete end
+        (fnv64-word acc (fnv64-load-word address offset) alternate)
+    else fold64-tail alternate address offset end acc
+
+  -- | Fold the final zero through seven bytes in input order.
+  fold64-tail :: U8 -> I64 -> I64 -> I64 -> U64 -> U64
+  fold64-tail alternate address offset end acc =
+    if lt-i64 offset end then
+      fold64-tail alternate address (wrapping-add-i64 offset 1) end
+        (fnv64-byte acc (fnv64-load-byte address offset) alternate)
     else acc
+
+  -- | Load a complete eight-byte block in low-byte-first order at the checked offset.
+  prim fnv64-load-word :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %address = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %address, align 1
+      ret i64 %word
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %address = getelementptr i8, ptr %base, i64 %1
+      %word = load i64, ptr %address, align 1
+      %ordered = call i64 @llvm.bswap.i64(i64 %word)
+      ret i64 %ordered
+    } when endian big
+
+  -- | Load one checked tail byte and zero-extend it to a 64-bit word.
+  prim fnv64-load-byte :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %address = getelementptr i8, ptr %base, i64 %1
+      %byte = load i8, ptr %address, align 1
+      %word = zext i8 %byte to i64
+      ret i64 %word
+    }
+
+  -- | Advance one FNV-1 or FNV-1a byte step with wrapping multiplication.
+  prim fnv64-byte :: U64 -> U64 -> U8 -> U64 where
+    llvm {
+      %alternate = icmp ne i8 %2, 0
+      %before = select i1 %alternate, i64 %1, i64 0
+      %after = select i1 %alternate, i64 0, i64 %1
+      %mixed = xor i64 %0, %before
+      %scaled = mul i64 %mixed, 1099511628211
+      %result = xor i64 %scaled, %after
+      ret i64 %result
+    }
 
   -- | Unroll eight ordered FNV steps; the recurrence is sequential, so lanes must not be reassociated.
   prim fnv32-word :: U32 -> U64 -> U8 -> U32 where
@@ -146,60 +198,60 @@ module Text.Fnv where
       %alternate = icmp ne i8 %2, 0
       %s0 = lshr i64 %1, 0
       %v0 = and i64 %s0, 255
-      %x0 = xor i64 %0, %v0
-      %a0 = mul i64 %x0, 1099511628211
-      %m0 = mul i64 %0, 1099511628211
-      %f0 = xor i64 %m0, %v0
-      %r0 = select i1 %alternate, i64 %a0, i64 %f0
+      %before0 = select i1 %alternate, i64 %v0, i64 0
+      %after0 = select i1 %alternate, i64 0, i64 %v0
+      %mixed0 = xor i64 %0, %before0
+      %scaled0 = mul i64 %mixed0, 1099511628211
+      %r0 = xor i64 %scaled0, %after0
       %s1 = lshr i64 %1, 8
       %v1 = and i64 %s1, 255
-      %x1 = xor i64 %r0, %v1
-      %a1 = mul i64 %x1, 1099511628211
-      %m1 = mul i64 %r0, 1099511628211
-      %f1 = xor i64 %m1, %v1
-      %r1 = select i1 %alternate, i64 %a1, i64 %f1
+      %before1 = select i1 %alternate, i64 %v1, i64 0
+      %after1 = select i1 %alternate, i64 0, i64 %v1
+      %mixed1 = xor i64 %r0, %before1
+      %scaled1 = mul i64 %mixed1, 1099511628211
+      %r1 = xor i64 %scaled1, %after1
       %s2 = lshr i64 %1, 16
       %v2 = and i64 %s2, 255
-      %x2 = xor i64 %r1, %v2
-      %a2 = mul i64 %x2, 1099511628211
-      %m2 = mul i64 %r1, 1099511628211
-      %f2 = xor i64 %m2, %v2
-      %r2 = select i1 %alternate, i64 %a2, i64 %f2
+      %before2 = select i1 %alternate, i64 %v2, i64 0
+      %after2 = select i1 %alternate, i64 0, i64 %v2
+      %mixed2 = xor i64 %r1, %before2
+      %scaled2 = mul i64 %mixed2, 1099511628211
+      %r2 = xor i64 %scaled2, %after2
       %s3 = lshr i64 %1, 24
       %v3 = and i64 %s3, 255
-      %x3 = xor i64 %r2, %v3
-      %a3 = mul i64 %x3, 1099511628211
-      %m3 = mul i64 %r2, 1099511628211
-      %f3 = xor i64 %m3, %v3
-      %r3 = select i1 %alternate, i64 %a3, i64 %f3
+      %before3 = select i1 %alternate, i64 %v3, i64 0
+      %after3 = select i1 %alternate, i64 0, i64 %v3
+      %mixed3 = xor i64 %r2, %before3
+      %scaled3 = mul i64 %mixed3, 1099511628211
+      %r3 = xor i64 %scaled3, %after3
       %s4 = lshr i64 %1, 32
       %v4 = and i64 %s4, 255
-      %x4 = xor i64 %r3, %v4
-      %a4 = mul i64 %x4, 1099511628211
-      %m4 = mul i64 %r3, 1099511628211
-      %f4 = xor i64 %m4, %v4
-      %r4 = select i1 %alternate, i64 %a4, i64 %f4
+      %before4 = select i1 %alternate, i64 %v4, i64 0
+      %after4 = select i1 %alternate, i64 0, i64 %v4
+      %mixed4 = xor i64 %r3, %before4
+      %scaled4 = mul i64 %mixed4, 1099511628211
+      %r4 = xor i64 %scaled4, %after4
       %s5 = lshr i64 %1, 40
       %v5 = and i64 %s5, 255
-      %x5 = xor i64 %r4, %v5
-      %a5 = mul i64 %x5, 1099511628211
-      %m5 = mul i64 %r4, 1099511628211
-      %f5 = xor i64 %m5, %v5
-      %r5 = select i1 %alternate, i64 %a5, i64 %f5
+      %before5 = select i1 %alternate, i64 %v5, i64 0
+      %after5 = select i1 %alternate, i64 0, i64 %v5
+      %mixed5 = xor i64 %r4, %before5
+      %scaled5 = mul i64 %mixed5, 1099511628211
+      %r5 = xor i64 %scaled5, %after5
       %s6 = lshr i64 %1, 48
       %v6 = and i64 %s6, 255
-      %x6 = xor i64 %r5, %v6
-      %a6 = mul i64 %x6, 1099511628211
-      %m6 = mul i64 %r5, 1099511628211
-      %f6 = xor i64 %m6, %v6
-      %r6 = select i1 %alternate, i64 %a6, i64 %f6
+      %before6 = select i1 %alternate, i64 %v6, i64 0
+      %after6 = select i1 %alternate, i64 0, i64 %v6
+      %mixed6 = xor i64 %r5, %before6
+      %scaled6 = mul i64 %mixed6, 1099511628211
+      %r6 = xor i64 %scaled6, %after6
       %s7 = lshr i64 %1, 56
       %v7 = and i64 %s7, 255
-      %x7 = xor i64 %r6, %v7
-      %a7 = mul i64 %x7, 1099511628211
-      %m7 = mul i64 %r6, 1099511628211
-      %f7 = xor i64 %m7, %v7
-      %r7 = select i1 %alternate, i64 %a7, i64 %f7
+      %before7 = select i1 %alternate, i64 %v7, i64 0
+      %after7 = select i1 %alternate, i64 0, i64 %v7
+      %mixed7 = xor i64 %r6, %before7
+      %scaled7 = mul i64 %mixed7, 1099511628211
+      %r7 = xor i64 %scaled7, %after7
       ret i64 %r7
     }
 
