@@ -1081,16 +1081,18 @@
       "reference_package": "hash/crc32",
       "status": "partial",
       "cinch_modules": [
-        "Text.Checksum"
+        "Effect.Crc32",
+        "Text.Checksum",
+        "Text.Crc32"
       ],
       "remaining": [
-        "table and hash-state capability review",
-        "inspectable stream adapters and serialized state",
-        "native frontend validation of embedded assembly bodies"
+        "operation-level mapping and prepared-table performance review",
+        "native frontend validation of the new modules and embedded assembly compatibility surface"
       ],
       "reference_declarations": 16,
       "tests": [
-        "lib_go_stdlib::checksums_match_go_and_update_over_every_split"
+        "lib_go_stdlib::checksums_match_go_and_update_over_every_split",
+        "lib_crc32::prepared_crc32_checkpoint_and_stream"
       ],
       "benchmarks": [
         "crc32",
@@ -1318,7 +1320,7 @@
       "status": "partial",
       "cinch_modules": [],
       "remaining": [
-        "Versioned index persistence and stream Read/Write adapters",
+        "Native frontend and short-transfer/error qualification for candidate snapshot streams",
         "General raw-byte regular-expression integration or explicit reviewed capability adaptation",
         "Complete callback/owner/error/IO+Mut qualification beyond first unit",
         "Public pipeline benchmarks and code-generation review",
@@ -1330,10 +1332,15 @@
           "module": "Data.Index.SuffixArray",
           "path": "experiments/suffixarray-v1/src/Data.Index.SuffixArray.cinch",
           "availability": "Isolated immutable index with literal lookup and explicit effect-preserving search callback; absent from production prelude."
+        },
+        {
+          "module": "Effect.Index.SuffixArray",
+          "path": "experiments/suffixarray-v1/src/Effect.Index.SuffixArray.cinch",
+          "availability": "Isolated versioned snapshot streams; Rust consumer passes roundtrip, length limits, high-bit rejection, truncation and trailing data."
         }
       ],
       "capability_mapping": "experiments/suffixarray-v1/surface.json",
-      "review": "All7 reference records mapped, with unimplemented persistence explicit. Literal lookup passes all153 inputs/10710 distinct checks perO0/O2 on exactC2/D91,612 normal/poison runs with zero leaks. First callback unit passes8 inputs/120 endpoint observations/16 O0profiles. Source input snapshots and copied observations preserve ownership; prefix-doubling construction hasO(NlogN) complexity. Wider callback/owner/effect and persistence surface remains open; no completion claim."
+      "review": "All7 reference records mapped, with versioned persistence implemented in an isolated candidate. Literal lookup passes all153 inputs/10710 distinct checks perO0/O2 on exactC2/D91,612 normal/poison runs with zero leaks. First callback unit passes8 inputs/120 endpoint observations/16 O0profiles. Source input snapshots and copied observations preserve ownership; prefix-doubling construction hasO(NlogN) complexity. Wider callback/owner/effect and cross-frontend persistence qualification remains open; no completion claim."
     },
     {
       "reference_package": "io",

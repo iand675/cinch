@@ -1,0 +1,37 @@
+module Main where
+  import Effect.Index.SuffixArray
+  import Data.Index.SuffixArray
+  import Effect.Stream
+
+  boundaries :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  boundaries unit =
+    let framed = bytes-from-u8s [83,73,88,1,0,0,0,0,0,0,0,1,255,77] in
+    let limited = case suffix-index-read 0 (reader-from-bytes framed) of
+          (Err (SuffixSnapshotLimit 0 1), next) -> case stream-read-exact next 2 of
+            (Ok tail, end) -> eq-i64 (bytes-compare tail (bytes-from-u8s [255,77])) 0
+            _ -> False
+          _ -> False in
+    let trailing = case suffix-index-read 1 (reader-from-bytes framed) of
+          (Ok index, next) -> case stream-read-exact next 1 of
+            (Ok tail, end) -> eq-i64 (bytes-compare tail (bytes-from-u8s [77])) 0
+            _ -> False
+          _ -> False in
+    let overflow = case suffix-index-read 0 (reader-from-bytes (bytes-from-u8s [83,73,88,1,128,0,0,0,0,0,0,0])) of
+          (Err (SuffixLengthOverflow word), next) -> True
+          _ -> False in
+    let truncated = case suffix-index-read 1 (reader-from-bytes (bytes-from-u8s [83,73,88,1,0,0,0,0,0,0,0,1])) of
+          (Err (SuffixSnapshotIo (StreamUnexpectedEnd 1 0)), next) -> True
+          _ -> False in
+    limited && trailing && overflow && truncated
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case suffix-index (bytes-from-u8s [255,0,255]) of
+      Err error -> 1
+      Ok index -> case suffix-index-write writer-buffer index of
+        (Ok 15, sink) -> case writer-bytes sink of
+          Some bytes -> case suffix-index-read 3 (reader-from-bytes bytes) of
+            (Ok restored, end) -> if eq-i64 (bytes-compare (suffix-index-bytes restored) (suffix-index-bytes index)) 0 && boundaries () then 0 else 2
+            _ -> 3
+          None -> 4
+        _ -> 5

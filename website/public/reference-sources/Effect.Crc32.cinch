@@ -1,0 +1,37 @@
+-- | Inspectable CRC-32 hashing sinks and bounded reader-to-checksum copying.
+-- The immutable table and checksum state is the sink handle. Writes accept every byte and
+-- never retain input buffers. Copying returns the advanced reader and the last
+-- valid checksum on failure, and never closes a borrowed source.
+module Effect.Crc32 where
+
+  import Effect.Stream
+  import Text.Crc32
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+
+  export crc32-write, crc32-hashing-writer, crc32-copy
+
+  -- | Hash a whole chunk, returning its accepted count and the advanced immutable state.
+  crc32-write :: forall r. using (io :: Io r) => Crc32State -> Bytes ->{IO r} (Nat, Crc32State)
+  crc32-write state input = (bytes-len input, crc32-state-update state input)
+
+  -- | Adapt a checksum state to the generic byte-writer protocol.
+  -- Use the explicit state or crc32-copy when the advanced checksum must be inspected.
+  crc32-hashing-writer :: forall r. using (io :: Io r) => Crc32State -> ByteWriter r
+  crc32-hashing-writer state = stream-writer (\input -> case crc32-write state input of
+    (count, next) -> (Ok count, crc32-hashing-writer next))
+
+  -- | Hash successful reader chunks through EOF, preserving both advanced handles on errors.
+  -- A zero chunk size is rejected before reading. Invalid source counts do not enter the checksum.
+  crc32-copy :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Crc32State ->{IO r} (Result StreamError Nat, (ByteReader r, Crc32State))
+  crc32-copy chunk source state =
+    if chunk == 0 then (Err StreamInvalidChunkSize, (source, state))
+    else copy-from chunk source state 0
+
+  -- | Carry only the table and checksum state and accepted byte count through the bounded copying loop.
+  copy-from :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Crc32State -> Nat ->{IO r} (Result StreamError Nat, (ByteReader r, Crc32State))
+  copy-from chunk source state count = case stream-read source chunk of
+    (Err error, next) -> (Err error, (next, state))
+    (Ok input, next) -> if bytes-len input == 0 then (Ok count, (next, state))
+      else copy-from chunk next (crc32-state-update state input) (count + bytes-len input)

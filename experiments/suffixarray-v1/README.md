@@ -73,16 +73,15 @@ search can deliberately choose later, nonsuccessive matches after suffix-order
 candidate selection. This candidate's leftmost callback policy is explicitly
 separate from that unspecified bounded subset.
 
-Persistence is not exported by phase-one source. `Effect.Stream` has suitable
-reader/writer continuations for a later adapter, including short operations and
-advanced error state. Proposed native persistence uses a versioned data snapshot
-and reconstructs the suffix order on read. It must preserve trailing reader data,
-return advanced handles on every outcome, retry valid short writes, reject
-zero-progress writes and report truncated/invalid lengths. This is not the
-reference's private varint/chunk wire format or its mutable receiver behavior.
-The oracle records roundtrips, truncation progress and the actual short-writer
-behavior without making those observations required Cinch failure behavior.
-No persistence capability is claimed implemented yet.
+The isolated `Effect.Index.SuffixArray` candidate writes a four-byte identifier
+(`53 49 58 01` in hex), an unsigned 64-bit big-endian length, then the indexed
+bytes. Reading rebuilds suffix order and returns the advanced stream. The
+caller sets a byte limit. Length checks precede payload reads, so a refused
+payload stays available through the returned reader. The codec uses Cinch's
+snapshot format. Go's private index serialization uses a different format.
+`consumer-snapshot.cinch` exercises a binary round trip, trailing bytes,
+limit rejection, a high-bit length and truncated input with the Rust seed.
+Native-frontend and short-transfer qualification remain open.
 
 `prepare_callbacks.py` independently decodes UTF8 boundaries and enumerates
 empty, optional-byte and greedy-byte search policies without a regex library.

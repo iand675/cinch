@@ -171,6 +171,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Builder](Text.Builder.md) | Ship source | An efficient text-construction vocabulary for assembling many fragments before rendering. |
 | [Text.Checksum](Text.Checksum.md) | Ship source | Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials. |
 | [Text.Codec](Text.Codec.md) | Embedded | Encoding/decoding signatures and codec helpers with explicit failure results. |
+| [Text.Crc32](Text.Crc32.md) | Ship source | Prepared reflected polynomial tables, persistent CRC-32 states and table-checked binary checkpoints. |
 | [Text.Crc64](Text.Crc64.md) | Ship source | Immutable SIMD-built polynomial tables, slicing-by-eight CRC-64, persistent states, network-order digests and table-checked checkpoints. |
 | [Text.Csv.Record](Text.Csv.Record.md) | Ship source | Configurable Unicode-delimited and lossless byte CSV records, checked partial results, positions and incremental parser state. |
 | [Text.Csv](Text.Csv.md) | Ship source | CSV parsing/rendering with explicit field, record, and malformed-input handling. |
@@ -231,6 +232,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Concurrent.MVar](Effect.Concurrent.MVar.md) | Embedded | Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
 | [Effect.Coverage](Effect.Coverage.md) | Ship source | Coverage collection/reporting utilities with explicit runtime and source metadata. |
+| [Effect.Crc32](Effect.Crc32.md) | Ship source | CRC-32 stream writers and bounded copying into an inspectable checksum state. |
 | [Effect.Crc64](Effect.Crc64.md) | Ship source | Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations. |
 | [Effect.Csv](Effect.Csv.md) | Ship source | Bounded CSV readers and writers with explicit continuation, record counts, position tracking and advanced handles after failures. |
 | [Effect.FileUtils](Effect.FileUtils.md) | Ship source | Convenience filesystem operations built on the lower-level filesystem API. |
@@ -263,7 +265,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **191 source modules**: **66 embedded** and **125 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **193 source modules**: **66 embedded** and **127 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

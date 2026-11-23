@@ -39,15 +39,15 @@
     },
     {
       "reference_declaration": "method (*Index) Read(io.Reader) error",
-      "candidate": null,
-      "status": "not-implemented",
-      "adaptation": "Future native versioned codec/Effect.Stream adapter; no private-wire compatibility or in-place receiver mutation."
+      "candidate": "suffix-index-read",
+      "status": "isolated-rust-runtime-passed",
+      "adaptation": "Reads one bounded, versioned byte snapshot and rebuilds private suffix order."
     },
     {
       "reference_declaration": "method (*Index) Write(io.Writer) error",
-      "candidate": null,
-      "status": "not-implemented",
-      "adaptation": "Future Effect.Stream adapter must explicitly account for partial writes and advanced errors."
+      "candidate": "suffix-index-write",
+      "status": "isolated-rust-runtime-passed",
+      "adaptation": "Writes version, network-order length and original bytes using full-write continuations."
     },
     {
       "reference_declaration": "type Index struct",

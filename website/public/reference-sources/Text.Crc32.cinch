@@ -1,0 +1,190 @@
+-- | Prepared reflected CRC-32 tables, immutable accumulators and portable binary checkpoints.
+module Text.Crc32 where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Binary
+
+  export crc32-size
+  export Crc32Table, crc32-table, crc32-table-entry, crc32-table-entries
+  export crc32-table-sum, crc32-table-update
+  export Crc32State, crc32-state, crc32-state-update, crc32-state-reset
+  export crc32-state-size, crc32-state-block-size, crc32-state-word
+  export crc32-state-sum, crc32-state-append, crc32-state-save, crc32-state-append-save, crc32-state-load
+  export Crc32StateError, InvalidCrc32StateIdentifier, InvalidCrc32StateSize, Crc32StateTableMismatch, crc32-state-error-message
+
+
+  -- | Number of bytes in a CRC-32 digest.
+  crc32-size :: Nat
+  crc32-size = 4
+
+  -- | Private little-endian base entries and their IEEE fingerprint.
+  data Crc32Table where
+    CrcTable :: Bytes -> U32 -> Crc32Table
+
+  -- | Prepare all 256 entries for any reflected polynomial.
+  crc32-table :: U32 -> Crc32Table
+  crc32-table poly =
+    let storage = bytes-new 1024 in
+    let checksum = fill-table storage poly 0 (bit-not-u32 0) in
+    CrcTable storage (bit-not-u32 checksum)
+
+  -- | The checkpoint fingerprint covers each entry's four big-endian bytes.
+  fill-table :: Bytes -> U32 -> Nat -> U32 -> U32
+  fill-table storage poly index acc =
+    let pos = index * 4 in
+    if index < 256 && pos + 4 <= bytes-len storage then
+      let word = advance poly (wrapping-i64-to-u32 (nat-to-i64 index)) 8 in
+      let written = bytes-write-le32 storage pos word in
+      fill-table storage poly (index + 1) (fingerprint-word acc word)
+    else acc
+
+  advance :: U32 -> U32 -> Nat -> U32
+  advance poly word remaining =
+    if remaining == 0 then word
+    else let shifted = wrapping-shr-u32 word 1 in
+      advance poly (if eq-u32 (bit-and-u32 word 1) 1 then bit-xor-u32 poly shifted else shifted) (remaining - 1)
+
+  fingerprint-byte :: U32 -> U32 -> U32
+  fingerprint-byte acc byte = advance 0xEDB88320 (bit-xor-u32 acc (bit-and-u32 byte 255)) 8
+
+  fingerprint-word :: U32 -> U32 -> U32
+  fingerprint-word acc word =
+    let a = fingerprint-byte acc (wrapping-shr-u32 word 24) in
+    let b = fingerprint-byte a (wrapping-shr-u32 word 16) in
+    let c = fingerprint-byte b (wrapping-shr-u32 word 8) in fingerprint-byte c word
+
+  table-word :: Bytes -> Nat -> U32
+  table-word storage pos = if pos + 4 <= bytes-len storage then bytes-read-le32 storage pos else 0
+
+  -- | Observe a base entry at an index in 0..255; other indices return None.
+  crc32-table-entry :: Crc32Table -> Nat -> Option U32
+  crc32-table-entry table index =
+    if index < 256 then case table of
+      CrcTable storage sum -> Some (table-word storage (index * 4))
+    else None
+
+  -- | Return all 256 base entries in index order without exposing the owned backing bytes.
+  crc32-table-entries :: Crc32Table -> List U32
+  crc32-table-entries table = entries table 0
+
+  -- | Collect the bounded base-table view; scalar values cannot alias mutable storage.
+  entries :: Crc32Table -> Nat -> List U32
+  entries table index =
+    if index < 256 then case crc32-table-entry table index of
+      Some word -> Cons word (entries table (index + 1))
+      None -> Nil
+    else Nil
+
+  -- | Checksum all bytes from the initial zero state with a reusable prepared table.
+  crc32-table-sum :: Crc32Table -> Bytes -> U32
+  crc32-table-sum table input = crc32-table-update table 0 input
+
+  -- | Continue any finished checksum using a prepared polynomial table.
+  -- Empty input preserves every supplied bit; inputs and table storage are never modified.
+  crc32-table-update :: Crc32Table -> U32 -> Bytes -> U32
+
+  crc32-table-update table previous input = case table of
+    CrcTable storage sum -> bit-not-u32 (update-from storage input 0 (bit-not-u32 previous))
+
+  update-from :: Bytes -> Bytes -> Nat -> U32 -> U32
+  update-from storage input pos acc =
+    if pos < bytes-len input then
+      let byte = wrapping-i64-to-u32 (nat-to-i64 (bytes-get input pos)) in
+      let index = u8-to-nat (wrapping-u32-to-u8 (bit-xor-u32 byte acc)) in
+      update-from storage input (pos + 1) (bit-xor-u32 (table-word storage (index * 4)) (wrapping-shr-u32 acc 8))
+    else acc
+
+  -- | An immutable checksum accumulator retaining its immutable prepared table.
+  data Crc32State where
+    -- | Private table and complete finished checksum word.
+    CrcState :: Crc32Table -> U32 -> Crc32State
+
+  -- | Start an accumulator at zero with the supplied prepared table.
+  crc32-state :: Crc32Table -> Crc32State
+  crc32-state table = CrcState table 0
+
+  -- | Consume a chunk without changing any earlier state, input buffer or table.
+  crc32-state-update :: Crc32State -> Bytes -> Crc32State
+  crc32-state-update state input = case state of CrcState table word -> CrcState table (crc32-table-update table word input)
+
+  -- | Return a zero accumulator retaining the same prepared polynomial table.
+  crc32-state-reset :: Crc32State -> Crc32State
+  crc32-state-reset state = case state of CrcState table word -> CrcState table 0
+
+  -- | Digest size in bytes, always four.
+  crc32-state-size :: Crc32State -> Nat
+  crc32-state-size state = crc32-size
+
+  -- | Input block size in bytes, always one; updates accept any chunk length.
+  crc32-state-block-size :: Crc32State -> Nat
+  crc32-state-block-size state = 1
+
+  -- | Observe the complete numeric checksum without advancing or resetting.
+  crc32-state-word :: Crc32State -> U32
+  crc32-state-word state = case state of CrcState table word -> word
+
+  -- | Return four fresh digest bytes in network order without changing the state.
+  crc32-state-sum :: Crc32State -> Bytes
+  crc32-state-sum state = binary-u32 BigEndian (crc32-state-word state)
+
+  -- | Join two byte intervals in fresh storage without retaining mutable aliases.
+  join :: Bytes -> Bytes -> Bytes
+  join first last =
+    let n = bytes-len first in let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in
+    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+
+  -- | Append the network-order digest to a copied prefix without changing either argument.
+  crc32-state-append :: Bytes -> Crc32State -> Bytes
+  crc32-state-append prefix state = join prefix (crc32-state-sum state)
+
+  -- | Return a twelve-byte checkpoint: ASCII crc, version 1, table fingerprint and checksum.
+  -- Both words use network order. The fingerprint identifies the complete base table.
+  crc32-state-save :: Crc32State -> Bytes
+  crc32-state-save state = case state of
+    CrcState table word -> case table of
+      CrcTable storage sum -> join (bytes-from-u8s [99, 114, 99, 1]) (join (binary-u32 BigEndian sum) (binary-u32 BigEndian word))
+
+  -- | Append a complete checkpoint to a copied prefix, preserving the state.
+  crc32-state-append-save :: Bytes -> Crc32State -> Bytes
+  crc32-state-append-save prefix state = join prefix (crc32-state-save state)
+
+  -- | A checkpoint's identifier, exact byte size or prepared table does not match.
+  data Crc32StateError where
+    -- | The four-byte crc/version identifier is absent or does not match.
+    InvalidCrc32StateIdentifier :: Crc32StateError
+    -- | Expected complete checkpoint size and actual input length.
+    InvalidCrc32StateSize :: Nat -> Nat -> Crc32StateError
+    -- | Expected table fingerprint and actual checkpoint fingerprint, in that order.
+    Crc32StateTableMismatch :: U32 -> U32 -> Crc32StateError
+
+  -- | Render a checkpoint diagnostic, including complete expected and actual byte lengths.
+  crc32-state-error-message :: Crc32StateError -> String
+  crc32-state-error-message error = case error of
+    InvalidCrc32StateIdentifier -> "CRC-32 state identifier is invalid"
+    InvalidCrc32StateSize expected actual -> string-concat "CRC-32 state requires " (string-concat (nat-to-string expected) (string-concat " bytes; received " (nat-to-string actual)))
+    Crc32StateTableMismatch expected actual -> "CRC-32 state table does not match"
+
+  -- | Restore a checkpoint against the supplied immutable table without retaining input bytes.
+  -- Identifier checks precede exact-size checks, which precede table matching. Every checksum word is accepted.
+  crc32-state-load :: Crc32Table -> Bytes -> Result Crc32StateError Crc32State
+  crc32-state-load table input =
+    if 4 <= bytes-len input then
+      if bytes-get input 0 == 99 && bytes-get input 1 == 114 && bytes-get input 2 == 99 && bytes-get input 3 == 1 then
+        if bytes-len input == 12 then case binary-read-u32 BigEndian input 4 of
+          Ok actual -> case table of
+            CrcTable storage expected ->
+              if eq-u32 actual expected then case binary-read-u32 BigEndian input 8 of
+                Ok word -> Ok (CrcState table word)
+                Err error -> Err (InvalidCrc32StateSize 12 (bytes-len input))
+              else Err (Crc32StateTableMismatch expected actual)
+          Err error -> Err (InvalidCrc32StateSize 12 (bytes-len input))
+        else Err (InvalidCrc32StateSize 12 (bytes-len input))
+      else Err InvalidCrc32StateIdentifier
+    else Err InvalidCrc32StateIdentifier

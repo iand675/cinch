@@ -1,0 +1,56 @@
+-- | Versioned suffix-index snapshots over borrowed byte streams.
+-- The wire representation is the four bytes SIX,1, an eight-byte big-endian
+-- unsigned length, and the original bytes. Reading reconstructs suffix order.
+module Effect.Index.SuffixArray where
+  import Data.Index.SuffixArray
+  import Effect.Stream
+  import Text.Binary
+  import Data.Bytes
+  import Data.Nat
+  import Data.Machine
+  import Data.Result
+
+  export SuffixSnapshotError, InvalidSuffixHeader, SuffixLengthOverflow, SuffixSnapshotLimit, SuffixSnapshotIo, SuffixSnapshotIndex
+  export suffix-index-read, suffix-index-write
+
+  -- | A malformed identifier, refused length, transport error or index construction error.
+  data SuffixSnapshotError where
+    InvalidSuffixHeader :: SuffixSnapshotError
+    SuffixLengthOverflow :: U64 -> SuffixSnapshotError
+    SuffixSnapshotLimit :: Nat -> Nat -> SuffixSnapshotError
+    SuffixSnapshotIo :: StreamError -> SuffixSnapshotError
+    SuffixSnapshotIndex :: SuffixIndexError -> SuffixSnapshotError
+
+  identifier :: Bytes
+  identifier = bytes-from-u8s [83,73,88,1]
+
+  -- | Write a snapshot, retrying short writes and returning the advanced writer on every outcome.
+  suffix-index-write :: forall r. using (io :: Io r) => ByteWriter r -> SuffixIndex ->{IO r} (Result StreamError Nat, ByteWriter r)
+  suffix-index-write sink index =
+    let length = suffix-index-length index in
+    if length <= 1152921504606846974 then case stream-write-all sink identifier of
+      (Err error, next) -> (Err error, next)
+      (Ok _, next) -> case stream-write-all next (binary-u64 BigEndian (wrapping-i64-to-u64 (nat-to-i64 length))) of
+        (Err error, body) -> (Err error, body)
+        (Ok _, body) -> case stream-write-all body (suffix-index-bytes index) of
+          (Err error, end) -> (Err error, end)
+          (Ok size, end) -> (Ok (12 + size), end)
+    else (Err (StreamInvalidCount 1152921504606846974 length), sink)
+
+  -- | Read exactly one snapshot. Enforce the caller's byte limit before reading the payload.
+  suffix-index-read :: forall r. using (io :: Io r) => Nat -> ByteReader r ->{IO r} (Result SuffixSnapshotError SuffixIndex, ByteReader r)
+  suffix-index-read limit source = case stream-read-exact source 4 of
+    (Err error, next) -> (Err (SuffixSnapshotIo error), next)
+    (Ok tag, next) -> if ne-i64 (bytes-compare tag identifier) 0 then (Err InvalidSuffixHeader, next)
+      else case stream-read-exact next 8 of
+        (Err error, body) -> (Err (SuffixSnapshotIo error), body)
+        (Ok size, body) -> case binary-read-u64 BigEndian size 0 of
+          Err error -> (Err InvalidSuffixHeader, body)
+          Ok word -> if gt-u64 word 1152921504606846974 then (Err (SuffixLengthOverflow word), body)
+            else let n = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 word) 9223372036854775807) in
+            if n > limit then (Err (SuffixSnapshotLimit limit n), body)
+            else case stream-read-exact body n of
+              (Err error, end) -> (Err (SuffixSnapshotIo error), end)
+              (Ok bytes, end) -> case suffix-index bytes of
+                Err error -> (Err (SuffixSnapshotIndex error), end)
+                Ok index -> (Ok index, end)

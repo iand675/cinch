@@ -803,6 +803,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Crc32",
+      "path": "seed/prelude/Effect/Crc32.cinch",
+      "sha256": "5e6605c274df05c9cab7b75073b307563fc1cfc157152c615a712b53887e296d",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Crc64",
       "path": "compiler/prelude/Effect/Crc64.cinch",
       "sha256": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
@@ -1185,6 +1193,14 @@
       "embedded": true,
       "values": 1,
       "public_methods": 4
+    },
+    {
+      "module": "Text.Crc32",
+      "path": "seed/prelude/Text/Crc32.cinch",
+      "sha256": "10edb92937712606bbe37c1a25e9adc63f8847507cd968ad3a28f553c0baf4bc",
+      "embedded": false,
+      "values": 18,
+      "public_methods": 0
     },
     {
       "module": "Text.Crc64",
