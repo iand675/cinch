@@ -1,0 +1,498 @@
+-- | Zip archives: read stored and deflated entries (including Zip64) and write stored or deflated archives.
+-- Reading locates the end-of-central-directory record (and its Zip64
+-- counterpart when present), decodes every central directory entry with its
+-- Zip64 sizes and extended timestamp, and opens an entry on demand, inflating
+-- DEFLATE data and verifying its CRC-32 and size. Writing emits each file's
+-- local header, data and data descriptor followed by the central directory,
+-- marking UTF-8 names, recording Unix modes and the modification time both as
+-- MS-DOS fields and as an extended timestamp, and switching to Zip64 records
+-- when sizes or offsets require them. Times are Unix seconds interpreted as
+-- UTC; names and comments are raw bytes.
+module Text.Zip where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Checksum
+  import Text.Zlib
+
+  export ZipArchive, ZipEntry, ZipFile, ZipError, ZipNotFound, ZipBadEntry, ZipTruncated, ZipUnsupportedMethod, ZipChecksumMismatch, ZipSizeMismatch, ZipBadDeflate, zip-error-message
+  export zip-read, zip-entries, zip-comment, zip-open
+  export zip-entry-name, zip-entry-comment, zip-entry-method, zip-entry-flags, zip-entry-crc32, zip-entry-compressed-size, zip-entry-size
+  export zip-entry-modified, zip-entry-mode, zip-entry-external-attrs, zip-entry-creator, zip-entry-extra, zip-entry-is-directory
+  export zip-store, zip-deflate, zip-file, zip-file-with-mode, zip-file-with-modified, zip-file-with-comment, zip-write
+
+  -- | Method code for uncompressed data.
+  zip-store :: Nat
+  zip-store = 0
+
+  -- | Method code for DEFLATE data.
+  zip-deflate :: Nat
+  zip-deflate = 8
+
+  -- | A malformed archive, an unsupported entry or corrupted data.
+  data ZipError where
+    -- | No end-of-central-directory record was found.
+    ZipNotFound :: ZipError
+    -- | A directory or local header at this offset is malformed.
+    ZipBadEntry :: Nat -> ZipError
+    -- | The archive ends inside the record at this offset.
+    ZipTruncated :: Nat -> ZipError
+    -- | The entry uses this compression method, which is not supported.
+    ZipUnsupportedMethod :: Nat -> ZipError
+    -- | The data's CRC-32 (second) does not match the recorded value (first).
+    ZipChecksumMismatch :: U32 -> U32 -> ZipError
+    -- | The decompressed size (second) does not match the recorded size (first).
+    ZipSizeMismatch :: Nat -> Nat -> ZipError
+    -- | The DEFLATE data is malformed.
+    ZipBadDeflate :: ZipError
+
+  -- | Render a zip error.
+  zip-error-message :: ZipError -> String
+  zip-error-message error = case error of
+    ZipNotFound -> "zip: end of central directory not found"
+    ZipBadEntry at -> string-concat "zip: malformed header at offset " (nat-to-string at)
+    ZipTruncated at -> string-concat "zip: archive truncated in the record at offset " (nat-to-string at)
+    ZipUnsupportedMethod m -> string-concat "zip: unsupported compression method " (nat-to-string m)
+    ZipChecksumMismatch expected actual -> "zip: checksum mismatch"
+    ZipSizeMismatch expected actual -> string-concat "zip: size mismatch; expected " (string-concat (nat-to-string expected) (string-concat " bytes, found " (nat-to-string actual)))
+    ZipBadDeflate -> "zip: invalid DEFLATE data"
+
+  -- | A central directory entry: name, comment, extra fields, creator version, flags, method, MS-DOS time
+  -- and date, CRC-32, compressed and uncompressed sizes, external attributes, local header offset and
+  -- the modification time in Unix seconds.
+  data ZipEntry where
+    -- | Private fields in the order listed above.
+    Entry :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> U32 -> Nat -> Nat -> Nat -> Nat -> Int -> ZipEntry
+
+  -- | A parsed archive: its entries in directory order and its comment.
+  data ZipArchive where
+    -- | Private fields: entries and comment.
+    Archive :: List ZipEntry -> Bytes -> ZipArchive
+
+  -- | Entry name.
+  zip-entry-name :: ZipEntry -> Bytes
+  zip-entry-name e = case e of Entry n c x v f m t d crc cs us ea off mt -> n
+
+  -- | Entry comment.
+  zip-entry-comment :: ZipEntry -> Bytes
+  zip-entry-comment e = case e of Entry n c x v f m t d crc cs us ea off mt -> c
+
+  -- | Raw central directory extra fields.
+  zip-entry-extra :: ZipEntry -> Bytes
+  zip-entry-extra e = case e of Entry n c x v f m t d crc cs us ea off mt -> x
+
+  -- | Version made by: the high byte names the creating system (3 is Unix).
+  zip-entry-creator :: ZipEntry -> Nat
+  zip-entry-creator e = case e of Entry n c x v f m t d crc cs us ea off mt -> v
+
+  -- | General-purpose flags (bit 3: data descriptor, bit 11: UTF-8 name).
+  zip-entry-flags :: ZipEntry -> Nat
+  zip-entry-flags e = case e of Entry n c x v f m t d crc cs us ea off mt -> f
+
+  -- | Compression method.
+  zip-entry-method :: ZipEntry -> Nat
+  zip-entry-method e = case e of Entry n c x v f m t d crc cs us ea off mt -> m
+
+  -- | Recorded CRC-32 of the uncompressed data.
+  zip-entry-crc32 :: ZipEntry -> U32
+  zip-entry-crc32 e = case e of Entry n c x v f m t d crc cs us ea off mt -> crc
+
+  -- | Compressed size in bytes.
+  zip-entry-compressed-size :: ZipEntry -> Nat
+  zip-entry-compressed-size e = case e of Entry n c x v f m t d crc cs us ea off mt -> cs
+
+  -- | Uncompressed size in bytes.
+  zip-entry-size :: ZipEntry -> Nat
+  zip-entry-size e = case e of Entry n c x v f m t d crc cs us ea off mt -> us
+
+  -- | External attributes; for Unix creators the high sixteen bits hold the mode.
+  zip-entry-external-attrs :: ZipEntry -> Nat
+  zip-entry-external-attrs e = case e of Entry n c x v f m t d crc cs us ea off mt -> ea
+
+  -- | Modification time in Unix seconds: the extended timestamp when present, otherwise the MS-DOS fields as UTC.
+  zip-entry-modified :: ZipEntry -> Int
+  zip-entry-modified e = case e of Entry n c x v f m t d crc cs us ea off mt -> mt
+
+  -- | Unix permission and type bits for Unix creators, otherwise zero.
+  zip-entry-mode :: ZipEntry -> Nat
+  zip-entry-mode e = if nat-div (zip-entry-creator e) 256 == 3 then nat-div (zip-entry-external-attrs e) 65536 else 0
+
+  -- | Whether the entry names a directory (its name ends with a slash).
+  zip-entry-is-directory :: ZipEntry -> Bool
+  zip-entry-is-directory e = let n = zip-entry-name e in 0 < bytes-len n && at n (minus (bytes-len n) 1) == 47
+
+  -- | Entries in central directory order.
+  zip-entries :: ZipArchive -> List ZipEntry
+  zip-entries a = case a of Archive entries comment -> entries
+
+  -- | Archive comment.
+  zip-comment :: ZipArchive -> Bytes
+  zip-comment a = case a of Archive entries comment -> comment
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at input i = if i < bytes-len input then bytes-get input i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Little-endian 16-bit field.
+  u16 :: Bytes -> Nat -> Nat
+  u16 input i = at input i + 256 * at input (i + 1)
+
+  -- | Little-endian 32-bit field.
+  u32 :: Bytes -> Nat -> Nat
+  u32 input i = u16 input i + 65536 * u16 input (i + 2)
+
+  -- | Little-endian 64-bit field.
+  u64 :: Bytes -> Nat -> Nat
+  u64 input i = u32 input i + 4294967296 * u32 input (i + 4)
+
+  -- | A small natural number as a 32-bit word.
+  word32 :: Nat -> U32
+  word32 n = if n < 4294967296 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+
+  -- | Copy an interval.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice input start stop =
+    if start <= stop && stop <= bytes-len input then
+      let out = bytes-new (stop - start) in let copied = bytes-copy-range out input 0 start (stop - start) in out
+    else bytes-new 0
+
+  -- | Search backwards for the end-of-central-directory signature within the last 65557 bytes.
+  find-end :: Bytes -> Nat -> Nat -> Option Nat
+  find-end input i floor =
+    if u32 input i == 101010256 && i + 22 <= bytes-len input then Some i
+    else if i > floor then find-end input (minus i 1) floor
+    else None
+
+  -- | Parse the central directory of a complete archive.
+  zip-read :: Bytes -> Result ZipError ZipArchive
+  zip-read input =
+    if bytes-len input < 22 then Err ZipNotFound
+    else case find-end input (bytes-len input - 22) (minus (bytes-len input) 65557) of
+      None -> Err ZipNotFound
+      Some end ->
+        let comment = slice input (end + 22) (minus (end + 22 + u16 input (end + 20)) 0) in
+        let count32 = u16 input (end + 10) in
+        let size32 = u32 input (end + 12) in
+        let offset32 = u32 input (end + 16) in
+        let zip64 = count32 == 65535 || size32 == 4294967295 || offset32 == 4294967295 in
+        let located = if zip64 && end >= 20 && u32 input (end - 20) == 117853008 then zip64-directory input (u64 input (end - 12)) else None in
+        let directory = case located of Some found -> found; None -> (count32, offset32) in
+        case directory of
+          (count, offset) -> case read-directory input offset count Nil of
+            Err error -> Err error
+            Ok entries -> Ok (Archive entries comment)
+
+  -- | Entry count and directory offset from a Zip64 end record at the given offset.
+  zip64-directory :: Bytes -> Nat -> Option (Nat, Nat)
+  zip64-directory input at64 = if at64 + 56 <= bytes-len input && u32 input at64 == 101075792 then Some (u64 input (at64 + 32), u64 input (at64 + 48)) else None
+
+  -- | Decode count directory entries.
+  read-directory :: Bytes -> Nat -> Nat -> List ZipEntry -> Result ZipError (List ZipEntry)
+  read-directory input offset count acc =
+    if count == 0 then Ok (reverse acc)
+    else if offset + 46 > bytes-len input then Err (ZipTruncated offset)
+    else if not (u32 input offset == 33639248) then Err (ZipBadEntry offset)
+    else
+      let name-length = u16 input (offset + 28) in
+      let extra-length = u16 input (offset + 30) in
+      let comment-length = u16 input (offset + 32) in
+      let name-start = offset + 46 in
+      let extra-start = name-start + name-length in
+      let comment-start = extra-start + extra-length in
+      let next = comment-start + comment-length in
+      if next > bytes-len input then Err (ZipTruncated offset)
+      else read-directory input next (count - 1) (Cons (entry-at input offset name-start extra-start comment-start next) acc)
+
+  -- | Assemble one entry, applying Zip64 sizes and offsets and the extended timestamp from its extra fields.
+  entry-at :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> ZipEntry
+  entry-at input offset name-start extra-start comment-start next =
+    let extra = slice input extra-start comment-start in
+    let compressed32 = u32 input (offset + 20) in
+    let size32 = u32 input (offset + 24) in
+    let local32 = u32 input (offset + 42) in
+    let wide = zip64-fields extra 0 in
+    let sizes = wide-values wide size32 compressed32 local32 in
+    let time = u16 input (offset + 12) in
+    let date = u16 input (offset + 14) in
+    let modified = case extended-time extra 0 of Some t -> t; None -> dos-time date time in
+    case sizes of
+      (size, compressed, local) ->
+        Entry (slice input name-start extra-start) (slice input comment-start next) extra (u16 input (offset + 4)) (u16 input (offset + 8))
+          (u16 input (offset + 10)) time date (word32 (u32 input (offset + 16))) compressed size (u32 input (offset + 38)) local modified
+
+  -- | The payload of the Zip64 extra field (identifier 1), if any.
+  zip64-fields :: Bytes -> Nat -> Option (Bytes, Nat)
+  zip64-fields extra i =
+    if i + 4 <= bytes-len extra then
+      let id = u16 extra i in let size = u16 extra (i + 2) in
+      if id == 1 then Some (slice extra (i + 4) (i + 4 + size), 0) else zip64-fields extra (i + 4 + size)
+    else None
+
+  -- | Replace saturated 32-bit fields by successive Zip64 values (uncompressed, compressed, offset).
+  wide-values :: Option (Bytes, Nat) -> Nat -> Nat -> Nat -> (Nat, Nat, Nat)
+  wide-values wide size compressed local = case wide of
+    None -> (size, compressed, local)
+    Some field -> case field of
+      (payload, start) ->
+        let a = if size == 4294967295 then (u64 payload start, start + 8) else (size, start) in
+        case a of
+          (s, p1) ->
+            let b = if compressed == 4294967295 then (u64 payload p1, p1 + 8) else (compressed, p1) in
+            case b of
+              (c, p2) -> (s, c, if local == 4294967295 then u64 payload p2 else local)
+
+  -- | The modification time from an extended timestamp field (identifier 0x5455) with its flag bit 0 set.
+  extended-time :: Bytes -> Nat -> Option Int
+  extended-time extra i =
+    if i + 4 <= bytes-len extra then
+      let id = u16 extra i in let size = u16 extra (i + 2) in
+      if id == 21589 && size >= 5 && nat-rem (at extra (i + 4)) 2 == 1 then Some (signed32 (u32 extra (i + 5)))
+      else extended-time extra (i + 4 + size)
+    else None
+
+  -- | A 32-bit field as a signed integer.
+  signed32 :: Nat -> Int
+  signed32 n = if n >= 2147483648 then nat-to-int n - 4294967296 else nat-to-int n
+
+  -- | Unix seconds for MS-DOS date and time fields read as UTC (two-second resolution).
+  dos-time :: Nat -> Nat -> Int
+  dos-time date time =
+    let year = 1980 + nat-div date 512 in
+    let month = nat-rem (nat-div date 32) 16 in
+    let day = nat-rem date 32 in
+    let days = days-from-civil (nat-to-int year) (nat-to-int month) (nat-to-int day) in
+    days * 86400 + nat-to-int (nat-div time 2048) * 3600 + nat-to-int (nat-rem (nat-div time 32) 64) * 60 + nat-to-int (2 * nat-rem time 32)
+
+  -- | Days since 1970-01-01 for a proleptic Gregorian date (month 1-12) in a year from 1 onward.
+  days-from-civil :: Int -> Int -> Int -> Int
+  days-from-civil y m d =
+    let shifted = if m <= 2 then y - 1 else y in
+    let era = int-div shifted 400 in
+    let yoe = shifted - era * 400 in
+    let mp = if m > 2 then m - 3 else m + 9 in
+    let doy = int-div (153 * mp + 2) 5 + d - 1 in
+    let doe = yoe * 365 + int-div yoe 4 - int-div yoe 100 + doy in
+    era * 146097 + doe - 719468
+
+  -- | Read and verify an entry's data: stored bytes are copied, DEFLATE data is inflated, and the CRC-32
+  -- and uncompressed size must match the directory.
+  zip-open :: Bytes -> ZipEntry -> Result ZipError Bytes
+  zip-open input entry = case entry of
+    Entry name comment extra creator flags method time date crc compressed size attrs local modified ->
+      if local + 30 > bytes-len input then Err (ZipTruncated local)
+      else if not (u32 input local == 67324752) then Err (ZipBadEntry local)
+      else
+        let start = local + 30 + u16 input (local + 26) + u16 input (local + 28) in
+        if start + compressed > bytes-len input then Err (ZipTruncated local)
+        else case decompress input start compressed method of
+          Err error -> Err error
+          Ok contents ->
+            if not (bytes-len contents == size) then Err (ZipSizeMismatch size (bytes-len contents))
+            else
+              let actual = crc32-sum contents in
+              if eq-u32 actual crc then Ok contents else Err (ZipChecksumMismatch crc actual)
+
+  -- | Copy stored data or inflate DEFLATE data.
+  decompress :: Bytes -> Nat -> Nat -> Nat -> Result ZipError Bytes
+  decompress input start compressed method =
+    if method == 0 then Ok (slice input start (start + compressed))
+    else if method == 8 then inflate-entry (slice input start (start + compressed))
+    else Err (ZipUnsupportedMethod method)
+
+  -- | Inflate a raw DEFLATE stream.
+  inflate-entry :: Bytes -> Result ZipError Bytes
+  inflate-entry packed = case inflate-raw-at packed 0 of
+    Ok result -> (case result of (contents, used) -> Ok contents)
+    Err error -> Err ZipBadDeflate
+
+  -- | A file to write: name, comment, method, Unix mode (zero for none), modification time and data.
+  data ZipFile where
+    -- | Private fields in the order listed above, with a flag recording whether a time was set.
+    File :: Bytes -> Bytes -> Nat -> Nat -> Bool -> Int -> Bytes -> ZipFile
+
+  -- | A file with the given name, method and data, no mode, no comment and no modification time.
+  -- Names ending in a slash are written as directories, always stored and without data.
+  zip-file :: Bytes -> Nat -> Bytes -> ZipFile
+  zip-file name method contents = File name (bytes-new 0) method 0 False 0 contents
+
+  -- | Record Unix permission and type bits (for example 0o100644 for a regular file or 0o40755 for a directory).
+  zip-file-with-mode :: ZipFile -> Nat -> ZipFile
+  zip-file-with-mode f mode = case f of File n c m o has t d -> File n c m mode has t d
+
+  -- | Record a modification time in Unix seconds (UTC).
+  zip-file-with-modified :: ZipFile -> Int -> ZipFile
+  zip-file-with-modified f time = case f of File n c m o has t d -> File n c m o True time d
+
+  -- | Attach a per-file comment.
+  zip-file-with-comment :: ZipFile -> Bytes -> ZipFile
+  zip-file-with-comment f comment = case f of File n c m o has t d -> File n comment m o has t d
+
+  -- | Write files and an archive comment as a complete archive.
+  zip-write :: List ZipFile -> Bytes -> Result ZipError Bytes
+  zip-write files comment = write-files files 0 Nil Nil comment
+
+  -- | One written file: its central directory record and the archive bytes it occupies.
+  write-files :: List ZipFile -> Nat -> List Bytes -> List Bytes -> Bytes -> Result ZipError Bytes
+  write-files files offset body directory comment = case files of
+    Nil ->
+      let central = bytes-concat (reverse directory) in
+      Ok (bytes-concat (reverse (Cons (end-record (list-length directory) (bytes-len central) offset comment) (Cons central body))))
+    Cons file rest -> case encode-file file offset of
+      Err error -> Err error
+      Ok pieces -> case pieces of
+        (local, central) -> write-files rest (offset + bytes-len local) (Cons local body) (Cons central directory) comment
+
+  -- | Encode a file's local header, data and descriptor, and its central directory record.
+  encode-file :: ZipFile -> Nat -> Result ZipError (Bytes, Bytes)
+  encode-file file offset = case file of
+    File name comment method mode has-time time contents ->
+      let directory = 0 < bytes-len name && at name (minus (bytes-len name) 1) == 47 in
+      let used = if directory then (0 :: Nat) else method in
+      if not (used == 0 || used == 8) then Err (ZipUnsupportedMethod used)
+      else
+        let payload = file-data directory contents in
+        let packed = if used == 8 then deflate-raw-rle payload else payload in
+        let crc = crc32-sum payload in
+        let big = bytes-len packed >= 4294967295 || bytes-len payload >= 4294967295 in
+        let flags = (if directory then (0 :: Nat) else 8) + (if needs-utf8 name comment then 2048 else 0) in
+        let dos = dos-fields has-time time in
+        let extra = if has-time then time-extra time else empty in
+        let version = if big then (45 :: Nat) else 20 in
+        let creator = (if mode > 0 then (768 :: Nat) else 0) + version in
+        let attrs = if mode > 0 then unix-attrs mode directory else (0 :: Nat) in
+        let trailer = if directory then empty else descriptor crc (bytes-len packed) (bytes-len payload) big in
+        let local = bytes-concat [local-header version flags used dos name extra, packed, trailer] in
+        Ok (local, central-record creator version flags used dos crc (bytes-len packed) (bytes-len payload) name extra comment attrs offset)
+
+  -- | A file's data, or nothing for a directory.
+  file-data :: Bool -> Bytes -> Bytes
+  file-data directory contents = if directory then empty else contents
+
+  -- | An empty buffer.
+  empty :: Bytes
+  empty = slice (bytes-new 0) 0 0
+
+  -- | Whether a name or comment needs the UTF-8 flag: valid UTF-8 that is not plain ASCII.
+  needs-utf8 :: Bytes -> Bytes -> Bool
+  needs-utf8 name comment =
+    (not (ascii name 0) || not (ascii comment 0)) && valid-utf8 name && valid-utf8 comment
+
+  -- | Whether bytes are ASCII.
+  ascii :: Bytes -> Nat -> Bool
+  ascii input i = if i < bytes-len input then at input i < 128 && ascii input (i + 1) else True
+
+  -- | Whether bytes decode as UTF-8 text.
+  valid-utf8 :: Bytes -> Bool
+  valid-utf8 input = case string-from-bytes input of Some text -> True; None -> False
+
+  -- | MS-DOS time and date for a UTC time (zero when no time was set); times before 1980, which the
+  -- fields cannot represent, are recorded as 1980-01-01 00:00:00.
+  dos-fields :: Bool -> Int -> (Nat, Nat)
+  dos-fields has-time time =
+    if not has-time then (0, 0)
+    else
+      let clamped = if time >= 315532800 then time else 315532800 in
+      let days = int-div clamped 86400 in
+      let seconds = clamped - days * 86400 in
+      case civil-from-days days of
+        (y, m, d) ->
+          let year = to-nat (y - 1980) in
+          let clock = to-nat seconds in
+          (nat-div clock 3600 * 2048 + nat-rem (nat-div clock 60) 60 * 32 + nat-div (nat-rem clock 60) 2,
+           nat-rem year 128 * 512 + to-nat m * 32 + to-nat d)
+
+  -- | A non-negative integer as a natural number; negative values become zero.
+  to-nat :: Int -> Nat
+  to-nat value = if value >= 0 then nat-from-int value else 0
+
+  -- | The proleptic Gregorian date of a non-negative day count since 1970-01-01.
+  civil-from-days :: Int -> (Int, Int, Int)
+  civil-from-days z0 =
+    let z = z0 + 719468 in
+    let era = int-div z 146097 in
+    let doe = z - era * 146097 in
+    let yoe = int-div (doe - int-div doe 1460 + int-div doe 36524 - int-div doe 146096) 365 in
+    let doy = doe - (365 * yoe + int-div yoe 4 - int-div yoe 100) in
+    let mp = int-div (5 * doy + 2) 153 in
+    let d = doy - int-div (153 * mp + 2) 5 + 1 in
+    let m = if mp < 10 then mp + 3 else mp - 9 in
+    (yoe + era * 400 + (if m <= 2 then 1 else 0), m, d)
+
+  -- | The extended timestamp extra field with the modification time only.
+  time-extra :: Int -> Bytes
+  time-extra time = bytes-concat [le16 21589, le16 5, bytes-from-u8s [1], le32 (natural-word time)]
+
+  -- | A time as its 32-bit two's complement field (times outside the signed 32-bit range record zero).
+  natural-word :: Int -> Nat
+  natural-word time = if time >= 0 then nat-rem (nat-from-int time) 4294967296 else (if time >= 0 - 2147483648 then nat-from-int (time + 4294967296) else 0)
+
+  -- | External attributes for a Unix mode: the mode in the high half, plus the MS-DOS directory and
+  -- read-only bits as Unix archivers set them.
+  unix-attrs :: Nat -> Bool -> Nat
+  unix-attrs mode directory =
+    let type-bits = if nat-rem (nat-div mode 4096) 16 == 0 then (if directory then (16384 :: Nat) else 32768) else 0 in
+    let dos-dir = if directory then (16 :: Nat) else 0 in
+    let read-only = if nat-rem (nat-div mode 128) 2 == 0 then (1 :: Nat) else 0 in
+    (mode + type-bits) * 65536 + dos-dir + read-only
+
+  -- | The Zip64 end-of-central-directory record and its locator, which follow the central directory.
+  zip64-end :: Nat -> Nat -> Nat -> Bytes
+  zip64-end count size offset =
+    bytes-concat [le32 101075792, le64 44, le16 45, le16 45, le32 0, le32 0, le64 count, le64 count, le64 size, le64 offset,
+      le32 117853008, le32 0, le64 (offset + size), le32 1]
+
+  -- | Little-endian fields.
+  le16 :: Nat -> Bytes
+  le16 n = bytes-from-u8s [wrapping-i64-to-u8 (nat-to-i64 (nat-rem n 256)), wrapping-i64-to-u8 (nat-to-i64 (nat-rem (nat-div n 256) 256))]
+
+  -- | Four little-endian bytes.
+  le32 :: Nat -> Bytes
+  le32 n = bytes-concat [le16 (nat-rem n 65536), le16 (nat-rem (nat-div n 65536) 65536)]
+
+  -- | Eight little-endian bytes.
+  le64 :: Nat -> Bytes
+  le64 n = bytes-concat [le32 (nat-rem n 4294967296), le32 (nat-rem (nat-div n 4294967296) 4294967296)]
+
+  -- | A 32-bit word as a natural number.
+  word-nat :: U32 -> Nat
+  word-nat w = u32-to-nat w
+
+  -- | The local file header; CRC and sizes follow the data in its descriptor.
+  local-header :: Nat -> Nat -> Nat -> (Nat, Nat) -> Bytes -> Bytes -> Bytes
+  local-header version flags method dos name extra = case dos of
+    (time, date) -> bytes-concat [le32 67324752, le16 version, le16 flags, le16 method, le16 time, le16 date, le32 0, le32 0, le32 0, le16 (bytes-len name), le16 (bytes-len extra), name, extra]
+
+  -- | The data descriptor: signature, CRC-32 and sizes (eight bytes each for Zip64).
+  descriptor :: U32 -> Nat -> Nat -> Bool -> Bytes
+  descriptor crc compressed size big =
+    if big then bytes-concat [le32 134695760, le32 (word-nat crc), le64 compressed, le64 size]
+    else bytes-concat [le32 134695760, le32 (word-nat crc), le32 compressed, le32 size]
+
+  -- | The central directory record, with a Zip64 extra field for sizes or offsets that exceed 32 bits.
+  central-record :: Nat -> Nat -> Nat -> Nat -> (Nat, Nat) -> U32 -> Nat -> Nat -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Bytes
+  central-record creator version flags method dos crc compressed size name extra comment attrs offset = case dos of
+    (time, date) ->
+      let big = compressed >= 4294967295 || size >= 4294967295 || offset >= 4294967295 in
+      let all-extra = if big then bytes-concat [extra, le16 1, le16 24, le64 size, le64 compressed, le64 offset] else extra in
+      bytes-concat [le32 33639248, le16 creator, le16 version, le16 flags, le16 method, le16 time, le16 date, le32 (word-nat crc),
+        le32 (if big then 4294967295 else compressed), le32 (if big then 4294967295 else size),
+        le16 (bytes-len name), le16 (bytes-len all-extra), le16 (bytes-len comment), le16 0, le16 0, le32 attrs,
+        le32 (if offset >= 4294967295 then 4294967295 else offset), name, all-extra, comment]
+
+  -- | The end-of-central-directory record, preceded by Zip64 records when counts, sizes or offsets require them.
+  end-record :: Nat -> Nat -> Nat -> Bytes -> Bytes
+  end-record count size offset comment =
+    let big = count >= 65535 || size >= 4294967295 || offset >= 4294967295 in
+    bytes-concat [if big then zip64-end count size offset else empty, le32 101010256, le16 0, le16 0, le16 (if big then 65535 else count), le16 (if big then 65535 else count),
+      le32 (if big then 4294967295 else size), le32 (if big then 4294967295 else offset), le16 (bytes-len comment), comment]

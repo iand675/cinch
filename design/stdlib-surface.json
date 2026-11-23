@@ -31,10 +31,28 @@
     },
     {
       "reference_package": "archive/zip",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 78
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Zip"
+      ],
+      "remaining": [
+        "Incremental Reader/Writer over Effect.Stream",
+        "Compressor/decompressor registration for other methods",
+        "LZ77 DEFLATE compression (the writer currently uses the run-length DEFLATE encoder)"
+      ],
+      "reference_declarations": 78,
+      "tests": [
+        "lib_zip"
+      ],
+      "capability_mapping": {
+        "NewReader/Reader.File/Reader.Comment": "zip-read parses the end-of-central-directory (and Zip64) records and directory; zip-entries and zip-comment",
+        "File.Open": "zip-open stores or inflates and verifies CRC-32 and size",
+        "FileHeader fields": "zip-entry-name/comment/method/flags/crc32/compressed-size/size/modified/mode/external-attrs/creator/extra/is-directory",
+        "NewWriter/CreateHeader/SetComment/Close": "zip-write with zip-file, zip-file-with-mode, zip-file-with-modified and zip-file-with-comment",
+        "Store/Deflate": "zip-store and zip-deflate",
+        "ErrFormat/ErrChecksum/ErrAlgorithm": "ZipNotFound, ZipBadEntry, ZipTruncated, ZipChecksumMismatch, ZipSizeMismatch, ZipUnsupportedMethod and ZipBadDeflate"
+      },
+      "review": "Four stored archives written by the reference implementation (directories, Unix modes, UTF-8 and legacy names with the UTF-8 flag, per-file and archive comments, extended timestamps and pre-2000 MS-DOS dates) are reproduced byte for byte and read back; deflated archives (including an empty deflated entry) and a Zip64-marked entry read, inflate and verify; deflated writing round-trips; missing directories, corrupted data and corrupted signatures are rejected precisely."
     },
     {
       "reference_package": "bufio",
