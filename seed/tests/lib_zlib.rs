@@ -887,3 +887,51 @@ fn checksums_match_published_vectors_and_real_checksums() {
         failed.join(", ")
     );
 }
+
+fn gzip_sources(dir: &Path) {
+    for (name, content) in [
+        ("Text.Gzip", include_str!("../prelude/Text/Gzip.cinch")),
+        ("Data.Bytes.Build", include_str!("../prelude/Data/Bytes/Build.cinch")),
+        ("Data.Bytes.Word", include_str!("../prelude/Data/Bytes/Word.cinch")),
+    ] {
+        write_fixture(dir, &format!("{name}.cinch"), content.as_bytes());
+    }
+}
+
+#[test]
+fn gzip_checks_optional_headers_trailers_and_member_boundaries() {
+    let dir = tempfile::tempdir().unwrap();
+    gzip_sources(dir.path());
+    assert_eq!(run_project("gzip framing", dir.path(), include_str!("fixtures/gzip-consumer.cinch")), 0);
+}
+
+#[test]
+fn gzip_interoperates_with_python_in_both_directions() {
+    let Some(py) = py_path() else { return };
+    let project = tempfile::tempdir().unwrap();
+    let dir = project.path();
+    gzip_sources(dir);
+    let mut plain = boundary_bytes();
+    plain.extend(b"second stored block");
+    write_fixture(dir, "input", &plain);
+    let member = py_run(&py, "import gzip,sys;sys.stdout.buffer.write(gzip.compress(sys.stdin.buffer.read(),mtime=0))", &plain, &[]);
+    write_fixture(dir, "python.gz", &member);
+
+    let preamble = PREAMBLE.replace("  import Text.Zlib", "  import Text.Zlib\n  import Text.Gzip");
+    let source = format!(r#"{preamble}
+  main :: Unit ->{{IO r}} Int
+  main unit = with (io = newIO ()) in case read-bytes {plain_path} of
+    Some plain -> case read-bytes {compressed_path} of
+      Some member -> case gzip-decode member of
+        Ok decoded -> if not (bytes-same decoded plain) then 2
+          else case fs-write (path-from-string {encoded_path}) (gzip-encode plain) of
+            Ok _ -> 0
+            Err _ -> 1
+        Err _ -> 3
+      None -> 4
+    None -> 5
+"#, plain_path=path_lit(dir, "input"), compressed_path=path_lit(dir, "python.gz"), encoded_path=path_lit(dir, "cinch.gz"));
+    assert_eq!(run_project("gzip interoperability", dir, &source), 0);
+    let output = py_run(&py, "import gzip,sys;sys.stdout.buffer.write(gzip.open(sys.argv[1],'rb').read())", &[], &[&dir.join("cinch.gz")]);
+    assert_eq!(output, plain);
+}

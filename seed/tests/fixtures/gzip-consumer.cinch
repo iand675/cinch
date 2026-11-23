@@ -1,0 +1,39 @@
+module Main where
+  import Text.Gzip
+  import Data.Bytes.Build
+
+  fixture :: Bytes
+  fixture = bytes-from-u8s [31, 139, 8, 31, 0, 0, 0, 0, 0, 255, 2, 0, 1, 2, 110, 255, 0, 99, 0, 234, 69, 203, 72, 205, 201, 201, 87, 72, 175, 202, 44, 96, 248, 15, 0, 254, 3, 188, 90, 12, 0, 0, 0]
+
+  plain :: Bytes
+  plain = bytes-from-u8s [104, 101, 108, 108, 111, 32, 103, 122, 105, 112, 0, 255]
+
+  same :: Bytes -> Bytes -> Bool
+  same a b = eq-i64 (bytes-compare a b) 0
+
+  mutate :: Nat -> Bytes
+  mutate at = let bytes = bytes-clone fixture in
+    if at < bytes-len bytes then
+      let value = bytes-get bytes at in let change = bytes-set bytes at (if value == 0 then 1 else 0) in bytes
+    else bytes
+
+  checks :: Unit -> Bool
+  checks unit = if 8 <= bytes-len fixture then
+    let flags = case gzip-decode (mutate 2) of Err GzipInvalidHeader -> True; _ -> False in
+    let header-crc = case gzip-decode (mutate 19) of Err GzipInvalidHeader -> True; _ -> False in
+    let truncated = case gzip-decode (bytes-from-u8s [31,139,8,8,0,0,0,0,0,255,97]) of Err GzipTruncated -> True; _ -> False in
+    let crc = case gzip-decode (mutate (bytes-len fixture - 8)) of Err GzipChecksumMismatch -> True; _ -> False in
+    let size = case gzip-decode (mutate (bytes-len fixture - 4)) of Err GzipSizeMismatch -> True; _ -> False in
+    let blocks = case gzip-decode (bytes-from-u8s [31,139,8,0,0,0,0,0,0,255,7]) of Err GzipInvalidDeflate -> True; _ -> False in
+    let all-bytes = bytes-concat [fixture, gzip-encode plain] in
+    let second = case gzip-decode-member all-bytes (bytes-len fixture) of
+          Ok (decoded, next) -> same decoded plain && next == bytes-len all-bytes
+          _ -> False in
+    let joined = case gzip-decode all-bytes of
+          Ok decoded -> same decoded (bytes-concat [plain, plain])
+          _ -> False in
+    flags && header-crc && truncated && crc && size && blocks && second && joined
+    else False
+
+  main :: Int
+  main = if checks () then 0 else 1

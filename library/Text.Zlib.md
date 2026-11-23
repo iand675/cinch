@@ -52,8 +52,8 @@ bytes it cannot justify, and every refusal names itself:
                     where the Adler-32 should be.
 
 NAMED REFUSALS at the boundary (what this module deliberately does
-not do): no gzip and no raw-DEFLATE wrapper (`windowBits` picks them
-at a stream API; another wrapper is another decoder, not a flag), no
+not do): gzip framing lives with the gzip codec; raw blocks are available
+through inflate-raw-at and deflate-raw. There is no
 preset dictionary (an FDICT stream refuses as `BadHeader`), no
 streaming or incremental API (inflate takes the whole stream and
 returns the whole result, and so does the encoder), no compression
@@ -107,7 +107,7 @@ one is a value, never a fault: a malformed stream is an outcome
 the caller reads, and the whole result is discarded (no partial
 bytes cross the boundary).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 100
+[Source](/reference-sources/Text.Zlib.cinch) · line 101
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
 
@@ -128,7 +128,7 @@ bytes cross the boundary).
 The checksum's low 32 bits (both halves are below 65521, so the
 residue is the value itself; it is the conversion's evidence).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 154
+[Source](/reference-sources/Text.Zlib.cinch) · line 155
 
 <a id="value-6372633332"></a>
 
@@ -139,7 +139,7 @@ residue is the value itself; it is the conversion's evidence).
 CRC-32: the IEEE 802.3 polynomial reflected (0xEDB88320), seeded
 all ones and finished inverted (the checksum gzip and PNG carry).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 168
+[Source](/reference-sources/Text.Zlib.cinch) · line 169
 
 <a id="value-6465666c617465"></a>
 
@@ -154,7 +154,17 @@ empty final block for no bytes: a stream still needs one), and the
 Adler-32 of `src` big-endian. The buffer is sized exactly, so
 nothing is copied twice.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 735
+[Source](/reference-sources/Text.Zlib.cinch) · line 743
+
+<a id="value-6465666c6174652d726177"></a>
+
+## `deflate-raw`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-raw</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Encode raw DEFLATE using stored blocks of up to 65535 bytes each.
+
+[Source](/reference-sources/Text.Zlib.cinch) · line 751
 
 <a id="value-696e666c617465"></a>
 
@@ -164,8 +174,19 @@ nothing is copied twice.
 
 The whole stream: header, blocks, trailing Adler-32.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 456
+[Source](/reference-sources/Text.Zlib.cinch) · line 457
+
+<a id="value-696e666c6174652d7261772d6174"></a>
+
+## `inflate-raw-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">inflate-raw-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+
+Decode one raw DEFLATE stream at a byte offset. Return its bytes and the
+absolute offset following the final padded block. Leave trailing bytes unread.
+
+[Source](/reference-sources/Text.Zlib.cinch) · line 466
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zlib.cinch`. Source SHA-256: `106c7d309df7a045f78b61737fc4a0a0ff14c821b1fe9f1777284549f042c55d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zlib.cinch`. Source SHA-256: `364dec1218cc97551bd05795d31fbbdb96d0e3ed04533f5af961f6a25bb9e4ae`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

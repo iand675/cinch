@@ -1,0 +1,109 @@
+-- | Whole-buffer gzip members (RFC 1952). Decoding accepts stored, fixed and
+-- dynamic DEFLATE blocks and checks each member's header, CRC-32 and ISIZE.
+-- Encoding emits deterministic stored blocks with zero timestamp and unknown OS.
+module Text.Gzip where
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Text.Zlib
+
+  export GzipError, GzipInvalidHeader, GzipTruncated, GzipInvalidDeflate, GzipChecksumMismatch, GzipSizeMismatch
+  export gzip-encode, gzip-decode, gzip-decode-member
+
+  -- | Errors distinguish malformed framing, truncation, compressed data and trailer mismatches.
+  data GzipError where
+    GzipInvalidHeader :: GzipError
+    GzipTruncated :: GzipError
+    GzipInvalidDeflate :: GzipError
+    GzipChecksumMismatch :: GzipError
+    GzipSizeMismatch :: GzipError
+
+  -- | Encode one member with no optional header fields.
+  gzip-encode :: Bytes -> Bytes
+  gzip-encode input =
+    let header = bytes-from-u8s [31,139,8,0,0,0,0,0,0,255] in
+    let trailer = bytes-new 8 in
+    let checksum = bytes-write-le32 trailer 0 (crc32 input) in
+    let size = bytes-write-le32 trailer 4 (size-word input) in
+    bytes-concat [header, deflate-raw input, trailer]
+
+  -- | The uncompressed length modulo 2^32.
+  size-word :: Bytes -> U32
+  size-word bytes = wrapping-i64-to-u32 (nat-to-i64 (nat-rem (bytes-len bytes) 4294967296))
+
+  -- | Decode one member at an absolute byte position and return the next position.
+  gzip-decode-member :: Bytes -> Nat -> Result GzipError (Bytes, Nat)
+  gzip-decode-member src start = if start + 10 <= bytes-len src then
+    let flags = bytes-get src (start + 3) in
+    if bytes-get src start == 31 && bytes-get src (start + 1) == 139 &&
+       bytes-get src (start + 2) == 8 && flags < 32 then
+      case skip-extra src (start + 10) flags of
+        Err error -> Err error
+        Ok at -> case skip-string src at (has-flag flags 8) of
+          Err error -> Err error
+          Ok name-end -> case skip-string src name-end (has-flag flags 16) of
+            Err error -> Err error
+            Ok header-end -> verify-header src start header-end (has-flag flags 2)
+      else Err GzipInvalidHeader
+    else Err GzipTruncated
+
+  -- | Test an individual header bit using its power-of-two place.
+  has-flag :: Nat -> NonZero Nat -> Bool
+  has-flag flags place = nat-rem (nat-div flags place) 2 == 1
+
+  -- | Skip the counted optional extra field, including its length word.
+  skip-extra :: Bytes -> Nat -> Nat -> Result GzipError Nat
+  skip-extra src at flags = if has-flag flags 4 then
+    if at + 2 <= bytes-len src then
+      let end = at + 2 + bytes-get src at + 256 * bytes-get src (at + 1) in
+      if end <= bytes-len src then Ok end else Err GzipTruncated
+    else Err GzipTruncated
+    else Ok at
+
+  -- | Consume a zero-terminated optional name or comment as arbitrary Latin-1 bytes.
+  skip-string :: Bytes -> Nat -> Bool -> Result GzipError Nat
+  skip-string src at present = if present then
+    if at < bytes-len src then
+      if bytes-get src at == 0 then Ok (at + 1) else skip-string src (at + 1) True
+    else Err GzipTruncated
+    else Ok at
+
+  -- | FHCRC covers the complete header from the first magic byte through all optional fields.
+  verify-header :: Bytes -> Nat -> Nat -> Bool -> Result GzipError (Bytes, Nat)
+  verify-header src start end checked = if checked then
+    if start <= end && end + 2 <= bytes-len src then
+      let n = end - start in let header = bytes-new n in
+      let copied = bytes-copy-range header src 0 start n in
+      let expected = bytes-get src end + 256 * bytes-get src (end + 1) in
+      if u32-to-nat (bit-and-u32 (crc32 header) 65535) == expected then decode-body src (end + 2)
+      else Err GzipInvalidHeader
+    else Err GzipTruncated
+    else decode-body src end
+
+  -- | Inflate a member and verify its little-endian checksum and length.
+  decode-body :: Bytes -> Nat -> Result GzipError (Bytes, Nat)
+  decode-body src at = case inflate-raw-at src at of
+    Err TruncatedStream -> Err GzipTruncated
+    Err _ -> Err GzipInvalidDeflate
+    Ok (bytes, end) -> if end + 8 <= bytes-len src then
+      if ne-u32 (bytes-read-le32 src end) (crc32 bytes) then Err GzipChecksumMismatch
+      else if ne-u32 (bytes-read-le32 src (end + 4)) (size-word bytes) then Err GzipSizeMismatch
+      else Ok (bytes, end + 8)
+      else Err GzipTruncated
+
+  -- | Decode a complete sequence of one or more members in order.
+  gzip-decode :: Bytes -> Result GzipError Bytes
+  gzip-decode src = members src 0 Nil
+
+  -- | Accumulate each member once before joining the decoded chunks.
+  members :: Bytes -> Nat -> List Bytes -> Result GzipError Bytes
+  members src at earlier = case gzip-decode-member src at of
+    Err error -> Err error
+    Ok (bytes, next) -> if next < bytes-len src then members src next (Cons bytes earlier)
+      else case earlier of
+        Nil -> Ok bytes
+        Cons _ _ -> Ok (bytes-concat (reverse (Cons bytes earlier)))

@@ -16,6 +16,7 @@ is not an available API.
 
 | Go package | Cinch module | Implemented surface | Remaining scope |
 | --- | --- | --- | --- |
+| `compress/gzip` | [Text.Gzip](../library/Text.Gzip.md), [Text.Zlib](../library/Text.Zlib.md) | Whole-buffer member and concatenated decoding, checked headers and trailers, deterministic stored-block writing, raw DEFLATE with consumed offsets | Streaming, header metadata, compression levels, second-frontend validation and benchmarks |
 | `math/bits` | [Data.Word](../library/Data.Word.md), `Data.Machine`, `Algebra.Bits` | All fixed/native-width count and reversal families, significant length, signed rotations, carry/borrow, exact wide multiply, checked and proof-bearing division/remainder | All 52 reference declarations mapped; portable 128-bit division helpers and checked-result allocations remain performance costs |
 | `unicode/utf16` | [Text.Utf16](../library/Text.Utf16.md) | Scalar length, surrogate classification/pairs, sequence encode/decode, append, explicit-order byte codecs, replacement policy | All seven reference capabilities mapped and tested; byte-codec throughput and immutable-list append costs are documented |
 | `encoding/binary` | [Text.Binary](../library/Text.Binary.md), [Text.Binary.Layout](../library/Text.Binary.Layout.md), [Effect.Binary](../library/Effect.Binary.md) | Concrete scalar/float/complex layouts, explicit/native byte order, fixed arrays/products/records/bytes/padding, atomic offset/append operations, exact varints and progress-preserving streams | All 36 recorded declarations mapped; generic callback, counter and checked-store costs are documented |
@@ -66,8 +67,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 23 functionally complete, 55 partial
-and 102 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records 23 functionally complete, 56 partial
+and 101 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.

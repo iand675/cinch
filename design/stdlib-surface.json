@@ -133,15 +133,29 @@
       "cinch_modules": [
         "Text.Zlib"
       ],
-      "remaining": [],
-      "reference_declarations": 38
+      "remaining": [
+        "incremental compression and decompression, dictionaries, encoder compression levels and operation-level review"
+      ],
+      "reference_declarations": 38,
+      "review": "Text.Zlib exposes raw decoding at a byte offset with exact consumed position, and stored-block encoding."
     },
     {
       "reference_package": "compress/gzip",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 33
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Gzip"
+      ],
+      "remaining": [
+        "incremental Reader and Writer with header metadata and reset/flush",
+        "compression-level selection and compressed-block encoding",
+        "self-built frontend qualification and pipeline benchmarks"
+      ],
+      "reference_declarations": 33,
+      "tests": [
+        "lib_zlib::gzip_checks_optional_headers_trailers_and_member_boundaries",
+        "lib_zlib::gzip_interoperates_with_python_in_both_directions"
+      ],
+      "review": "Whole-buffer RFC 1952 members support optional fields, FHCRC, CRC-32, ISIZE and concatenation. Single-member decoding returns the next offset. The deterministic writer emits stored blocks."
     },
     {
       "reference_package": "compress/lzw",

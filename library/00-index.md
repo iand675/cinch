@@ -180,6 +180,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Fnv.State](Text.Fnv.State.md) | Ship source | Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints. |
 | [Text.FilePath](Text.FilePath.md) | Ship source | POSIX lexical relative paths, locality tests, filesystem-name conversion and search-list splitting. |
 | [Text.Fnv](Text.Fnv.md) | Ship source | Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
+| [Text.Gzip](Text.Gzip.md) | Ship source | Whole-buffer gzip member encoding, checked decompression and concatenated members. |
 | [Text.Hex](Text.Hex.md) | Ship source | SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps. |
 | [Text.Html](Text.Html.md) | Ship source | HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning. |
 | [Text.Json.Binary32](Text.Json.Binary32.md) | Ship source | Exact decimal rounding and shortest finite binary32 JSON coefficients, with preserved signed zero and midpoint comparisons. |
@@ -269,7 +270,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **197 source modules**: **66 embedded** and **131 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **198 source modules**: **66 embedded** and **132 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

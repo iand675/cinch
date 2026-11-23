@@ -196,6 +196,7 @@ DESCRIPTIONS = {
 'Effect.Base32':'Explicitly finalized Base32 encoding writers and bounded decoding readers with precise errors, retained cursors and sticky failures.',
 'Text.Path':'Portable slash-path lexical operations and checked shell patterns with reusable compiled matchers and exact SIMD scans.',
 'Text.Binary':'Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints.',
+'Text.Gzip':'Whole-buffer gzip member encoding, checked decompression and concatenated members.',
 'Text.Hex':'SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps.',
 'Text.Checksum':'Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials.',
 'Data.Bytes.Word':'Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing.',

@@ -1283,6 +1283,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Gzip",
+      "path": "seed/prelude/Text/Gzip.cinch",
+      "sha256": "fbc293ba302a29cc61aed4dbe5c78ec35334375a891d91474f7eb0384a4a17bd",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Hex",
       "path": "compiler/prelude/Text/Hex.cinch",
       "sha256": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
@@ -1572,10 +1580,10 @@
     },
     {
       "module": "Text.Zlib",
-      "path": "compiler/prelude/Text/Zlib.cinch",
-      "sha256": "106c7d309df7a045f78b61737fc4a0a0ff14c821b1fe9f1777284549f042c55d",
+      "path": "seed/prelude/Text/Zlib.cinch",
+      "sha256": "364dec1218cc97551bd05795d31fbbdb96d0e3ed04533f5af961f6a25bb9e4ae",
       "embedded": false,
-      "values": 4,
+      "values": 6,
       "public_methods": 0
     }
   ]
