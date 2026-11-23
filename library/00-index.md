@@ -74,6 +74,8 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 | Module | Distribution | Purpose |
 | --- | --- | --- |
+| [Crypto.Aes](Crypto.Aes.md) | Ship source | AES-128/192/256 with AES-NI or ARMv8 instructions after detection and a constant-time, table-free SIMD fallback. |
+| [Crypto.Cipher](Crypto.Cipher.md) | Ship source | CTR, OFB, CFB, CBC and GCM over any 128-bit block cipher, with constant-time or carry-less-instruction GHASH and constant-time tag checks. |
 | [Crypto.ConstantTime](Crypto.ConstantTime.md) | Ship source | Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors. |
 | [Crypto.Hmac](Crypto.Hmac.md) | Ship source | Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification. |
 | [Crypto.Kdf](Crypto.Kdf.md) | Ship source | HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256. |
@@ -328,7 +330,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **251 source modules**: **66 embedded** and **185 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **253 source modules**: **66 embedded** and **187 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

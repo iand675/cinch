@@ -262,17 +262,50 @@
     },
     {
       "reference_package": "crypto/aes",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Crypto.Aes"
+      ],
       "remaining": [],
-      "reference_declarations": 5
+      "reference_declarations": 5,
+      "tests": [
+        "lib_aes"
+      ],
+      "benchmarks": [
+        "aes-gcm-64MiB-o3",
+        "aes-ctr-64MiB-o3",
+        "aes-ctr-portable-4MiB-o3"
+      ],
+      "capability_mapping": {
+        "NewCipher": "aes-key validates 16/24/32-byte keys and expands immutable schedules, selecting hardware rounds after detection; aes-portable-key forces the constant-time fallback",
+        "BlockSize": "aes-block-size and cipher-block-size are 16",
+        "KeySizeError": "AesKeyError InvalidAesKeySize records the rejected length; InvalidAesBlockSize covers block-buffer operations",
+        "Block.Encrypt/Decrypt": "aes-encrypt-word/aes-decrypt-word over U128 blocks and aes-encrypt-block/aes-decrypt-block over 16-byte buffers; aes-cipher adapts a key to Crypto.Cipher"
+      },
+      "review": "All five recorded declarations are mapped. x86-64 uses AES-NI after CPUID detection and AArch64 uses the ARMv8 cryptography extension when the profile supplies ArmAes evidence; both run whole blocks with round keys as register operands, and decryption uses equivalent-inverse-cipher keys. The portable fallback runs each round on all sixteen bytes in <16 x i8> SIMD lanes and computes SubBytes arithmetically (x^254 by seven linear masked squarings and four lane-parallel products, then the affine map), so it has no table lookups or data-dependent branches. Fixtures from OpenSSL (via the Python cryptography package) and FIPS-197 cover all key sizes on both paths, keystream/CBC/GCM modes, and errors, with zero leaks in normal and poisoned-free runs; the default constructor is checked to select hardware on this host. Kernels including AES-NI, ARMv8 AES and PCLMULQDQ bodies compile for x86-64, AArch64 with and without ArmAes, WebAssembly and big-endian PowerPC; ARM execution is not claimed. At --opt-level 3, 64 MiB of AES-128-GCM seals in about 0.5 s and CTR in about 0.56 s with hardware rounds; the portable fallback encrypts about 14 MB/s. Per-block Cinch-level overhead (natural-number positions and checked stores) dominates the hardware path; it is far below assembly implementations."
     },
     {
       "reference_package": "crypto/cipher",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 37
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Cipher"
+      ],
+      "remaining": [
+        "NewGCMWithRandomNonce (needs an entropy capability)",
+        "StreamReader/StreamWriter adapters over Effect.Stream",
+        "Machine-word block loops to remove per-block natural-number and checked-store overhead"
+      ],
+      "reference_declarations": 37,
+      "tests": [
+        "lib_aes"
+      ],
+      "capability_mapping": {
+        "Block": "BlockCipher packages forward and inverse U128 block functions; block-cipher builds one from any 128-bit cipher",
+        "Stream/NewCTR/NewOFB/NewCFBEncrypter/NewCFBDecrypter": "XorStream with ctr-stream, ofb-stream, cfb-encrypt-stream and cfb-decrypt-stream; stream-xor processes inputs of any length and returns the advanced stream; ctr-xor, ofb-xor, cfb-encrypt and cfb-decrypt are one-shot forms",
+        "BlockMode/NewCBCEncrypter/NewCBCDecrypter/CryptBlocks": "CbcState with cbc-encrypter, cbc-decrypter and cbc-crypt-blocks (whole blocks only, no padding), plus one-shot cbc-encrypt/cbc-decrypt",
+        "AEAD/NewGCM/NewGCMWithNonceSize/NewGCMWithTagSize/Seal/Open/NonceSize/Overhead": "gcm, gcm-with-nonce-size, gcm-with-tag-size, gcm-seal, gcm-open, gcm-nonce-size, gcm-tag-size and gcm-overhead; open compares tags in constant time and releases no plaintext on failure"
+      },
+      "review": "CTR, OFB, CFB, CBC and GCM are implemented over any BlockCipher and verified with AES against independent vectors, including every two-chunk split for streams, chained CBC calls, counter wrap at 2^128, GCM tag sizes 12-16, nonce sizes 8, 9, 12, 16 and 60, AAD-only messages and rejection of tampered ciphertext, tags, AAD, nonces and truncated input. GHASH uses a constant-time portable product (masked-integer carry-less multiplication with a reflected reduction) or PCLMULQDQ after CPUID detection. Random-nonce GCM and reader/writer adapters remain."
     },
     {
       "reference_package": "crypto/des",

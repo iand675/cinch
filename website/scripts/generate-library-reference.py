@@ -50,6 +50,8 @@ DESCRIPTIONS = {
 'Effect.Time.Zone':'The system time zone database and the current system zone.',
 'Effect.Time':'Typed readers for the system and monotonic clocks.',
 'Crypto.Hmac':'Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification.',
+'Crypto.Aes':'AES-128/192/256 with AES-NI or ARMv8 instructions after detection and a constant-time, table-free SIMD fallback.',
+'Crypto.Cipher':'CTR, OFB, CFB, CBC and GCM over any 128-bit block cipher, with constant-time or carry-less-instruction GHASH and constant-time tag checks.',
 'Crypto.Kdf':'HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256.',
 'Image.Color':'Color representations, conversion models and immutable palettes with first-nearest lookup.',
 'Image.Color.Palette':'Immutable factories for the ordered 256-color Plan 9 and 216-color WebSafe palettes.',
