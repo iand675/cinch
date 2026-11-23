@@ -44,7 +44,7 @@ HOMES = {
     "net": ["Effect.Net", "Effect.Resolv", "Data.IpAddr"], "net/http": ["Effect.Http"],
     "net/netip": ["Data.IpAddr"], "net/url": ["Text.Uri", "Text.Url", "Text.Url.Codec", "Text.Url.Error", "Text.Url.Query", "Text.Url.Userinfo", "Text.Url.Model", "Text.Url.Parser", "Text.Url.Resolve", "Text.Url.Ip", "Text.Url.Scan"],
     "os": ["Effect.Fs", "Effect.Process", "Effect.Stream"], "os/exec": ["Effect.Process"],
-    "os/signal": ["Effect.Signal"], "path": ["Data.Path", "Text.Path"], "path/filepath": ["Data.Path", "Effect.Find"],
+    "os/signal": ["Effect.Signal"], "path": ["Data.Path", "Text.Path"], "path/filepath": ["Data.Path", "Effect.Find", "Text.FilePath"],
     "regexp": ["Text.Regex"], "regexp/syntax": ["Text.Regex"],
     "slices": ["Data.List", "Data.Array", "Data.Mutable.Vec"], "sort": ["Data.List", "Data.Sorted", "Data.Mutable.Vec"],
     "strconv": ["Text.Show", "Text.Scan", "Data.Machine"], "strings": ["Data.String", "Text.Scan", "Text.Builder"],

@@ -1,0 +1,25 @@
+module Main where
+  import Text.FilePath
+
+  same :: Option String -> String -> Bool
+  same actual expected = case actual of
+    Some text -> text == expected
+    None -> False
+
+  refused :: Option String -> Bool
+  refused value = case value of None -> True; Some _ -> False
+
+  main :: Int
+  main = if same (file-path-relative "/a/b/" "/a/c/δ") "../c/δ" &&
+    same (file-path-relative "../a" "../../b") "../../b" &&
+    same (file-path-relative "../a" "..") ".." &&
+    same (file-path-relative "." "") "." &&
+    refused (file-path-relative "../a" "x") && refused (file-path-relative "/" ".") &&
+    file-path-is-local "a/../." && file-path-is-local "..cache" &&
+    not (file-path-is-local "a/../../x") && not (file-path-is-local "") &&
+    not (file-path-is-local "/a") && same (file-path-localize ".") "." &&
+    same (file-path-localize "δ/a") "δ/a" && refused (file-path-localize "a/../b") &&
+    refused (file-path-localize "/") && refused (file-path-localize "a/") &&
+    refused (file-path-localize "a//b") && refused (file-path-localize "a\u{0}b") &&
+    (case file-path-split-list ":δ::" of Cons a (Cons b (Cons c (Cons d Nil))) -> a == "" && b == "δ" && c == "" && d == ""; _ -> False) &&
+    (case file-path-split-list "" of Nil -> True; _ -> False) then 0 else 1

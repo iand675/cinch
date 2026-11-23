@@ -1,0 +1,73 @@
+-- | Lexical POSIX filesystem paths over UTF-8 text. Relative path calculations
+-- and locality checks use component boundaries and never resolve symbolic links.
+module Text.FilePath where
+  import Algebra.Semigroup
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Text.Path as Slash
+
+  export file-path-relative, file-path-is-local, file-path-localize, file-path-split-list
+
+  -- | Split at a delimiter, preserving empty fields and multibyte text.
+  fields :: Char -> List Char -> List Char -> List String -> List String
+  fields separator chars field done = case chars of
+    Nil -> reverse (Cons (pack (reverse field)) done)
+    Cons c rest -> if eq-char c separator then fields separator rest Nil (Cons (pack (reverse field)) done)
+      else fields separator rest (Cons c field) done
+
+  -- | An empty POSIX search list has no entries. Colons in nonempty lists preserve empty entries.
+  file-path-split-list :: String -> List String
+  file-path-split-list text = if text == "" then Nil else fields ':' (unpack text) Nil Nil
+
+  -- | Return the normalized components of a path, excluding its root marker.
+  components :: String -> List String
+  components clean = if clean == "." || clean == "/" then Nil else case unpack clean of
+    Cons c rest -> if eq-char c '/' then fields '/' rest Nil Nil else fields '/' (Cons c rest) Nil Nil
+    Nil -> Nil
+
+  -- | A local path is nonempty, relative, and stays beneath its starting directory after lexical cleaning.
+  file-path-is-local :: String -> Bool
+  file-path-is-local text = if text == "" || Slash.path-is-absolute text then False
+    else case components (Slash.path-clean text) of
+      Cons first rest -> first /= ".."
+      Nil -> True
+
+  -- | Convert a slash-separated filesystem name to POSIX text. The root name is dot.
+  -- Every other name requires nonempty elements, no dot or parent elements, and no NUL.
+  file-path-localize :: String -> Option String
+  file-path-localize text = if text == "." then Some text
+    else if valid-elements (fields '/' (unpack text) Nil Nil) then Some text else None
+
+  valid-elements :: List String -> Bool
+  valid-elements elements = case elements of
+    Nil -> True
+    Cons item rest -> if item == "" || item == "." || item == ".." then False
+      else if no-nul (unpack item) then valid-elements rest else False
+
+  no-nul :: List Char -> Bool
+  no-nul chars = case chars of
+    Nil -> True
+    Cons c rest -> if char-code c == 0 then False else no-nul rest
+
+  -- | Compute a lexical route from base to destination. Different roots and unmatched
+  -- parent components in the base require knowledge of the working directory.
+  file-path-relative :: String -> String -> Option String
+  file-path-relative base destination =
+    if Slash.path-is-absolute base /= Slash.path-is-absolute destination then None
+    else relative-components (components (Slash.path-clean base)) (components (Slash.path-clean destination))
+
+  relative-components :: List String -> List String -> Option String
+  relative-components base destination = case base of
+    Nil -> case destination of
+      Nil -> Some "."
+      Cons _ _ -> Some (Slash.path-join destination)
+    Cons first rest -> case destination of
+      Cons next more -> if first == next then relative-components rest more else relative-tail first rest destination
+      Nil -> relative-tail first rest Nil
+
+  relative-tail :: String -> List String -> List String -> Option String
+  relative-tail first rest destination = if first == ".." then None
+    else Some (Slash.path-join (replicate (1 + list-length rest) ".." <> destination))

@@ -61,14 +61,23 @@ fn consumer(checks: &[String], extra: &str) -> String {
 
 /// Compile the selected frontend, with an explicit Rust-only optimized ownership case.
 fn run(checks: Vec<String>, extra: &str, optimized_rust: bool) {
+    run_source(&consumer(&checks, extra), optimized_rust);
+}
+
+fn run_source(source: &str, optimized_rust: bool) {
     let directory = tempfile::tempdir().unwrap();
+    std::fs::write(
+        directory.path().join("Text.FilePath.cinch"),
+        include_str!("../prelude/Text/FilePath.cinch"),
+    )
+    .unwrap();
     std::fs::write(
         directory.path().join("Text.Path.cinch"),
         include_str!("../prelude/Text/Path.cinch"),
     )
     .unwrap();
     let input = directory.path().join("Main.cinch");
-    std::fs::write(&input, consumer(&checks, extra)).unwrap();
+    std::fs::write(&input, source).unwrap();
     let exe = directory.path().join("consumer");
     let profile = cinch::core::TargetProfile {
         reclaim: true,
@@ -290,4 +299,11 @@ fn slash_path_declarations_have_canonical_documentation() {
         let text = doc.markdown.to_lowercase();
         assert!(!text.contains("golang") && !text.contains("go's") && !text.contains("go "));
     }
+}
+
+#[test]
+fn posix_file_paths_preserve_relative_and_search_list_boundaries() {
+    let source = include_str!("fixtures/filepath-consumer.cinch");
+    run_source(source, false);
+    run_source(source, true);
 }

@@ -1243,6 +1243,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.FilePath",
+      "path": "seed/prelude/Text/FilePath.cinch",
+      "sha256": "e465f4641efc3618645ed4ff1bfa12c6a1a91c65de4579a2cbc84462642c44a7",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Fnv",
       "path": "seed/prelude/Text/Fnv.cinch",
       "sha256": "b09f33aa54974a8b67ccac104a8e08a3a2d6e2bfd0f8756e9ea0764aff93f529",

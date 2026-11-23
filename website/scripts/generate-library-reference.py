@@ -206,6 +206,7 @@ DESCRIPTIONS = {
 'Data.Bytes.Utf8':'Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding.',
 'Data.Word':'Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words.',
 'Data.Wide':'Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies.',
+'Text.FilePath':'POSIX lexical relative paths, locality tests, filesystem-name conversion and search-list splitting.',
 'Text.Fnv':'Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic.',
 'Text.Fnv.State':'Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints.',
 'Text.Adler32':'Portable SIMD Adler-32 with bounded machine-word segments, persistent states, network-order digests and checked versioned checkpoints.',

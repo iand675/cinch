@@ -1897,10 +1897,18 @@
       "status": "partial",
       "cinch_modules": [
         "Data.Path",
-        "Effect.Find"
+        "Effect.Find",
+        "Text.FilePath"
       ],
-      "remaining": [],
-      "reference_declarations": 32
+      "remaining": [
+        "working-directory and symbolic-link resolution, filesystem globbing and traversal review",
+        "Windows path semantics and operation-level review"
+      ],
+      "reference_declarations": 32,
+      "tests": [
+        "lib_path::posix_file_paths_preserve_relative_and_search_list_boundaries"
+      ],
+      "review": "Text.FilePath implements POSIX lexical Rel, IsLocal, Localize and SplitList for UTF-8 paths."
     },
     {
       "reference_package": "plugin",
