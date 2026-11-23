@@ -43,6 +43,7 @@ is not an available API.
 | `net/textproto` | [Text.TextProto](../library/Text.TextProto.md) | SWAR canonical header keys, ordered MIME headers, continuation lines, status responses and state-machine dot encoding | Connection-level helpers over Effect.Net remain |
 | `archive/zip` | [Text.Zip](../library/Text.Zip.md) | Whole-archive reading (stored, DEFLATE, Zip64, extended timestamps) with CRC verification; writing byte-identical to the reference for stored archives | Streaming, pluggable methods and LZ77 compression remain |
 | `encoding/asn1` | [Text.Asn1](../library/Text.Asn1.md) | Explicit ASN.1 value trees with strict DER decoding and canonical encoding, tags, OIDs, big integers and times | Staged record codecs replace reflection-based struct marshaling |
+| `image/png`, `image` | [Image.Png](../library/Image.Png.md), [Image.Raster](../library/Image.Raster.md) | PNG decode of every color type, depth, filter and Adam7 layout with SIMD Up/Sub reconstruction; adaptive-filter encoding; native-format rasters | Compression levels, ancillary chunks and the general image interface remain |
 | `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Prepared tables, persistent accumulators, checked 12-byte checkpoints and stream adapters in `Text.Crc32` and `Effect.Crc32`; cross-frontend qualification and benchmarking remain |
 | `hash/crc64` | [Text.Crc64](../library/Text.Crc64.md), [Effect.Crc64](../library/Effect.Crc64.md), [Text.Checksum](../library/Text.Checksum.md) | Immutable SIMD-built tables, packed slicing-by-eight updates, persistent states, numeric/byte digests, reset, prefix-preserving append, table-checked checkpoints and stream sinks/copies | All eleven recorded declarations and returned hash/clone/state capabilities mapped; prepared-table setup and stream-copy costs are documented |
@@ -81,8 +82,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 29 functionally complete, 63 partial
-and 88 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records 29 functionally complete, 65 partial
+and 86 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.

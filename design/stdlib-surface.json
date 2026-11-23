@@ -1499,10 +1499,17 @@
     },
     {
       "reference_package": "image",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 281
+      "status": "partial",
+      "cinch_modules": [
+        "Image.Color",
+        "Image.Raster"
+      ],
+      "remaining": [
+        "Image/Rectangle/Point geometry, sub-images and the YCbCr, CMYK and alpha-mask image types",
+        "Registered format sniffing (image.Decode)"
+      ],
+      "reference_declarations": 281,
+      "review": "Image.Raster provides gray, gray-alpha, RGB and RGBA rasters at eight and sixteen bits and paletted rasters, with bounds-checked pixel access and RGBA conversion; the broader image interface family remains unreviewed."
     },
     {
       "reference_package": "image/color",
@@ -1576,10 +1583,27 @@
     },
     {
       "reference_package": "image/png",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 24
+      "status": "partial",
+      "cinch_modules": [
+        "Image.Png",
+        "Image.Raster"
+      ],
+      "remaining": [
+        "Encoder compression levels (the writer uses the existing DEFLATE encoder)",
+        "Access to ancillary chunks (gamma, text, physical size)",
+        "Integration with a general image interface once the image package is reviewed"
+      ],
+      "reference_declarations": 24,
+      "tests": [
+        "lib_png"
+      ],
+      "capability_mapping": {
+        "Decode": "png-decode to a Raster in the file's native format (sub-byte samples widened, transparency keys as alpha)",
+        "DecodeConfig": "png-config returns width, height and the raster format without inflating",
+        "Encode/Encoder": "png-encode writes non-interlaced PNG with per-row adaptive filters",
+        "FormatError/UnsupportedError": "PngError: PngBadSignature, PngBadChunk, PngBadCrc, PngBadHeader, PngMissingData, PngBadData"
+      },
+      "review": "280 vectors decode exactly: an independent encoder written from the specification covers every color type and bit depth, every filter type and a per-row mix, Adam7 interlacing, gray/RGB/palette transparency and split IDAT chunks, and PIL-written files cover common modes; every decoded raster re-encodes and decodes back to the same pixels and palette, and png-config agrees with every header. Malformed signatures, truncation, CRC corruption and invalid headers are rejected. Up reconstruction adds eight bytes per SIMD step and Sub uses lane-shift prefix scans specialized for 1-8 byte pixels (with big-endian bodies); the kernels compile for AArch64, WebAssembly and big-endian PowerPC."
     },
     {
       "reference_package": "index/suffixarray",

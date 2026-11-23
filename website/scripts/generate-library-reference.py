@@ -56,6 +56,8 @@ DESCRIPTIONS = {
 'Crypto.X25519':'Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection.',
 'Crypto.Ed25519':'Deterministic Ed25519 signatures with constant-time signing and strict verification.',
 'Crypto.Kdf':'HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256.',
+'Image.Png':'PNG decoding of every color type, depth and interlace method with SIMD scanline reconstruction, and PNG encoding.',
+'Image.Raster':'Gray, gray-alpha, RGB, RGBA and paletted rasters at eight and sixteen bits with pixel access and RGBA conversion.',
 'Image.Color':'Color representations, conversion models and immutable palettes with first-nearest lookup.',
 'Image.Color.Palette':'Immutable factories for the ordered 256-color Plan 9 and 216-color WebSafe palettes.',
 'Crypto.ConstantTime':'Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors.',

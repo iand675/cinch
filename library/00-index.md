@@ -337,10 +337,12 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | --- | --- | --- |
 | [Image.Color.Palette](Image.Color.Palette.md) | Ship source | Immutable factories for the ordered 256-color Plan 9 and 216-color WebSafe palettes. |
 | [Image.Color](Image.Color.md) | Ship source | Color representations, conversion models and immutable palettes with first-nearest lookup. |
+| [Image.Png](Image.Png.md) | Ship source | PNG decoding of every color type, depth and interlace method with SIMD scanline reconstruction, and PNG encoding. |
+| [Image.Raster](Image.Raster.md) | Ship source | Gray, gray-alpha, RGB, RGBA and paletted rasters at eight and sixteen bits with pixel access and RGBA conversion. |
 
 # Scope and verification
 
-This generation covers **263 source modules**: **66 embedded** and **197 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **265 source modules**: **66 embedded** and **199 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

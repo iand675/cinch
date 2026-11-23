@@ -1451,6 +1451,22 @@
       "public_methods": 0
     },
     {
+      "module": "Image.Png",
+      "path": "seed/prelude/Image/Png.cinch",
+      "sha256": "8040ff6891b589157daeda5d4d55e83daf7543d91591dc202a193f662fe44060",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
+      "module": "Image.Raster",
+      "path": "seed/prelude/Image/Raster.cinch",
+      "sha256": "a4c4c2c6b9f63c021a1654fe120f4746e4266c05a4383b5e6c6581e05b5fbf3b",
+      "embedded": false,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
       "module": "Prelude",
       "path": "seed/prelude/Prelude.cinch",
       "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
