@@ -110,6 +110,12 @@ fn the_compile_time_evaluator_stores_the_same_bytes() {
   main :: Int
   main = if folded == 0 + 256 * (120 + 256 * (86 + 256 * (52 + 256 * (8 + 256 * 1)))) then 0 else 1
 "#;
+    // The self-hosted compiler's stage evaluator has no compile-time
+    // buffers at all (it refuses `bytes-new` before any store), so this
+    // is the Native seed's evaluator alone.
+    if common::external_frontend::configured().expect("frontend selection").is_some() {
+        return;
+    }
     let dir = project("wordstage", main);
     assert_eq!(common::run(&dir, "Main.cinch"), 0);
     common::cleanup(&dir);
@@ -170,6 +176,18 @@ fn a_word_store_is_one_unaligned_store_and_byte_loops_call_no_scalar_units() {
   main = let b = bytes-new 64 in let u = bytes-write-le64 b 0 7 in if pack b 0 == 60 then 0 else 1
 "#;
     let ir = emit_ir("wordir", main, &TargetProfile::native());
+    // The self-hosted backend lowers the pair through the externs the
+    // pinned runtime exports: the byte store at the range's last index
+    // validates it, and one unaligned store writes the word.
+    if common::external_frontend::configured().expect("frontend selection").is_some() {
+        for (unit, store) in [("cinch.typed.cinch.runtime.bytesSetLe32", "store i32"), ("cinch.typed.cinch.runtime.bytesSetLe64", "store i64")] {
+            let unit_ir = body(&ir, unit);
+            assert_eq!(unit_ir.matches(store).count(), 1, "{unit} is not one word store:\n{unit_ir}");
+            assert!(unit_ir.contains(", align 1"), "{unit}'s store is not unaligned:\n{unit_ir}");
+            assert_eq!(unit_ir.matches("@cinch_bytes_set(").count(), 1, "{unit} does not validate its range once:\n{unit_ir}");
+        }
+        return;
+    }
     for (unit, store) in [("cinch.runtime.bytesSetLe32", "store i32"), ("cinch.runtime.bytesSetLe64", "store i64")] {
         let unit_ir = body(&ir, unit);
         assert_eq!(unit_ir.matches(store).count(), 1, "{unit} is not one word store:\n{unit_ir}");
