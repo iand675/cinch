@@ -2139,6 +2139,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Xml",
+      "path": "seed/prelude/Text/Xml.cinch",
+      "sha256": "3f790721d3186a9a3a2c7cc288608b39d2565307f09f13bea1693ea0d83e681b",
+      "embedded": false,
+      "values": 26,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Yaml",
       "path": "seed/prelude/Text/Yaml.cinch",
       "sha256": "1254ed227cac5d100c4132baa92d4ce0773cc78fd1669b269d022f2d5618e7d8",

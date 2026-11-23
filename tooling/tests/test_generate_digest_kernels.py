@@ -1,4 +1,4 @@
-"""Reproducibility and constant-derivation checks for the generated digest, Keccak, AES and DES kernels."""
+"""Reproducibility and constant-derivation checks for the generated digest, Keccak, AES, DES and XML kernels."""
 from __future__ import annotations
 
 import hashlib
@@ -22,7 +22,7 @@ class DigestKernelGeneration(unittest.TestCase):
 
     def test_generated_suffixes_are_current(self) -> None:
         """Every generator's --check mode accepts the committed module."""
-        for script in ("generate_sha512_kernels.py", "generate_sha1_md5_kernels.py", "generate_sha3_kernels.py", "generate_aes_kernels.py", "generate_des_kernels.py"):
+        for script in ("generate_sha512_kernels.py", "generate_sha1_md5_kernels.py", "generate_sha3_kernels.py", "generate_aes_kernels.py", "generate_des_kernels.py", "generate_xml_kernels.py"):
             with self.subTest(script=script):
                 result = subprocess.run([sys.executable, str(ROOT / "tooling" / script), "--check"], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

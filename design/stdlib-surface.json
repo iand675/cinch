@@ -1178,10 +1178,20 @@
     },
     {
       "reference_package": "encoding/xml",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 83
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Xml"
+      ],
+      "remaining": [
+        "Marshal/Unmarshal over user types (no reflection; a class-based codec is the intended counterpart)",
+        "Non-strict decoding: AutoClose, HTMLAutoClose, HTMLEntity, custom Entity maps",
+        "CharsetReader conversion for non-UTF-8 declarations",
+        "Streaming input over Effect.Stream"
+      ],
+      "reference_declarations": 83,
+      "tests": [
+        "lib_xml"
+      ]
     },
     {
       "reference_package": "errors",

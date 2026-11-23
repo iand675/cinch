@@ -49,6 +49,7 @@ is not an available API.
 | `crypto/des` | [Crypto.Des](../library/Crypto.Des.md) | DES and Triple DES (EDE, three keys) with single-block, ECB, CBC and CTR operations; one generated straight-line kernel per block with permutation networks, rotation windows and SP tables; checked against the cryptography library | Table lookups are not constant time (legacy interoperation only); the 64-bit modes live beside the cipher rather than in Crypto.Cipher's 128-bit modes |
 | `crypto/rc4` | [Crypto.Rc4](../library/Crypto.Rc4.md) | Keying for 1 to 256 bytes and keystream XOR as an explicit, persistent stream state that replays when retained | None for the reference surface; the cipher is broken and offered for legacy data only |
 | `image/gif` | [Image.Gif](../library/Image.Gif.md) | GIF87a/GIF89a decoding of every frame or the first, screen configuration, palettes with transparency, delays, disposal methods, loop counts and interlaced frames; encoding of indexed animations byte-identical to the reference encoder; SIMD palette-index validation | Encoding non-indexed rasters needs a quantizer and ditherer, which remain |
+| `encoding/xml` | [Text.Xml](../library/Text.Xml.md) | Strict token decoding as an explicit state machine (namespace translation, matched end tags, CDATA, entities, line normalization, UTF-8 and character-range checks, reference error messages and lines), raw tokens, an optional depth limit, a token encoder with indentation and generated attribute prefixes, escaping, and element trees; SIMD text and escape scanning | Reflection-style Marshal/Unmarshal has no counterpart; non-strict mode (AutoClose, HTML entities), custom entity maps and charset conversion remain |
 | `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Prepared tables, persistent accumulators, checked 12-byte checkpoints and stream adapters in `Text.Crc32` and `Effect.Crc32`; cross-frontend qualification and benchmarking remain |
 | `hash/crc64` | [Text.Crc64](../library/Text.Crc64.md), [Effect.Crc64](../library/Effect.Crc64.md), [Text.Checksum](../library/Text.Checksum.md) | Immutable SIMD-built tables, packed slicing-by-eight updates, persistent states, numeric/byte digests, reset, prefix-preserving append, table-checked checkpoints and stream sinks/copies | All eleven recorded declarations and returned hash/clone/state capabilities mapped; prepared-table setup and stream-copy costs are documented |
@@ -87,8 +88,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 30 functionally complete, 69 partial
-and 81 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records 30 functionally complete, 70 partial
+and 80 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -251,7 +252,6 @@ cargo test --test lib_go_stdlib
 | `strconv`, `fmt` | `Text.Show`, `Text.Scan`, `Data.Machine` | Explicit-base, bit-width-aware number parsing and quoting |
 | `unicode`, `unicode/utf8` | `Data.Char`, `Data.String` | Unicode property and case tables; current classification helpers are ASCII |
 | `encoding/base64`, `encoding/csv`, `encoding/json` | `Text.Base64`, `Text.Csv`, `Text.Json` | Format/options compatibility audit and streaming APIs |
-| `encoding/xml`, `encoding/pem` | None | PEM first; XML with explicit resource limits later |
 | `compress/zlib`, `compress/flate` | `Text.Zlib` | Existing DEFLATE decoder within zlib and stored-block encoder; raw wrapper and actual compression remain |
 | `crypto/hmac` | `Text.Digest`, `Crypto.Hmac` | SHA-256/SHA-512 keys and states exist; generic digest construction over the standalone digest states remains |
 | `crypto/rand`, `math/rand` | `Effect.Random` | Existing OS entropy and bounded draws; deterministic PRNG state remains |
