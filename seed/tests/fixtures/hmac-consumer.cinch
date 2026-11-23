@@ -1,0 +1,51 @@
+module Main where
+  import Crypto.Hmac
+  import Crypto.Kdf
+  import Data.Bytes.Build
+  import Text.Hex
+
+  vector :: HmacAlgorithm -> Nat -> String -> Bool
+  vector algo size expected =
+    let key = bytes-repeat size (bytes-from-u8s [11]) in let prepared = hmac-key algo key in
+    let change-key = if 0 < bytes-len key then bytes-set key 0 0 else () in
+    let hi = string-to-bytes "Hi " in let suffix = string-to-bytes "There" in
+    let state = hmac-state prepared in let prefix = hmac-update state hi in
+    let full = hmac-update prefix suffix in
+    let change-message = if 0 < bytes-len hi then bytes-set hi 0 0 else () in
+    let message = string-to-bytes "Hi There" in
+    let tag = hmac-sum full in
+    hex-encode tag == expected && hmac-verify prepared message tag &&
+      not (hmac-verify prepared message (bytes-new 1)) &&
+      not (hmac-verify prepared (bytes-new 0) tag) &&
+      hex-encode (hmac-append (bytes-from-u8s [255]) full) == string-concat "ff" expected &&
+      eq-i64 (bytes-compare (hmac-sum (hmac-reset full)) (hmac-tag prepared (bytes-new 0))) 0 &&
+      eq-i64 (bytes-compare (hmac-sum prefix) (hmac-tag prepared (string-to-bytes "Hi "))) 0
+
+  sha512-mac :: Bytes -> Bytes -> Bytes
+  sha512-mac key msg = hmac-tag (hmac-key HmacSha512 key) msg
+
+  alternate :: Unit -> Bool
+  alternate unit = case kdf-prf 64 sha512-mac of
+    None -> False
+    Some prf -> case pbkdf2-key prf (string-to-bytes "password") (string-to-bytes "salt") 2 80 of
+      Err _ -> False
+      Ok derived -> if hex-encode derived == "e1d9c16aa681708a45f5c7c4e215ceb66e011a2e9f0040713f18aefdb866d53cf76cab2868a39b9f7840edce4fef5a82be67335c77a6068e04112754f27ccf4e473e311ad827b68945f4e2dddb204c78" then
+        case hkdf-key prf (string-to-bytes "secret") (string-to-bytes "salt") (string-to-bytes "context") 70 of
+          Ok result -> hex-encode result == "89b5fd388684cbf88d069b068b5f6bfdb3b82367e4453d7be7e895b5b36314c982fe162eece7850ea81c0b462b76d0ab94e5a266f7af583cd648f4c95f06d7cc1ddb074e2e03"
+          Err _ -> False
+        else False
+
+  main :: Int
+  main = if alternate () &&
+    vector HmacSha256 0 "e48411262715c8370cd5e7bf8e82bef53bd53712d007f3429351843b77c7bb9b" &&
+    vector HmacSha256 20 "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7" &&
+    vector HmacSha256 63 "60becd3ada41eee378b576c2e0b3cc5d7392ae1f2e70e58b44aa88ab4a562149" &&
+    vector HmacSha256 64 "21cd586aeca0579d99a1c938127c92525a371f807bc5ba6eb78bc825bd4f2be3" &&
+    vector HmacSha256 65 "727b82fba264393c5d67fd6d6ad783e9019a1fa6a857fccb70f5852f04be5d5d" &&
+    vector HmacSha256 131 "03f731975a2104815e7a646158f58799eb40a54f41c0243d1540e8d2517a13cb" &&
+    vector HmacSha512 0 "f7688a104326d36c1940f6d28d746c0661d383e0d14fe8a04649444777610f5dd9565a36846ab9e9e734cf380d3a070d8ef021b5f3a50c481710a464968e3419" &&
+    vector HmacSha512 20 "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854" &&
+    vector HmacSha512 127 "5fb9dbff056cbe3837ec4121adbf9d69c343bb03c70fe2152bcd747db93d04fcad82ba032627a2b592cc4a286a2ad55cc14619f9b16da2659f1795baf47796d8" &&
+    vector HmacSha512 128 "e0853e8ef09d70a6ae8431a46c5c87590e12ad57f6ab11504a15bf500b431c112501952fe1fdcdc6464e3b16d26a070252abd243a0efafb5cd46fc11c6934658" &&
+    vector HmacSha512 129 "aa1c23fe040c4f3e6545a9154e339d17ffb5272e0a545b84d38b9bf8e2c7464df2d62bb5000557686f8510eb4302a0cae6b5dd1f3700beaede755f86fdbeb48f" &&
+    vector HmacSha512 131 "99962c015be0659c7b2192837c60f0fda9f3f73ffc9849ae7654d2e8ca766175a97343d93a89e8877da3663c7ebe4faae5665ac5e247083182b17624f7b4db01" then 0 else 1

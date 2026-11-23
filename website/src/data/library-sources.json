@@ -115,6 +115,14 @@
       "public_methods": 0
     },
     {
+      "module": "Crypto.Hmac",
+      "path": "seed/prelude/Crypto/Hmac.cinch",
+      "sha256": "e585b6638ff0452e24305d5452c798253e0ba4e72c6381a1fad738f929592408",
+      "embedded": false,
+      "values": 10,
+      "public_methods": 0
+    },
+    {
       "module": "Crypto.Kdf",
       "path": "seed/prelude/Crypto/Kdf.cinch",
       "sha256": "ee877d5b4b05c5425637d29b05dd35b3012f291e16bb67d159fe820484033291",

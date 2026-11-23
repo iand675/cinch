@@ -330,27 +330,36 @@
         "Crypto.Kdf"
       ],
       "remaining": [
-        "qualify custom PRFs, self-built frontend and pipeline performance"
+        "self-built frontend qualification and pipeline performance"
       ],
       "reference_declarations": 3,
       "tests": [
-        "lib_kdf::key_derivations_match_rfc_and_independent_vectors"
+        "lib_kdf::key_derivations_match_rfc_and_independent_vectors",
+        "lib_kdf::prepared_hmac_keys_and_states_match_sha256_and_sha512_vectors"
       ],
       "capability_mapping": {
         "Extract": "hkdf-extract",
         "Expand": "hkdf-expand",
         "Key": "hkdf-key"
       },
-      "review": "RFC 5869 extract, expand and combined key derivation use arbitrary bytes, enforce the 255-block bound and check fixed-width PRF output. Expand requires a key at least one digest wide. KdfPrf accepts a keyed callback; HMAC-SHA-256 is supplied."
+      "review": "RFC 5869 extract, expand and combined key derivation use arbitrary bytes, enforce the 255-block bound and check fixed-width PRF output. Expand requires a key at least one digest wide. KdfPrf accepts a keyed callback; HMAC-SHA-256 is supplied. The SHA-512 callback is independently checked through a multi-block derivation."
     },
     {
       "reference_package": "crypto/hmac",
       "status": "partial",
       "cinch_modules": [
+        "Crypto.ConstantTime",
+        "Crypto.Hmac",
         "Text.Digest"
       ],
-      "remaining": [],
-      "reference_declarations": 2
+      "remaining": [
+        "generic digest construction, bounded-memory incremental updates, native frontend qualification and benchmarks"
+      ],
+      "reference_declarations": 2,
+      "tests": [
+        "lib_kdf::prepared_hmac_keys_and_states_match_sha256_and_sha512_vectors"
+      ],
+      "review": "Prepared SHA-256/SHA-512 keys own their pads. Persistent message states snapshot chunks and hash them at finalization. Full tags are compared using public-length constant-time equality."
     },
     {
       "reference_package": "crypto/hpke",
@@ -396,16 +405,17 @@
         "Crypto.Kdf"
       ],
       "remaining": [
-        "qualify custom PRFs, self-built frontend and pipeline performance"
+        "self-built frontend qualification and pipeline performance"
       ],
       "reference_declarations": 1,
       "tests": [
-        "lib_kdf::key_derivations_match_rfc_and_independent_vectors"
+        "lib_kdf::key_derivations_match_rfc_and_independent_vectors",
+        "lib_kdf::prepared_hmac_keys_and_states_match_sha256_and_sha512_vectors"
       ],
       "capability_mapping": {
         "Key": "pbkdf2-key"
       },
-      "review": "RFC 8018 PBKDF2 supports binary passwords and salts, a positive iteration count, and up to 2^32-1 digest blocks with big-endian counters. KdfPrf accepts a keyed callback; HMAC-SHA-256 is supplied."
+      "review": "RFC 8018 PBKDF2 supports binary passwords and salts, a positive iteration count, and up to 2^32-1 digest blocks with big-endian counters. KdfPrf accepts a keyed callback; HMAC-SHA-256 is supplied. The SHA-512 callback is independently checked through a multi-block derivation."
     },
     {
       "reference_package": "crypto/rand",

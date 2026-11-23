@@ -1,0 +1,92 @@
+-- | RFC 2104 HMAC with SHA-256 and SHA-512. A prepared key owns its pads.
+-- Persistent states snapshot written chunks; finalization traverses the entire
+-- retained message. Whole-tag verification uses public-length constant-time equality.
+module Crypto.Hmac where
+  import Crypto.ConstantTime
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Text.Digest
+
+  export HmacAlgorithm, HmacSha256, HmacSha512, HmacKey, hmac-key, hmac-tag, hmac-verify
+  export HmacState, hmac-state, hmac-update, hmac-sum, hmac-append, hmac-reset
+  export hmac-size, hmac-block-size
+
+  -- | Hash algorithm used for both inner and outer digests.
+  data HmacAlgorithm where
+    HmacSha256 :: HmacAlgorithm
+    HmacSha512 :: HmacAlgorithm
+
+  -- | An owned pair of block-sized inner and outer key pads.
+  data HmacKey where
+    Key :: HmacAlgorithm -> Bytes -> Bytes -> HmacKey
+
+  -- | A prepared key and privately owned message fragments, newest first.
+  data HmacState where
+    State :: HmacKey -> List Bytes -> HmacState
+
+  -- | Full authentication tag length in bytes.
+  hmac-size :: HmacAlgorithm -> Nat
+  hmac-size algorithm = case algorithm of HmacSha256 -> 32; HmacSha512 -> 64
+
+  -- | Digest compression block length in bytes.
+  hmac-block-size :: HmacAlgorithm -> Nat
+  hmac-block-size algorithm = case algorithm of HmacSha256 -> 64; HmacSha512 -> 128
+
+  digest :: HmacAlgorithm -> Bytes -> Bytes
+  digest algorithm input = case algorithm of
+    HmacSha256 -> sha256-bytes input
+    HmacSha512 -> digest-bytes DigestSha512 input
+
+  -- | Normalize an arbitrary key and precompute its two pads. The caller
+  -- can mutate the original key after preparation.
+  hmac-key :: HmacAlgorithm -> Bytes -> HmacKey
+  hmac-key algorithm key =
+    let size = hmac-block-size algorithm in
+    let short = if bytes-len key > size then digest algorithm key else key in
+    let inner = bytes-new size in let outer = bytes-new size in
+    let ready = prepare-pads short inner outer 0 in Key algorithm inner outer
+
+  prepare-pads :: Bytes -> Bytes -> Bytes -> Nat -> Unit
+  prepare-pads key inner outer at = if at < bytes-len inner && at < bytes-len outer then
+    let byte = if at < bytes-len key then wrapping-i64-to-u8 (nat-to-i64 (bytes-get key at)) else (0 :: U8) in
+    let a = bytes-set inner at (u8-to-nat (bit-xor-u8 byte 54)) in
+    let b = bytes-set outer at (u8-to-nat (bit-xor-u8 byte 92)) in prepare-pads key inner outer (at + 1)
+    else ()
+
+  -- | Compute an independent full-width tag with a reusable prepared key.
+  hmac-tag :: HmacKey -> Bytes -> Bytes
+  hmac-tag key input = tag-chunks key (Cons input Nil)
+
+  tag-chunks :: HmacKey -> List Bytes -> Bytes
+  tag-chunks key pieces = case key of
+    Key algorithm inner outer ->
+      let inside = digest algorithm (bytes-concat (Cons inner pieces)) in
+      digest algorithm (bytes-concat [outer, inside])
+
+  -- | Verify a full tag. Unequal lengths fail; equal-length comparisons visit every byte.
+  hmac-verify :: HmacKey -> Bytes -> Bytes -> Bool
+  hmac-verify key input tag = constant-bytes-equal (hmac-tag key input) tag
+
+  -- | Begin a persistent message under a prepared key.
+  hmac-state :: HmacKey -> HmacState
+  hmac-state key = State key Nil
+
+  -- | Append a snapshot of one message chunk without changing earlier states.
+  hmac-update :: HmacState -> Bytes -> HmacState
+  hmac-update state input = if bytes-len input == 0 then state else case state of
+    State key pieces -> State key (Cons (bytes-clone input) pieces)
+
+  -- | Return the full tag without consuming the state.
+  hmac-sum :: HmacState -> Bytes
+  hmac-sum state = case state of State key pieces -> tag-chunks key (reverse pieces)
+
+  -- | Append the tag to a copied prefix.
+  hmac-append :: Bytes -> HmacState -> Bytes
+  hmac-append prefix state = bytes-concat [prefix, hmac-sum state]
+
+  -- | Start a new empty message while retaining the prepared key.
+  hmac-reset :: HmacState -> HmacState
+  hmac-reset state = case state of State key pieces -> State key Nil
