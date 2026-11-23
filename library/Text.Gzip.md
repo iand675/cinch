@@ -18,7 +18,8 @@ Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Byte
 
 Whole-buffer gzip members (RFC 1952). Decoding accepts stored, fixed and
 dynamic DEFLATE blocks and checks each member's header, CRC-32 and ISIZE.
-Encoding emits deterministic stored blocks with zero timestamp and unknown OS.
+Encoders use a zero timestamp and unknown OS. Choose stored blocks or a
+fixed-Huffman run encoder with stored fallback.
 
 </details>
 
@@ -32,7 +33,7 @@ Encoding emits deterministic stored blocks with zero timestamp and unknown OS.
 
 Errors distinguish malformed framing, truncation, compressed data and trailer mismatches.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 18
+[Source](/reference-sources/Text.Gzip.cinch) · line 19
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GzipInvalidHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span></code></pre>
 
@@ -54,7 +55,7 @@ Errors distinguish malformed framing, truncation, compressed data and trailer mi
 
 Decode a complete sequence of one or more members in order.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 99
+[Source](/reference-sources/Text.Gzip.cinch) · line 109
 
 <a id="value-677a69702d6465636f64652d6d656d626572"></a>
 
@@ -64,7 +65,7 @@ Decode a complete sequence of one or more members in order.
 
 Decode one member at an absolute byte position and return the next position.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 39
+[Source](/reference-sources/Text.Gzip.cinch) · line 49
 
 <a id="value-677a69702d656e636f6465"></a>
 
@@ -74,8 +75,19 @@ Decode one member at an absolute byte position and return the next position.
 
 Encode one member with no optional header fields.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 26
+[Source](/reference-sources/Text.Gzip.cinch) · line 27
+
+<a id="value-677a69702d656e636f64652d726c65"></a>
+
+## `gzip-encode-rle`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gzip-encode-rle</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Encode runs using distance-one matches, falling back to stored blocks
+for data that would expand beyond the stored representation.
+
+[Source](/reference-sources/Text.Gzip.cinch) · line 32
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Gzip.cinch`. Source SHA-256: `fbc293ba302a29cc61aed4dbe5c78ec35334375a891d91474f7eb0384a4a17bd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Gzip.cinch`. Source SHA-256: `a94c55457e743050595f6fdb22931c834ca66a352cb820372ecaba7728c8a403`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

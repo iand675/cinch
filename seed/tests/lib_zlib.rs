@@ -935,3 +935,41 @@ fn gzip_interoperates_with_python_in_both_directions() {
     let output = py_run(&py, "import gzip,sys;sys.stdout.buffer.write(gzip.open(sys.argv[1],'rb').read())", &[], &[&dir.join("cinch.gz")]);
     assert_eq!(output, plain);
 }
+
+#[test]
+fn gzip_run_encoder_matches_independent_decoder_and_selects_smaller_blocks() {
+    let Some(py) = py_path() else { return };
+    let project = tempfile::tempdir().unwrap();
+    let dir = project.path();
+    gzip_sources(dir);
+    let runs: Vec<u8> = (0..=300).flat_map(|n| std::iter::repeat_n(n as u8, n)).collect();
+    let varied = boundary_bytes();
+    let preamble = PREAMBLE.replace("  import Text.Zlib", "  import Text.Zlib\n  import Text.Gzip");
+    let helper = r#"
+  encode-file :: forall r. using (io :: Io r) => String -> String ->{IO r} Int
+  encode-file from dest = case read-bytes from of
+    None -> 1
+    Some bytes -> case fs-write (path-from-string dest) (gzip-encode-rle bytes) of
+      Ok _ -> 0
+      Err _ -> 2
+"#;
+    let cases = [("empty", &[][..]), ("runs", runs.as_slice()), ("varied", varied.as_slice())];
+    let mut checks = Vec::new();
+    for (name, input) in cases {
+        write_fixture(dir, name, input);
+        checks.push(format!("encode-file {} {}", path_lit(dir, name), path_lit(dir, &format!("{name}.gz"))));
+    }
+    assert_eq!(run_project("gzip run encoding", dir, &(preamble + helper + &main_body(&checks))), 0);
+    for (name, input) in cases {
+        let file = dir.join(format!("{name}.gz"));
+        let encoded = std::fs::read(&file).unwrap();
+        let decoded = py_run(&py, "import gzip,sys;sys.stdout.buffer.write(gzip.open(sys.argv[1],'rb').read())", &[], &[&file]);
+        assert_eq!(decoded.as_slice(), input);
+        if name == "runs" {
+            assert_eq!(encoded[10] & 7, 3);
+            assert!(encoded.len() < input.len() / 10);
+        } else if name == "varied" {
+            assert_eq!(encoded[10] & 7, 1);
+        }
+    }
+}

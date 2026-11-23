@@ -1285,9 +1285,9 @@
     {
       "module": "Text.Gzip",
       "path": "seed/prelude/Text/Gzip.cinch",
-      "sha256": "fbc293ba302a29cc61aed4dbe5c78ec35334375a891d91474f7eb0384a4a17bd",
+      "sha256": "a94c55457e743050595f6fdb22931c834ca66a352cb820372ecaba7728c8a403",
       "embedded": false,
-      "values": 3,
+      "values": 4,
       "public_methods": 0
     },
     {
@@ -1581,9 +1581,9 @@
     {
       "module": "Text.Zlib",
       "path": "seed/prelude/Text/Zlib.cinch",
-      "sha256": "364dec1218cc97551bd05795d31fbbdb96d0e3ed04533f5af961f6a25bb9e4ae",
+      "sha256": "c39f929789f55ade95b2557d1311b7adf0fa2990be85cce753021af98bcdbeb4",
       "embedded": false,
-      "values": 6,
+      "values": 7,
       "public_methods": 0
     }
   ]

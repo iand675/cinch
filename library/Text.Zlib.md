@@ -56,9 +56,9 @@ not do): gzip framing lives with the gzip codec; raw blocks are available
 through inflate-raw-at and deflate-raw. There is no
 preset dictionary (an FDICT stream refuses as `BadHeader`), no
 streaming or incremental API (inflate takes the whole stream and
-returns the whole result, and so does the encoder), no compression
-on the encode side (a fixed-Huffman encoder needs match finding,
-which is its own module's work), and no trailing-data check (bytes
+returns the whole result, and so does the encoder). The optional
+deflate-raw-rle encoder compresses repeated bytes with fixed Huffman
+codes. The zlib wrapper has no trailing-data check (bytes
 after the Adler-32 belong to no stream this module reads).
 
 The window claimed is CINFO 7 in both directions: the decoder
@@ -166,6 +166,17 @@ Encode raw DEFLATE using stored blocks of up to 65535 bytes each.
 
 [Source](/reference-sources/Text.Zlib.cinch) · line 751
 
+<a id="value-6465666c6174652d7261772d726c65"></a>
+
+## `deflate-raw-rle`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-raw-rle</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Encode a raw DEFLATE stream using fixed Huffman codes and distance-one
+runs of up to 258 bytes. Choose stored blocks when they would be smaller.
+
+[Source](/reference-sources/Text.Zlib.cinch) · line 756
+
 <a id="value-696e666c617465"></a>
 
 ## `inflate`
@@ -189,4 +200,4 @@ absolute offset following the final padded block. Leave trailing bytes unread.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zlib.cinch`. Source SHA-256: `364dec1218cc97551bd05795d31fbbdb96d0e3ed04533f5af961f6a25bb9e4ae`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zlib.cinch`. Source SHA-256: `c39f929789f55ade95b2557d1311b7adf0fa2990be85cce753021af98bcdbeb4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

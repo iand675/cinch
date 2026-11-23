@@ -38,9 +38,9 @@
 -- through inflate-raw-at and deflate-raw. There is no
 -- preset dictionary (an FDICT stream refuses as `BadHeader`), no
 -- streaming or incremental API (inflate takes the whole stream and
--- returns the whole result, and so does the encoder), no compression
--- on the encode side (a fixed-Huffman encoder needs match finding,
--- which is its own module's work), and no trailing-data check (bytes
+-- returns the whole result, and so does the encoder). The optional
+-- deflate-raw-rle encoder compresses repeated bytes with fixed Huffman
+-- codes. The zlib wrapper has no trailing-data check (bytes
 -- after the Adler-32 belong to no stream this module reads).
 --
 -- The window claimed is CINFO 7 in both directions: the decoder
@@ -87,7 +87,7 @@ module Text.Zlib where
 
   export ZlibError, BadHeader, BadChecksum, InvalidCode, TruncatedStream
   export inflate, deflate, adler32, crc32
-  export inflate-raw-at, deflate-raw
+  export inflate-raw-at, deflate-raw, deflate-raw-rle
 
 
   -- ---------------------------------------------------------------------
@@ -750,6 +750,74 @@ module Text.Zlib where
   -- | Encode raw DEFLATE using stored blocks of up to 65535 bytes each.
   deflate-raw :: Bytes -> Bytes
   deflate-raw src = write-blocks 0 src 0 None
+
+  -- | Encode a raw DEFLATE stream using fixed Huffman codes and distance-one
+  -- runs of up to 258 bytes. Choose stored blocks when they would be smaller.
+  deflate-raw-rle :: Bytes -> Bytes
+  deflate-raw-rle src =
+    let n = bytes-len src in
+    -- Three header bits, at most nine bits per literal, seven end bits.
+    let out = bytes-new (nat-div (9 * n + 17) 8) in
+    let last = encode-runs src 0 out (put-field out 0 3 3) in
+    let end = put-symbol out last 256 in
+    let size = nat-div (end + 7) 8 in
+    let blocks = if n == 0 then (1 :: Nat) else nat-div (n + 65534) 65535 in
+    if size <= n + 5 * blocks && size <= bytes-len out then out-slice out size
+    else deflate-raw src
+
+  -- | Add up to nine low-first bits at a bit offset. Existing low bits in
+  -- the first byte are preserved; subsequent bytes have not yet been written.
+  put-field :: Bytes -> Nat -> Nat -> Nat -> Nat
+  put-field out bit width value =
+    let at = nat-div bit 8 in let shift = nat-rem bit 8 in
+    let packed = wrapping-shl-u32 (byte-u32 value) (byte-u32 shift) in
+    if at < bytes-len out then
+      let low = bit-or-u32 (byte-u32 (bytes-get out at)) packed in
+      let first = bytes-set out at (u8-to-nat (wrapping-u32-to-u8 low)) in
+      if shift + width > 8 && at + 1 < bytes-len out then
+        let high = bytes-set out (at + 1) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 packed 8))) in bit + width
+      else bit + width
+    else bit + width
+
+  -- | Fixed Huffman codewords are transmitted high bit first. Reverse just
+  -- the declared code width before passing them to the low-first field writer.
+  put-code :: Bytes -> Nat -> Nat -> Nat -> Nat
+  put-code out bit width code =
+    let reversed = reverse-bits-u32 (byte-u32 code) in
+    let low = wrapping-shr-u32 reversed (wrapping-sub-u32 32 (byte-u32 width)) in
+    put-field out bit width (u32-to-nat low)
+
+  put-symbol :: Bytes -> Nat -> Nat -> Nat
+  put-symbol out bit symbol =
+    if symbol < 144 then put-code out bit 8 (48 + symbol)
+    else if symbol < 256 then put-code out bit 9 (400 + (symbol - 144))
+    else if symbol < 280 then put-code out bit 7 (symbol - 256)
+    else put-code out bit 8 (192 + (symbol - 280))
+
+  -- | Count a distance-one match against the preceding decoded byte.
+  run-length :: Bytes -> Nat -> Nat -> Nat -> Nat
+  run-length src at previous n = if n < 258 && at + n < bytes-len src then
+    if bytes-get src (at + n) == previous then run-length src at previous (n + 1) else n
+    else n
+
+  encode-runs :: Bytes -> Nat -> Bytes -> Nat -> Nat
+  encode-runs src at out bit = if at < bytes-len src then
+    let n = if 0 < at then run-length src at (bytes-get src (at - 1)) 0 else 0 in
+    if n >= 3 then
+      let after-length = put-length out bit n 257 len-base len-extra in
+      encode-runs src (at + n) out (put-field out after-length 5 0)
+    else encode-runs src (at + 1) out (put-symbol out bit (bytes-get src at))
+    else bit
+
+  -- | Locate the length's canonical base and emit its low-first extra bits.
+  -- The final base, 258, uses code 285 with no extra bits.
+  put-length :: Bytes -> Nat -> Nat -> Nat -> List Nat -> List Nat -> Nat
+  put-length out bit n symbol bases extras = case (bases, extras) of
+    (Cons base remaining, Cons width more) -> case remaining of
+      Cons next rest -> if n >= next then put-length out bit n (symbol + 1) remaining more
+        else if base <= n then put-field out (put-symbol out bit symbol) width (n - base) else bit
+      Nil -> put-symbol out bit symbol
+    _ -> bit
 
   -- | Reserve the final output once and append an optional zlib checksum.
   allocate-stream :: (end :: Nat) -> Option Nat -> refined (end <= bytes-len out) Bytes

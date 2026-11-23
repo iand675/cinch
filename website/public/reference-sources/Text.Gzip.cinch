@@ -1,6 +1,7 @@
 -- | Whole-buffer gzip members (RFC 1952). Decoding accepts stored, fixed and
 -- dynamic DEFLATE blocks and checks each member's header, CRC-32 and ISIZE.
--- Encoding emits deterministic stored blocks with zero timestamp and unknown OS.
+-- Encoders use a zero timestamp and unknown OS. Choose stored blocks or a
+-- fixed-Huffman run encoder with stored fallback.
 module Text.Gzip where
   import Data.Bytes
   import Data.Bytes.Build
@@ -12,7 +13,7 @@ module Text.Gzip where
   import Text.Zlib
 
   export GzipError, GzipInvalidHeader, GzipTruncated, GzipInvalidDeflate, GzipChecksumMismatch, GzipSizeMismatch
-  export gzip-encode, gzip-decode, gzip-decode-member
+  export gzip-encode, gzip-encode-rle, gzip-decode, gzip-decode-member
 
   -- | Errors distinguish malformed framing, truncation, compressed data and trailer mismatches.
   data GzipError where
@@ -24,12 +25,21 @@ module Text.Gzip where
 
   -- | Encode one member with no optional header fields.
   gzip-encode :: Bytes -> Bytes
-  gzip-encode input =
+  gzip-encode input = frame input (deflate-raw input)
+
+  -- | Encode runs using distance-one matches, falling back to stored blocks
+  -- for data that would expand beyond the stored representation.
+  gzip-encode-rle :: Bytes -> Bytes
+  gzip-encode-rle input = frame input (deflate-raw-rle input)
+
+  -- | Wrap the encoded block stream in a deterministic header and trailer.
+  frame :: Bytes -> Bytes -> Bytes
+  frame input compressed =
     let header = bytes-from-u8s [31,139,8,0,0,0,0,0,0,255] in
     let trailer = bytes-new 8 in
     let checksum = bytes-write-le32 trailer 0 (crc32 input) in
     let size = bytes-write-le32 trailer 4 (size-word input) in
-    bytes-concat [header, deflate-raw input, trailer]
+    bytes-concat [header, compressed, trailer]
 
   -- | The uncompressed length modulo 2^32.
   size-word :: Bytes -> U32

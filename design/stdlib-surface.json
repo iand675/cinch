@@ -137,7 +137,7 @@
         "incremental compression and decompression, dictionaries, encoder compression levels and operation-level review"
       ],
       "reference_declarations": 38,
-      "review": "Text.Zlib exposes raw decoding at a byte offset with exact consumed position, and stored-block encoding."
+      "review": "Text.Zlib exposes raw decoding at a byte offset with exact consumed position, stored-block encoding, and fixed-Huffman distance-one run compression."
     },
     {
       "reference_package": "compress/gzip",
@@ -147,15 +147,16 @@
       ],
       "remaining": [
         "incremental Reader and Writer with header metadata and reset/flush",
-        "compression-level selection and compressed-block encoding",
+        "general LZ77 compression, dynamic Huffman encoding and compression levels",
         "self-built frontend qualification and pipeline benchmarks"
       ],
       "reference_declarations": 33,
       "tests": [
         "lib_zlib::gzip_checks_optional_headers_trailers_and_member_boundaries",
-        "lib_zlib::gzip_interoperates_with_python_in_both_directions"
+        "lib_zlib::gzip_interoperates_with_python_in_both_directions",
+        "lib_zlib::gzip_run_encoder_matches_independent_decoder_and_selects_smaller_blocks"
       ],
-      "review": "Whole-buffer RFC 1952 members support optional fields, FHCRC, CRC-32, ISIZE and concatenation. Single-member decoding returns the next offset. The deterministic writer emits stored blocks."
+      "review": "Whole-buffer RFC 1952 members support optional fields, FHCRC, CRC-32, ISIZE and concatenation. Single-member decoding returns the next offset. Deterministic writers support stored blocks or fixed Huffman codes with distance-one runs and a stored fallback."
     },
     {
       "reference_package": "compress/lzw",
