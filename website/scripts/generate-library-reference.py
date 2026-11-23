@@ -268,6 +268,8 @@ DESCRIPTIONS = {
 'Text.TabWriter':'Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing.',
 'Text.Bzip2':'Decompress concatenated bzip2 streams with table-driven Huffman decoding and verified block and stream CRCs.',
 'Text.Mail':'Parse and format RFC 5322 mail addresses, read message header blocks and parse header dates, with SIMD atom scanning.',
+'Crypto.Des':'DES and Triple DES block ciphers with ECB, CBC and CTR for legacy interoperation, from a generated straight-line round kernel.',
+'Crypto.Rc4':'The RC4 stream cipher as a persistent keystream state, for legacy data only.',
 'Text.Lzw':'Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.',
 'Text.Tar':'Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.',
 'Text.TextProto':'Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail.',

@@ -368,10 +368,17 @@
     },
     {
       "reference_package": "crypto/des",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 6
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Des"
+      ],
+      "remaining": [
+        "Integration of 64-bit block ciphers with the generic Crypto.Cipher mode constructors"
+      ],
+      "reference_declarations": 6,
+      "tests": [
+        "lib_des_rc4"
+      ]
     },
     {
       "reference_package": "crypto/dsa",
@@ -572,10 +579,15 @@
     },
     {
       "reference_package": "crypto/rc4",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Crypto.Rc4"
+      ],
       "remaining": [],
-      "reference_declarations": 7
+      "reference_declarations": 7,
+      "tests": [
+        "lib_des_rc4"
+      ]
     },
     {
       "reference_package": "crypto/rsa",
