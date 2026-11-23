@@ -1,0 +1,46 @@
+module Main where
+  import Crypto.Kdf
+
+  same :: Result KdfError Bytes -> Bytes -> Bool
+  same result expected = case result of
+    Ok bytes -> eq-i64 (bytes-compare bytes expected) 0
+    Err _ -> False
+
+  hashed :: Result KdfError Bytes -> Bytes -> Bool
+  hashed result expected = case result of
+    Ok bytes -> eq-i64 (bytes-compare (sha256-bytes bytes) expected) 0
+    Err _ -> False
+
+  errors :: Unit -> Bool
+  errors unit =
+    let empty = bytes-new 0 in
+    let short = case hkdf-expand kdf-hmac-sha256 empty empty 1 of Err (KdfShortKey 32 0) -> True; _ -> False in
+    let long = case hkdf-key kdf-hmac-sha256 empty empty empty 8161 of Err (KdfInvalidLength 8161) -> True; _ -> False in
+    let iterations = case pbkdf2-key kdf-hmac-sha256 empty empty 0 1 of Err KdfInvalidIterations -> True; _ -> False in
+    let zero = case pbkdf2-key kdf-hmac-sha256 empty empty 1 0 of Err (KdfInvalidLength 0) -> True; _ -> False in
+    let too-many = case pbkdf2-key kdf-hmac-sha256 empty empty 1 137438953441 of Err (KdfInvalidLength _) -> True; _ -> False in
+    let width = case kdf-prf 0 (\key msg -> empty) of None -> True; _ -> False in
+    let malformed = case kdf-prf 3 (\key msg -> bytes-new 1) of
+          Some prf -> case pbkdf2-key prf empty empty 1 4 of Err (KdfDigestSize 3 1) -> True; _ -> False
+          None -> False in
+    short && long && iterations && zero && too-many && width && malformed
+
+  main :: Int
+  main =
+    let secret = (bytes-from-u8s [11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11,11]) in
+    let salt = (bytes-from-u8s [0,1,2,3,4,5,6,7,8,9,10,11,12]) in
+    let info = (bytes-from-u8s [240,241,242,243,244,245,246,247,248,249]) in
+    let password = (bytes-from-u8s [112,97,115,115,0,119,111,114,100]) in
+    let psalt = (bytes-from-u8s [115,97,0,108,116]) in
+    let empty = (bytes-from-u8s []) in
+    if errors () &&
+      same (hkdf-extract kdf-hmac-sha256 secret salt) (bytes-from-u8s [7,119,9,54,44,46,50,223,13,220,63,13,196,123,186,99,144,182,199,59,181,15,156,49,34,236,132,74,215,194,179,229]) &&
+      same (hkdf-expand kdf-hmac-sha256 (bytes-from-u8s [7,119,9,54,44,46,50,223,13,220,63,13,196,123,186,99,144,182,199,59,181,15,156,49,34,236,132,74,215,194,179,229]) info 42) (bytes-from-u8s [60,178,95,37,250,172,213,122,144,67,79,100,208,54,47,42,45,45,10,144,207,26,90,76,93,176,45,86,236,196,197,191,52,0,114,8,213,184,135,24,88,101]) &&
+      same (hkdf-key kdf-hmac-sha256 secret salt info 42) (bytes-from-u8s [60,178,95,37,250,172,213,122,144,67,79,100,208,54,47,42,45,45,10,144,207,26,90,76,93,176,45,86,236,196,197,191,52,0,114,8,213,184,135,24,88,101]) &&
+      same (hkdf-key kdf-hmac-sha256 secret empty empty 42) (bytes-from-u8s [141,164,231,117,165,99,193,143,113,95,128,42,6,60,90,49,184,161,31,92,94,225,135,158,195,69,78,95,60,115,141,45,157,32,19,149,250,164,182,26,150,200]) &&
+      same (hkdf-key kdf-hmac-sha256 secret empty empty 0) empty &&
+      hashed (hkdf-key kdf-hmac-sha256 secret salt info 8160) (bytes-from-u8s [6,206,116,25,64,90,136,166,107,165,201,121,85,121,203,5,19,12,133,16,25,36,209,135,85,42,15,127,87,222,176,145]) &&
+      same (pbkdf2-key kdf-hmac-sha256 password psalt 1 1) (bytes-from-u8s [249]) &&
+      same (pbkdf2-key kdf-hmac-sha256 password psalt 2 32) (bytes-from-u8s [170,67,153,131,59,113,107,230,98,152,18,92,62,100,54,151,241,154,192,168,147,193,169,62,240,102,85,144,192,205,232,22]) &&
+      same (pbkdf2-key kdf-hmac-sha256 password psalt 5 45) (bytes-from-u8s [149,224,238,220,56,166,136,107,165,238,226,254,98,184,229,174,167,195,69,49,77,25,116,136,123,134,153,182,108,185,55,23,86,20,235,186,114,163,86,246,136,26,235,60,104]) &&
+      hashed (pbkdf2-key kdf-hmac-sha256 password psalt 1 8200) (bytes-from-u8s [214,212,73,208,28,240,23,156,55,74,219,182,213,53,145,91,26,129,136,127,144,61,87,97,107,117,90,174,11,191,130,211]) then 0 else 1

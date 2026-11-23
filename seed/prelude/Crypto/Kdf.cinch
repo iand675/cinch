@@ -1,0 +1,124 @@
+-- | HKDF (RFC 5869) and PBKDF2 (RFC 8018) over a fixed-width keyed PRF.
+-- The supplied default is HMAC-SHA-256. Passwords, keys, salt and info are
+-- arbitrary bytes. Intermediate and returned buffers use ordinary Bytes storage.
+module Crypto.Kdf where
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Text.Digest
+
+  export KdfPrf, kdf-prf, kdf-hmac-sha256
+  export KdfError, KdfInvalidLength, KdfInvalidIterations, KdfShortKey, KdfDigestSize
+  export hkdf-extract, hkdf-expand, hkdf-key, pbkdf2-key
+
+  -- | A deterministic keyed function with a nonzero, fixed output width.
+  data KdfPrf where
+    Prf :: Nat -> (Bytes -> Bytes -> Bytes) -> KdfPrf
+
+  -- | The callback takes key then message and must return a fresh digest while
+  -- preserving its inputs. A zero output width is rejected at construction.
+  kdf-prf :: Nat -> (Bytes -> Bytes -> Bytes) -> Option KdfPrf
+  kdf-prf width mac = if width == 0 then None else Some (Prf width mac)
+
+  -- | The runtime's RFC 2104 HMAC with SHA-256.
+  kdf-hmac-sha256 :: KdfPrf
+  kdf-hmac-sha256 = Prf 32 hmac-sha256
+
+  -- | Parameter and callback failures. No partially derived key is returned.
+  data KdfError where
+    KdfInvalidLength :: Nat -> KdfError
+    KdfInvalidIterations :: KdfError
+    KdfShortKey :: Nat -> Nat -> KdfError
+    KdfDigestSize :: Nat -> Nat -> KdfError
+
+  -- | Check every callback output before reading, copying or mixing its bytes.
+  apply-prf :: KdfPrf -> Bytes -> Bytes -> Result KdfError Bytes
+  apply-prf prf key message = case prf of
+    Prf width mac ->
+      let digest = mac key message in
+      if bytes-len digest == width then Ok digest else Err (KdfDigestSize width (bytes-len digest))
+
+  -- | Extract a pseudorandom key from secret input material. An empty salt
+  -- selects the RFC default of one digest-width block of zero bytes.
+  hkdf-extract :: KdfPrf -> Bytes -> Bytes -> Result KdfError Bytes
+  hkdf-extract prf secret salt = case prf of
+    Prf width mac ->
+      apply-prf prf (if bytes-len salt == 0 then bytes-new width else salt) secret
+
+  -- | Expand an extracted key using arbitrary context bytes. Output is limited
+  -- to 255 digest blocks; a zero-byte request returns a fresh empty buffer.
+  hkdf-expand :: KdfPrf -> Bytes -> Bytes -> Nat -> Result KdfError Bytes
+  hkdf-expand prf key info size = case prf of
+    Prf width mac ->
+      if size > 255 * width then Err (KdfInvalidLength size)
+      else if bytes-len key < width then Err (KdfShortKey width (bytes-len key))
+      else expand-from prf key info (bytes-new size) 0 1 (bytes-new 0)
+
+  expand-from :: KdfPrf -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Bytes -> Result KdfError Bytes
+  expand-from prf key info out at block previous = if at < bytes-len out then
+    let counter = bytes-from-u8s [octet block] in
+    case apply-prf prf key (bytes-concat [previous, info, counter]) of
+      Err error -> Err error
+      Ok digest -> let next = copy-block out at digest in expand-from prf key info out next (block + 1) digest
+    else Ok out
+
+  -- | Extract then expand. Reject excessive output before invoking the PRF.
+  hkdf-key :: KdfPrf -> Bytes -> Bytes -> Bytes -> Nat -> Result KdfError Bytes
+  hkdf-key prf secret salt info size = case prf of
+    Prf width mac ->
+      if size > 255 * width then Err (KdfInvalidLength size) else case hkdf-extract prf secret salt of
+        Err error -> Err error
+        Ok key -> hkdf-expand prf key info size
+
+  -- | Derive a positive-length key with at least one iteration. At most
+  -- 2^32-1 digest blocks can be numbered by PBKDF2's big-endian counter.
+  pbkdf2-key :: KdfPrf -> Bytes -> Bytes -> Nat -> Nat -> Result KdfError Bytes
+  pbkdf2-key prf password salt iterations size = case prf of
+    Prf width mac ->
+      if iterations == 0 then Err KdfInvalidIterations
+      else if size == 0 || size > 4294967295 * width then Err (KdfInvalidLength size)
+      else derive-from prf password salt iterations (bytes-new size) 0 1
+
+  derive-from :: KdfPrf -> Bytes -> Bytes -> Nat -> Bytes -> Nat -> Nat -> Result KdfError Bytes
+  derive-from prf password salt iterations out at block = if at < bytes-len out then
+    case apply-prf prf password (bytes-concat [salt, block-number block]) of
+      Err error -> Err error
+      Ok first -> case iterate-block prf password iterations 1 first (bytes-clone first) of
+        Err error -> Err error
+        Ok digest -> let next = copy-block out at digest in derive-from prf password salt iterations out next (block + 1)
+    else Ok out
+
+  -- | Keep U(previous) separate from the running XOR of all iteration results.
+  iterate-block :: KdfPrf -> Bytes -> Nat -> Nat -> Bytes -> Bytes -> Result KdfError Bytes
+  iterate-block prf password iterations done previous total = if done < iterations then
+    case apply-prf prf password previous of
+      Err error -> Err error
+      Ok digest -> let mixed = mix total digest 0 in iterate-block prf password iterations (done + 1) digest total
+    else Ok total
+
+  mix :: Bytes -> Bytes -> Nat -> Unit
+  mix total digest at = if at < bytes-len total && at < bytes-len digest then
+    let a = wrapping-i64-to-u8 (nat-to-i64 (bytes-get total at)) in
+    let b = wrapping-i64-to-u8 (nat-to-i64 (bytes-get digest at)) in
+    let written = bytes-set total at (u8-to-nat (bit-xor-u8 a b)) in mix total digest (at + 1)
+    else ()
+
+  -- | Encode the positive block index in network byte order.
+  block-number :: Nat -> Bytes
+  block-number n = bytes-from-u8s [octet (nat-div n 16777216), octet (nat-div n 65536), octet (nat-div n 256), octet n]
+
+  octet :: Nat -> U8
+  octet value = wrapping-i64-to-u8 (nat-to-i64 (nat-rem value 256))
+
+  -- | Copy only the prefix needed for the final block and return the next output offset.
+  copy-block :: Bytes -> Nat -> Bytes -> Nat
+  copy-block out at digest = if at < bytes-len out then
+    let remaining = bytes-len out - at in
+    if remaining <= bytes-len digest then
+      let copied = bytes-copy-range out digest at 0 remaining in bytes-len out
+    else let n = bytes-len digest in
+      let copied = bytes-copy-range out digest at 0 n in at + n
+    else at

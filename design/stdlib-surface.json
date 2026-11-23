@@ -325,10 +325,23 @@
     },
     {
       "reference_package": "crypto/hkdf",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 3
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Kdf"
+      ],
+      "remaining": [
+        "qualify custom PRFs, self-built frontend and pipeline performance"
+      ],
+      "reference_declarations": 3,
+      "tests": [
+        "lib_kdf::key_derivations_match_rfc_and_independent_vectors"
+      ],
+      "capability_mapping": {
+        "Extract": "hkdf-extract",
+        "Expand": "hkdf-expand",
+        "Key": "hkdf-key"
+      },
+      "review": "RFC 5869 extract, expand and combined key derivation use arbitrary bytes, enforce the 255-block bound and check fixed-width PRF output. Expand requires a key at least one digest wide. KdfPrf accepts a keyed callback; HMAC-SHA-256 is supplied."
     },
     {
       "reference_package": "crypto/hmac",
@@ -378,10 +391,21 @@
     },
     {
       "reference_package": "crypto/pbkdf2",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 1
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Kdf"
+      ],
+      "remaining": [
+        "qualify custom PRFs, self-built frontend and pipeline performance"
+      ],
+      "reference_declarations": 1,
+      "tests": [
+        "lib_kdf::key_derivations_match_rfc_and_independent_vectors"
+      ],
+      "capability_mapping": {
+        "Key": "pbkdf2-key"
+      },
+      "review": "RFC 8018 PBKDF2 supports binary passwords and salts, a positive iteration count, and up to 2^32-1 digest blocks with big-endian counters. KdfPrf accepts a keyed callback; HMAC-SHA-256 is supplied."
     },
     {
       "reference_package": "crypto/rand",

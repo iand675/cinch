@@ -28,6 +28,7 @@ is not an available API.
 | `html` | [Text.Html](../library/Text.Html.md) | Text/byte escaping, exact escaped sizing, complete named/numeric HTML5 character references and malformed-reference handling | Both recorded declarations mapped; two expanding HTML5 names intentionally extend the reference table |
 | `path` | [Text.Path](../library/Text.Path.md), [Data.Path](../library/Data.Path.md) | Portable slash-path lexical operations, complete checked shell patterns, reusable pattern values and precise pattern errors | All nine recorded declarations mapped; UTF-8 text carrier and bytewise star/Unicode-class behavior are explicit |
 | `net/url` | [Text.Url](../library/Text.Url.md) and its component modules, [Text.Uri](../library/Text.Uri.md) | Lossless immutable URL fields, checked parsing/rendering, ordered query multimaps, credentials/errors, binary operations, reference resolution and joining | All 62 recorded declarations mapped; optional UTF-8 views, copied ownership, query limits and remaining percent-decoding costs are explicit |
+| `crypto/hkdf`, `crypto/pbkdf2` | [Crypto.Kdf](../library/Crypto.Kdf.md) | Extract, expand, combined HKDF and iterated PBKDF2 with HMAC-SHA-256 or a checked fixed-width keyed callback | Alternate PRF qualification, second frontend and benchmarks |
 | `crypto/sha256` | [Text.Sha256](../library/Text.Sha256.md), [Effect.Sha256](../library/Effect.Sha256.md) | SHA-224/SHA-256 whole-buffer digests, persistent states, reset, prefix-preserving append, checked binary checkpoints and stream sinks/copies | All ten recorded declarations and returned hash/clone/state capabilities mapped; portable SIMD schedule, copied buffers and hardware-acceleration limits are documented |
 | `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Prepared tables, persistent accumulators, checked 12-byte checkpoints and stream adapters in `Text.Crc32` and `Effect.Crc32`; cross-frontend qualification and benchmarking remain |
@@ -67,8 +68,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 23 functionally complete, 56 partial
-and 101 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records 23 functionally complete, 58 partial
+and 99 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.

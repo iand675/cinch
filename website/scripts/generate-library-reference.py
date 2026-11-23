@@ -22,6 +22,7 @@ PRELUDE = ROOT / 'seed/prelude'
 OUTPUT = ROOT / 'library'
 MANIFEST = ROOT / 'website/src/data/library-sources.json'
 DESCRIPTIONS = {
+'Crypto.Kdf':'HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256.',
 'Crypto.ConstantTime':'Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors.',
 'Prelude':'The implicit, curated base surface available in every program. This facade re-exports selected defining modules; it is not the whole library.',
 'Data.Core':'Shared declarations for List, Option, and Result. Their public homes add operations and instances; this module breaks declaration-order cycles.',
