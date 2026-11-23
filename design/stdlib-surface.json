@@ -6,10 +6,28 @@
   "packages": [
     {
       "reference_package": "archive/tar",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 85
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Tar"
+      ],
+      "remaining": [
+        "Incremental Reader/Writer over Effect.Stream for archives larger than memory",
+        "Sparse files (GNU and PAX sparse formats)",
+        "FileInfoHeader/AddFS filesystem integration",
+        "Sub-second, access and change times"
+      ],
+      "reference_declarations": 85,
+      "tests": [
+        "lib_tar"
+      ],
+      "capability_mapping": {
+        "Header and type constants": "TarHeader with accessors and setters; tar-regular, tar-hardlink, tar-symlink, tar-char, tar-block, tar-directory, tar-fifo, tar-contiguous, tar-pax-global",
+        "Format, FormatUSTAR/PAX/GNU": "tar-format-v7, tar-format-ustar, tar-format-pax, tar-format-gnu as bits observed by tar-format",
+        "Reader.Next/Read": "tar-read over a complete archive returns entries with data; checksums (unsigned or signed), octal and base-256 numbers, USTAR prefixes, GNU long names/links and PAX local/global records are handled",
+        "Writer.WriteHeader/Write/Close": "tar-write emits USTAR (with prefix splitting) or a PAX extended header for fields USTAR cannot hold, and the two-block trailer",
+        "ErrHeader/ErrWriteTooLong/ErrFieldTooLong": "TarBadHeader, TarBadChecksum, TarTruncated, TarBadPax and TarFieldTooLong with offsets"
+      },
+      "review": "Thirteen archives written by the reference implementation (directories, links, devices, block-boundary sizes, prefix-split and over-long names, non-ASCII names and owners, large ids, negative times and extra PAX records) are reproduced byte for byte and read back field for field; GNU long-name/long-link/base-256, PAX global and V7 archives read correctly; truncation, checksum corruption, data after the end marker and unrepresentable modes are rejected precisely. Header checksums sum sixteen bytes per SIMD step, accumulating unsigned and signed sums together."
     },
     {
       "reference_package": "archive/zip",

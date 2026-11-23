@@ -236,6 +236,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Shellwords](Text.Shellwords.md) | Ship source | Shell-style word splitting/joining; this is data parsing, not execution of a shell command. |
 | [Text.Show](Text.Show.md) | Embedded | Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself. |
 | [Text.TabWriter](Text.TabWriter.md) | Ship source | Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing. |
+| [Text.Tar](Text.Tar.md) | Ship source | Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums. |
 | [Text.Time.Duration](Text.Time.Duration.md) | Ship source | ISO 8601 and friendly duration text for spans and exact durations, printing and parsing. |
 | [Text.Time.Iso](Text.Time.Iso.md) | Ship source | ISO 8601 extended format and RFC 3339 printing and parsing for dates, times, date-times and timestamps. |
 | [Text.Time.Rfc2822](Text.Time.Rfc2822.md) | Ship source | RFC 2822/5322 internet-message date-time printing and parsing. |
@@ -332,7 +333,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **255 source modules**: **66 embedded** and **189 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **256 source modules**: **66 embedded** and **190 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

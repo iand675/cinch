@@ -1859,6 +1859,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Tar",
+      "path": "seed/prelude/Text/Tar.cinch",
+      "sha256": "b1a5b11b1e6ca35103897fdf97fdb2bcbda0486175b98c020684efe5dd73eb37",
+      "embedded": false,
+      "values": 40,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Time.Duration",
       "path": "seed/prelude/Text/Time/Duration.cinch",
       "sha256": "20fbc027b1c3295d2ad1d3ede0c48b955604990b27f2ab1d7da45334877cb7c8",
