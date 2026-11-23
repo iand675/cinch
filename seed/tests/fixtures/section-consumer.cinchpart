@@ -1,0 +1,47 @@
+  import Effect.Stream.Section
+
+  same :: Bytes -> List U8 -> Bool
+  same bytes values = eq-i64 (bytes-compare bytes (bytes-from-u8s values)) 0
+
+  oversized :: forall r. using (io :: Io r) => Nat -> Nat ->{IO r} Result StreamError Bytes
+  oversized offset count = Ok (bytes-new (count + 1))
+
+  -- | Verify a rejected callback count and zero-length callback suppression.
+  invalid-source :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  invalid-source unit =
+    let source = reader-at oversized in let section = reader-section source 99 3 in
+    let skipped = case stream-read-at source 0 0 of Ok empty -> bytes-len empty == 0; _ -> False in
+    case section-read section 100 of
+      (Err (StreamInvalidCount 3 4), next) -> skipped && section-position next == 0
+      _ -> False
+
+  -- | Empty views, very large offsets and signed seeks have defined boundaries.
+  boundaries :: forall r. using (io :: Io r) => ByteSection r ->{IO r} Bool
+  boundaries section =
+    let negative = case section-seek section SeekStart (0 - 1) of None -> True; Some _ -> False in
+    let beyond = case section-seek section SeekCurrent 18446744073709551616 of
+          Some far -> case section-read far 1 of
+            (Ok empty, next) -> bytes-len empty == 0 && section-position next == 18446744073709551616
+            _ -> False
+          None -> False in
+    case section-outer section of
+      (source, (start, size)) -> case stream-read-at source start 2 of
+        Ok bytes -> same bytes [2,3] && size == 3 && negative && beyond
+        _ -> False
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let backing = bytes-from-u8s [1,2,3,4,5] in
+    let source = reader-at-bytes backing in
+    let section = reader-section source 1 3 in
+    let changed = if 2 < bytes-len backing then bytes-set backing 2 77 else () in
+    case section-read section 1 of
+      (Ok first, next) -> case section-read-at next 1 99 of
+        Ok middle -> case section-seek next SeekEnd (0 - 1) of
+          Some last -> case stream-read-all 1 (section-reader last) of
+            (Ok final, end) -> if same first [2] && same middle [3,4] && same final [4] &&
+              boundaries section && invalid-source () && section-position next == 1 && section-position section == 0 && section-size section == 3 then 0 else 1
+            _ -> 2
+          None -> 3
+        _ -> 4
+      _ -> 5

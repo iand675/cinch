@@ -262,12 +262,14 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Stm.TSem](Effect.Stm.TSem.md) | Embedded | A counting semaphore for transactions: wait takes a permit or retries, signal returns one. |
 | [Effect.Stm](Effect.Stm.md) | Embedded | Software transactional memory: TVar cells, composable STM transactions run by atomically, retry and or-else for blocking and choice, and the STM do provider. The transaction algorithm is Cinch source over inline target IR. |
 | [Effect.Stream](Effect.Stream.md) | Ship source | Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers. |
+| [Effect.Stream.Offset](Effect.Stream.Offset.md) | Ship source | Positional byte writers, signed cursor movement and streaming at a base offset. |
+| [Effect.Stream.Section](Effect.Stream.Section.md) | Ship source | Positional byte sources, immutable bounded sections, signed seeks and sequential reader adapters. |
 | [Effect.Test](Effect.Test.md) | Ship source | A subprocess-based test runner and named test-result/report vocabulary. |
 | [Effect.Trace](Effect.Trace.md) | Ship source | Scoped tracing/span vocabulary and context propagation tied to the runtime identity. |
 
 # Scope and verification
 
-This generation covers **195 source modules**: **66 embedded** and **129 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **197 source modules**: **66 embedded** and **131 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

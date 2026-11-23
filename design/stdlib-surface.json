@@ -1346,11 +1346,12 @@
       "reference_package": "io",
       "status": "partial",
       "cinch_modules": [
-        "Effect.Stream"
+        "Effect.Stream",
+        "Effect.Stream.Offset",
+        "Effect.Stream.Section"
       ],
       "remaining": [
-        "ReaderAt/WriterAt and sections",
-        "seek/close/flush contracts",
+        "seek/close/flush capabilities for additional backing devices",
         "pipes and cancellation",
         "stream adapters for codecs"
       ],

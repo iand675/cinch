@@ -1,0 +1,48 @@
+  import Effect.Stream.Offset
+
+  -- | Accept one byte per call and check the exact absolute address and value.
+  checking :: forall (r :: Region). using (io :: Io r) => List (Nat, Nat) -> ByteWriterAt r
+  checking expected = writer-at (\at bytes -> case expected of
+    Nil -> (Err (StreamClosed "finished"), checking Nil)
+    Cons pair rest -> case pair of
+      (where-at, value) -> if where-at == at && 0 < bytes-len bytes && bytes-get bytes 0 == value
+        then (Ok 1, checking rest) else (Err (StreamClosed "wrong write"), checking Nil))
+
+  -- | An invalid count still returns the next callback.
+  invalid :: forall (r :: Region). using (io :: Io r) => Nat -> Bytes ->{IO r} (Result StreamError Nat, ByteWriterAt r)
+  invalid at bytes = (Ok (bytes-len bytes + 1), checking [(5, 99)])
+
+  recover :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  recover unit = case offset-write (offset-writer (writer-at invalid) 5) (bytes-from-u8s [1]) of
+    (Err (StreamInvalidCount 1 2), next) -> case offset-write next (bytes-from-u8s [99]) of
+      (Ok 1, end) -> offset-position next == 0 && offset-position end == 1
+      _ -> False
+    _ -> False
+
+  -- | Positions wider than a machine word reach the underlying sink intact.
+  wide :: forall r. using (io :: Io r) => Unit ->{IO r} Bool
+  wide unit =
+    let base = (18446744073709551616 :: Nat) in
+    let writer = offset-writer (checking [(base + 2, 9)]) base in
+    case offset-write (offset-seek-start writer 2) (bytes-from-u8s [9]) of
+      (Ok 1, next) -> case offset-outer next of
+        (sink, original) -> case stream-write-at sink 0 (bytes-from-u8s [1]) of
+          (Err (StreamClosed reason), end) -> original == base && reason == "finished" && offset-position next == 3
+          _ -> False
+      _ -> False
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let writer = offset-writer (checking [(12,7),(10,1),(11,2),(12,3)]) 10 in
+    let empty = bytes-new 0 in
+    case offset-write-at writer 2 (bytes-from-u8s [7]) of
+      (Ok 1, next) -> case offset-write next empty of
+        (Ok 0, same) -> case offset-seek-current (offset-seek-start same 4) (0 - 4) of
+          Some start -> case stream-write-all (offset-stream-writer start) (bytes-from-u8s [1,2,3]) of
+            (Ok 3, end) -> case offset-seek-current start (0 - 1) of
+              None -> if offset-position next == 0 && recover () && wide () then 0 else 1
+              Some _ -> 2
+            _ -> 3
+          None -> 4
+        _ -> 5
+      _ -> 6

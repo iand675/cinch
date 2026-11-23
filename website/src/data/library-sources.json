@@ -1035,6 +1035,22 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Stream.Offset",
+      "path": "seed/prelude/Effect/Stream/Offset.cinch",
+      "sha256": "1828e5e2f5547face4ed67fdbeeba348c9a52e3679de240a8d79003904c48bbd",
+      "embedded": false,
+      "values": 10,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Stream.Section",
+      "path": "seed/prelude/Effect/Stream/Section.cinch",
+      "sha256": "ce1b65e973fd2e8d0cbc26d1b9876fa1cd38113fa3843c56cfc229b20954059e",
+      "embedded": false,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Test",
       "path": "compiler/prelude/Effect/Test.cinch",
       "sha256": "25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0",

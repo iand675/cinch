@@ -11,6 +11,16 @@ fn run(name: &str, body: &str) {
         include_str!("../prelude/Effect/Stream.cinch"),
     )
     .unwrap();
+    std::fs::write(
+        directory.path().join("Effect.Stream.Section.cinch"),
+        include_str!("../prelude/Effect/Stream/Section.cinch"),
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("Effect.Stream.Offset.cinch"),
+        include_str!("../prelude/Effect/Stream/Offset.cinch"),
+    )
+    .unwrap();
     let source = format!("module Main where\n  import Effect.Stream\n  import Prim.Sys\n{body}\n");
     std::fs::write(directory.path().join("Main.cinch"), source).unwrap();
     let executable = directory.path().join("consumer");
@@ -326,4 +336,14 @@ fn write_all_uses_linear_fresh_windows_with_bounded_memory() {
         let diagnostic = String::from_utf8_lossy(&result.stderr);
         assert!(diagnostic.contains("live=0") && diagnostic.contains("leaked=0"));
     }
+}
+
+#[test]
+fn positional_sources_and_seekable_sections_preserve_cursor_and_bounds() {
+    run("seekable section", include_str!("fixtures/section-consumer.cinchpart"));
+}
+
+#[test]
+fn positional_writes_preserve_offsets_across_short_writes_and_errors() {
+    run("offset writer", include_str!("fixtures/offset-consumer.cinchpart"));
 }

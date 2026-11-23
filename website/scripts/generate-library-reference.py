@@ -123,6 +123,8 @@ DESCRIPTIONS = {
 'Effect.Fs':'Filesystem reads/writes, directory and metadata operations, with Path values and named Result errors.',
 'Effect.Buffered.Core':'Byte-stream events with signed progress, simultaneous failures, shared advanced continuations and explicit transfer capabilities.',
 'Effect.Buffered.Internal.Cell':'Initialized opaque continuation cells whose allocation, observation and replacement require their I/O region.',
+'Effect.Stream.Offset':'Positional byte writers, signed cursor movement and streaming at a base offset.',
+'Effect.Stream.Section':'Positional byte sources, immutable bounded sections, signed seeks and sequential reader adapters.',
 'Effect.Stream':'Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers.',
 'Effect.Process':'One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process\'s arguments.',
 'Effect.Net':'Socket operations with explicit handles, address values, errors, and runtime effects.',

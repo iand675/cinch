@@ -35,7 +35,7 @@ HOMES = {
     "flag": ["Text.OptionParser"], "fmt": ["Text.Show", "Text.Scan"],
     "hash": ["Data.Hash"], "hash/adler32": ["Text.Checksum", "Text.Adler32", "Effect.Adler32"], "hash/crc32": ["Text.Checksum", "Text.Crc32", "Effect.Crc32"],
     "hash/crc64": ["Text.Checksum", "Text.Crc64", "Effect.Crc64"], "hash/fnv": ["Text.Fnv", "Text.Fnv.State", "Effect.Fnv"], "hash/maphash": ["Data.HashMap"],
-    "io": ["Effect.Stream"], "io/fs": ["Effect.Fs", "Effect.Find"],
+    "io": ["Effect.Stream", "Effect.Stream.Section", "Effect.Stream.Offset"], "io/fs": ["Effect.Fs", "Effect.Find"],
     "io/ioutil": ["Effect.Fs", "Effect.Stream"], "iter": ["Data.Producer", "Data.List"],
     "log": ["Effect.Log"], "log/slog": ["Effect.Log"], "maps": ["Data.Map", "Data.HashMap", "Data.Mutable.HashTable", "Data.Mutable.BTree", "Data.Mutable.IndexMap"],
     "math": ["Data.Machine"], "math/big": ["Data.Nat", "Data.Int", "Data.Rational", "Data.BigDecimal"],

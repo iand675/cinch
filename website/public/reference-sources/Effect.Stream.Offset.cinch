@@ -1,0 +1,75 @@
+-- | Positional writers and sequential views beginning at an arbitrary byte offset.
+-- A positional callback returns its advanced sink even when a write fails.
+module Effect.Stream.Offset where
+  import Data.Bytes
+  import Data.Int
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Effect.Stream
+
+  export ByteWriterAt, writer-at, stream-write-at
+  export OffsetWriter, offset-writer, offset-position, offset-outer
+  export offset-seek-start, offset-seek-current, offset-write-at, offset-write, offset-stream-writer
+
+  -- | A sink addressed by absolute offset, with explicit continuation state.
+  data ByteWriterAt r where
+    WriteAt :: (Nat -> Bytes ->{IO r} (Result StreamError Nat, ByteWriterAt r)) -> ByteWriterAt r
+
+  -- | Wrap a positional callback reporting the count accepted and the next sink.
+  writer-at :: forall (r :: Region). (Nat -> Bytes ->{IO r} (Result StreamError Nat, ByteWriterAt r)) -> ByteWriterAt r
+  writer-at step = WriteAt step
+
+  -- | Submit bytes at an absolute offset. Empty writes preserve the sink, and
+  -- an invalid reported count returns an error together with the advanced sink.
+  stream-write-at :: forall (r :: Region). using (io :: Io r) => ByteWriterAt r -> Nat -> Bytes ->{IO r} (Result StreamError Nat, ByteWriterAt r)
+  stream-write-at sink at bytes = if bytes-len bytes == 0 then (Ok 0, sink) else case sink of
+    WriteAt step -> case step at bytes of
+      (Err error, next) -> (Err error, next)
+      (Ok n, next) -> if n <= bytes-len bytes then (Ok n, next)
+        else (Err (StreamInvalidCount (bytes-len bytes) n), next)
+
+  -- | A base offset and relative sequential cursor over a positional sink.
+  data OffsetWriter r where
+    Offset :: ByteWriterAt r -> Nat -> Nat -> OffsetWriter r
+
+  -- | Start a sequential writer at relative position zero.
+  offset-writer :: forall (r :: Region). ByteWriterAt r -> Nat -> OffsetWriter r
+  offset-writer sink base = Offset sink base 0
+
+  -- | Current position relative to the base.
+  offset-position :: forall (r :: Region). OffsetWriter r -> Nat
+  offset-position writer = case writer of Offset sink base pos -> pos
+
+  -- | Recover the latest sink continuation and its original base offset.
+  offset-outer :: forall (r :: Region). OffsetWriter r -> (ByteWriterAt r, Nat)
+  offset-outer writer = case writer of Offset sink base pos -> (sink, base)
+
+  -- | Set an absolute position within the view.
+  offset-seek-start :: forall (r :: Region). OffsetWriter r -> Nat -> OffsetWriter r
+  offset-seek-start writer pos = case writer of Offset sink base previous -> Offset sink base pos
+
+  -- | Move the cursor by a signed distance. A position before the base returns None.
+  offset-seek-current :: forall (r :: Region). OffsetWriter r -> Int -> Option (OffsetWriter r)
+  offset-seek-current writer delta =
+    let next = nat-to-int (offset-position writer) + delta in
+    if 0 <= next then Some (offset-seek-start writer (nat-from-int next)) else None
+
+  -- | Write at a relative offset, preserving the cursor and retaining the advanced sink.
+  offset-write-at :: forall (r :: Region). using (io :: Io r) => OffsetWriter r -> Nat -> Bytes ->{IO r} (Result StreamError Nat, OffsetWriter r)
+  offset-write-at writer at bytes = case writer of
+    Offset sink base pos -> case stream-write-at sink (base + at) bytes of
+      (result, next) -> (result, Offset next base pos)
+
+  -- | Advance the cursor by the accepted count. On an error the cursor stays at
+  -- the last confirmed position while the sink continues from its returned state.
+  offset-write :: forall (r :: Region). using (io :: Io r) => OffsetWriter r -> Bytes ->{IO r} (Result StreamError Nat, OffsetWriter r)
+  offset-write writer bytes =
+    let pos = offset-position writer in case offset-write-at writer pos bytes of
+      (Err error, next) -> (Err error, next)
+      (Ok n, next) -> (Ok n, offset-seek-start next (pos + n))
+
+  -- | Adapt an offset writer to generic streaming and full-write retry operations.
+  offset-stream-writer :: forall (r :: Region). using (io :: Io r) => OffsetWriter r -> ByteWriter r
+  offset-stream-writer writer = stream-writer (\bytes -> case offset-write writer bytes of
+    (result, next) -> (result, offset-stream-writer next))

@@ -1,0 +1,101 @@
+-- | Positional byte sources and bounded, independently seekable reader views.
+-- All offsets and sizes are natural numbers. Short reads return the available
+-- prefix, and a positive read returning empty bytes means EOF.
+module Effect.Stream.Section where
+  import Data.Bytes
+  import Data.Int
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Effect.Stream
+
+  export ByteReaderAt, reader-at, reader-at-bytes, stream-read-at
+  export ByteSection, reader-section, section-outer, section-size, section-position
+  export SeekOrigin, SeekStart, SeekCurrent, SeekEnd, section-seek
+  export section-read-at, section-read, section-reader
+
+  -- | A source addressed by absolute offset. Each call is independent of cursor position.
+  data ByteReaderAt r where
+    MemoryAt :: Bytes -> ByteReaderAt r
+    At :: (Nat -> Nat ->{IO r} Result StreamError Bytes) -> ByteReaderAt r
+
+  -- | Wrap a positional read callback. It receives offset and maximum byte count.
+  reader-at :: forall (r :: Region). (Nat -> Nat ->{IO r} Result StreamError Bytes) -> ByteReaderAt r
+  reader-at step = At step
+
+  -- | Read a bounded prefix. Zero-length reads skip the callback.
+  stream-read-at :: forall (r :: Region). using (io :: Io r) => ByteReaderAt r -> Nat -> Nat ->{IO r} Result StreamError Bytes
+  stream-read-at source offset count = if count == 0 then Ok (bytes-new 0) else case source of
+    MemoryAt bytes -> Ok (copy-from bytes offset count)
+    At step -> case step offset count of
+      Err error -> Err error
+      Ok bytes -> if bytes-len bytes <= count then Ok bytes else Err (StreamInvalidCount count (bytes-len bytes))
+
+  -- | Snapshot the caller's bytes. Each successful read returns independently owned bytes.
+  reader-at-bytes :: forall (r :: Region). Bytes -> ByteReaderAt r
+  reader-at-bytes bytes =
+    MemoryAt (copy-from bytes 0 (bytes-len bytes))
+
+  -- | Clamp the requested range before allocating, including offsets beyond EOF.
+  copy-from :: Bytes -> Nat -> Nat -> Bytes
+  copy-from bytes offset count = if offset < bytes-len bytes then
+    let remaining = bytes-len bytes - offset in
+    let n = if remaining < count then remaining else count in
+    if offset + n <= bytes-len bytes then
+      let out = bytes-new n in let copied = bytes-copy-range out bytes 0 offset n in out
+    else bytes-new 0
+    else bytes-new 0
+
+  -- | A source, absolute start, declared size, and cursor relative to the start.
+  data ByteSection r where
+    Section :: ByteReaderAt r -> Nat -> Nat -> Nat -> ByteSection r
+
+  -- | Create a view at position zero. Its declared size can extend beyond the source.
+  reader-section :: forall (r :: Region). ByteReaderAt r -> Nat -> Nat -> ByteSection r
+  reader-section source start size = Section source start size 0
+
+  -- | Recover the original source, absolute start and declared size.
+  section-outer :: forall (r :: Region). ByteSection r -> (ByteReaderAt r, (Nat, Nat))
+  section-outer section = case section of Section source start size pos -> (source, (start, size))
+
+  -- | The declared number of bytes in the view.
+  section-size :: forall (r :: Region). ByteSection r -> Nat
+  section-size section = case section of Section source start size pos -> size
+
+  -- | The sequential cursor relative to the beginning of the view.
+  section-position :: forall (r :: Region). ByteSection r -> Nat
+  section-position section = case section of Section source start size pos -> pos
+
+  -- | Reference point for a signed seek offset.
+  data SeekOrigin where
+    SeekStart :: SeekOrigin
+    SeekCurrent :: SeekOrigin
+    SeekEnd :: SeekOrigin
+
+  -- | Return a repositioned view, or None for a negative result. Seeking beyond EOF is valid.
+  section-seek :: forall (r :: Region). ByteSection r -> SeekOrigin -> Int -> Option (ByteSection r)
+  section-seek section origin delta = case section of
+    Section source start size pos ->
+      let base = case origin of SeekStart -> 0; SeekEnd -> size; SeekCurrent -> pos in
+      let next = nat-to-int base + delta in
+      if 0 <= next then Some (Section source start size (nat-from-int next)) else None
+
+  -- | Read at a section-relative offset without changing its cursor or crossing its end.
+  section-read-at :: forall (r :: Region). using (io :: Io r) => ByteSection r -> Nat -> Nat ->{IO r} Result StreamError Bytes
+  section-read-at section offset count = case section of
+    Section source start size pos -> if offset < size then
+      let remaining = size - offset in
+      stream-read-at source (start + offset) (if remaining < count then remaining else count)
+      else Ok (bytes-new 0)
+
+  -- | Advance only by the number of bytes returned. Errors preserve the cursor.
+  section-read :: forall (r :: Region). using (io :: Io r) => ByteSection r -> Nat ->{IO r} (Result StreamError Bytes, ByteSection r)
+  section-read section count = case section of
+    Section source start size pos -> case section-read-at section pos count of
+      Err error -> (Err error, section)
+      Ok bytes -> (Ok bytes, Section source start size (pos + bytes-len bytes))
+
+  -- | Consume a section through the generic sequential reader protocol.
+  section-reader :: forall (r :: Region). using (io :: Io r) => ByteSection r -> ByteReader r
+  section-reader section = stream-reader (\count -> case section-read section count of
+    (result, next) -> (result, section-reader next))
