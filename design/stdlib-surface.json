@@ -2015,10 +2015,17 @@
       "cinch_modules": [
         "Data.List",
         "Data.Mutable.Vec",
+        "Data.Search",
         "Data.Sorted"
       ],
-      "remaining": [],
-      "reference_declarations": 40
+      "remaining": [
+        "Review type-specific helpers, stable sorting and comparator-driven sort adapters"
+      ],
+      "reference_declarations": 40,
+      "tests": [
+        "lib_search::binary_search_boundaries_duplicates_and_callback_effects"
+      ],
+      "review": "Data.Search supplies indexed Search and Find with effect-preserving callbacks, a first-equal result for duplicate keys, and an insertion index on misses."
     },
     {
       "reference_package": "strconv",

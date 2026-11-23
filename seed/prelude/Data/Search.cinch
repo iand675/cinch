@@ -1,0 +1,31 @@
+-- | Binary search over natural-number indices. Callbacks may compute, read or
+-- compare elements on demand. Only indices below the supplied size are probed.
+module Data.Search where
+  import Data.Bool
+  import Data.Nat
+  import Data.Ordering
+
+  export search-first, search-find
+
+  -- | Return the first index whose predicate is true, or the size when none
+  -- qualifies. The predicate must be false on a prefix and true thereafter.
+  search-first :: forall (e :: Row). Nat -> (Nat ->{|e} Bool) ->{|e} Nat
+  search-first size predicate = lower-bound 0 size predicate
+
+  -- | Maintain the half-open interval containing the boundary.
+  lower-bound :: forall (e :: Row). Nat -> Nat -> (Nat ->{|e} Bool) ->{|e} Nat
+  lower-bound low high predicate = if low < high then
+    let mid = low + nat-div (high - low) 2 in
+    if predicate mid then lower-bound low mid predicate else lower-bound (mid + 1) high predicate
+    else low
+
+  -- | Find the first equal element or its insertion index. The callback compares
+  -- the sought key to the indexed element, returning GT, then EQ, then LT across
+  -- an ascending sequence. Empty ranges perform no comparisons.
+  search-find :: forall (e :: Row). Nat -> (Nat ->{|e} Ordering) ->{|e} (Nat, Bool)
+  search-find size compare-at =
+    let index = search-first size (\i -> case compare-at i of GT -> False; _ -> True) in
+    if index < size then case compare-at index of
+      EQ -> (index, True)
+      _ -> (index, False)
+    else (index, False)

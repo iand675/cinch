@@ -71,6 +71,7 @@ DESCRIPTIONS = {
 'Data.Sym':'Interned symbols with identity equality, deterministic spelling order, and String conversions.',
 'Data.NonEmpty':'Lists refined by nonemptiness. The total constructor returns Option; transferred operations must preserve the predicate.',
 'Data.NonZero':'Total nonzero-number constructors. The NonZero type is also available through the arithmetic vocabulary for safe divisors.',
+'Data.Search':'Indexed binary search with monotone predicates, insertion positions and effectful three-way comparisons.',
 'Data.Sorted':'Lists refined by sortedness, with construction and combination that preserve ordering.',
 'Data.Ascii':'ASCII-refined values and checked construction at text boundaries.',
 'Data.Identity':'The identity container and its generic abstraction instances.',

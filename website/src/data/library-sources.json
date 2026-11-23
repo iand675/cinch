@@ -587,6 +587,14 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Search",
+      "path": "seed/prelude/Data/Search.cinch",
+      "sha256": "50f1ab5bcb33be8cd461431948d00652353604ba9deafa2e498777fd9560e00c",
+      "embedded": false,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
       "module": "Data.Set",
       "path": "compiler/prelude/Data/Set.cinch",
       "sha256": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64",

@@ -1,0 +1,28 @@
+module Main where
+  import Data.Search
+  import Data.Mutable.Var
+
+  matches :: (Nat, Bool) -> Nat -> Bool -> Bool
+  matches answer index found = case answer of (i, ok) -> i == index && ok == found
+
+  -- | Exercise every possible boundary in each half-open range up through 64.
+  partitions :: Nat -> Nat -> Bool
+  partitions size cut = if size > 64 then True
+    else if cut > size then partitions (size + 1) 0
+    else if search-first size (\i -> i >= cut) == cut then partitions size (cut + 1) else False
+
+  main :: Unit ->{Mut r} Int
+  main unit =
+    let probes = var-new (0 :: Nat) in
+    let answer = search-find 64 (\i -> let count = var-read probes in
+          let write = var-write probes (if i >= 64 then 1000 else count + 1) in
+          if i < 41 then GT else if i == 41 then EQ else LT) in
+    let empty = search-first 0 (\i -> let write = var-write probes 1000 in True) in
+    if matches answer 41 True && empty == 0 && var-read probes > 0 && var-read probes <= 8 &&
+    partitions 0 0 && search-first 0 (\i -> True) == 0 &&
+    search-first 19 (\i -> False) == 19 && search-first 19 (\i -> True) == 0 &&
+    search-first 9223372036854775807 (\i -> i >= 9223372036854775806) == 9223372036854775806 &&
+    matches (search-find 0 (\i -> EQ)) 0 False &&
+    matches (search-find 9 (\i -> if i < 2 then GT else if i < 7 then EQ else LT)) 2 True &&
+    matches (search-find 9 (\i -> if i < 4 then GT else LT)) 4 False &&
+    matches (search-find 9 (\i -> GT)) 9 False then 0 else 1
