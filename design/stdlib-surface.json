@@ -537,10 +537,17 @@
     },
     {
       "reference_package": "crypto/mlkem",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Crypto.MlKem",
+        "Effect.Crypto"
+      ],
       "remaining": [],
-      "reference_declarations": 34
+      "reference_declarations": 34,
+      "tests": [
+        "lib_mlkem",
+        "lib_effect_crypto"
+      ]
     },
     {
       "reference_package": "crypto/mlkem/mlkemtest",

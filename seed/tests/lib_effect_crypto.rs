@@ -1,5 +1,6 @@
 //! Randomized key generation and random-nonce GCM: generated keys sign, verify and agree,
-//! independent generations differ, and random-nonce messages open and reject tampering.
+//! ML-KEM keys encapsulate and decapsulate to the same shared key, independent generations
+//! differ, and random-nonce messages open and reject tampering.
 mod common;
 
 /// Generate, use and cross-check keys and sealed messages in one native run.
@@ -14,6 +15,9 @@ fn generated_keys_and_random_nonces_work_end_to_end() {
         ("Crypto.X25519.cinch", include_str!("../prelude/Crypto/X25519.cinch")),
         ("Crypto.Field25519.cinch", include_str!("../prelude/Crypto/Field25519.cinch")),
         ("Text.Sha512.cinch", include_str!("../prelude/Text/Sha512.cinch")),
+        ("Crypto.MlKem.cinch", include_str!("../prelude/Crypto/MlKem.cinch")),
+        ("Crypto.ConstantTime.cinch", include_str!("../prelude/Crypto/ConstantTime.cinch")),
+        ("Text.Sha3.cinch", include_str!("../prelude/Text/Sha3.cinch")),
         ("Text.Binary.cinch", include_str!("../prelude/Text/Binary.cinch")),
         ("Data.Bytes.Build.cinch", include_str!("../prelude/Data/Bytes/Build.cinch")),
         ("Data.Bytes.Word.cinch", include_str!("../prelude/Data/Bytes/Word.cinch")),
@@ -36,6 +40,7 @@ module Main where
   import Crypto.Cipher
   import Crypto.Ed25519
   import Crypto.X25519
+  import Crypto.MlKem
   -- | Byte equality.
   same :: Bytes -> Bytes -> Bool
   same a b = eq-i64 (bytes-compare a b) 0
@@ -44,6 +49,9 @@ module Main where
   agree a b = case (x25519-shared a (x25519-public-key b), x25519-shared b (x25519-public-key a)) of
     (Ok s1, Ok s2) -> same s1 s2
     other -> False
+  -- | A randomized encapsulation opens to its shared key.
+  kem-ok :: MlKemDecapsulationKey -> (Bytes, Bytes) -> Bool
+  kem-ok dk sealed = case sealed of (shared, c) -> (case mlkem-decapsulate dk c of Ok opened -> same opened shared; Err e -> False)
   -- | Run the checks.
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in
@@ -54,6 +62,9 @@ module Main where
     let x1 = x25519-generate () in
     let x2 = x25519-generate () in
     let agreed = agree x1 x2 in
+    let dk = mlkem-generate MlKem768 in
+    let other = mlkem-generate MlKem768 in
+    let kem = kem-ok dk (mlkem-encapsulate (mlkem-encapsulation-key-of dk)) && not (same (mlkem-decapsulation-key-bytes dk) (mlkem-decapsulation-key-bytes other)) in
     case aes-generate-key 32 of
       Err e -> 3
       Ok key ->
@@ -63,6 +74,6 @@ module Main where
             let opened = case gcm-open-random g a (bytes-new 2) of Ok out -> same out message; Err e -> False in
             let distinct = not (same a b) && bytes-len a == 12 + bytes-len message + 16 in
             let rejected = case gcm-open-random g a (bytes-new 3) of Err AuthenticationFailed -> True; other -> False in
-            if signed && agreed && opened && distinct && rejected then 0 else 1
+            if signed && agreed && kem && opened && distinct && rejected then 0 else 1
           other -> 2)
 "#;
