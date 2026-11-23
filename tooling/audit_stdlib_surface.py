@@ -46,7 +46,7 @@ HOMES = {
     "os": ["Effect.Fs", "Effect.Process", "Effect.Stream"], "os/exec": ["Effect.Process"],
     "os/signal": ["Effect.Signal"], "path": ["Data.Path", "Text.Path"], "path/filepath": ["Data.Path", "Effect.Find", "Text.FilePath"],
     "regexp": ["Text.Regex"], "regexp/syntax": ["Text.Regex"],
-    "slices": ["Data.List", "Data.Array", "Data.Mutable.Vec"], "sort": ["Data.List", "Data.Sorted", "Data.Mutable.Vec", "Data.Search"],
+    "slices": ["Data.List", "Data.Array", "Data.Array.Search", "Data.Mutable.Vec"], "sort": ["Data.List", "Data.Sorted", "Data.Mutable.Vec", "Data.Search"],
     "strconv": ["Text.Show", "Text.Scan", "Data.Machine"], "strings": ["Data.String", "Text.Scan", "Text.Builder"],
     "sync": ["Effect.Stm", "Effect.Concurrent.MVar"], "sync/atomic": ["Effect.Stm"], "syscall": ["Prim.Sys"],
     "testing": ["Effect.Test", "Effect.Benchmark", "Effect.Coverage"],

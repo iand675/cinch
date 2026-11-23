@@ -1,0 +1,39 @@
+module Main where
+  import Data.Array
+  import Data.Array.Search
+  import Data.Compare
+  import Data.Mutable.Var
+
+  matches :: (Nat, Bool) -> Nat -> Bool -> Bool
+  matches answer index found = case answer of (i, ok) -> i == index && ok == found
+
+  plain :: Unit -> Bool
+  plain unit =
+    let items = array-from-list [(1 :: Nat),3,3,7] in
+    let prefix = array-from-list [(1 :: Nat),3,3] in
+    let empty = array-from-list (Nil :: List Nat) in
+    let missing = case array-index items 2 of None -> True; Some _ -> False in
+    let index = case array-index items 3 of Some 1 -> True; _ -> False in
+    let ordered = case array-compare prefix items of LT -> True; _ -> False in
+    let reverse-order = case array-compare items prefix of GT -> True; _ -> False in
+    let equivalent = case array-compare empty empty of EQ -> True; _ -> False in
+    let out-of-order = array-from-list [(1 :: Nat),3,2] in
+    missing && index && ordered && reverse-order && equivalent && array-is-sorted items &&
+      array-is-sorted empty && not (array-is-sorted out-of-order) && array-contains items 7 &&
+      not (array-contains empty 0) && array-equal items items && not (array-equal items prefix) &&
+      matches (array-binary-search items 3) 1 True && matches (array-binary-search items 5) 3 False &&
+      matches (array-binary-search empty 5) 0 False
+
+  main :: Unit ->{Mut r} Int
+  main unit =
+    let items = array-from-list ["α","ab","cd","long"] in
+    let lengths = array-from-list [(1 :: Nat),2,2,4] in
+    let calls = var-new (0 :: Nat) in
+    let found = array-contains-by (\text -> let increment = var-modify calls (\n -> n + 1) in text == "ab") items in
+    let unequal = array-equal-by (\text n -> let extra = var-write calls 100 in string-length text == n) items (array-from-list [(1 :: Nat)]) in
+    let heterogeneous = array-equal-by (\text n -> string-length text == n) items lengths in
+    let cmp = array-compare-by (\text n -> compare (string-length text) n) items lengths in
+    let key = array-binary-search-by (\text n -> compare (string-length text) n) items (2 :: Nat) in
+    let sorted = array-is-sorted-by (\a b -> compare (string-length a) (string-length b)) items in
+    if plain () && found && var-read calls == 2 && not unequal && heterogeneous &&
+      (case cmp of EQ -> True; _ -> False) && matches key 1 True && sorted then 0 else 1

@@ -1,0 +1,96 @@
+-- | Comparison and lookup on immutable arrays. Linear searches stop at the
+-- first match. Binary searches return the first equivalent element or its
+-- insertion position. Callback variants preserve the caller's effects.
+module Data.Array.Search where
+  import Data.Array
+  import Data.Compare
+  import Data.Nat
+  import Data.Option
+  import Data.Ordering
+  import Data.Search
+  import Relation.Eq
+
+  export array-index, array-index-by, array-contains, array-contains-by
+  export array-equal, array-equal-by, array-compare, array-compare-by
+  export array-binary-search, array-binary-search-by, array-is-sorted, array-is-sorted-by
+
+  -- | Locate the first element satisfying a predicate, visiting elements in order.
+  array-index-by :: forall (e :: Row) a. (a ->{|e} Bool) -> Array a ->{|e} Option Nat
+  array-index-by predicate items = index-from predicate items 0
+
+  index-from :: forall (e :: Row) a. (a ->{|e} Bool) -> Array a -> Nat ->{|e} Option Nat
+  index-from predicate items at = case array-get items at of
+    None -> None
+    Some item -> if predicate item then Some at else index-from predicate items (at + 1)
+
+  -- | Locate the first element equal to the requested value.
+  array-index :: forall a. using (equal :: Eq a) => Array a -> a -> Option Nat
+  array-index items value = array-index-by (\item -> item == value) items
+
+  -- | Whether an element satisfies the predicate.
+  array-contains-by :: forall (e :: Row) a. (a ->{|e} Bool) -> Array a ->{|e} Bool
+  array-contains-by predicate items = case array-index-by predicate items of Some _ -> True; None -> False
+
+  -- | Whether an element equals the requested value.
+  array-contains :: forall a. using (equal :: Eq a) => Array a -> a -> Bool
+  array-contains items value = case array-index items value of Some _ -> True; None -> False
+
+  -- | Compare lengths before calling the element equality predicate. An unequal
+  -- pair ends comparison immediately. The two element types may differ.
+  array-equal-by :: forall (e :: Row) a b. (a -> b ->{|e} Bool) -> Array a -> Array b ->{|e} Bool
+  array-equal-by equal left right = if array-length left == array-length right then equal-from equal left right 0 else False
+
+  equal-from :: forall (e :: Row) a b. (a -> b ->{|e} Bool) -> Array a -> Array b -> Nat ->{|e} Bool
+  equal-from equal left right at = case (array-get left at, array-get right at) of
+    (Some x, Some y) -> if equal x y then equal-from equal left right (at + 1) else False
+    (None, None) -> True
+    _ -> False
+
+  -- | Compare corresponding elements using their equality instance.
+  array-equal :: forall a. using (equal :: Eq a) => Array a -> Array a -> Bool
+  array-equal left right = array-equal-by (\x y -> x == y) left right
+
+  -- | Lexicographically compare arrays, putting a proper prefix before the longer array.
+  array-compare-by :: forall (e :: Row) a b. (a -> b ->{|e} Ordering) -> Array a -> Array b ->{|e} Ordering
+  array-compare-by order left right = compare-from order left right 0
+
+  compare-from :: forall (e :: Row) a b. (a -> b ->{|e} Ordering) -> Array a -> Array b -> Nat ->{|e} Ordering
+  compare-from order left right at = case (array-get left at, array-get right at) of
+    (Some x, Some y) -> case order x y of
+      EQ -> compare-from order left right (at + 1)
+      other -> other
+    (None, Some _) -> LT
+    (Some _, None) -> GT
+    (None, None) -> EQ
+
+  -- | Lexicographic comparison using the element Compare instance.
+  array-compare :: forall a. using (ordered :: Compare a) => Array a -> Array a -> Ordering
+  array-compare left right = array-compare-by compare left right
+
+  -- | Find a key in ascending order. The callback compares an array element
+  -- with the key, allowing a different key type. Duplicate keys return the first index.
+  array-binary-search-by :: forall (e :: Row) a b. (a -> b ->{|e} Ordering) -> Array a -> b ->{|e} (Nat, Bool)
+  array-binary-search-by order items key = search-find (array-length items) (\i -> case array-get items i of
+    Some item -> case order item key of LT -> GT; EQ -> EQ; GT -> LT
+    None -> LT)
+
+  -- | Find the first equivalent value or its insertion position using Compare.
+  array-binary-search :: forall a. using (ordered :: Compare a) => Array a -> a -> (Nat, Bool)
+  array-binary-search items value = array-binary-search-by compare items value
+
+  -- | Test whether the array is in nondecreasing order, stopping at the first inversion.
+  array-is-sorted-by :: forall (e :: Row) a. (a -> a ->{|e} Ordering) -> Array a ->{|e} Bool
+  array-is-sorted-by order items = case array-get items 0 of
+    None -> True
+    Some first -> sorted-from order items first 1
+
+  sorted-from :: forall (e :: Row) a. (a -> a ->{|e} Ordering) -> Array a -> a -> Nat ->{|e} Bool
+  sorted-from order items previous at = case array-get items at of
+    None -> True
+    Some item -> case order previous item of
+      GT -> False
+      _ -> sorted-from order items item (at + 1)
+
+  -- | Test nondecreasing order using Compare, including its floating NaN policy.
+  array-is-sorted :: forall a. using (ordered :: Compare a) => Array a -> Bool
+  array-is-sorted items = array-is-sorted-by compare items
