@@ -370,12 +370,29 @@
     },
     {
       "reference_package": "crypto/md5",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Digest"
+        "Effect.Md5",
+        "Text.Digest",
+        "Text.Md5"
       ],
       "remaining": [],
-      "reference_declarations": 6
+      "reference_declarations": 6,
+      "tests": [
+        "lib_sha1_md5"
+      ],
+      "benchmarks": [
+        "sha1-md5-64MiB-o3"
+      ],
+      "capability_mapping": {
+        "BlockSize/Size": "md5-block-size and md5-size expose 64 and 16",
+        "Sum": "md5-sum returns a fresh 16-byte digest",
+        "New": "md5-state initializes an immutable state",
+        "hash.Hash.Write/Sum/Reset/Size/BlockSize": "md5-state-update, md5-state-sum, md5-state-append, md5-state-reset, md5-state-size, md5-state-block-size; Effect.Md5 provides md5-write, md5-hashing-writer and bounded md5-copy",
+        "hash.Cloner.Clone": "Retaining a Md5State branches computation without aliasing caller storage",
+        "encoding.BinaryMarshaler/BinaryAppender/BinaryUnmarshaler": "md5-state-save, md5-state-append-save and md5-state-load use a 92-byte identifier/chaining/tail/count checkpoint; identifier checks precede exact size"
+      },
+      "review": "All six recorded declarations and returned hash/clone/state capabilities are mapped in a standalone module. MD5 rounds are strictly sequential, so each is one private primitive with a native rotate whose amount folds to a constant after inlining; there is no profitable SIMD formulation for a single message. Fixtures from hashlib and an independent Python model cover 17 digest/checkpoint/append/split cases across padding boundaries including 64 KiB, 9 load cases, alias isolation and stream adapters, with zero leaks in normal and poisoned-free runs; kernels compile for WebAssembly, AArch64 and big-endian PowerPC. The module documentation states that MD5 is broken for collision resistance."
     },
     {
       "reference_package": "crypto/mldsa",
@@ -442,12 +459,29 @@
     },
     {
       "reference_package": "crypto/sha1",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Digest"
+        "Effect.Sha1",
+        "Text.Digest",
+        "Text.Sha1"
       ],
       "remaining": [],
-      "reference_declarations": 6
+      "reference_declarations": 6,
+      "tests": [
+        "lib_sha1_md5"
+      ],
+      "benchmarks": [
+        "sha1-md5-64MiB-o3"
+      ],
+      "capability_mapping": {
+        "BlockSize/Size": "sha1-block-size and sha1-size expose 64 and 20",
+        "Sum": "sha1-sum returns a fresh 20-byte network-order digest",
+        "New": "sha1-state initializes an immutable state",
+        "hash.Hash.Write/Sum/Reset/Size/BlockSize": "sha1-state-update, sha1-state-sum, sha1-state-append, sha1-state-reset, sha1-state-size, sha1-state-block-size; Effect.Sha1 provides sha1-write, sha1-hashing-writer and bounded sha1-copy",
+        "hash.Cloner.Clone": "Retaining a Sha1State branches computation without aliasing caller storage",
+        "encoding.BinaryMarshaler/BinaryAppender/BinaryUnmarshaler": "sha1-state-save, sha1-state-append-save and sha1-state-load use a 96-byte identifier/chaining/tail/count checkpoint; identifier checks precede exact size"
+      },
+      "review": "All six recorded declarations and returned hash/clone/state capabilities are mapped in a standalone module. The schedule expands four words per step in <4 x i32> lanes; the dependent fourth lane is completed by one rotated exclusive-or because a one-bit rotation distributes over exclusive-or. Each round is one private primitive returning the new a and rotated b words. Fixtures from hashlib and an independent Python model cover 17 digest/checkpoint/append/split cases across padding boundaries including 64 KiB, 9 load cases, alias isolation and stream adapters, with zero leaks in normal and poisoned-free runs; kernels compile for WebAssembly, AArch64 and big-endian PowerPC. SHA-1 plus MD5 over 64 MiB at --opt-level 3 take about 0.28 s against about 0.18 s for an assembly-optimized system implementation; SHA hardware instructions are not used. The module documentation states that SHA-1 is broken for collision resistance."
     },
     {
       "reference_package": "crypto/sha256",
@@ -490,19 +524,60 @@
     },
     {
       "reference_package": "crypto/sha3",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Sha3",
+        "Text.Sha3"
+      ],
       "remaining": [],
-      "reference_declarations": 32
+      "reference_declarations": 32,
+      "tests": [
+        "lib_sha3"
+      ],
+      "benchmarks": [
+        "sha3-256-64MiB-o3"
+      ],
+      "capability_mapping": {
+        "Sum224/Sum256/Sum384/Sum512": "sha3-sum224, sha3-sum256, sha3-sum384 and sha3-sum512 return fresh digests",
+        "SumSHAKE128/SumSHAKE256": "shake128-sum and shake256-sum take the input and an exact output length",
+        "New224/New256/New384/New512": "sha3-state224, sha3-state256, sha3-state384 and sha3-state512",
+        "NewSHAKE128/NewSHAKE256": "shake128-state and shake256-state",
+        "NewCSHAKE128/NewCSHAKE256": "cshake128-state and cshake256-state take the function name and customization; with both empty they are exactly SHAKE",
+        "SHA3.Write/Sum/Reset/Size/BlockSize": "sha3-state-update, sha3-state-sum, sha3-state-append, sha3-state-reset, sha3-state-size and sha3-state-block-size (the rate)",
+        "SHAKE.Write/Read/Reset/BlockSize": "sha3-state-update absorbs; shake-read finalizes a copy and returns a persistent ShakeReader; shake-reader-read continues the output stream; Effect.Sha3.shake-byte-reader adapts a reader to ByteReader",
+        "MarshalBinary/AppendBinary/UnmarshalBinary (both types)": "sha3-state-save, sha3-state-append-save and sha3-state-load use a 573-byte checkpoint with the variant, initial (customized) lanes, current lanes and pending bytes; identifier, size and pending-length errors are distinct",
+        "hash.Hash streaming": "Effect.Sha3 provides sha3-write, sha3-hashing-writer and bounded sha3-copy"
+      },
+      "review": "All recorded SHA-3, SHAKE and cSHAKE capabilities are mapped. Keccak-f[1600] is generated straight-line code over twenty-five private lanes: column parities and theta words are small primitives and each output lane is one fused theta/rho/pi/chi primitive whose duplicated source rotations are merged by LLVM after inlining, so the permutation stays register-resident with native 64-bit rotates. A single sponge is sequential across rounds, so scalar code is the appropriate single-message form. Rate-specific absorb steps load little-endian lanes directly from the retained input owner. Fixtures from hashlib, the NIST SP 800-185 cSHAKE samples and a separate Python sponge cover 134 digest/checkpoint/append/split rows over every rate boundary for all eight variants (including 64 KiB inputs and 200/300-byte customizations), four multi-read SHAKE streams with empty and block-crossing reads, 72 identifier/size/pending-length load cases, alias isolation, generic stream adapters and the SHAKE reader adapter, with zero leaks in normal and poisoned-free runs; kernels compile for WebAssembly, AArch64 and big-endian PowerPC. Sixty-four 1 MiB SHA3-256 digests take about 0.25 s of user time at --opt-level 3 against about 0.18 s for an assembly-optimized system implementation. Self-built compiler qualification remains open."
     },
     {
       "reference_package": "crypto/sha512",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Digest"
+        "Effect.Sha512",
+        "Text.Digest",
+        "Text.Sha512"
       ],
       "remaining": [],
-      "reference_declarations": 18
+      "reference_declarations": 18,
+      "tests": [
+        "lib_sha512"
+      ],
+      "benchmarks": [
+        "sha512-64MiB-o3"
+      ],
+      "capability_mapping": {
+        "BlockSize/Size/Size224/Size256/Size384 (value and ideal-integer declarations)": "sha512-block-size, sha512-size, sha384-size, sha512t224-size and sha512t256-size expose exact Nat constants 128, 64, 48, 28 and 32",
+        "Sum512/Sum384/Sum512_224/Sum512_256": "sha512-sum, sha384-sum, sha512t224-sum and sha512t256-sum return fresh network-order digest bytes for a complete input",
+        "New/New384/New512_224/New512_256": "sha512-state, sha384-state, sha512t224-state and sha512t256-state initialize immutable states; truncated-variant chaining values are derived by the standard generation function in the kernel generator",
+        "hash.Hash.Write": "sha512-state-update consumes every byte; Effect.Sha512.sha512-write returns the accepted count and advanced state; sha512-hashing-writer adapts any variant to ByteWriter; sha512-copy hashes a bounded reader",
+        "hash.Hash.Sum": "sha512-state-sum finalizes a retained state without modifying it; sha512-state-append copies a caller prefix before the digest",
+        "hash.Hash.Reset/Size/BlockSize": "sha512-state-reset preserves the variant; sha512-state-size is 48, 28, 32 or 64; sha512-state-block-size is 128",
+        "hash.Cloner.Clone": "Retaining a Sha512State branches computation; pending bytes and chaining words never alias mutable caller storage",
+        "encoding.BinaryMarshaler/BinaryAppender": "sha512-state-save and sha512-state-append-save encode the 204-byte identifier/chaining/tail/count checkpoint (variant bytes 4-7) with network-order numeric fields and zero unused tail bytes",
+        "encoding.BinaryUnmarshaler": "sha512-state-load uses its template only to select the variant; identifier checks precede exact size and only live count-modulo-128 tail bytes are copied"
+      },
+      "review": "All eighteen recorded declarations have functional mappings in a standalone module; Text.Digest remains as the runtime facade. Compression uses a generated two-lane <2 x i64> SIMD message schedule whose word pairs are independent, one private round primitive per ordered round with funnel-shift rotates, and exact private block loads over remaining-length machine counters. Independent fixtures (hashlib digests and a separate Python compression model for checkpoints) cover 74 digest/checkpoint/append cases over every padding boundary for all four variants including 64 KiB inputs, requested two-chunk splits with save/load resumption, 44 identifier/size load cases, retained-branch and mutable-buffer isolation, and explicit, generic and bounded stream hashing. Runs validate a 32 MiB heap and 8 MiB stack, a separate 256 MiB poisoned-free run, and zero leaks. Kernels compile for WebAssembly, AArch64 and big-endian PowerPC; foreign execution is not claimed. At --opt-level 3, sixty-four 1 MiB digests take about 0.20 s (roughly 335 MB/s) on the development host, against about 0.11 s of user time for an assembly-optimized system implementation; hardware SHA-512 instructions are not used. Self-built compiler qualification remains open."
     },
     {
       "reference_package": "crypto/subtle",

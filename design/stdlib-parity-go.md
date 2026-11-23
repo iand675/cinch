@@ -32,6 +32,9 @@ is not an available API.
 | `crypto/hmac` | [Crypto.Hmac](../library/Crypto.Hmac.md) | Reusable SHA-256/SHA-512 keys, persistent messages, full tags and verification | Generic digest construction, bounded-memory updates, second frontend and benchmarks |
 | `crypto/hkdf`, `crypto/pbkdf2` | [Crypto.Kdf](../library/Crypto.Kdf.md) | Extract, expand, combined HKDF and iterated PBKDF2 with HMAC-SHA-256 or a checked fixed-width keyed callback | Second frontend and benchmarks |
 | `crypto/sha256` | [Text.Sha256](../library/Text.Sha256.md), [Effect.Sha256](../library/Effect.Sha256.md) | SHA-224/SHA-256 whole-buffer digests, persistent states, reset, prefix-preserving append, checked binary checkpoints and stream sinks/copies | All ten recorded declarations and returned hash/clone/state capabilities mapped; portable SIMD schedule, copied buffers and hardware-acceleration limits are documented |
+| `crypto/sha512` | [Text.Sha512](../library/Text.Sha512.md), [Effect.Sha512](../library/Effect.Sha512.md) | SHA-384, SHA-512, SHA-512/224 and SHA-512/256 whole-buffer digests, persistent states, 204-byte checkpoints and stream sinks/copies | All 18 declarations mapped; two-lane SIMD schedule; hardware SHA-512 instructions and self-built qualification remain |
+| `crypto/sha1`, `crypto/md5` | [Text.Sha1](../library/Text.Sha1.md), [Text.Md5](../library/Text.Md5.md), [Effect.Sha1](../library/Effect.Sha1.md), [Effect.Md5](../library/Effect.Md5.md) | Legacy digests with persistent states, checkpoints and stream sinks/copies; four-lane SIMD SHA-1 schedule | All declarations mapped; both are documented as broken for collision resistance |
+| `crypto/sha3` | [Text.Sha3](../library/Text.Sha3.md), [Effect.Sha3](../library/Effect.Sha3.md) | SHA3-224/256/384/512, SHAKE128/256 and cSHAKE128/256, persistent sponges, incremental output readers, 573-byte checkpoints and stream adapters | All capabilities mapped; register-resident generated Keccak permutation; self-built qualification remains |
 | `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Prepared tables, persistent accumulators, checked 12-byte checkpoints and stream adapters in `Text.Crc32` and `Effect.Crc32`; cross-frontend qualification and benchmarking remain |
 | `hash/crc64` | [Text.Crc64](../library/Text.Crc64.md), [Effect.Crc64](../library/Effect.Crc64.md), [Text.Checksum](../library/Text.Checksum.md) | Immutable SIMD-built tables, packed slicing-by-eight updates, persistent states, numeric/byte digests, reset, prefix-preserving append, table-checked checkpoints and stream sinks/copies | All eleven recorded declarations and returned hash/clone/state capabilities mapped; prepared-table setup and stream-copy costs are documented |
@@ -70,8 +73,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 23 functionally complete, 58 partial
-and 99 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records 27 functionally complete, 55 partial
+and 98 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -237,7 +240,7 @@ cargo test --test lib_go_stdlib
 | `encoding/xml`, `encoding/pem` | None | PEM first; XML with explicit resource limits later |
 | `compress/zlib`, `compress/flate` | `Text.Zlib` | Existing DEFLATE decoder within zlib and stored-block encoder; raw wrapper and actual compression remain |
 | `compress/gzip`, `compress/bzip2`, `archive/tar`, `archive/zip` | None | Gzip and tar first; zip and bzip2 later |
-| `crypto/sha256`, `crypto/sha512`, `crypto/sha1`, `crypto/md5`, `crypto/hmac` | `Text.Digest` | Existing whole-buffer digests and HMAC-SHA256; streaming and other HMAC variants remain |
+| `crypto/hmac` | `Text.Digest`, `Crypto.Hmac` | SHA-256/SHA-512 keys and states exist; generic digest construction over the standalone digest states remains |
 | `crypto/rand`, `math/rand` | `Effect.Random` | Existing OS entropy and bounded draws; deterministic PRNG state remains |
 | Ciphers, signatures, X.509, TLS | None | Vetted backend integration, key/certificate types, AEAD, signing and TLS |
 | `io`, `bufio`, `io/fs` | `Effect.Stream`, `Effect.Io`, `Effect.Fs`, `Data.StringIo` | Shared byte protocols and bounded bulk transfers now exist; buffered readers/writers, scanners, random access and lifecycle capabilities remain |
