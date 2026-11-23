@@ -160,10 +160,24 @@
     },
     {
       "reference_package": "compress/lzw",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 15
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Lzw"
+      ],
+      "remaining": [
+        "Incremental reader and writer adapters over Effect.Stream (NewReader/NewWriter/Reset)"
+      ],
+      "reference_declarations": 15,
+      "tests": [
+        "lib_lzw"
+      ],
+      "capability_mapping": {
+        "Order/LSB/MSB": "LzwOrder with LzwLsb and LzwMsb",
+        "NewWriter + Write + Close": "lzw-compress over a complete input; begins with a clear code and clears when all 4096 codes are used",
+        "NewReader + Read": "lzw-decompress over a complete stream through its end-of-data code",
+        "errors": "InvalidLiteralWidth, LiteralTooLarge (with offset), InvalidLzwCode (with code index) and UnexpectedLzwEnd"
+      },
+      "review": "Whole-buffer compression and decompression reproduce 270 reference encodings byte for byte (both bit orders, literal widths 2-8, sequence, periodic and pseudo-random corpora up to 20000 bytes with several dictionary resets) and decode them back. The encoder dictionary is an open-addressed hash table in a private byte buffer; the decoder expands codes backwards from prefix/suffix/length tables directly into output position. Streaming adapters remain."
     },
     {
       "reference_package": "compress/zlib",
@@ -2324,10 +2338,23 @@
     },
     {
       "reference_package": "text/tabwriter",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Text.TabWriter"
+      ],
       "remaining": [],
-      "reference_declarations": 19
+      "reference_declarations": 19,
+      "tests": [
+        "lib_tabwriter"
+      ],
+      "capability_mapping": {
+        "NewWriter/Writer.Init": "tab-config (minimum width, tab width, padding, padding byte, flags) and tab-writer; tab padding clears right alignment",
+        "Writer.Write": "tab-write consumes any chunking and returns the output that became final (at form feeds or after single-cell lines) with the advanced immutable writer",
+        "Writer.Flush": "tab-flush releases everything buffered, ending open escapes; tab-format is write-plus-flush for a whole input",
+        "FilterHTML/StripEscape/AlignRight/DiscardEmptyColumns/TabIndent/Debug": "tab-filter-html, tab-strip-escape, tab-align-right, tab-discard-empty-columns, tab-indent and tab-debug, combined by addition",
+        "Escape": "tab-escape (0xff)"
+      },
+      "review": "All recorded declarations are mapped; output is returned to the caller rather than written to a sink. The lexer is an explicit state machine (text, escape, tag, entity) carried across writes. Cell widths count Unicode scalars with a SWAR primitive that recognizes continuation bytes eight at a time; malformed UTF-8 counts every non-continuation byte as one column. 176 reference vectors (eleven configurations over sixteen inputs, including split writes, escapes, HTML, multibyte text, vertical tabs and form feeds) match both the output released before the final flush and the complete output."
     },
     {
       "reference_package": "text/template",

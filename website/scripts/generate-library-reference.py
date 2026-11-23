@@ -259,6 +259,8 @@ DESCRIPTIONS = {
 'Text.Sha1':'SHA-1 for legacy interoperability, with a four-lane SIMD schedule, persistent states and checked binary checkpoints.',
 'Text.Md5':'MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints.',
 'Text.Sha3':'SHA3-224/256/384/512, SHAKE128/256 and cSHAKE128/256 over a register-resident Keccak permutation, with persistent sponges, output readers and checkpoints.',
+'Text.TabWriter':'Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing.',
+'Text.Lzw':'Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.',
 'Text.Sha256':'Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints.',
 'Text.Digest':'Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol.',
 'Text.Shellwords':'Shell-style word splitting/joining; this is data parsing, not execution of a shell command.',

@@ -1707,6 +1707,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Lzw",
+      "path": "seed/prelude/Text/Lzw.cinch",
+      "sha256": "a05290159cc1bf00c05c187f3ea923214af760b73dac2de0911d858797ff5c15",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Md5",
       "path": "seed/prelude/Text/Md5.cinch",
       "sha256": "1fcad57a2a9fcdc43ce9b9a03fc3034960e3b9c96977aadf78f55bf0b3c9afed",
@@ -1841,6 +1849,14 @@
       "embedded": true,
       "values": 6,
       "public_methods": 1
+    },
+    {
+      "module": "Text.TabWriter",
+      "path": "seed/prelude/Text/TabWriter.cinch",
+      "sha256": "e13da1b41483f29493fe929ca885b7a91a5483f3a3b11ff56482fc034161acc5",
+      "embedded": false,
+      "values": 12,
+      "public_methods": 0
     },
     {
       "module": "Text.Time.Duration",

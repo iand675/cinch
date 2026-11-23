@@ -1,0 +1,307 @@
+-- | Lempel-Ziv-Welch compression with variable-width codes, as used by GIF, TIFF and PDF.
+-- Codes start one bit wider than the literal width (2 to 8 bits) and grow to
+-- twelve bits. Code 2^w clears the dictionary and code 2^w + 1 ends the data.
+-- Compression always begins with a clear code and emits another clear code
+-- whenever all 4096 codes are in use. Codes are packed least-significant bit
+-- first (GIF) or most-significant bit first (TIFF and PDF); the "early change"
+-- variant some TIFF writers use is not supported. Dictionaries live in private
+-- byte tables, so compression is a single hashed pass and decompression
+-- expands each code directly into its final output position.
+module Text.Lzw where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.List
+  import Data.Result
+  import Data.String
+
+  export LzwOrder, LzwLsb, LzwMsb, LzwError, InvalidLiteralWidth, LiteralTooLarge, InvalidLzwCode, UnexpectedLzwEnd
+  export lzw-error-message, lzw-compress, lzw-decompress
+
+  -- | Bit order used to pack codes into bytes.
+  data LzwOrder where
+    -- | Least-significant bit first, as in GIF.
+    LzwLsb :: LzwOrder
+    -- | Most-significant bit first, as in TIFF and PDF.
+    LzwMsb :: LzwOrder
+
+  -- | A rejected parameter or malformed compressed stream.
+  data LzwError where
+    -- | The literal width must be between 2 and 8 bits.
+    InvalidLiteralWidth :: Nat -> LzwError
+    -- | An input byte at this offset does not fit in the literal width.
+    LiteralTooLarge :: Nat -> LzwError
+    -- | A code that names no dictionary entry, with the number of codes read before it.
+    InvalidLzwCode :: Nat -> Nat -> LzwError
+    -- | The data ended before the end-of-data code.
+    UnexpectedLzwEnd :: LzwError
+
+  -- | Render an LZW error.
+  lzw-error-message :: LzwError -> String
+  lzw-error-message error = case error of
+    InvalidLiteralWidth width -> string-concat "LZW literal width must be 2 to 8 bits; received " (nat-to-string width)
+    LiteralTooLarge offset -> string-concat "LZW input byte is too large for the literal width at offset " (nat-to-string offset)
+    InvalidLzwCode code index -> string-concat "invalid LZW code " (string-concat (nat-to-string code) (string-concat " at code index " (nat-to-string index)))
+    UnexpectedLzwEnd -> "LZW data ended before the end-of-data code"
+
+  -- | Largest code, 4095.
+  max-code :: Nat
+  max-code = 4095
+
+  -- | Hash table slots for the encoder dictionary: four per code.
+  table-slots :: Nat
+  table-slots = 16384
+
+  -- | Pending output bits: the order, the accumulator, its fill count, and finished bytes (most recent first).
+  data BitWriter where
+    -- | Private fields in the order listed above.
+    Bits :: LzwOrder -> U64 -> Nat -> List Bytes -> BitWriter
+
+  -- | Append one code of the given width, flushing whole bytes.
+  put-code :: BitWriter -> Nat -> Nat -> BitWriter
+  put-code writer code width = case writer of
+    Bits order acc count out -> case order of
+      LzwLsb -> drain-lsb (Bits order (bit-or-u64 acc (wrapping-shl-u64 (small code) (shift count))) (count + width) out)
+      LzwMsb -> drain-msb (Bits order (bit-or-u64 acc (wrapping-shl-u64 (small code) (shift (minus 32 (width + count))))) (count + width) out)
+
+  -- | Emit low bytes while at least eight bits are pending.
+  drain-lsb :: BitWriter -> BitWriter
+  drain-lsb writer = case writer of
+    Bits order acc count out ->
+      if count >= 8 then drain-lsb (Bits order (wrapping-shr-u64 acc 8) (count - 8) (Cons (byte-of acc) out)) else writer
+
+  -- | Emit high bytes of the 32-bit window while at least eight bits are pending.
+  drain-msb :: BitWriter -> BitWriter
+  drain-msb writer = case writer of
+    Bits order acc count out ->
+      if count >= 8 then drain-msb (Bits order (bit-and-u64 (wrapping-shl-u64 acc 8) 4294967295) (count - 8) (Cons (byte-of (wrapping-shr-u64 acc 24)) out)) else writer
+
+  -- | Emit the final partial byte, zero-padded.
+  finish-bits :: BitWriter -> Bytes
+  finish-bits writer = case writer of
+    Bits order acc count out ->
+      let last = if count > 0 then (case order of LzwLsb -> Cons (byte-of acc) out; LzwMsb -> Cons (byte-of (wrapping-shr-u64 acc 24)) out) else out in
+      bytes-concat (reverse last)
+
+  -- | The low byte of a word as a one-byte buffer.
+  byte-of :: U64 -> Bytes
+  byte-of word = bytes-from-u8s [wrapping-u64-to-u8 word]
+
+  -- | A code or count below 2^32 as a machine word.
+  small :: Nat -> U64
+  small n = if n < 4294967296 then wrapping-i64-to-u64 (nat-to-i64 n) else 0
+
+  -- | A shift amount below 64 as a machine word; larger amounts become zero.
+  shift :: Nat -> U32
+  shift n = if n < 64 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+
+  -- | Saturating subtraction for bit positions.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | A machine word below 2^32 as a natural number.
+  natural :: U64 -> Nat
+  natural word = u32-to-nat (wrapping-u64-to-u32 word)
+
+  -- | Encoder state: literal width, current code width, next code, width overflow threshold.
+  data Coder where
+    -- | Private fields in the order listed above.
+    Coder :: Nat -> Nat -> Nat -> Nat -> Coder
+
+  -- | Compress a complete input. Every byte must be below 2^width.
+  lzw-compress :: LzwOrder -> Nat -> Bytes -> Result LzwError Bytes
+  lzw-compress order width input =
+    if width < 2 || width > 8 then Err (InvalidLiteralWidth width)
+    else case first-too-large input width 0 of
+      Some offset -> Err (LiteralTooLarge offset)
+      None ->
+        let clear = power2 width in
+        let coder = Coder width (width + 1) (clear + 1) (clear * 2) in
+        let started = put-code (Bits order 0 0 Nil) clear (width + 1) in
+        if bytes-len input == 0 then Ok (finish-bits (put-code started (clear + 1) (width + 1)))
+        else
+          let table = bytes-new (4 * table-slots) in
+          Ok (encode input table 1 (bytes-get input 0) coder started)
+
+  -- | 2^n for small n.
+  power2 :: Nat -> Nat
+  power2 n = if n == 0 then 1 else 2 * power2 (n - 1)
+
+  -- | Offset of the first byte at or above 2^width, if any; widths of 8 accept every byte.
+  first-too-large :: Bytes -> Nat -> Nat -> Option Nat
+  first-too-large input width i =
+    if width >= 8 then None
+    else if i < bytes-len input then (if bytes-get input i >= power2 width then Some i else first-too-large input width (i + 1))
+    else None
+
+  -- | Read a table slot: zero is empty, otherwise key * 4096 + code + 1 packed in 32 bits.
+  slot :: Bytes -> Nat -> Nat
+  slot table index = if 4 * index + 4 <= bytes-len table then natural (u32-to-u64 (bytes-read-le32 table (4 * index))) else 0
+
+  -- | Write a table slot.
+  set-slot :: Bytes -> Nat -> Nat -> Unit
+  set-slot table index value = if 4 * index + 4 <= bytes-len table then bytes-write-le32 table (4 * index) (wrapping-u64-to-u32 (small value)) else ()
+
+  -- | Hash a twenty-bit key (prefix code and byte) to a slot.
+  hash :: Nat -> Nat
+  hash key = nat-rem (natural (bit-xor-u64 (wrapping-shr-u64 (small key) 12) (small key))) 16384
+
+  -- | Look up a key by linear probing; Some code when present.
+  probe :: Bytes -> Nat -> Nat -> Option Nat
+  probe table key h =
+    let entry = slot table h in
+    if entry == 0 then None
+    else if nat-div (entry - 1) 4096 == key then Some (nat-rem (entry - 1) 4096)
+    else probe table key (nat-rem (h + 1) 16384)
+
+  -- | Insert a key at the first free slot from its hash.
+  insert :: Bytes -> Nat -> Nat -> Nat -> Unit
+  insert table key code h = if slot table h == 0 then set-slot table h (key * 4096 + code + 1) else insert table key code (nat-rem (h + 1) 16384)
+
+  -- | Erase every slot after the dictionary fills.
+  clear-table :: Bytes -> Nat -> Unit
+  clear-table table i = if i + 8 <= bytes-len table then let w = bytes-write-le64 table i 0 in clear-table table (i + 8) else ()
+
+  -- | The main pass: code is the dictionary code matching the bytes consumed since the last emission.
+  -- A miss emits that code, allocates the next code for code-then-byte, and restarts from the byte.
+  encode :: Bytes -> Bytes -> Nat -> Nat -> Coder -> BitWriter -> Bytes
+  encode input table i code coder writer = case coder of
+    Coder literal width next overflow ->
+      if i < bytes-len input then
+        let byte = bytes-get input i in
+        let key = code * 256 + byte in
+        case probe table key (hash key) of
+          Some found -> encode input table (i + 1) found coder writer
+          None -> case advance coder of
+            Advance grown full clear-width ->
+              let emitted = put-code writer code width in
+              if full then
+                let wiped = clear-table table 0 in
+                encode input table (i + 1) byte grown (put-code emitted (power2 literal) clear-width)
+              else case grown of
+                Coder l w n o -> let added = insert table key n (hash key) in encode input table (i + 1) byte grown emitted
+      else case advance coder of
+        Advance grown full clear-width ->
+          let last = put-code writer code width in
+          let cleared = if full then put-code last (power2 literal) clear-width else last in
+          case grown of Coder l w n o -> finish-bits (put-code cleared (power2 literal + 1) w)
+
+  -- | The result of allocating a code: the next coder state, whether every code was used (so a
+  -- clear code must follow and the coder has been reset), and the width to write that clear code at.
+  data Advance where
+    -- | Private fields in the order listed above.
+    Advance :: Coder -> Bool -> Nat -> Advance
+
+  -- | Allocate the next code, widening at the overflow threshold; at the largest code, reset to the
+  -- initial width and first free code and report that a clear code is due at the widened width.
+  advance :: Coder -> Advance
+  advance coder = case coder of
+    Coder literal width next overflow ->
+      let hi = next + 1 in
+      let widened = if hi == overflow then width + 1 else width in
+      let threshold = if hi == overflow then overflow * 2 else overflow in
+      if hi == max-code then Advance (Coder literal (literal + 1) (power2 literal + 1) (power2 literal * 2)) True widened
+      else Advance (Coder literal widened hi threshold) False widened
+
+  -- | Bit reader state: order, accumulator, fill count and next input offset.
+  data BitReader where
+    -- | Private fields in the order listed above.
+    Reader :: LzwOrder -> U64 -> Nat -> Nat -> BitReader
+
+  -- | Read one code of the given width, or None when the input is exhausted first.
+  get-code :: Bytes -> BitReader -> Nat -> Option (Nat, BitReader)
+  get-code input reader width = case reader of
+    Reader order acc count at ->
+      if count >= width then
+        case order of
+          LzwLsb -> Some (natural (bit-and-u64 acc (wrapping-sub-u64 (wrapping-shl-u64 1 (shift width)) 1)), Reader order (wrapping-shr-u64 acc (shift width)) (count - width) at)
+          LzwMsb -> Some (natural (wrapping-shr-u64 acc (shift (minus 32 width))), Reader order (bit-and-u64 (wrapping-shl-u64 acc (shift width)) 4294967295) (count - width) at)
+      else if at < bytes-len input then
+        let byte = u8-to-u64 (wrapping-i64-to-u8 (nat-to-i64 (bytes-get input at))) in
+        case order of
+          LzwLsb -> get-code input (Reader order (bit-or-u64 acc (wrapping-shl-u64 byte (shift count))) (count + 8) (at + 1)) width
+          LzwMsb -> get-code input (Reader order (bit-or-u64 acc (wrapping-shl-u64 byte (shift (minus 24 count)))) (count + 8) (at + 1)) width
+      else None
+
+  -- | Decompress a complete stream through its end-of-data code.
+  lzw-decompress :: LzwOrder -> Nat -> Bytes -> Result LzwError Bytes
+  lzw-decompress order width input =
+    if width < 2 || width > 8 then Err (InvalidLiteralWidth width) else decode-fresh order width input
+
+  -- | Allocate the decoder dictionary: a 16-bit prefix code, a suffix byte and a 16-bit expansion
+  -- length per code, with every literal expanding to one byte, then decode from the first code.
+  decode-fresh :: LzwOrder -> Nat -> Bytes -> Result LzwError Bytes
+  decode-fresh order width input =
+    let prefixes = bytes-new 8192 in
+    let suffixes = bytes-new 4096 in
+    let lengths = bytes-new 8192 in
+    let initialized = literal-lengths lengths 0 (power2 width) in
+    decode input prefixes suffixes lengths width (width + 1) (power2 width + 2) 4096 (Reader order 0 0 0) Nil 0
+
+  -- | Every literal expands to one byte.
+  literal-lengths :: Bytes -> Nat -> Nat -> Unit
+  literal-lengths lengths i count = if i < count then let w = set-entry lengths i 1 in literal-lengths lengths (i + 1) count else ()
+
+  -- | Read a 16-bit little-endian table entry.
+  entry :: Bytes -> Nat -> Nat
+  entry table code = if 2 * code + 2 <= bytes-len table then bytes-get table (2 * code) + 256 * bytes-get table (2 * code + 1) else 0
+
+  -- | Write a 16-bit little-endian table entry.
+  set-entry :: Bytes -> Nat -> Nat -> Unit
+  set-entry table code value =
+    if 2 * code + 2 <= bytes-len table && value < 65536 then
+      let low = bytes-set table (2 * code) (nat-rem value 256) in bytes-set table (2 * code + 1) (nat-rem (nat-div value 256) 256)
+    else ()
+
+  -- | Decode codes until end-of-data. last is the previous code plus one (zero after a clear);
+  -- hi is the next free code; chunks are output pieces (most recent first); index counts codes read.
+  decode :: Bytes -> Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> BitReader -> List Bytes -> Nat -> Result LzwError Bytes
+  decode input prefixes suffixes lengths literal width hi last reader out index =
+    let clear = power2 literal in
+    case get-code input reader width of
+      None -> Err UnexpectedLzwEnd
+      Some (code, next) ->
+        if code == clear then decode input prefixes suffixes lengths literal (literal + 1) (clear + 2) 4096 next out (index + 1)
+        else if code == clear + 1 then Ok (bytes-concat (reverse out))
+        else if code > hi || (code == hi && last == 4096) || (code > clear && code < clear + 2) then Err (InvalidLzwCode code index)
+        else
+          let previous = if last < 4096 then last else 0 in
+          let expansion = if code == hi then expand-repeat prefixes suffixes lengths previous clear else expand prefixes suffixes lengths code clear in
+          let recorded = if last < 4096 && hi <= max-code && 0 < bytes-len expansion then define-entry prefixes suffixes lengths hi previous (bytes-get expansion 0) else () in
+          let grown = if last < 4096 && hi <= max-code then hi + 1 else hi in
+          let wider = if grown >= power2 width && width < 12 then width + 1 else width in
+          decode input prefixes suffixes lengths literal wider grown code next (Cons expansion out) (index + 1)
+
+  -- | Define dictionary entry hi as the previous code's expansion followed by one byte.
+  define-entry :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  define-entry prefixes suffixes lengths hi previous byte =
+    let p = set-entry prefixes hi previous in
+    let s = if hi < bytes-len suffixes && byte < 256 then bytes-set suffixes hi byte else () in
+    set-entry lengths hi (entry lengths previous + 1)
+
+  -- | Expand a defined code into fresh storage by walking its prefix chain from the last byte back.
+  expand :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Bytes
+  expand prefixes suffixes lengths code clear =
+    let out = bytes-new (entry lengths code) in
+    let filled = fill-back out prefixes suffixes code clear (bytes-len out) in out
+
+  -- | The special case where a code names the entry being defined: the previous expansion followed by its own first byte.
+  expand-repeat :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Bytes
+  expand-repeat prefixes suffixes lengths previous clear =
+    let base = expand prefixes suffixes lengths previous clear in
+    let out = bytes-new (bytes-len base + 1) in
+    let copied = bytes-copy-range out base 0 0 (bytes-len base) in
+    let head = if bytes-len base > 0 && bytes-len base < bytes-len out then bytes-set out (bytes-len base) (bytes-get base 0) else () in out
+
+  -- | Write suffix bytes from position end - 1 backwards while following prefixes down to a literal.
+  fill-back :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  fill-back out prefixes suffixes code clear end =
+    if end == 0 then ()
+    else if code < clear then (if end - 1 < bytes-len out && code < 256 then bytes-set out (end - 1) code else ())
+    else
+      let byte = if code < bytes-len suffixes then bytes-get suffixes code else 0 in
+      let written = if end - 1 < bytes-len out then bytes-set out (end - 1) byte else () in
+      fill-back out prefixes suffixes (entry prefixes code) clear (end - 1)

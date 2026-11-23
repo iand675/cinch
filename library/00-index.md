@@ -217,6 +217,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients. |
+| [Text.Lzw](Text.Lzw.md) | Ship source | Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF. |
 | [Text.Md5](Text.Md5.md) | Ship source | MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints. |
 | [Text.Mime](Text.Mime.md) | Ship source | Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries. |
 | [Text.Multipart](Text.Multipart.md) | Ship source | Multipart wire primitives over arbitrary bytes, exact multi-value headers and explicit delimiter observations. |
@@ -234,6 +235,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Sha512](Text.Sha512.md) | Ship source | Portable SHA-384, SHA-512, SHA-512/224 and SHA-512/256 with two-lane SIMD schedules, native rotates, persistent states and checked binary checkpoints. |
 | [Text.Shellwords](Text.Shellwords.md) | Ship source | Shell-style word splitting/joining; this is data parsing, not execution of a shell command. |
 | [Text.Show](Text.Show.md) | Embedded | Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself. |
+| [Text.TabWriter](Text.TabWriter.md) | Ship source | Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing. |
 | [Text.Time.Duration](Text.Time.Duration.md) | Ship source | ISO 8601 and friendly duration text for spans and exact durations, printing and parsing. |
 | [Text.Time.Iso](Text.Time.Iso.md) | Ship source | ISO 8601 extended format and RFC 3339 printing and parsing for dates, times, date-times and timestamps. |
 | [Text.Time.Rfc2822](Text.Time.Rfc2822.md) | Ship source | RFC 2822/5322 internet-message date-time printing and parsing. |
@@ -330,7 +332,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **253 source modules**: **66 embedded** and **187 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **255 source modules**: **66 embedded** and **189 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 
