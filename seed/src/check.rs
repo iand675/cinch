@@ -3507,6 +3507,13 @@ struct Checker {
     /// Staging: definitions already checked on demand (their Core is
     /// available to compile-time evaluation before the final pass).
     checked_early: std::collections::HashSet<(String, String)>,
+    /// Staging: the definitions whose `check_equations` is on the stack,
+    /// innermost last. A collection literal fold inside a definition's own
+    /// body, or inside a definition it reaches, must not compile that
+    /// definition on demand: the re-check would fold the same literal and
+    /// recurse without bound. Nesting is a few frames deep, so a stack
+    /// beats a set here.
+    checking_definitions: Vec<GlobalId>,
     /// Staging: the captured inputs of the build (file and subprocess
     /// reads), recorded for the artifact manifest's build identity.
     stage_inputs: Vec<StageInput>,
@@ -4102,6 +4109,7 @@ impl Checker {
             staging_fns: std::collections::HashMap::new(),
             generate_blocks: Vec::new(),
             checked_early: std::collections::HashSet::new(),
+            checking_definitions: Vec::new(),
             stage_inputs: Vec::new(),
             stage_emitted: std::collections::HashMap::new(),
             stage_mode: StageMode::Refresh,

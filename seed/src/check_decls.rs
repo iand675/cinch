@@ -7463,7 +7463,9 @@ impl Checker {
         // lookup recorded here has to invalidate when a matching instance
         // is added later.
         let saved_declaration = self.enter_declaration(&id.0);
+        self.checking_definitions.push(id.clone());
         let result = self.check_equations_inner(name, id, scheme, eqs, extra_dicts, annotation_aliases);
+        self.checking_definitions.pop();
         self.current_declaration = saved_declaration;
         self.caller_regions.truncate(saved_regions);
         self.body_tparams = saved_tparams;
@@ -21819,6 +21821,19 @@ impl Checker {
         if self.staging.contains(&key) {
             return self.compile_unit(cx, module, name);
         }
+        let id = fn_id(module, name);
+        // The definition is being checked further up this stack (a literal
+        // fold inside its own body, or inside a definition it reaches). Its
+        // code does not exist yet, and checking it again would reach this
+        // same point again. Refuse instead: the fold keeps its runtime
+        // construction, and any other compile-time caller gets this
+        // diagnostic rather than a stack overflow.
+        if self.checking_definitions.contains(&id) {
+            return Err(Error::plain(format!(
+                "compile-time evaluation needs `{}`, whose definition is still being checked (a definition cannot run itself at compile time from its own body)",
+                id.0
+            )));
+        }
         let mut eqs: Vec<_> = self.top_equations(module, name)
             .map(|equation| equation.as_ref().clone())
             .collect();
@@ -21835,7 +21850,6 @@ impl Checker {
             Error::plain(format!("missing signature for {name} (definitions state their types)"))
         })?;
         self.set_scope(module);
-        let id = fn_id(module, name);
         let before = self.fns.len();
         let equation_refs: Vec<_> = eqs.iter().collect();
         self.check_equations(name, &id, &scheme, &equation_refs, Vec::new())?;
