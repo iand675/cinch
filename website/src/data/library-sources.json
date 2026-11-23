@@ -1779,6 +1779,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Mail",
+      "path": "seed/prelude/Text/Mail.cinch",
+      "sha256": "1885b646b2bcd7e39ad20326334b337c32e134496b8b0dc0cac4e14bea486090",
+      "embedded": false,
+      "values": 16,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Md5",
       "path": "seed/prelude/Text/Md5.cinch",
       "sha256": "1fcad57a2a9fcdc43ce9b9a03fc3034960e3b9c96977aadf78f55bf0b3c9afed",

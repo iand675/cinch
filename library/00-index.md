@@ -223,6 +223,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients. |
 | [Text.Lzw](Text.Lzw.md) | Ship source | Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF. |
+| [Text.Mail](Text.Mail.md) | Ship source | Parse and format RFC 5322 mail addresses, read message header blocks and parse header dates, with SIMD atom scanning. |
 | [Text.Md5](Text.Md5.md) | Ship source | MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints. |
 | [Text.Mime](Text.Mime.md) | Ship source | Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries. |
 | [Text.Multipart](Text.Multipart.md) | Ship source | Multipart wire primitives over arbitrary bytes, exact multi-value headers and explicit delimiter observations. |
@@ -343,7 +344,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **266 source modules**: **66 embedded** and **200 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **267 source modules**: **66 embedded** and **201 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

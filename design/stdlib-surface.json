@@ -1987,10 +1987,18 @@
     },
     {
       "reference_package": "net/mail",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 20
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Mail"
+      ],
+      "remaining": [
+        "Caller-supplied charset conversion for encoded words (AddressParser.WordDecoder)",
+        "Incremental message body reader over Effect.Stream"
+      ],
+      "reference_declarations": 20,
+      "tests": [
+        "lib_mail"
+      ]
     },
     {
       "reference_package": "net/netip",
