@@ -1,0 +1,86 @@
+# Effect.Crypto
+
+Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source.
+
+<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+
+Import with `import Effect.Crypto`. Selected exports may already be in Prelude.
+
+[Download exact module source](/reference-sources/Effect.Crypto.cinch) · [How library modules are loaded](00-index.md)
+
+# Dependencies
+
+[Crypto.Aes](Crypto.Aes.md), [Crypto.Cipher](Crypto.Cipher.md), [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.X25519](Crypto.X25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Result](Data.Result.md), [Effect.Random](Effect.Random.md).
+
+Non-embedded source closure: [Crypto.Aes](Crypto.Aes.md), [Crypto.Cipher](Crypto.Cipher.md), [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Field25519](Crypto.Field25519.md), [Crypto.X25519](Crypto.X25519.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Crypto](Effect.Crypto.md), [Effect.Random](Effect.Random.md), [Text.Binary](Text.Binary.md), [Text.Sha512](Text.Sha512.md).
+
+<details><summary>Behaviour and boundary notes from the source</summary>
+
+Key generation and randomized encryption over the operating system's cryptographic random source.
+The pure modules Crypto.Ed25519, Crypto.X25519, Crypto.Aes and Crypto.Cipher take
+their secret material as arguments; this module draws it from Effect.Random so
+callers never construct keys or nonces from predictable values. Random-nonce
+GCM prepends a fresh nonce to every sealed message, which makes nonce reuse
+under one key statistically negligible for up to about 2^32 messages.
+
+</details>
+
+# Types and constructors
+
+This module exports no type declarations.
+
+# Values
+
+<a id="value-6165732d67656e65726174652d6b6579"></a>
+
+## `aes-generate-key`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">aes-generate-key</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKey</span>))</code></pre>
+
+A new AES key of 16, 24 or 32 random bytes; other sizes are rejected.
+
+[Source](/reference-sources/Effect.Crypto.cinch) · line 33
+
+<a id="value-656432353531392d67656e6572617465"></a>
+
+## `ed25519-generate`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ed25519-generate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519PrivateKey</span>)</code></pre>
+
+A new Ed25519 private key from a fresh 32-byte random seed.
+
+[Source](/reference-sources/Effect.Crypto.cinch) · line 21
+
+<a id="value-67636d2d6f70656e2d72616e646f6d"></a>
+
+## `gcm-open-random`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gcm-open-random</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Cipher</span>.<span class="tok-constructor">Gcm</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Cipher</span>.<span class="tok-constructor">CipherError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+
+Open a message produced by gcm-seal-random: split off the leading nonce, then verify and decrypt.
+
+[Source](/reference-sources/Effect.Crypto.cinch) · line 45
+
+<a id="value-67636d2d7365616c2d72616e646f6d"></a>
+
+## `gcm-seal-random`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gcm-seal-random</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Cipher</span>.<span class="tok-constructor">Gcm</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Cipher</span>.<span class="tok-constructor">CipherError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+
+Seal with a fresh random nonce of the instance's nonce size, returning nonce, ciphertext and tag.
+
+[Source](/reference-sources/Effect.Crypto.cinch) · line 37
+
+<a id="value-7832353531392d67656e6572617465"></a>
+
+## `x25519-generate`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">x25519-generate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">X25519</span>.<span class="tok-constructor">X25519PrivateKey</span>)</code></pre>
+
+A new X25519 private key from 32 fresh random bytes.
+
+[Source](/reference-sources/Effect.Crypto.cinch) · line 27
+
+# Reference provenance
+
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Crypto.cinch`. Source SHA-256: `09a5e388c3ed5c93ebdefa9c71d90b22d1911d829b310d6173ef43d76b3312f9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

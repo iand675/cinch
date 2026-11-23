@@ -289,6 +289,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Coverage](Effect.Coverage.md) | Ship source | Coverage collection/reporting utilities with explicit runtime and source metadata. |
 | [Effect.Crc32](Effect.Crc32.md) | Ship source | CRC-32 stream writers and bounded copying into an inspectable checksum state. |
 | [Effect.Crc64](Effect.Crc64.md) | Ship source | Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations. |
+| [Effect.Crypto](Effect.Crypto.md) | Ship source | Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source. |
 | [Effect.Csv](Effect.Csv.md) | Ship source | Bounded CSV readers and writers with explicit continuation, record counts, position tracking and advanced handles after failures. |
 | [Effect.FileUtils](Effect.FileUtils.md) | Ship source | Convenience filesystem operations built on the lower-level filesystem API. |
 | [Effect.Find](Effect.Find.md) | Ship source | Filesystem walking/search utilities with the module's traversal and error policy. |
@@ -339,7 +340,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **262 source modules**: **66 embedded** and **196 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **263 source modules**: **66 embedded** and **197 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

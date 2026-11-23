@@ -232,6 +232,7 @@ DESCRIPTIONS = {
 'Effect.Sha1':'Inspectable SHA-1 states, generic digest sinks and bounded reader-to-hash copying for legacy formats.',
 'Effect.Md5':'Inspectable MD5 states, generic digest sinks and bounded reader-to-hash copying for legacy formats.',
 'Effect.Sha3':'Inspectable SHA-3/SHAKE states, generic digest sinks, bounded reader-to-hash copying and SHAKE output as a generic reader.',
+'Effect.Crypto':'Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source.',
 'Effect.Sha256':'Inspectable SHA-224/SHA-256 states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations.',
 'Effect.Ascii85':'ASCII85 encoding writers and decoding byte readers with explicit finalization, bounded read-ahead and sticky stream errors.',
 'Text.Base32':'Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffer operations and persistent incremental states.',

@@ -1,0 +1,56 @@
+-- | Key generation and randomized encryption over the operating system's cryptographic random source.
+-- The pure modules Crypto.Ed25519, Crypto.X25519, Crypto.Aes and Crypto.Cipher take
+-- their secret material as arguments; this module draws it from Effect.Random so
+-- callers never construct keys or nonces from predictable values. Random-nonce
+-- GCM prepends a fresh nonce to every sealed message, which makes nonce reuse
+-- under one key statistically negligible for up to about 2^32 messages.
+module Effect.Crypto where
+
+  import Effect.Random
+  import Crypto.Aes
+  import Crypto.Cipher
+  import Crypto.Ed25519
+  import Crypto.X25519
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Result
+
+  export ed25519-generate, x25519-generate, aes-generate-key, gcm-seal-random, gcm-open-random
+
+  -- | A new Ed25519 private key from a fresh 32-byte random seed.
+  ed25519-generate :: forall r. using (io :: Io r) => Unit ->{IO r} Ed25519PrivateKey
+  ed25519-generate unit = case ed25519-private-key (random-bytes 32) of
+    Ok key -> key
+    Err error -> ed25519-generate ()
+
+  -- | A new X25519 private key from 32 fresh random bytes.
+  x25519-generate :: forall r. using (io :: Io r) => Unit ->{IO r} X25519PrivateKey
+  x25519-generate unit = case x25519-private-key (random-bytes 32) of
+    Ok key -> key
+    Err error -> x25519-generate ()
+
+  -- | A new AES key of 16, 24 or 32 random bytes; other sizes are rejected.
+  aes-generate-key :: forall r. using (io :: Io r) => Nat ->{IO r} Result AesKeyError AesKey
+  aes-generate-key size = if size == 16 || size == 24 || size == 32 then aes-key (random-bytes size) else Err (InvalidAesKeySize size)
+
+  -- | Seal with a fresh random nonce of the instance's nonce size, returning nonce, ciphertext and tag.
+  gcm-seal-random :: forall r. using (io :: Io r) => Gcm -> Bytes -> Bytes ->{IO r} Result CipherError Bytes
+  gcm-seal-random g plaintext aad =
+    let nonce = random-bytes (gcm-nonce-size g) in
+    case gcm-seal g nonce plaintext aad of
+      Ok sealed -> Ok (bytes-concat [nonce, sealed])
+      Err error -> Err error
+
+  -- | Open a message produced by gcm-seal-random: split off the leading nonce, then verify and decrypt.
+  gcm-open-random :: Gcm -> Bytes -> Bytes -> Result CipherError Bytes
+  gcm-open-random g message aad =
+    let n = gcm-nonce-size g in
+    if bytes-len message < n + gcm-tag-size g then Err AuthenticationFailed
+    else gcm-open g (part message 0 n) (part message n (bytes-len message - n)) aad
+
+  -- | Copy an interval.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start count =
+    if start + count <= bytes-len input then
+      let out = bytes-new count in let copied = bytes-copy-range out input 0 start count in out
+    else bytes-new 0

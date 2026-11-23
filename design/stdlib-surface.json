@@ -338,22 +338,24 @@
       "reference_package": "crypto/cipher",
       "status": "partial",
       "cinch_modules": [
-        "Crypto.Cipher"
+        "Crypto.Cipher",
+        "Effect.Crypto"
       ],
       "remaining": [
-        "NewGCMWithRandomNonce (needs an entropy capability)",
         "StreamReader/StreamWriter adapters over Effect.Stream",
         "Machine-word block loops to remove per-block natural-number and checked-store overhead"
       ],
       "reference_declarations": 37,
       "tests": [
-        "lib_aes"
+        "lib_aes",
+        "lib_effect_crypto"
       ],
       "capability_mapping": {
         "Block": "BlockCipher packages forward and inverse U128 block functions; block-cipher builds one from any 128-bit cipher",
         "Stream/NewCTR/NewOFB/NewCFBEncrypter/NewCFBDecrypter": "XorStream with ctr-stream, ofb-stream, cfb-encrypt-stream and cfb-decrypt-stream; stream-xor processes inputs of any length and returns the advanced stream; ctr-xor, ofb-xor, cfb-encrypt and cfb-decrypt are one-shot forms",
         "BlockMode/NewCBCEncrypter/NewCBCDecrypter/CryptBlocks": "CbcState with cbc-encrypter, cbc-decrypter and cbc-crypt-blocks (whole blocks only, no padding), plus one-shot cbc-encrypt/cbc-decrypt",
-        "AEAD/NewGCM/NewGCMWithNonceSize/NewGCMWithTagSize/Seal/Open/NonceSize/Overhead": "gcm, gcm-with-nonce-size, gcm-with-tag-size, gcm-seal, gcm-open, gcm-nonce-size, gcm-tag-size and gcm-overhead; open compares tags in constant time and releases no plaintext on failure"
+        "AEAD/NewGCM/NewGCMWithNonceSize/NewGCMWithTagSize/Seal/Open/NonceSize/Overhead": "gcm, gcm-with-nonce-size, gcm-with-tag-size, gcm-seal, gcm-open, gcm-nonce-size, gcm-tag-size and gcm-overhead; open compares tags in constant time and releases no plaintext on failure",
+        "NewGCMWithRandomNonce": "Effect.Crypto.gcm-seal-random prepends a fresh nonce; gcm-open-random splits it off and verifies"
       },
       "review": "CTR, OFB, CFB, CBC and GCM are implemented over any BlockCipher and verified with AES against independent vectors, including every two-chunk split for streams, chained CBC calls, counter wrap at 2^128, GCM tag sizes 12-16, nonce sizes 8, 9, 12, 16 and 60, AAD-only messages and rejection of tampered ciphertext, tags, AAD, nonces and truncated input. GHASH uses a constant-time portable product (masked-integer carry-less multiplication with a reflected reduction) or PCLMULQDQ after CPUID detection. Random-nonce GCM and reader/writer adapters remain."
     },
@@ -376,19 +378,21 @@
       "status": "partial",
       "cinch_modules": [
         "Crypto.Field25519",
-        "Crypto.X25519"
+        "Crypto.X25519",
+        "Effect.Crypto"
       ],
       "remaining": [
-        "P-256, P-384 and P-521",
-        "Key generation over an entropy capability"
+        "P-256, P-384 and P-521"
       ],
       "reference_declarations": 23,
       "tests": [
-        "lib_curve25519"
+        "lib_curve25519",
+        "lib_effect_crypto"
       ],
       "capability_mapping": {
         "X25519/NewPrivateKey/PrivateKey.PublicKey/ECDH/Bytes": "x25519-private-key, x25519-public-key, x25519-shared and x25519-private-bytes; x25519 and x25519-base are the raw functions",
-        "low-order rejection": "LowOrderPeer when the shared secret is all zero bytes"
+        "low-order rejection": "LowOrderPeer when the shared secret is all zero bytes",
+        "GenerateKey": "Effect.Crypto.x25519-generate"
       },
       "review": "X25519 is a constant-time Montgomery ladder with masked swaps over the shared field module. RFC 7748 vectors including the 1000-iteration chain, a non-canonical peer coordinate, twelve independent library exchanges and five key derivations match; four low-order peers are rejected. About 120 microseconds per exchange at --opt-level 3. The NIST curves remain."
     },
@@ -404,22 +408,24 @@
       "status": "partial",
       "cinch_modules": [
         "Crypto.Ed25519",
-        "Crypto.Field25519"
+        "Crypto.Field25519",
+        "Effect.Crypto"
       ],
       "remaining": [
         "Ed25519ph and Ed25519ctx (VerifyWithOptions/Options)",
-        "GenerateKey over an entropy capability (callers currently supply a random seed)",
         "Precomputed base-point tables for faster signing"
       ],
       "reference_declarations": 24,
       "tests": [
-        "lib_curve25519"
+        "lib_curve25519",
+        "lib_effect_crypto"
       ],
       "capability_mapping": {
         "NewKeyFromSeed/PrivateKey/Seed/Public": "ed25519-private-key expands a 32-byte seed; ed25519-seed and ed25519-public-key return copies",
         "Sign": "ed25519-sign produces the deterministic 64-byte signature",
         "Verify": "ed25519-verify decodes the key, rejects S >= L and reserved bits, and compares the encoding of [S]B - [k]A with R",
-        "SeedSize/PublicKeySize/SignatureSize": "ed25519-seed-size, ed25519-public-key-size, ed25519-signature-size"
+        "SeedSize/PublicKeySize/SignatureSize": "ed25519-seed-size, ed25519-public-key-size, ed25519-signature-size",
+        "GenerateKey": "Effect.Crypto.ed25519-generate draws a seed from the operating system random source"
       },
       "review": "Field arithmetic uses five 51-bit limbs with 128-bit column primitives; point arithmetic uses complete extended-coordinate formulas; scalar multiplication always doubles and adds and selects by mask; scalar arithmetic modulo L is bit-serial with masked conditional subtraction, so signing never branches on secrets. RFC 8032 tests 1-3 and the SHA(abc)/1023-byte cases plus independent library signatures match exactly, every signature verifies, and tampered messages, signatures and keys, S + L malleability, non-point keys, wrong lengths and reserved bits are rejected. At --opt-level 3 a signature plus a verification takes under a millisecond; there are no precomputed tables."
     },
