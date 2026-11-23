@@ -846,10 +846,29 @@
     },
     {
       "reference_package": "encoding/asn1",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 73
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Asn1"
+      ],
+      "remaining": [
+        "Typed record codecs (the reference marshals structs by reflection; a staged generator over Asn1 values is the idiomatic replacement)",
+        "BitString.At/RightAlign and ObjectIdentifier.String conveniences",
+        "BER-only inputs (indefinite lengths) are rejected by design"
+      ],
+      "reference_declarations": 73,
+      "tests": [
+        "lib_asn1"
+      ],
+      "capability_mapping": {
+        "Marshal/MarshalWithParams": "asn1-encode over an explicit Asn1 value tree; asn1-explicit and asn1-implicit apply context tags",
+        "Unmarshal/UnmarshalWithParams": "asn1-decode with strict DER validation",
+        "RawValue/RawContent": "Asn1Raw with class, tag, constructed flag and content",
+        "BitString/ObjectIdentifier/Enumerated/Flag/NullRawValue": "Asn1BitString, Asn1Oid, Asn1Enumerated, Asn1Boolean and Asn1Null",
+        "Tag and Class constants": "tag-utf8-string, tag-printable-string, tag-ia5-string, tag-numeric-string, tag-t61-string, tag-bmp-string and class-universal/application/context/private",
+        "time fields": "Asn1UtcTime and Asn1GeneralizedTime with asn1-time-seconds",
+        "StructuralError/SyntaxError": "Asn1Truncated, Asn1BadLength, Asn1BadContent and Asn1TrailingData with offsets"
+      },
+      "review": "Forty-six values encoded by the reference implementation (integers across sign and width boundaries and beyond 64 bits, booleans, OIDs including large and first-arc edge cases, four string types, octet and bit strings, null, UTC and generalized times, enumerations, nested sequences, sorted sets, explicit and implicit tags, application-class high tag numbers and long-form lengths) encode byte for byte and decode back to the same encoding; twenty-two DER violations are rejected; times convert to Unix seconds."
     },
     {
       "reference_package": "encoding/base32",

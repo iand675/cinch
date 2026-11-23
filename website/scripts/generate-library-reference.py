@@ -267,6 +267,7 @@ DESCRIPTIONS = {
 'Text.Tar':'Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.',
 'Text.TextProto':'Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail.',
 'Text.Zip':'Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or deflated archives.',
+'Text.Asn1':'ASN.1 value trees with a strict DER decoder and canonical DER encoder, including explicit and implicit tags and times.',
 'Text.Sha256':'Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints.',
 'Text.Digest':'Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol.',
 'Text.Shellwords':'Shell-style word splitting/joining; this is data parsing, not execution of a shell command.',

@@ -1523,6 +1523,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Asn1",
+      "path": "seed/prelude/Text/Asn1.cinch",
+      "sha256": "ce041c4c148382136cc9669fe4558c3dcd23b93ab894f85fb2aa9ecdcf2c2e31",
+      "embedded": false,
+      "values": 19,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Base32",
       "path": "seed/prelude/Text/Base32.cinch",
       "sha256": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",

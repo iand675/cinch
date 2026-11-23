@@ -194,6 +194,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Adler32](Text.Adler32.md) | Ship source | Portable SIMD Adler-32 with bounded machine-word segments, persistent states, network-order digests and checked versioned checkpoints. |
 | [Text.Args](Text.Args.md) | Ship source | Command-line argument processing and its named value/error vocabulary. |
 | [Text.Ascii85](Text.Ascii85.md) | Ship source | ASCII85 text, caller-buffer and incremental codecs with consumed-input progress, checked source offsets, SIMD groups and control-run scanning. |
+| [Text.Asn1](Text.Asn1.md) | Ship source | ASN.1 value trees with a strict DER decoder and canonical DER encoder, including explicit and implicit tags and times. |
 | [Text.Base32](Text.Base32.md) | Ship source | Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffer operations and persistent incremental states. |
 | [Text.Base64.Encoding](Text.Base64.Encoding.md) | Ship source | Configurable Base64 byte alphabets, padding and strict trailing bits, SIMD codecs, persistent states and checked caller buffers. |
 | [Text.Base64](Text.Base64.md) | Ship source | Base64 encoding/decoding over bytes with explicit invalid-input results. |
@@ -338,7 +339,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **261 source modules**: **66 embedded** and **195 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **262 source modules**: **66 embedded** and **196 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 
