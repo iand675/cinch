@@ -39,6 +39,7 @@ is not an available API.
 | `text/tabwriter` | [Text.TabWriter](../library/Text.TabWriter.md) | Elastic tabstop alignment with every formatting flag, incremental writes and flushes | Output is returned to the caller; a sink adapter is optional |
 | `compress/lzw` | [Text.Lzw](../library/Text.Lzw.md) | Whole-buffer LZW in both bit orders and literal widths 2-8, byte-identical to reference encodings | Incremental reader/writer adapters remain |
 | `archive/tar` | [Text.Tar](../library/Text.Tar.md) | Whole-archive reading of V7, USTAR, PAX and GNU formats; USTAR/PAX writing byte-identical to the reference writer | Streaming, sparse files, filesystem helpers and sub-second times remain |
+| `crypto/ed25519`, `crypto/ecdh` | [Crypto.Ed25519](../library/Crypto.Ed25519.md), [Crypto.X25519](../library/Crypto.X25519.md), [Crypto.Field25519](../library/Crypto.Field25519.md) | Constant-time Ed25519 signing/verification and X25519 agreement over 51-bit limbs with 128-bit column products | Ed25519ph/ctx, key generation and the NIST curves remain |
 | `hash/adler32` | [Text.Adler32](../library/Text.Adler32.md), [Effect.Adler32](../library/Effect.Adler32.md), [Text.Checksum](../library/Text.Checksum.md) | SIMD bounded-segment checksums, persistent states, numeric/byte digests, reset, copied-prefix append, checked checkpoints and stream sinks/copies | All four recorded declarations and returned hash/clone/state capabilities mapped; ownership and streaming costs are documented |
 | `hash/crc32` | [Text.Checksum](../library/Text.Checksum.md) | IEEE, Castagnoli, Koopman and custom reflected polynomials, incremental update | Prepared tables, persistent accumulators, checked 12-byte checkpoints and stream adapters in `Text.Crc32` and `Effect.Crc32`; cross-frontend qualification and benchmarking remain |
 | `hash/crc64` | [Text.Crc64](../library/Text.Crc64.md), [Effect.Crc64](../library/Effect.Crc64.md), [Text.Checksum](../library/Text.Checksum.md) | Immutable SIMD-built tables, packed slicing-by-eight updates, persistent states, numeric/byte digests, reset, prefix-preserving append, table-checked checkpoints and stream sinks/copies | All eleven recorded declarations and returned hash/clone/state capabilities mapped; prepared-table setup and stream-copy costs are documented |
@@ -77,8 +78,8 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 29 functionally complete, 58 partial
-and 93 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
+public packages in the pinned reference SDK. It currently records 29 functionally complete, 60 partial
+and 91 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
 containers are included as implementation homes, not assumed full coverage.
@@ -246,7 +247,7 @@ cargo test --test lib_go_stdlib
 | `compress/bzip2`, `archive/zip` | None | Zip and bzip2 decoding; gzip and tar now exist |
 | `crypto/hmac` | `Text.Digest`, `Crypto.Hmac` | SHA-256/SHA-512 keys and states exist; generic digest construction over the standalone digest states remains |
 | `crypto/rand`, `math/rand` | `Effect.Random` | Existing OS entropy and bounded draws; deterministic PRNG state remains |
-| Signatures, X.509, TLS | None | Key/certificate types, signing and TLS; AES and its modes now exist in `Crypto.Aes` and `Crypto.Cipher` |
+| RSA, ECDSA, X.509, TLS | None | Key/certificate types and TLS; AES, Ed25519 and X25519 now exist |
 | `io`, `bufio`, `io/fs` | `Effect.Stream`, `Effect.Io`, `Effect.Fs`, `Data.StringIo` | Shared byte protocols and bounded bulk transfers now exist; buffered readers/writers, scanners, random access and lifecycle capabilities remain |
 | `os`, `os/exec`, `os/signal` | `Effect.Process`, `Effect.Fs`, `Effect.Signal` | Portability, environment and process lifecycle audit |
 | `path`, `path/filepath`, walking | `Data.Path`, `Effect.Find`, `Effect.FileUtils` | Existing POSIX lexical paths and walking; globbing and portability remain; Go path edge cases differ |

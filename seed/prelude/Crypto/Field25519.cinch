@@ -1,0 +1,378 @@
+-- | Constant-time arithmetic in the field of integers modulo 2^255 - 19, shared by X25519 and Ed25519.
+-- An element is five 51-bit limbs (little-endian radix 2^51). Each product
+-- column is one primitive that accumulates its five 64x64-bit products in a
+-- 128-bit register, so a multiplication is five independent wide columns and
+-- one carry chain; additions and subtractions carry immediately, keeping every
+-- limb below 2^52 so the next product cannot overflow. Every operation is free
+-- of data-dependent branches and memory access: conditional swaps and
+-- selections use masks, inversion is a fixed addition chain, and comparisons
+-- reduce to the canonical encoding first.
+module Crypto.Field25519 where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Wide
+
+  export Fe, fe-zero, fe-one, fe-from-u64, fe-add, fe-sub, fe-neg, fe-mul, fe-square, fe-mul-small
+  export fe-invert, fe-pow22523, fe-swap, fe-select, fe-from-bytes, fe-to-bytes, fe-is-negative, fe-is-zero, fe-equal, fe-limbs
+
+  -- | A field element as five limbs, each normally below 2^52.
+  data Fe where
+    -- | Limbs from least to most significant, radix 2^51.
+    Fe :: U64 -> U64 -> U64 -> U64 -> U64 -> Fe
+
+  -- | Zero.
+  fe-zero :: Fe
+  fe-zero = Fe 0 0 0 0 0
+
+  -- | One.
+  fe-one :: Fe
+  fe-one = Fe 1 0 0 0 0
+
+  -- | A small element below 2^51.
+  fe-from-u64 :: U64 -> Fe
+  fe-from-u64 value = Fe (bit-and-u64 value 2251799813685247) 0 0 0 0
+
+  -- | The five limbs, for constant tables and tests.
+  fe-limbs :: Fe -> (U64, U64, U64, U64, U64)
+  fe-limbs a = case a of Fe a0 a1 a2 a3 a4 -> (a0, a1, a2, a3, a4)
+
+  -- | Propagate carries so every limb is below 2^51 plus a small excess folded through 19.
+  carry :: U64 -> U64 -> U64 -> U64 -> U64 -> Fe
+  carry a0 a1 a2 a3 a4 =
+    let c0 = wrapping-shr-u64 a0 51 in let b1 = wrapping-add-u64 a1 c0 in
+    let c1 = wrapping-shr-u64 b1 51 in let b2 = wrapping-add-u64 a2 c1 in
+    let c2 = wrapping-shr-u64 b2 51 in let b3 = wrapping-add-u64 a3 c2 in
+    let c3 = wrapping-shr-u64 b3 51 in let b4 = wrapping-add-u64 a4 c3 in
+    let c4 = wrapping-shr-u64 b4 51 in
+    let b0 = wrapping-add-u64 (low51 a0) (wrapping-mul-u64 c4 19) in
+    Fe (low51 b0) (wrapping-add-u64 (low51 b1) (wrapping-shr-u64 b0 51)) (low51 b2) (low51 b3) (low51 b4)
+
+  -- | The low 51 bits.
+  low51 :: U64 -> U64
+  low51 value = bit-and-u64 value 2251799813685247
+
+  -- | Sum with an immediate carry.
+  fe-add :: Fe -> Fe -> Fe
+  fe-add a b = case a of
+    Fe a0 a1 a2 a3 a4 -> case b of
+      Fe b0 b1 b2 b3 b4 -> carry (wrapping-add-u64 a0 b0) (wrapping-add-u64 a1 b1) (wrapping-add-u64 a2 b2) (wrapping-add-u64 a3 b3) (wrapping-add-u64 a4 b4)
+
+  -- | Difference, computed as a + 4p - b so no limb underflows, with an immediate carry.
+  fe-sub :: Fe -> Fe -> Fe
+  fe-sub a b = case a of
+    Fe a0 a1 a2 a3 a4 -> case b of
+      Fe b0 b1 b2 b3 b4 ->
+        carry (wrapping-sub-u64 (wrapping-add-u64 a0 9007199254740916) b0) (wrapping-sub-u64 (wrapping-add-u64 a1 9007199254740988) b1)
+          (wrapping-sub-u64 (wrapping-add-u64 a2 9007199254740988) b2) (wrapping-sub-u64 (wrapping-add-u64 a3 9007199254740988) b3)
+          (wrapping-sub-u64 (wrapping-add-u64 a4 9007199254740988) b4)
+
+  -- | Negation.
+  fe-neg :: Fe -> Fe
+  fe-neg a = fe-sub fe-zero a
+
+  -- | Product: five 128-bit columns, then one carry chain.
+  fe-mul :: Fe -> Fe -> Fe
+  fe-mul a b = case a of
+    Fe a0 a1 a2 a3 a4 -> case b of
+      Fe b0 b1 b2 b3 b4 ->
+        let t0 = column0 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 in
+        let t1 = column1 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 in
+        let t2 = column2 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 in
+        let t3 = column3 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 in
+        let t4 = column4 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 in
+        settle t0 t1 t2 t3 t4
+
+  -- | Square (the general product with both operands equal; LLVM merges the symmetric terms).
+  fe-square :: Fe -> Fe
+  fe-square a = fe-mul a a
+
+  -- | Carry five 128-bit columns into reduced limbs.
+  settle :: U128 -> U128 -> U128 -> U128 -> U128 -> Fe
+  settle t0 t1 t2 t3 t4 =
+    let u1 = carry-into t0 t1 in let u2 = carry-into u1 t2 in let u3 = carry-into u2 t3 in let u4 = carry-into u3 t4 in
+    let r0 = wrapping-add-u64 (low-limb t0) (wrapping-mul-u64 (high-limb u4) 19) in
+    Fe (low51 r0) (wrapping-add-u64 (low-limb u1) (wrapping-shr-u64 r0 51)) (low-limb u2) (low-limb u3) (low-limb u4)
+
+  -- | Add the carry out of the previous column to the next column.
+  prim carry-into :: U128 -> U128 -> U128 where
+    llvm {
+      %c = lshr i128 %0, 51
+      %value = add i128 %1, %c
+      ret i128 %value
+    }
+
+  -- | The low 51 bits of a column.
+  prim low-limb :: U128 -> U64 where
+    llvm {
+      %t = trunc i128 %0 to i64
+      %value = and i64 %t, 2251799813685247
+      ret i64 %value
+    }
+
+  -- | The carry out of a column.
+  prim high-limb :: U128 -> U64 where
+    llvm {
+      %s = lshr i128 %0, 51
+      %value = trunc i128 %s to i64
+      ret i64 %value
+    }
+
+  -- | Column 0: a0 b0 + 19 (a1 b4 + a2 b3 + a3 b2 + a4 b1).
+  prim column0 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %a0 = zext i64 %0 to i128
+      %a1 = zext i64 %1 to i128
+      %a2 = zext i64 %2 to i128
+      %a3 = zext i64 %3 to i128
+      %a4 = zext i64 %4 to i128
+      %b0 = zext i64 %5 to i128
+      %b1 = zext i64 %6 to i128
+      %b2 = zext i64 %7 to i128
+      %b3 = zext i64 %8 to i128
+      %b4 = zext i64 %9 to i128
+      %p0 = mul i128 %a0, %b0
+      %p1 = mul i128 %a1, %b4
+      %p2 = mul i128 %a2, %b3
+      %p3 = mul i128 %a3, %b2
+      %p4 = mul i128 %a4, %b1
+      %s1 = add i128 %p1, %p2
+      %s2 = add i128 %s1, %p3
+      %s3 = add i128 %s2, %p4
+      %w = mul i128 %s3, 19
+      %value = add i128 %p0, %w
+      ret i128 %value
+    }
+
+  -- | Column 1: a0 b1 + a1 b0 + 19 (a2 b4 + a3 b3 + a4 b2).
+  prim column1 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %a0 = zext i64 %0 to i128
+      %a1 = zext i64 %1 to i128
+      %a2 = zext i64 %2 to i128
+      %a3 = zext i64 %3 to i128
+      %a4 = zext i64 %4 to i128
+      %b0 = zext i64 %5 to i128
+      %b1 = zext i64 %6 to i128
+      %b2 = zext i64 %7 to i128
+      %b3 = zext i64 %8 to i128
+      %b4 = zext i64 %9 to i128
+      %p0 = mul i128 %a0, %b1
+      %p1 = mul i128 %a1, %b0
+      %p2 = mul i128 %a2, %b4
+      %p3 = mul i128 %a3, %b3
+      %p4 = mul i128 %a4, %b2
+      %d = add i128 %p0, %p1
+      %s1 = add i128 %p2, %p3
+      %s2 = add i128 %s1, %p4
+      %w = mul i128 %s2, 19
+      %value = add i128 %d, %w
+      ret i128 %value
+    }
+
+  -- | Column 2: a0 b2 + a1 b1 + a2 b0 + 19 (a3 b4 + a4 b3).
+  prim column2 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %a0 = zext i64 %0 to i128
+      %a1 = zext i64 %1 to i128
+      %a2 = zext i64 %2 to i128
+      %a3 = zext i64 %3 to i128
+      %a4 = zext i64 %4 to i128
+      %b0 = zext i64 %5 to i128
+      %b1 = zext i64 %6 to i128
+      %b2 = zext i64 %7 to i128
+      %b3 = zext i64 %8 to i128
+      %b4 = zext i64 %9 to i128
+      %p0 = mul i128 %a0, %b2
+      %p1 = mul i128 %a1, %b1
+      %p2 = mul i128 %a2, %b0
+      %p3 = mul i128 %a3, %b4
+      %p4 = mul i128 %a4, %b3
+      %d1 = add i128 %p0, %p1
+      %d = add i128 %d1, %p2
+      %s1 = add i128 %p3, %p4
+      %w = mul i128 %s1, 19
+      %value = add i128 %d, %w
+      ret i128 %value
+    }
+
+  -- | Column 3: a0 b3 + a1 b2 + a2 b1 + a3 b0 + 19 a4 b4.
+  prim column3 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %a0 = zext i64 %0 to i128
+      %a1 = zext i64 %1 to i128
+      %a2 = zext i64 %2 to i128
+      %a3 = zext i64 %3 to i128
+      %a4 = zext i64 %4 to i128
+      %b0 = zext i64 %5 to i128
+      %b1 = zext i64 %6 to i128
+      %b2 = zext i64 %7 to i128
+      %b3 = zext i64 %8 to i128
+      %b4 = zext i64 %9 to i128
+      %p0 = mul i128 %a0, %b3
+      %p1 = mul i128 %a1, %b2
+      %p2 = mul i128 %a2, %b1
+      %p3 = mul i128 %a3, %b0
+      %p4 = mul i128 %a4, %b4
+      %d1 = add i128 %p0, %p1
+      %d2 = add i128 %d1, %p2
+      %d = add i128 %d2, %p3
+      %w = mul i128 %p4, 19
+      %value = add i128 %d, %w
+      ret i128 %value
+    }
+
+  -- | Column 4: a0 b4 + a1 b3 + a2 b2 + a3 b1 + a4 b0.
+  prim column4 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %a0 = zext i64 %0 to i128
+      %a1 = zext i64 %1 to i128
+      %a2 = zext i64 %2 to i128
+      %a3 = zext i64 %3 to i128
+      %a4 = zext i64 %4 to i128
+      %b0 = zext i64 %5 to i128
+      %b1 = zext i64 %6 to i128
+      %b2 = zext i64 %7 to i128
+      %b3 = zext i64 %8 to i128
+      %b4 = zext i64 %9 to i128
+      %p0 = mul i128 %a0, %b4
+      %p1 = mul i128 %a1, %b3
+      %p2 = mul i128 %a2, %b2
+      %p3 = mul i128 %a3, %b1
+      %p4 = mul i128 %a4, %b0
+      %d1 = add i128 %p0, %p1
+      %d2 = add i128 %d1, %p2
+      %d3 = add i128 %d2, %p3
+      %value = add i128 %d3, %p4
+      ret i128 %value
+    }
+
+  -- | Multiply by a constant below 2^13 (such as 121665): one carry chain over 128-bit limbs.
+  fe-mul-small :: Fe -> U64 -> Fe
+  fe-mul-small a k = case a of
+    Fe a0 a1 a2 a3 a4 -> settle (wide-mul a0 k) (wide-mul a1 k) (wide-mul a2 k) (wide-mul a3 k) (wide-mul a4 k)
+
+  -- | Full 128-bit product of two words.
+  prim wide-mul :: U64 -> U64 -> U128 where
+    llvm {
+      %a = zext i64 %0 to i128
+      %b = zext i64 %1 to i128
+      %value = mul i128 %a, %b
+      ret i128 %value
+    }
+
+  -- | Square n times.
+  square-times :: Fe -> Nat -> Fe
+  square-times a n = if n == 0 then a else square-times (fe-square a) (n - 1)
+
+  -- | a^(2^250 - 1) and a^11, the shared prefix of the inversion and square-root chains.
+  chain250 :: Fe -> (Fe, Fe)
+  chain250 z =
+    let z2 = fe-square z in
+    let z9 = fe-mul (square-times z2 2) z in
+    let z11 = fe-mul z9 z2 in
+    let z5 = fe-mul (fe-square z11) z9 in
+    let z10 = fe-mul (square-times z5 5) z5 in
+    let z20 = fe-mul (square-times z10 10) z10 in
+    let z40 = fe-mul (square-times z20 20) z20 in
+    let z50 = fe-mul (square-times z40 10) z10 in
+    let z100 = fe-mul (square-times z50 50) z50 in
+    let z200 = fe-mul (square-times z100 100) z100 in
+    let z250 = fe-mul (square-times z200 50) z50 in
+    (z250, z11)
+
+  -- | Multiplicative inverse a^(p - 2) by the fixed addition chain; the inverse of zero is zero.
+  fe-invert :: Fe -> Fe
+  fe-invert z = case chain250 z of (z250, z11) -> fe-mul (square-times z250 5) z11
+
+  -- | a^((p - 5) / 8), used to compute square roots.
+  fe-pow22523 :: Fe -> Fe
+  fe-pow22523 z = case chain250 z of (z250, z11) -> fe-mul (square-times z250 2) z
+
+  -- | All-ones when the bit is set, zero otherwise.
+  mask :: U64 -> U64
+  mask bit = wrapping-sub-u64 0 (bit-and-u64 bit 1)
+
+  -- | Swap two elements when the low bit of choice is set, without branching.
+  fe-swap :: U64 -> Fe -> Fe -> (Fe, Fe)
+  fe-swap choice a b = case a of
+    Fe a0 a1 a2 a3 a4 -> case b of
+      Fe b0 b1 b2 b3 b4 ->
+        let m = mask choice in
+        let d0 = bit-and-u64 m (bit-xor-u64 a0 b0) in let d1 = bit-and-u64 m (bit-xor-u64 a1 b1) in
+        let d2 = bit-and-u64 m (bit-xor-u64 a2 b2) in let d3 = bit-and-u64 m (bit-xor-u64 a3 b3) in
+        let d4 = bit-and-u64 m (bit-xor-u64 a4 b4) in
+        (Fe (bit-xor-u64 a0 d0) (bit-xor-u64 a1 d1) (bit-xor-u64 a2 d2) (bit-xor-u64 a3 d3) (bit-xor-u64 a4 d4),
+         Fe (bit-xor-u64 b0 d0) (bit-xor-u64 b1 d1) (bit-xor-u64 b2 d2) (bit-xor-u64 b3 d3) (bit-xor-u64 b4 d4))
+
+  -- | Choose b when the low bit of choice is set and a otherwise, without branching.
+  fe-select :: U64 -> Fe -> Fe -> Fe
+  fe-select choice a b = case fe-swap choice a b of (first, second) -> first
+
+  -- | Decode 32 little-endian bytes at an offset, ignoring the top bit. Out-of-range input reads as zero.
+  fe-from-bytes :: Bytes -> Nat -> Fe
+  fe-from-bytes input at =
+    if at + 32 <= bytes-len input then
+      let w0 = bytes-read-le64 input at in let w1 = bytes-read-le64 input (at + 8) in
+      let w2 = bytes-read-le64 input (at + 16) in let w3 = bytes-read-le64 input (at + 24) in
+      Fe (low51 w0) (low51 (bit-or-u64 (wrapping-shr-u64 w0 51) (wrapping-shl-u64 w1 13)))
+        (low51 (bit-or-u64 (wrapping-shr-u64 w1 38) (wrapping-shl-u64 w2 26)))
+        (low51 (bit-or-u64 (wrapping-shr-u64 w2 25) (wrapping-shl-u64 w3 39)))
+        (low51 (wrapping-shr-u64 w3 12))
+    else fe-zero
+
+  -- | Sequential carries with the top carry folded back through 19.
+  full :: Fe -> Fe
+  full a = case a of
+    Fe a0 a1 a2 a3 a4 ->
+      let b1 = wrapping-add-u64 a1 (wrapping-shr-u64 a0 51) in
+      let b2 = wrapping-add-u64 a2 (wrapping-shr-u64 b1 51) in
+      let b3 = wrapping-add-u64 a3 (wrapping-shr-u64 b2 51) in
+      let b4 = wrapping-add-u64 a4 (wrapping-shr-u64 b3 51) in
+      Fe (wrapping-add-u64 (low51 a0) (wrapping-mul-u64 19 (wrapping-shr-u64 b4 51))) (low51 b1) (low51 b2) (low51 b3) (low51 b4)
+
+  -- | Sequential carries that discard the carry out of the top limb (a multiple of 2^255).
+  partial :: Fe -> Fe
+  partial a = case a of
+    Fe a0 a1 a2 a3 a4 ->
+      let b1 = wrapping-add-u64 a1 (wrapping-shr-u64 a0 51) in
+      let b2 = wrapping-add-u64 a2 (wrapping-shr-u64 b1 51) in
+      let b3 = wrapping-add-u64 a3 (wrapping-shr-u64 b2 51) in
+      let b4 = wrapping-add-u64 a4 (wrapping-shr-u64 b3 51) in
+      Fe (low51 a0) (low51 b1) (low51 b2) (low51 b3) (low51 b4)
+
+  -- | Fully reduce into [0, p) without branching: carry twice into [0, 2^255), add 19 and carry,
+  -- which exceeds 2^255 exactly when the value was at least p, then add 2^255 - 19 and drop 2^255.
+  canonical :: Fe -> Fe
+  canonical a = case full (full a) of
+    Fe a0 a1 a2 a3 a4 -> case full (Fe (wrapping-add-u64 a0 19) a1 a2 a3 a4) of
+      Fe b0 b1 b2 b3 b4 ->
+        partial (Fe (wrapping-add-u64 b0 2251799813685229) (wrapping-add-u64 b1 2251799813685247) (wrapping-add-u64 b2 2251799813685247)
+          (wrapping-add-u64 b3 2251799813685247) (wrapping-add-u64 b4 2251799813685247))
+
+  -- | Encode the canonical value as 32 little-endian bytes in fresh storage.
+  fe-to-bytes :: Fe -> Bytes
+  fe-to-bytes a = case canonical a of
+    Fe a0 a1 a2 a3 a4 ->
+      let out = bytes-new 32 in
+      let w0 = bytes-write-le64 out 0 (bit-or-u64 a0 (wrapping-shl-u64 a1 51)) in
+      let w1 = bytes-write-le64 out 8 (bit-or-u64 (wrapping-shr-u64 a1 13) (wrapping-shl-u64 a2 38)) in
+      let w2 = bytes-write-le64 out 16 (bit-or-u64 (wrapping-shr-u64 a2 26) (wrapping-shl-u64 a3 25)) in
+      let w3 = bytes-write-le64 out 24 (bit-or-u64 (wrapping-shr-u64 a3 39) (wrapping-shl-u64 a4 12)) in
+      out
+
+  -- | Whether the canonical value is odd (the sign used by point encodings).
+  fe-is-negative :: Fe -> U64
+  fe-is-negative a = case canonical a of Fe a0 a1 a2 a3 a4 -> bit-and-u64 a0 1
+
+  -- | One when the value is zero modulo p, otherwise zero, computed without branching.
+  fe-is-zero :: Fe -> U64
+  fe-is-zero a = case canonical a of
+    Fe a0 a1 a2 a3 a4 ->
+      let any = bit-or-u64 (bit-or-u64 a0 a1) (bit-or-u64 (bit-or-u64 a2 a3) a4) in
+      bit-xor-u64 (wrapping-shr-u64 (bit-or-u64 any (wrapping-sub-u64 0 any)) 63) 1
+
+  -- | One when the two values are equal modulo p, otherwise zero.
+  fe-equal :: Fe -> Fe -> U64
+  fe-equal a b = fe-is-zero (fe-sub a b)

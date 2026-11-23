@@ -355,10 +355,24 @@
     },
     {
       "reference_package": "crypto/ecdh",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 23
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Field25519",
+        "Crypto.X25519"
+      ],
+      "remaining": [
+        "P-256, P-384 and P-521",
+        "Key generation over an entropy capability"
+      ],
+      "reference_declarations": 23,
+      "tests": [
+        "lib_curve25519"
+      ],
+      "capability_mapping": {
+        "X25519/NewPrivateKey/PrivateKey.PublicKey/ECDH/Bytes": "x25519-private-key, x25519-public-key, x25519-shared and x25519-private-bytes; x25519 and x25519-base are the raw functions",
+        "low-order rejection": "LowOrderPeer when the shared secret is all zero bytes"
+      },
+      "review": "X25519 is a constant-time Montgomery ladder with masked swaps over the shared field module. RFC 7748 vectors including the 1000-iteration chain, a non-canonical peer coordinate, twelve independent library exchanges and five key derivations match; four low-order peers are rejected. About 120 microseconds per exchange at --opt-level 3. The NIST curves remain."
     },
     {
       "reference_package": "crypto/ecdsa",
@@ -369,10 +383,27 @@
     },
     {
       "reference_package": "crypto/ed25519",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 24
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Ed25519",
+        "Crypto.Field25519"
+      ],
+      "remaining": [
+        "Ed25519ph and Ed25519ctx (VerifyWithOptions/Options)",
+        "GenerateKey over an entropy capability (callers currently supply a random seed)",
+        "Precomputed base-point tables for faster signing"
+      ],
+      "reference_declarations": 24,
+      "tests": [
+        "lib_curve25519"
+      ],
+      "capability_mapping": {
+        "NewKeyFromSeed/PrivateKey/Seed/Public": "ed25519-private-key expands a 32-byte seed; ed25519-seed and ed25519-public-key return copies",
+        "Sign": "ed25519-sign produces the deterministic 64-byte signature",
+        "Verify": "ed25519-verify decodes the key, rejects S >= L and reserved bits, and compares the encoding of [S]B - [k]A with R",
+        "SeedSize/PublicKeySize/SignatureSize": "ed25519-seed-size, ed25519-public-key-size, ed25519-signature-size"
+      },
+      "review": "Field arithmetic uses five 51-bit limbs with 128-bit column primitives; point arithmetic uses complete extended-coordinate formulas; scalar multiplication always doubles and adds and selects by mask; scalar arithmetic modulo L is bit-serial with masked conditional subtraction, so signing never branches on secrets. RFC 8032 tests 1-3 and the SHA(abc)/1023-byte cases plus independent library signatures match exactly, every signature verifies, and tampered messages, signatures and keys, S + L malleability, non-point keys, wrong lengths and reserved bits are rejected. At --opt-level 3 a signature plus a verification takes under a millisecond; there are no precomputed tables."
     },
     {
       "reference_package": "crypto/elliptic",
