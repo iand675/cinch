@@ -1,7 +1,9 @@
 -- | Unaligned little-endian machine-word access to byte buffers.
 -- Bounds are explicit preconditions in the public signatures. Reads and writes
 -- access exactly the proved byte range. Private LLVM loads retain the backing
--- buffer until completion; raw pointers never enter the public interface. The
+-- buffer until completion; a write is one runtime word store
+-- (`cinch.runtime.bytesSetLe32`/`bytesSetLe64`), never four or eight byte
+-- stores. Raw pointers never enter the public interface. The
 -- packed words feed SIMD and SWAR kernels. Wire order is independent of host
 -- endianness. Concurrent mutation follows the same rules as Data.Bytes.
 module Data.Bytes.Word where
@@ -18,11 +20,7 @@ module Data.Bytes.Word where
 
   -- | Write exactly 4 low-to-high bytes of a U32. The caller must prove pos + 4 <= bytes-len b; bytes outside that range are preserved.
   bytes-write-le32 :: using (pos + 4 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U32 -> Unit
-  bytes-write-le32 b pos x =
-    let w0 = bytes-set b pos (u8-to-nat (wrapping-u32-to-u8 x)) in
-    let w1 = bytes-set b (pos + 1) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 8))) in
-    let w2 = bytes-set b (pos + 2) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 16))) in
-    bytes-set b (pos + 3) (u8-to-nat (wrapping-u32-to-u8 (wrapping-shr-u32 x 24)))
+  bytes-write-le32 b pos x = store-le32 b pos x
 
   -- | Read exactly 8 bytes as a little-endian U64. Alignment is unrestricted. The caller must prove pos + 8 <= bytes-len b; no tail bytes are read.
   bytes-read-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64
@@ -30,15 +28,15 @@ module Data.Bytes.Word where
 
   -- | Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= bytes-len b; bytes outside that range are preserved.
   bytes-write-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64 -> Unit
-  bytes-write-le64 b pos x =
-    let w0 = bytes-set b pos (u8-to-nat (wrapping-u64-to-u8 x)) in
-    let w1 = bytes-set b (pos + 1) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 8))) in
-    let w2 = bytes-set b (pos + 2) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 16))) in
-    let w3 = bytes-set b (pos + 3) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 24))) in
-    let w4 = bytes-set b (pos + 4) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 32))) in
-    let w5 = bytes-set b (pos + 5) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 40))) in
-    let w6 = bytes-set b (pos + 6) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 48))) in
-    bytes-set b (pos + 7) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 x 56)))
+  bytes-write-le64 b pos x = store-le64 b pos x
+
+  -- | Store a U32 as its four little-endian bytes at any alignment, in one
+  -- store. The proof lives on bytes-write-le32; the runtime still refuses a
+  -- short or read-only buffer, as bytes-set does.
+  foreign import ccall "cinch.runtime.bytesSetLe32" store-le32 :: Bytes -> Nat -> U32 -> Unit
+
+  -- | Store a U64 as its eight little-endian bytes at any alignment, in one store.
+  foreign import ccall "cinch.runtime.bytesSetLe64" store-le64 :: Bytes -> Nat -> U64 -> Unit
 
   -- | Load exactly 4 bytes from a proved private address, normalizing host endianness.
   prim load-le32 :: I64 -> I64 -> U32 where

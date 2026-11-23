@@ -125,6 +125,31 @@
          _ => raise(Error::CorruptValue),
      }
  }
+@@ -1007,6 +1064,24 @@
+         Ok(()) => 0,
+         Err(e) => raise(e),
+     }
++}
++
++/// Store the low 32 bits of `value` as four little-endian bytes at `index`.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_bytes_set_le32(word: i64, index: i64, value: i64) -> i64 {
++    match unsafe { as_bytes_mut(word) }.set_word(index, &(value as u32).to_le_bytes()) {
++        Ok(()) => 0,
++        Err(e) => raise(e),
++    }
++}
++
++/// Store `value` as eight little-endian bytes at `index`.
++#[unsafe(no_mangle)]
++pub unsafe extern "C" fn cinch_bytes_set_le64(word: i64, index: i64, value: i64) -> i64 {
++    match unsafe { as_bytes_mut(word) }.set_word(index, &(value as u64).to_le_bytes()) {
++        Ok(()) => 0,
++        Err(e) => raise(e),
++    }
+ }
+ 
+ /// Copy `n` bytes of `src` from `si` into `dst` at `di` (one `memmove`:
 --- a/compiler/runtime/src/alloc_kinds.rs
 +++ b/compiler/runtime/src/alloc_kinds.rs
 @@ -56,6 +56,9 @@
@@ -223,10 +248,19 @@
      pub fn set(&mut self, index: i64, value: i64) -> Result<()> {
          let i = usize::try_from(index).map_err(|_| Error::OutOfBounds)?;
          let v = u8::try_from(value).map_err(|_| Error::OutOfBounds)?;
-@@ -74,6 +94,31 @@
-         }
-         unsafe { *self.data.add(i) = v };
+@@ -76,6 +96,42 @@
          Ok(())
+     }
+ 
++    /// Write `word`'s bytes at `index..index + word.len()`, in order.
++    pub fn set_word(&mut self, index: i64, word: &[u8]) -> Result<()> {
++        let i = usize::try_from(index).map_err(|_| Error::OutOfBounds)?;
++        let end = i.checked_add(word.len()).ok_or(Error::OutOfBounds)?;
++        if end > self.len as usize {
++            return Err(Error::OutOfBounds);
++        }
++        unsafe { std::ptr::copy_nonoverlapping(word.as_ptr(), self.data.add(i), word.len()) };
++        Ok(())
 +    }
 +
 +    /// Adopt a read-only mapping for a `KIND_BYTES_MAPPED` block.
@@ -252,9 +286,11 @@
 +            crate::abi::panic_exit(b"compiler bug: cannot release mapped bytes");
 +        }
 +        self.len = 0;
-     }
- 
++    }
++
      /// Borrow the contents.
+     pub fn as_slice(&self) -> &[u8] {
+         if self.len == 0 {
 --- a/compiler/runtime/src/sys/darwin.rs
 +++ b/compiler/runtime/src/sys/darwin.rs
 @@ -198,6 +198,14 @@
@@ -306,9 +342,45 @@
  pub(crate) fn munmap(addr: i64, size: usize) -> (i64, i64) {
      back::munmap(addr, size)
  }
+--- a/compiler/src/check_decls.rs
++++ b/compiler/src/check_decls.rs
+@@ -22368,6 +22368,24 @@
+                         *slot = byte;
+                         Value::Unit
+                     }
++                    BytesOp::SetLe32 | BytesOp::SetLe64 => {
++                        let i = bytes_word(&args[1], "a `Bytes` index")?;
++                        let word = word_of(&args[2], "a machine word")?;
++                        let Value::Bytes(b) = &args[0] else {
++                            return Err(Error::plain("expected a `Bytes` buffer at compile time for a word store"));
++                        };
++                        let n = if bop == BytesOp::SetLe32 { 4 } else { 8 };
++                        let mut buf = b.borrow_mut();
++                        let range = usize::try_from(i)
++                            .ok()
++                            .and_then(|i| Some(i..i.checked_add(n)?))
++                            .filter(|r| r.end <= buf.len());
++                        let Some(range) = range else {
++                            return Err(Error::plain("compiler bug: a word store out of bounds at compile time"));
++                        };
++                        buf[range].copy_from_slice(&(word as u64).to_le_bytes()[..n]);
++                        Value::Unit
++                    }
+                     BytesOp::Copy => {
+                         let di = bytes_word(&args[2], "a `Bytes` index")?;
+                         let si = bytes_word(&args[3], "a `Bytes` index")?;
 --- a/compiler/src/codegen.rs
 +++ b/compiler/src/codegen.rs
-@@ -528,6 +528,8 @@
+@@ -493,6 +493,8 @@
+         "declare i64 @cinch_bytes_len(i64)",
+         "declare i64 @cinch_bytes_get(i64, i64)",
+         "declare i64 @cinch_bytes_set(i64, i64, i64)",
++        "declare i64 @cinch_bytes_set_le32(i64, i64, i64)",
++        "declare i64 @cinch_bytes_set_le64(i64, i64, i64)",
+         "declare i64 @cinch_bytes_copy(i64, i64, i64, i64, i64)",
+         "declare i64 @cinch_bytes_compare(i64, i64)",
+         // A fresh `Bytes` from a pointer-length span: the constant
+@@ -528,6 +530,8 @@
          "declare i64 @cinch_fs_mkdir(i64, i64)",
          "declare i64 @cinch_fs_remove(i64, i64)",
          "declare i64 @cinch_fs_temp_dir()",
@@ -317,7 +389,24 @@
          "declare i64 @cinch_signal_send(i64, i64)",
          // The bump arena (`compiler/runtime/src/arena.rs`): a scope enters
          // one, allocates its constructor cells from it uncounted, and
-@@ -5685,9 +5687,15 @@
+@@ -5568,6 +5572,16 @@
+                     );
+                     ret(b, "0");
+                 }
++                // The word stores take the canonical `U32`/`U64` word as is.
++                BytesOp::SetLe32 | BytesOp::SetLe64 => {
++                    let i = rt_call(b, "cinch_nat_to_i64", &[args[1].clone()]);
++                    let _ = rt_call(
++                        b,
++                        k.extern_name(),
++                        &[args[0].clone(), format!("i64 {i}"), args[2].clone()],
++                    );
++                    ret(b, "0");
++                }
+                 BytesOp::Copy => {
+                     let di = rt_call(b, "cinch_nat_to_i64", &[args[2].clone()]);
+                     let si = rt_call(b, "cinch_nat_to_i64", &[args[3].clone()]);
+@@ -5685,10 +5699,16 @@
                  }
                  // The arena entries take and answer one machine word: the
                  // size or the handle, both never blocks.
@@ -325,18 +414,49 @@
 +                PackageOffset | ArenaNew | ArenaLeave => {
                      let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                      ret(b, &r);
-+                }
+                 }
 +                MapPackageBytes | PackageText => {
 +                    let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
 +                    let r = rt_call(b, k.extern_name(), &args);
 +                    let word = freeze_word(b, &r);
 +                    ret_result(b, reg, op, &word, |_| word.clone());
-                 }
++                }
                  FsTempDir => {
                      let r = rt_call(b, k.extern_name(), &[]);
+                     ret(b, &r);
 --- a/compiler/src/core.rs
 +++ b/compiler/src/core.rs
-@@ -630,6 +630,12 @@
+@@ -441,6 +441,11 @@
+     /// `bytesCompare :: Bytes -> Bytes -> I64`: the lexicographic order
+     /// of the two buffers' contents as -1/0/1, read in place.
+     Compare,
++    /// `bytesSetLe32 :: Bytes -> Nat -> U32 -> Unit`: store a `U32` as its
++    /// four little-endian bytes at `i..i+4`, at any alignment.
++    SetLe32,
++    /// `bytesSetLe64 :: Bytes -> Nat -> U64 -> Unit`: the eight-byte form.
++    SetLe64,
+ }
+ 
+ impl BytesOp {
+@@ -453,6 +458,8 @@
+             BytesOp::Data => "Data",
+             BytesOp::Copy => "Copy",
+             BytesOp::Compare => "Compare",
++            BytesOp::SetLe32 => "SetLe32",
++            BytesOp::SetLe64 => "SetLe64",
+         }
+     }
+ 
+@@ -466,6 +473,8 @@
+             BytesOp::Data => "cinch_bytes_data",
+             BytesOp::Copy => "cinch_bytes_copy",
+             BytesOp::Compare => "cinch_bytes_compare",
++            BytesOp::SetLe32 => "cinch_bytes_set_le32",
++            BytesOp::SetLe64 => "cinch_bytes_set_le64",
+         }
+     }
+ }
+@@ -630,6 +639,12 @@
      /// `fsTempDir :: Unit -> Bytes`: the platform temp directory as a
      /// `Bytes` path.
      FsTempDir,
@@ -349,7 +469,7 @@
      /// `signalSend :: I64 -> I64 -> I64`: POSIX `kill`; the raw result.
      SignalSend,
      /// `arenaNew :: I64 -> I64`: enter a bump arena whose first chunk is
-@@ -649,6 +655,9 @@
+@@ -649,6 +664,9 @@
              PlatformOp::FsMkdir => "fsMkdir",
              PlatformOp::FsRemove => "fsRemove",
              PlatformOp::FsTempDir => "fsTempDir",
@@ -359,7 +479,7 @@
              PlatformOp::SignalSend => "signalSend",
              PlatformOp::ArenaNew => "arenaNew",
              PlatformOp::ArenaLeave => "arenaLeave",
-@@ -662,6 +671,9 @@
+@@ -662,6 +680,9 @@
              PlatformOp::FsMkdir => "cinch_fs_mkdir",
              PlatformOp::FsRemove => "cinch_fs_remove",
              PlatformOp::FsTempDir => "cinch_fs_temp_dir",
@@ -369,7 +489,16 @@
              PlatformOp::SignalSend => "cinch_signal_send",
              PlatformOp::ArenaNew => "cinch_arena_new",
              PlatformOp::ArenaLeave => "cinch_arena_leave",
-@@ -1211,6 +1223,9 @@
+@@ -1192,6 +1213,8 @@
+                 "bytesData" => Bytes(BytesOp::Data),
+                 "bytesCopy" => Bytes(BytesOp::Copy),
+                 "bytesCompare" => Bytes(BytesOp::Compare),
++                "bytesSetLe32" => Bytes(BytesOp::SetLe32),
++                "bytesSetLe64" => Bytes(BytesOp::SetLe64),
+                 "utf8Validate" => Utf8(Utf8Op::Validate),
+                 "utf8CountChars" => Utf8(Utf8Op::CountChars),
+                 "utf8DecodeAt" => Utf8(Utf8Op::DecodeAt),
+@@ -1211,6 +1234,9 @@
                  "fsMkdir" => Platform(PlatformOp::FsMkdir),
                  "fsRemove" => Platform(PlatformOp::FsRemove),
                  "fsTempDir" => Platform(PlatformOp::FsTempDir),
@@ -379,18 +508,29 @@
                  "signalSend" => Platform(PlatformOp::SignalSend),
                  "arenaNew" => Platform(PlatformOp::ArenaNew),
                  "arenaLeave" => Platform(PlatformOp::ArenaLeave),
-@@ -1360,8 +1375,8 @@
+@@ -1360,9 +1386,9 @@
                      | TextOp::F64ToDecimal | TextOp::F64FromDecimal,
              )
              | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir)
 -            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave) => 1,
 -            Net(_) | Proc(_) | Pty(_) => self.sig().0.len(),
+-            Bytes(BytesOp::Set) => 3,
 +            | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave | PlatformOp::PackageOffset) => 1,
 +            Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
-             Bytes(BytesOp::Set) => 3,
++            Bytes(BytesOp::Set | BytesOp::SetLe32 | BytesOp::SetLe64) => 3,
              Bytes(BytesOp::Copy) => 5,
              Sym(SymOp::Intern | SymOp::Name) => 1,
-@@ -1461,6 +1476,12 @@
+             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
+@@ -1441,6 +1467,8 @@
+             }
+             Bytes(BytesOp::Data) => (vec![Ty::Bytes], i64t),
+             Bytes(BytesOp::Compare) => (vec![Ty::Bytes, Ty::Bytes], i64t),
++            Bytes(BytesOp::SetLe32) => (vec![Ty::Bytes, Ty::Nat, prim(Scalar::U32)], Ty::Unit),
++            Bytes(BytesOp::SetLe64) => (vec![Ty::Bytes, Ty::Nat, prim(Scalar::U64)], Ty::Unit),
+             Utf8(Utf8Op::Validate) => (vec![Ty::Bytes], Ty::Bool),
+             Utf8(Utf8Op::CountChars) => (vec![Ty::Bytes], Ty::Nat),
+             Utf8(Utf8Op::DecodeAt) => {
+@@ -1461,6 +1489,12 @@
                  (vec![Ty::Bytes, Ty::Bool], i64t)
              }
              Platform(PlatformOp::FsTempDir) => (vec![Ty::Unit], Ty::Bytes),

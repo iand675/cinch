@@ -112,6 +112,9 @@ struct LowerCx {
     /// lower for it (primitive operations and inline target IR
     /// specification section 3).
     native: bool,
+    /// The target stores words high byte first: a little-endian word store
+    /// swaps its bytes before the store.
+    big_endian: bool,
 }
 
 impl LowerCx {
@@ -334,6 +337,7 @@ fn emit_module(
         usize_bits: profile.word_size,
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
         native: profile.artifact == crate::core::ArtifactProfile::Native,
+        big_endian: profile.endian == "big",
     };
     // The internal convention is a target property (`tail_conv`): where
     // LLVM's `tailcc` exists, the units whose tail calls are guaranteed run
@@ -571,6 +575,8 @@ fn emit_module(
         "declare i64 @cinch_bytes_len(i64)",
         "declare i64 @cinch_bytes_get(i64, i64)",
         "declare i64 @cinch_bytes_set(i64, i64, i64)",
+        "declare i64 @cinch_bytes_set_le32(i64, i64, i64)",
+        "declare i64 @cinch_bytes_set_le64(i64, i64, i64)",
         "declare i64 @cinch_bytes_copy(i64, i64, i64, i64, i64)",
         "declare i64 @cinch_bytes_compare(i64, i64)",
         // A fresh `Bytes` from a pointer-length span: the constant
@@ -4403,8 +4409,8 @@ fn build_unit(
             // simplification. Ownership fallbacks otherwise inflate LLVM's
             // generic inlining cost for these bounded wrapper operations.
             if matches!(op,
-                PrimOp::Nat(crate::core::NatOp::Add | crate::core::NatOp::Sub | crate::core::NatOp::Cmp | crate::core::NatOp::Div | crate::core::NatOp::Rem | crate::core::NatOp::FromI64 | crate::core::NatOp::ToI64)
-                | PrimOp::Bytes(BytesOp::Len | BytesOp::Get | BytesOp::Set | BytesOp::Copy)) {
+                PrimOp::Nat(crate::core::NatOp::Add | crate::core::NatOp::Sub | crate::core::NatOp::Mul | crate::core::NatOp::Cmp | crate::core::NatOp::Div | crate::core::NatOp::Rem | crate::core::NatOp::FromI64 | crate::core::NatOp::ToI64)
+                | PrimOp::Bytes(BytesOp::Len | BytesOp::Get | BytesOp::Set | BytesOp::SetLe32 | BytesOp::SetLe64 | BytesOp::Data | BytesOp::Copy)) {
                 hints.inline = Some(crate::core::InlineHint::Always);
             }
             // A primitive that returns `Option` or `Ordering` boxes its
@@ -6669,6 +6675,50 @@ fn nat_from_i64_word(b: &mut Builder, value: &str, known_upper: Option<u64>) -> 
     }
 }
 
+/// Multiply immediate naturals without crossing the runtime boundary: the
+/// common `4 * i` of an index computation is one `mul` and its checks. A heap
+/// operand, a product that overflows the word, or one beyond the target's
+/// immediate range keeps the runtime's exact path, which boxes the bignum.
+fn nat_mul_word(b: &mut Builder) -> String {
+    let both = b.reg();
+    b.line(&format!("{both} = and i64 %p0, %p1"));
+    let tag = b.reg();
+    b.line(&format!("{tag} = and i64 {both}, 1"));
+    let immediate = b.reg();
+    b.line(&format!("{immediate} = icmp ne i64 {tag}, 0"));
+    let (mul_l, fast_l, slow_l, done_l) = (b.label(), b.label(), b.label(), b.label());
+    b.line(&format!("br i1 {immediate}, label %{mul_l}, label %{slow_l}"));
+    b.start(&mul_l);
+    let left = b.reg();
+    b.line(&format!("{left} = lshr i64 %p0, 1"));
+    let right = b.reg();
+    b.line(&format!("{right} = lshr i64 %p1, 1"));
+    let pair = b.reg();
+    b.line(&format!("{pair} = call {{ i64, i1 }} @llvm.umul.with.overflow.i64(i64 {left}, i64 {right})"));
+    let product = b.reg();
+    b.line(&format!("{product} = extractvalue {{ i64, i1 }} {pair}, 0"));
+    let overflow = b.reg();
+    b.line(&format!("{overflow} = extractvalue {{ i64, i1 }} {pair}, 1"));
+    let wide = b.reg();
+    b.line(&format!("{wide} = icmp ugt i64 {product}, {}", nat_immediate_max(b.pointer_bytes)));
+    let boxed = b.reg();
+    b.line(&format!("{boxed} = or i1 {overflow}, {wide}"));
+    b.line(&format!("br i1 {boxed}, label %{slow_l}, label %{fast_l}"));
+    b.start(&fast_l);
+    let shifted = b.reg();
+    b.line(&format!("{shifted} = shl i64 {product}, 1"));
+    let fast = b.reg();
+    b.line(&format!("{fast} = or i64 {shifted}, 1"));
+    b.line(&format!("br label %{done_l}"));
+    b.start(&slow_l);
+    let slow = rt_call(b, crate::core::NatOp::Mul.extern_name(), &["i64 %p0".into(), "i64 %p1".into()]);
+    b.line(&format!("br label %{done_l}"));
+    b.start(&done_l);
+    let result = b.reg();
+    b.line(&format!("{result} = phi i64 [ {fast}, %{fast_l} ], [ {slow}, %{slow_l} ]"));
+    result
+}
+
 /// Divide or reduce immediate naturals without crossing the runtime boundary.
 /// A zero divisor, heap operand or out-of-width immediate keeps the original
 /// checked runtime path. Both results fit the input immediate range, including
@@ -6737,8 +6787,27 @@ fn nat_divrem_word(b: &mut Builder, operation: crate::core::NatOp) -> String {
 /// the runtime's checked fault path. The ABI layout is an i64 length followed
 /// by a target-width data pointer; header reads match the runtime's atomics.
 fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
-    let index = matches!(op, BytesOp::Get | BytesOp::Set).then(|| nat_to_i64_word(b, "%p1"));
-    let value = (op == BytesOp::Set).then(|| nat_to_i64_word(b, "%p2"));
+    bytes_access(b, op, false)
+}
+
+/// [`bytes_access_word`] for every access, the word stores included: a
+/// `SetLe32`/`SetLe64` stores its `U32`/`U64` word (already canonical,
+/// never a `Nat`) as one unaligned store, byte-swapped first on a
+/// big-endian target, when the whole range `i..i+4` (`i+8`) is inside the
+/// buffer. Every other case is the runtime's checked fault.
+fn bytes_access(b: &mut Builder, op: BytesOp, big_endian: bool) -> String {
+    let width = match op {
+        BytesOp::SetLe32 => Some(4u32),
+        BytesOp::SetLe64 => Some(8),
+        _ => None,
+    };
+    let index = matches!(op, BytesOp::Get | BytesOp::Set | BytesOp::SetLe32 | BytesOp::SetLe64)
+        .then(|| nat_to_i64_word(b, "%p1"));
+    let value = match op {
+        BytesOp::Set => Some(nat_to_i64_word(b, "%p2")),
+        BytesOp::SetLe32 | BytesOp::SetLe64 => Some("%p2".to_string()),
+        _ => None,
+    };
     let (header_l, payload_l, slow_l, done_l) = (b.label(), b.label(), b.label(), b.label());
     let null = b.reg();
     b.line(&format!("{null} = icmp eq i64 %p0, 0"));
@@ -6766,7 +6835,7 @@ fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
         "{heap} = icmp eq i64 {kind}, {}",
         block::KIND_BYTES
     ));
-    let valid = if op == BytesOp::Set {
+    let valid = if matches!(op, BytesOp::Set | BytesOp::SetLe32 | BytesOp::SetLe64) {
         heap
     } else {
         let readonly = b.reg();
@@ -6787,14 +6856,27 @@ fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
     let mut fast_exit = payload_l;
     if let Some(index) = &index {
         let inside = b.reg();
-        b.line(&format!("{inside} = icmp ult i64 {index}, {len}"));
-        let valid = if let Some(value) = &value {
+        let valid = if let Some(w) = width {
+            // `i + w <= len` without the overflowing sum: the buffer holds
+            // a word, and `i` is at most `len - w` (unsigned, so a negative
+            // index from a bignum's clamp is outside too).
+            let room = b.reg();
+            b.line(&format!("{room} = icmp uge i64 {len}, {w}"));
+            let last = b.reg();
+            b.line(&format!("{last} = sub i64 {len}, {w}"));
+            b.line(&format!("{inside} = icmp ule i64 {index}, {last}"));
+            let both = b.reg();
+            b.line(&format!("{both} = and i1 {room}, {inside}"));
+            both
+        } else if let Some(value) = &value {
+            b.line(&format!("{inside} = icmp ult i64 {index}, {len}"));
             let byte = b.reg();
             b.line(&format!("{byte} = icmp ule i64 {value}, 255"));
             let both = b.reg();
             b.line(&format!("{both} = and i1 {inside}, {byte}"));
             both
         } else {
+            b.line(&format!("{inside} = icmp ult i64 {index}, {len}"));
             inside
         };
         let access_l = b.label();
@@ -6819,7 +6901,22 @@ fn bytes_access_word(b: &mut Builder, op: BytesOp) -> String {
         if let Some(index) = &index {
             let at = b.reg();
             b.line(&format!("{at} = getelementptr i8, ptr {data}, i64 {index}"));
-            if let Some(value) = &value {
+            if let (Some(w), Some(value)) = (width, &value) {
+                let ty = format!("i{}", w * 8);
+                let mut word = value.clone();
+                if w == 4 {
+                    let narrow = b.reg();
+                    b.line(&format!("{narrow} = trunc i64 {value} to i32"));
+                    word = narrow;
+                }
+                if big_endian {
+                    let swapped = b.reg();
+                    b.line(&format!("{swapped} = call {ty} @llvm.bswap.{ty}({ty} {word})"));
+                    word = swapped;
+                }
+                b.line(&format!("store {ty} {word}, ptr {at}, align 1"));
+                "0".to_string()
+            } else if let Some(value) = &value {
                 let byte = b.reg();
                 b.line(&format!("{byte} = trunc i64 {value} to i8"));
                 b.line(&format!("store i8 {byte}, ptr {at}, align 1"));
@@ -6939,19 +7036,31 @@ fn rc_helper_name(drop: bool, class: Class) -> &'static str {
 /// which is what leaves `--no-stack-alloc` byte-identical.
 fn rc_helpers(frame: bool, units: &str) -> String {
     let mut out = String::new();
-    for class in [Class::Obj, Class::TObj] {
-        for drop in [false, true] {
-            // A helper no assembled body calls is not emitted: the
-            // definition would be the only occurrence of its name.
-            let name = rc_helper_name(drop, class);
-            if !units.contains(&format!("@{name}(")) {
-                continue;
-            }
+    let called = |drop: bool, class: Class| units.contains(&format!("@{}(", rc_helper_name(drop, class)));
+    for drop in [false, true] {
+        // A helper no assembled body calls is not emitted: the definition
+        // would be the only occurrence of its name. The `TObj` helper
+        // calls the `Obj` one, so either use asks for it.
+        if called(drop, Class::Obj) || called(drop, Class::TObj) {
             let mut b = Builder::new();
             b.reclaim = true;
-            rc_inline(&mut b, drop, "%w", class, frame);
+            rc_inline(&mut b, drop, "%w", Class::Obj, frame);
             b.line("ret void");
-            out.push_str(&format!("define internal void @{}(i64 %w) {{\n{}}}\n", name, b.code));
+            let name = rc_helper_name(drop, Class::Obj);
+            out.push_str(&format!("define internal void @{name}(i64 %w) {{\n{}}}\n", b.code));
+        }
+        // A `TObj` word is mostly an immediate (a `Nat` index, a length),
+        // which owns no block. The helper is that one tag test, always
+        // inlined, in front of the `Obj` helper: a counted word reaches
+        // the header path out of line, and an immediate costs an `and`
+        // and a branch even in an unoptimized link, which runs only the
+        // always-inliner. The call line per operation is unchanged.
+        if called(drop, Class::TObj) {
+            let name = rc_helper_name(drop, Class::TObj);
+            let obj = rc_helper_name(drop, Class::Obj);
+            out.push_str(&format!(
+                "define internal void @{name}(i64 %w) alwaysinline {{\n  %lo = and i64 %w, 1\n  %imm = icmp ne i64 %lo, 0\n  br i1 %imm, label %done, label %block\nblock:\n  call void @{obj}(i64 %w)\n  ret void\ndone:\n  ret void\n}}\n"
+            ));
         }
     }
     // A drop specialisation's test (`Core::Release`): a nonzero word whose
@@ -7142,11 +7251,224 @@ fn task_rt(cx: &LowerCx, base: &str) -> String {
 /// joins keep uncounted tuple slots.
 const JOIN_SHAPED_MAX: usize = 4;
 
+/// The pure scalar primitives whose whole meaning is a few instructions over
+/// canonical words: no branch, no allocation, no `Option` result, no runtime
+/// call. A saturated application of one is computed where it stands
+/// ([`CoreEmitter::emit_app`]) instead of calling its unit, so a byte loop's
+/// comparisons, shifts and narrowing conversions cost their instructions and
+/// not a call each, at every optimization level (an unoptimized link runs
+/// only the always-inliner). The unit is still emitted, from the same
+/// [`scalar_prim_value`], for the primitive's first-class uses.
+///
+/// `op` must already be resolved to the target's widths; wide scalars cross
+/// as `i128` and keep their units.
+fn open_scalar_prim(op: PrimOp) -> bool {
+    use PrimOp::*;
+    if op.touches_wide() {
+        return false;
+    }
+    match op {
+        EqBool | NeBool | NotBool | AndBool | OrBool | CharToU32 => true,
+        Arith { mode, .. } => mode == ArithMode::Wrapping,
+        Neg { mode, .. } => mode != ArithMode::Checked,
+        Shift { checked, .. } => !checked,
+        Rotate { .. } | Bit { .. } | BitNot { .. } | BitScan { .. } | Cmp { .. } => true,
+        Conv { from, to, mode } => {
+            from.is_int_like() && to.is_int_like() && mode != ConvMode::Checked
+        }
+        _ => false,
+    }
+}
+
+/// The value of an [`open_scalar_prim`] applied to the canonical words
+/// `args`, emitted into the current block. This is the one definition of
+/// those primitives: the unit body ([`prim_body`]) and every open-coded call
+/// site emit it, so the two cannot disagree.
+fn scalar_prim_value(b: &mut Builder, op: PrimOp, args: &[String]) -> String {
+    use PrimOp::*;
+    debug_assert!(open_scalar_prim(op), "{} is not an open scalar primitive", op.symbol());
+    let x = args[0].as_str();
+    let y = args.get(1).map_or("", String::as_str);
+    match op {
+        AndBool | OrBool => {
+            let inst = if op == AndBool { "and" } else { "or" };
+            let r = b.reg();
+            b.line(&format!("{r} = {inst} i64 {x}, {y}"));
+            r
+        }
+        NotBool => {
+            let r = b.reg();
+            b.line(&format!("{r} = xor i64 {x}, 1"));
+            r
+        }
+        EqBool | NeBool => {
+            let pred = if op == EqBool { "eq" } else { "ne" };
+            let c = b.reg();
+            b.line(&format!("{c} = icmp {pred} i64 {x}, {y}"));
+            let r = b.reg();
+            b.line(&format!("{r} = zext i1 {c} to i64"));
+            r
+        }
+        // A `Char` word already is its `U32` code point.
+        CharToU32 => x.to_string(),
+        Arith { ty, op: aop, .. } => {
+            let it = match aop {
+                ArithOp::Add => "add",
+                ArithOp::Sub => "sub",
+                ArithOp::Mul => "mul",
+            };
+            let r = b.reg();
+            b.line(&format!("{r} = {it} i64 {x}, {y}"));
+            canon(b, ty, &r)
+        }
+        Neg { ty, mode } => {
+            // Every unsigned mathematical negation clamps to zero.
+            if mode == ArithMode::Saturating && !ty.is_signed() {
+                return "0".to_string();
+            }
+            let r = b.reg();
+            b.line(&format!("{r} = sub i64 0, {x}"));
+            let c = canon(b, ty, &r);
+            if mode == ArithMode::Wrapping {
+                return c;
+            }
+            let is_min = b.reg();
+            b.line(&format!("{is_min} = icmp eq i64 {x}, {}", min_word(ty)));
+            let out = b.reg();
+            b.line(&format!("{out} = select i1 {is_min}, i64 {}, i64 {c}", max_word(ty)));
+            out
+        }
+        Shift { ty, op: sop, .. } => {
+            // `wrapping*` reduce the count modulo the width; every width is
+            // a power of two.
+            let count = b.reg();
+            b.line(&format!("{count} = and i64 {y}, {}", ty.width() as i64 - 1));
+            let inst = match sop {
+                ShiftOp::Shl => "shl",
+                ShiftOp::Shr if ty.is_signed() => "ashr",
+                ShiftOp::Shr => "lshr",
+            };
+            let r = b.reg();
+            b.line(&format!("{r} = {inst} i64 {x}, {count}"));
+            canon(b, ty, &r)
+        }
+        Rotate { ty, right } => {
+            // Funnel shifts reduce their count modulo the width: total by
+            // construction (primitive types specification, section 4).
+            let it = int_ty(ty);
+            let a = trunc_n(b, ty, x);
+            let c = trunc_n(b, ty, y);
+            let f = if right { "fshr" } else { "fshl" };
+            let r = b.reg();
+            b.line(&format!("{r} = call {it} @llvm.{f}.{it}({it} {a}, {it} {a}, {it} {c})"));
+            ext_n(b, ty, &r)
+        }
+        Bit { ty, op: bop } => {
+            let inst = match bop {
+                BitOp::And => "and",
+                BitOp::Or => "or",
+                BitOp::Xor => "xor",
+            };
+            let r = b.reg();
+            b.line(&format!("{r} = {inst} i64 {x}, {y}"));
+            canon(b, ty, &r)
+        }
+        BitNot { ty } => {
+            let r = b.reg();
+            b.line(&format!("{r} = xor i64 {x}, -1"));
+            canon(b, ty, &r)
+        }
+        BitScan { ty, op: sop } => {
+            let it = int_ty(ty);
+            let a = trunc_n(b, ty, x);
+            let r = b.reg();
+            match sop {
+                BitScanOp::CountOnes => {
+                    b.line(&format!("{r} = call {it} @llvm.ctpop.{it}({it} {a})"));
+                    ext_z(b, ty, &r)
+                }
+                // Counts are `U32`; the zero word is well defined (`i1
+                // false` selects the width as the answer).
+                BitScanOp::LeadingZeros | BitScanOp::TrailingZeros => {
+                    let inst = if sop == BitScanOp::LeadingZeros { "ctlz" } else { "cttz" };
+                    b.line(&format!("{r} = call {it} @llvm.{inst}.{it}({it} {a}, i1 false)"));
+                    ext_z(b, ty, &r)
+                }
+                BitScanOp::ReverseBits => {
+                    b.line(&format!("{r} = call {it} @llvm.bitreverse.{it}({it} {a})"));
+                    ext_n(b, ty, &r)
+                }
+                // Identity on one-byte types (section 4).
+                BitScanOp::SwapBytes if ty.width() == 8 => x.to_string(),
+                BitScanOp::SwapBytes => {
+                    b.line(&format!("{r} = call {it} @llvm.bswap.{it}({it} {a})"));
+                    ext_n(b, ty, &r)
+                }
+            }
+        }
+        Cmp { ty, op: cop } => {
+            let pred = match (cop, ty.is_signed()) {
+                (CmpOp::Eq, _) => "eq",
+                (CmpOp::Ne, _) => "ne",
+                (CmpOp::Lt, true) => "slt",
+                (CmpOp::Le, true) => "sle",
+                (CmpOp::Gt, true) => "sgt",
+                (CmpOp::Ge, true) => "sge",
+                (CmpOp::Lt, false) => "ult",
+                (CmpOp::Le, false) => "ule",
+                (CmpOp::Gt, false) => "ugt",
+                (CmpOp::Ge, false) => "uge",
+            };
+            let c = b.reg();
+            b.line(&format!("{c} = icmp {pred} i64 {x}, {y}"));
+            let r = b.reg();
+            b.line(&format!("{r} = zext i1 {c} to i64"));
+            r
+        }
+        Conv { from, to, mode } => match mode {
+            // Value-preserving: the canonical words are identical.
+            ConvMode::Total => x.to_string(),
+            ConvMode::Wrapping => canon(b, to, x),
+            _ => {
+                let c = canon(b, to, x);
+                let fits = integer_conversion_fits(b, from, to, x, &c);
+                // Not fitting means below the target's minimum (a negative
+                // value into an unsigned target) or above its maximum.
+                let bound = if from.is_signed() {
+                    let low = b.reg();
+                    let floor = if to.is_signed() { min_word(to) } else { 0 };
+                    b.line(&format!("{low} = icmp slt i64 {x}, {floor}"));
+                    let r = b.reg();
+                    b.line(&format!(
+                        "{r} = select i1 {low}, i64 {}, i64 {}",
+                        min_word(to),
+                        max_word(to)
+                    ));
+                    r
+                } else {
+                    // An unsigned value is never below the minimum.
+                    max_word(to).to_string()
+                };
+                let out = b.reg();
+                b.line(&format!("{out} = select i1 {fits}, i64 {c}, i64 {bound}"));
+                out
+            }
+        },
+        _ => unreachable!("{} is not an open scalar primitive", op.symbol()),
+    }
+}
+
 fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: PrimOp) {
     // `Usize`/`Isize` cross as the target's concrete word scalar
     // (primitive types specification section 2).
     let op = op.resolve_widths(cx.usize_bits);
     use PrimOp::*;
+    if open_scalar_prim(op) {
+        let params: Vec<String> = (0..op.arity()).map(|i| format!("%p{i}")).collect();
+        let v = scalar_prim_value(b, op, &params);
+        ret(b, &v);
+        return;
+    }
     match op {
         Array {
             op: array_op,
@@ -7285,6 +7607,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
                 crate::core::NatOp::Div | crate::core::NatOp::Rem => {
                     let result = nat_divrem_word(b, n);
+                    ret(b, &result);
+                }
+                crate::core::NatOp::Mul => {
+                    let result = nat_mul_word(b);
                     ret(b, &result);
                 }
                 crate::core::NatOp::FromI64 => {
@@ -7441,6 +7767,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
                 BytesOp::Set => {
                     let _ = bytes_access_word(b, k);
+                    ret(b, "0");
+                }
+                BytesOp::SetLe32 | BytesOp::SetLe64 => {
+                    let _ = bytes_access(b, k, cx.big_endian);
                     ret(b, "0");
                 }
                 BytesOp::Copy => {
@@ -7980,29 +8310,6 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
             }
         }
-        AndBool | OrBool => {
-            let inst = match op {
-                AndBool => "and",
-                OrBool => "or",
-                _ => unreachable!(),
-            };
-            let r = b.reg();
-            b.line(&format!("{r} = {inst} i64 %p0, %p1"));
-            ret(b, &r);
-        }
-        NotBool => {
-            let r = b.reg();
-            b.line(&format!("{r} = xor i64 %p0, 1"));
-            ret(b, &r);
-        }
-        EqBool | NeBool => {
-            let pred = if op == EqBool { "eq" } else { "ne" };
-            let c = b.reg();
-            b.line(&format!("{c} = icmp {pred} i64 %p0, %p1"));
-            let r = b.reg();
-            b.line(&format!("{r} = zext i1 {c} to i64"));
-            ret(b, &r);
-        }
         Delay => {
             // A thunk is already a closure over Unit; `delay` is identity.
             ret(b, "%p0");
@@ -8027,61 +8334,25 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             let w = if max { max_word(ty) } else { min_word(ty) };
             ret(b, &w.to_string());
         }
-        Arith { ty, op: aop, mode } => {
-            let it = match aop {
-                ArithOp::Add => "add",
-                ArithOp::Sub => "sub",
-                ArithOp::Mul => "mul",
-            };
-            match mode {
-                ArithMode::Wrapping => {
-                    let r = b.reg();
-                    b.line(&format!("{r} = {it} i64 %p0, %p1"));
-                    let c = canon(b, ty, &r);
-                    ret(b, &c);
-                }
-                ArithMode::Checked | ArithMode::Saturating => {
-                    arith_overflow(b, reg, op, name, ty, aop, mode)
-                }
+        // The checked and saturating forms; wrapping arithmetic is an open
+        // scalar.
+        Arith { ty, op: aop, mode } => arith_overflow(b, reg, op, name, ty, aop, mode),
+        Neg { ty, .. } => {
+            // The checked negation; the wrapping and saturating ones are
+            // open scalars.
+            let bad = b.reg();
+            if ty.is_signed() {
+                b.line(&format!("{bad} = icmp eq i64 %p0, {}", min_word(ty)));
+            } else {
+                // Only zero has a representable unsigned additive inverse.
+                b.line(&format!("{bad} = icmp ne i64 %p0, 0"));
             }
+            ret_option(b, reg, op, name, &bad, |b| {
+                let r = b.reg();
+                b.line(&format!("{r} = sub i64 0, %p0"));
+                canon(b, ty, &r)
+            });
         }
-        Neg { ty, mode } => match mode {
-            ArithMode::Wrapping => {
-                let r = b.reg();
-                b.line(&format!("{r} = sub i64 0, %p0"));
-                let c = canon(b, ty, &r);
-                ret(b, &c);
-            }
-            ArithMode::Checked => {
-                let bad = b.reg();
-                if ty.is_signed() {
-                    b.line(&format!("{bad} = icmp eq i64 %p0, {}", min_word(ty)));
-                } else {
-                    // Only zero has a representable unsigned additive inverse.
-                    b.line(&format!("{bad} = icmp ne i64 %p0, 0"));
-                }
-                ret_option(b, reg, op, name, &bad, |b| {
-                    let r = b.reg();
-                    b.line(&format!("{r} = sub i64 0, %p0"));
-                    canon(b, ty, &r)
-                });
-            }
-            // Every unsigned mathematical negation clamps to zero.
-            ArithMode::Saturating if !ty.is_signed() => ret(b, "0"),
-            ArithMode::Saturating => {
-                let is_min = b.reg();
-                b.line(&format!("{is_min} = icmp eq i64 %p0, {}", min_word(ty)));
-                let r = b.reg();
-                b.line(&format!("{r} = sub i64 0, %p0"));
-                let c = canon(b, ty, &r);
-                let out = b.reg();
-                b.line(&format!(
-                    "{out} = select i1 {is_min}, i64 {}, i64 {c}",
-                    max_word(ty)
-                ));
-                ret(b, &out);
-            }
-        },
         CheckedDiv { ty } | CheckedRem { ty } => {
             // `None` on a zero divisor and on `minBound / -1` for signed
             // types (primitive types specification, section 4).
@@ -8113,140 +8384,26 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 canon(b, ty, &r)
             });
         }
-        Shift {
-            ty,
-            op: sop,
-            checked,
-        } => {
-            let w = ty.width() as i64;
-            let count = if checked {
-                // `checked*` return `None` for counts at or above the
-                // width (primitive types specification, section 4).
-                "%p1".to_string()
-            } else {
-                // `wrapping*` reduce the count modulo the width; every
-                // width is a power of two.
-                let r = b.reg();
-                b.line(&format!("{r} = and i64 %p1, {}", w - 1));
-                r
-            };
-            let sh = |b: &mut Builder| -> String {
+        Shift { ty, op: sop, .. } => {
+            // `checked*` return `None` for counts at or above the width
+            // (primitive types specification, section 4); the wrapping
+            // shifts are open scalars.
+            let bad = b.reg();
+            b.line(&format!("{bad} = icmp uge i64 %p1, {}", ty.width()));
+            ret_option(b, reg, op, name, &bad, |b| {
                 let inst = match sop {
                     ShiftOp::Shl => "shl",
-                    ShiftOp::Shr => {
-                        if ty.is_signed() {
-                            "ashr"
-                        } else {
-                            "lshr"
-                        }
-                    }
+                    ShiftOp::Shr if ty.is_signed() => "ashr",
+                    ShiftOp::Shr => "lshr",
                 };
                 let r = b.reg();
-                b.line(&format!("{r} = {inst} i64 %p0, {count}"));
+                b.line(&format!("{r} = {inst} i64 %p0, %p1"));
                 canon(b, ty, &r)
-            };
-            if checked {
-                let bad = b.reg();
-                b.line(&format!("{bad} = icmp uge i64 %p1, {w}"));
-                ret_option(b, reg, op, name, &bad, sh);
-            } else {
-                let v = sh(b);
-                ret(b, &v);
-            }
+            });
         }
-        Rotate { ty, right } => {
-            // Funnel shifts reduce their count modulo the width: total by
-            // construction (primitive types specification, section 4).
-            let it = int_ty(ty);
-            let a = trunc_n(b, ty, "%p0");
-            let c = trunc_n(b, ty, "%p1");
-            let f = if right { "fshr" } else { "fshl" };
-            let r = b.reg();
-            b.line(&format!(
-                "{r} = call {it} @llvm.{f}.{it}({it} {a}, {it} {a}, {it} {c})"
-            ));
-            let w = ext_n(b, ty, &r);
-            ret(b, &w);
-        }
-        Bit { ty, op: bop } => {
-            let inst = match bop {
-                BitOp::And => "and",
-                BitOp::Or => "or",
-                BitOp::Xor => "xor",
-            };
-            let r = b.reg();
-            b.line(&format!("{r} = {inst} i64 %p0, %p1"));
-            let c = canon(b, ty, &r);
-            ret(b, &c);
-        }
-        BitNot { ty } => {
-            let r = b.reg();
-            b.line(&format!("{r} = xor i64 %p0, -1"));
-            let c = canon(b, ty, &r);
-            ret(b, &c);
-        }
-        BitScan { ty, op: sop } => {
-            let it = int_ty(ty);
-            let a = trunc_n(b, ty, "%p0");
-            match sop {
-                BitScanOp::CountOnes => {
-                    let r = b.reg();
-                    b.line(&format!("{r} = call {it} @llvm.ctpop.{it}({it} {a})"));
-                    let w = ext_z(b, ty, &r);
-                    ret(b, &w);
-                }
-                BitScanOp::LeadingZeros | BitScanOp::TrailingZeros => {
-                    // Counts are `U32`; the zero word is well defined
-                    // (`i1 false` selects the width as the answer).
-                    let inst = if sop == BitScanOp::LeadingZeros {
-                        "ctlz"
-                    } else {
-                        "cttz"
-                    };
-                    let r = b.reg();
-                    b.line(&format!(
-                        "{r} = call {it} @llvm.{inst}.{it}({it} {a}, i1 false)"
-                    ));
-                    let w = ext_z(b, ty, &r);
-                    ret(b, &w);
-                }
-                BitScanOp::ReverseBits => {
-                    let r = b.reg();
-                    b.line(&format!("{r} = call {it} @llvm.bitreverse.{it}({it} {a})"));
-                    let w = ext_n(b, ty, &r);
-                    ret(b, &w);
-                }
-                BitScanOp::SwapBytes => {
-                    if ty.width() == 8 {
-                        // Identity on one-byte types (section 4).
-                        ret(b, "%p0");
-                    } else {
-                        let r = b.reg();
-                        b.line(&format!("{r} = call {it} @llvm.bswap.{it}({it} {a})"));
-                        let w = ext_n(b, ty, &r);
-                        ret(b, &w);
-                    }
-                }
-            }
-        }
-        Cmp { ty, op: cop } => {
-            let pred = match (cop, ty.is_signed()) {
-                (CmpOp::Eq, _) => "eq",
-                (CmpOp::Ne, _) => "ne",
-                (CmpOp::Lt, true) => "slt",
-                (CmpOp::Le, true) => "sle",
-                (CmpOp::Gt, true) => "sgt",
-                (CmpOp::Ge, true) => "sge",
-                (CmpOp::Lt, false) => "ult",
-                (CmpOp::Le, false) => "ule",
-                (CmpOp::Gt, false) => "ugt",
-                (CmpOp::Ge, false) => "uge",
-            };
-            let c = b.reg();
-            b.line(&format!("{c} = icmp {pred} i64 %p0, %p1"));
-            let r = b.reg();
-            b.line(&format!("{r} = zext i1 {c} to i64"));
-            ret(b, &r);
+        AndBool | OrBool | NotBool | EqBool | NeBool | CharToU32 | Rotate { .. } | Bit { .. }
+        | BitNot { .. } | BitScan { .. } | Cmp { .. } => {
+            unreachable!("{name} is an open scalar primitive, emitted above")
         }
 
         FloatBin { ty, op: fop } => {
@@ -8464,10 +8621,6 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 ret(b, &w);
             }
         }
-        CharToU32 => {
-            // A `Char` word already is its `U32` code point.
-            ret(b, "%p0");
-        }
         U32ToChar => {
             // Rejects surrogates and values above 0x10FFFF (section 6).
             let hi = b.reg();
@@ -8489,14 +8642,14 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
 /// Test value preservation across an integer conversion, including signedness.
 /// A canonical-word round trip alone cannot distinguish a negative signed
 /// value from the same high-bit unsigned encoding at a 64-bit boundary.
-fn integer_conversion_fits(b: &mut Builder, from: Scalar, to: Scalar, canonical: &str) -> String {
+fn integer_conversion_fits(b: &mut Builder, from: Scalar, to: Scalar, input: &str, canonical: &str) -> String {
     let same = b.reg();
-    b.line(&format!("{same} = icmp eq i64 {canonical}, %p0"));
+    b.line(&format!("{same} = icmp eq i64 {canonical}, {input}"));
     if from.is_signed() == to.is_signed() {
         same
     } else {
         let nonnegative = b.reg();
-        b.line(&format!("{nonnegative} = icmp sge i64 %p0, 0"));
+        b.line(&format!("{nonnegative} = icmp sge i64 {input}, 0"));
         let fits = b.reg();
         b.line(&format!("{fits} = and i1 {same}, {nonnegative}"));
         fits
@@ -8515,55 +8668,14 @@ fn conv_body(
     mode: ConvMode,
 ) {
     if from.is_int_like() && to.is_int_like() {
-        match mode {
-            ConvMode::Total => {
-                // Value-preserving: the canonical words are identical.
-                ret(b, "%p0");
-            }
-            ConvMode::Wrapping => {
-                let c = canon(b, to, "%p0");
-                ret(b, &c);
-            }
-            ConvMode::Checked => {
-                let c = canon(b, to, "%p0");
-                let fits = integer_conversion_fits(b, from, to, &c);
-                let bad = b.reg();
-                b.line(&format!("{bad} = xor i1 {fits}, true"));
-                ret_option(b, reg, op, name, &bad, |_| c.clone());
-            }
-            ConvMode::Saturating => {
-                let c = canon(b, to, "%p0");
-                let fits = integer_conversion_fits(b, from, to, &c);
-                // Not fitting means below the target's minimum (a negative
-                // value into an unsigned target) or above its maximum.
-                let low = if from.is_signed() {
-                    let r = b.reg();
-                    if to.is_signed() {
-                        b.line(&format!("{r} = icmp slt i64 %p0, {}", min_word(to)));
-                    } else {
-                        b.line(&format!("{r} = icmp slt i64 %p0, 0"));
-                    }
-                    r
-                } else {
-                    // An unsigned value is never below the minimum.
-                    "false".to_string()
-                };
-                let bound = if low == "false" {
-                    max_word(to).to_string()
-                } else {
-                    let r = b.reg();
-                    b.line(&format!(
-                        "{r} = select i1 {low}, i64 {}, i64 {}",
-                        min_word(to),
-                        max_word(to)
-                    ));
-                    r
-                };
-                let out = b.reg();
-                b.line(&format!("{out} = select i1 {fits}, i64 {c}, i64 {bound}"));
-                ret(b, &out);
-            }
-        }
+        // The total, wrapping and saturating conversions are open scalars
+        // (`scalar_prim_value`); only the checked one builds an `Option`.
+        debug_assert_eq!(mode, ConvMode::Checked);
+        let c = canon(b, to, "%p0");
+        let fits = integer_conversion_fits(b, from, to, "%p0", &c);
+        let bad = b.reg();
+        b.line(&format!("{bad} = xor i1 {fits}, true"));
+        ret_option(b, reg, op, name, &bad, |_| c.clone());
         return;
     }
     if from.is_int_like() && to.is_float() {
@@ -10397,6 +10509,15 @@ impl CoreEmitter<'_, '_> {
         Ok(r)
     }
 
+    /// `f` applied to `argc` arguments is a saturated [`open_scalar_prim`],
+    /// resolved to the target's widths: the caller computes it in place
+    /// rather than calling its unit.
+    fn open_prim(&self, f: &Core, argc: usize) -> Option<PrimOp> {
+        let Core::Prim(op) = f else { return None };
+        let op = op.resolve_widths(self.reg.pointer_bytes as u32 * 8);
+        (op.arity() == argc && open_scalar_prim(op)).then_some(op)
+    }
+
     fn known_unit(&self, f: &Core) -> Option<(String, usize)> {
         match f {
             Core::Global(id, _) | Core::Ctor(id, _) => {
@@ -11297,6 +11418,14 @@ impl CoreEmitter<'_, '_> {
                 }
             }
         }
+        // A saturated pure scalar primitive is its few instructions, here.
+        if let Some(op) = self.open_prim(f, args.len()) {
+            let mut vals = Vec::with_capacity(args.len());
+            for a in args {
+                vals.push(self.emit_expr(a)?);
+            }
+            return Ok(scalar_prim_value(self.b, op, &vals));
+        }
         if let Some((unit, arity)) = self.known_unit(f) {
             if arity == args.len() && self.reg.cpr.contains_key(&unit) {
                 // A product result that is needed as a block: call the body
@@ -11595,7 +11724,12 @@ impl CoreEmitter<'_, '_> {
                 Ok(())
             }
             Core::App(f, args) if matches!(dest, Dest::Ret) => {
-                let direct = self.known_unit(f).filter(|(_, arity)| *arity == args.len());
+                // An open scalar primitive is no call at all, so it is never
+                // a tail call: it takes the value arm, through `emit_app`.
+                let direct = self
+                    .known_unit(f)
+                    .filter(|(_, arity)| *arity == args.len())
+                    .filter(|_| self.open_prim(f, args.len()).is_none());
                 match direct {
                     Some((unit, _)) if unit == self.unit => {
                         // The self tail call: arguments first (a

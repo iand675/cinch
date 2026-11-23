@@ -96,6 +96,20 @@ impl Bytes {
         Ok(())
     }
 
+    /// Write `word`'s bytes at `index..index + word.len()`, in order, at
+    /// any alignment: the little-endian word stores pass
+    /// `to_le_bytes()`, so the buffer's layout is the wire order on every
+    /// host. Bytes outside the range are untouched.
+    pub fn set_word(&mut self, index: i64, word: &[u8]) -> Result<()> {
+        let i = usize::try_from(index).map_err(|_| Error::OutOfBounds)?;
+        let end = i.checked_add(word.len()).ok_or(Error::OutOfBounds)?;
+        if end > self.len as usize {
+            return Err(Error::OutOfBounds);
+        }
+        unsafe { std::ptr::copy_nonoverlapping(word.as_ptr(), self.data.add(i), word.len()) };
+        Ok(())
+    }
+
     /// Adopt a read-only mapping for a `KIND_BYTES_MAPPED` block.
     ///
     /// # Safety

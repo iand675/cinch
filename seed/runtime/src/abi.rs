@@ -1112,6 +1112,29 @@ pub unsafe extern "C" fn cinch_bytes_set(word: i64, index: i64, value: i64) -> i
     }
 }
 
+/// Store the low 32 bits of `value` as four little-endian bytes at
+/// `index` (any alignment); returns 0 (the Unit word). The index carries
+/// evidence that `index + 4` is within the length, so a short buffer is a
+/// compiler-bug trap, as is a read-only `word`. Generated code reaches this
+/// only on its checked slow path; the common store is inline.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_bytes_set_le32(word: i64, index: i64, value: i64) -> i64 {
+    match unsafe { as_bytes_mut(word) }.set_word(index, &(value as u32).to_le_bytes()) {
+        Ok(()) => 0,
+        Err(e) => raise(e),
+    }
+}
+
+/// Store `value` as eight little-endian bytes at `index`: the 64-bit form
+/// of [`cinch_bytes_set_le32`], with the same evidence and faults.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_bytes_set_le64(word: i64, index: i64, value: i64) -> i64 {
+    match unsafe { as_bytes_mut(word) }.set_word(index, &(value as u64).to_le_bytes()) {
+        Ok(()) => 0,
+        Err(e) => raise(e),
+    }
+}
+
 /// Copy `n` bytes of `src` from `si` into `dst` at `di` (one `memmove`:
 /// the two words may be the same buffer and the ranges may overlap);
 /// returns 0 (the Unit word). Both ranges carry evidence that they end

@@ -22698,6 +22698,35 @@ impl Checker {
                         *slot = byte;
                         Value::Unit
                     }
+                    // The word stores: the value is a canonical machine
+                    // word (`U32`/`U64`), not a `Nat`, and its low bytes go
+                    // in low to high, which is the wire order whatever the
+                    // compiling host's own byte order.
+                    BytesOp::SetLe32 | BytesOp::SetLe64 => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        let word = word_of(&args[2], "a machine word")?;
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let bytes = (word as u64).to_le_bytes();
+                        let n = if bop == BytesOp::SetLe32 { 4 } else { 8 };
+                        let mut buf = b.borrow_mut();
+                        let range = usize::try_from(i)
+                            .ok()
+                            .and_then(|i| Some(i..i.checked_add(n)?))
+                            .filter(|r| r.end <= buf.len());
+                        let Some(range) = range else {
+                            return Err(Error::plain(format!(
+                                "compiler bug: `{}` out of bounds at compile time (every index carries evidence that `i + {n} <= bytes-len b`)",
+                                PrimOp::Bytes(bop).symbol()
+                            )));
+                        };
+                        buf[range].copy_from_slice(&bytes[..n]);
+                        Value::Unit
+                    }
                     BytesOp::Copy => {
                         let di = bytes_word(&args[2], "a `Bytes` index")?;
                         let si = bytes_word(&args[3], "a `Bytes` index")?;

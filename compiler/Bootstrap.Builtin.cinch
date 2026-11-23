@@ -191,6 +191,11 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("Bytes -> Nat", "cinch_bytes_len")
     else if string-compare symbol "cinch.runtime.bytesGet" == 0 then Some ("Bytes -> Nat -> refined (0 <= out && out <= 255) Nat", "cinch_bytes_get")
     else if string-compare symbol "cinch.runtime.bytesNew" == 0 then Some ("Nat -> Bytes", "cinch_bytes_new")
+    -- The little-endian word stores lower inline (Bootstrap.RuntimeIr's
+    -- word-store): the runtime's byte store validates the range's last
+    -- byte, and one unaligned store writes the word.
+    else if string-compare symbol "cinch.runtime.bytesSetLe32" == 0 then Some ("Bytes -> Nat -> U32 -> Unit", "cinch_bytes_set")
+    else if string-compare symbol "cinch.runtime.bytesSetLe64" == 0 then Some ("Bytes -> Nat -> U64 -> Unit", "cinch_bytes_set")
     else if string-compare symbol "cinch.runtime.slotsFoldNat" == 0 then Some ("Nat -> U64", "cinch_nat_low_word")
     else case nat-arithmetic-extern symbol of
       Some external -> Some ("Nat -> Nat -> Nat", external)

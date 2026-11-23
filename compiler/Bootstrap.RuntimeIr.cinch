@@ -1999,8 +1999,39 @@ module Bootstrap.RuntimeIr where
         (made, result) -> let done = mvar-drop-arguments operation parameters 0 made in line (line done (cat ["  ret i64 ", result])) "}")
     other -> refuse w (Span 0 0 1 1) "MVar worker needs an available canonical operation and one checked payload class"
 
+  -- | The byte width of a little-endian word store intrinsic, 0 for any other name.
+  word-store-width :: String -> Nat
+  word-store-width name = if same name "cinch.runtime.bytesSetLe32" then 4 else if same name "cinch.runtime.bytesSetLe64" then 8 else 0
+  -- | Store a U32 or U64 word as its little-endian bytes at a Nat index, at
+  -- any alignment. The runtime's byte store at the range's last index
+  -- faults exactly as a byte loop would on a read-only, short or corrupt
+  -- buffer (an index past the word range overflows to a negative one, which
+  -- faults too); once it returns, the whole range is inside a writable
+  -- buffer and one unaligned store writes it. Every target this backend
+  -- lowers for is little endian, so the store is the wire order. The
+  -- externs borrow their arguments, which the worker owns and drops.
+  word-store :: Writer -> Nat -> (Writer, String)
+  word-store w width = case call w "@cinch_nat_to_len" ["%arg1"] of
+    (converted, index) ->
+      let (one, last) = fresh converted "%v" in
+      let summed = line one (cat ["  ", last, " = add i64 ", index, ", ", (if width == 4 then "3" else "7")]) in
+      case call summed "@cinch_bytes_set" ["%arg0", last, "0"] of
+        (checked, stored-byte) -> case call checked "@cinch_bytes_data" ["%arg0"] of
+          (based, base) ->
+            let (two, address) = fresh based "%v" in
+            let added = line two (cat ["  ", address, " = add i64 ", base, ", ", index]) in
+            let (three, pointer) = fresh added "%v" in
+            let pointed = line three (cat ["  ", pointer, " = inttoptr i64 ", address, " to ptr"]) in
+            let stored = word-store-line pointed width pointer in
+            (count-line False "%arg1" (count-line False "%arg0" stored), "0")
+  -- | The unaligned store of the word argument at a pointer: its low 32 bits, or the whole word.
+  word-store-line :: Writer -> Nat -> String -> Writer
+  word-store-line w width pointer = if width == 4 then narrow-word-store w pointer else line w (cat ["  store i64 %arg2, ptr ", pointer, ", align 1"])
+  -- | Truncate the word argument to 32 bits and store it unaligned at a pointer.
+  narrow-word-store :: Writer -> String -> Writer
+  narrow-word-store w pointer = let (ready, low) = fresh w "%v" in line (line ready (cat ["  ", low, " = trunc i64 %arg2 to i32"])) (cat ["  store i32 ", low, ", ptr ", pointer, ", align 1"])
   builtin-known :: String -> Bool
-  builtin-known name = machine-integer-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || same name "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
+  builtin-known name = machine-integer-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || word-store-width name > 0 || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || same name "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
   -- | Recognize only the closed scalar registry and the established wide integer operations.
   machine-integer-builtin :: String -> Bool
   machine-integer-builtin name = (case scalar-intrinsic name of Some operation -> True; None -> False)
@@ -2043,7 +2074,7 @@ module Bootstrap.RuntimeIr where
   scalar-argument-classes arguments = case arguments of Nil -> Nil; Cons first rest -> Cons 0 (scalar-argument-classes rest)
   -- | Preserve the existing non-scalar ownership and argument conventions.
   other-builtin-classes :: String -> List Nat
-  other-builtin-classes name = if wide-builtin name then [3, 3] else if same name "cinch.runtime.slotsFoldNat" then [2] else if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioRead" || same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else case platform-intrinsic name of
+  other-builtin-classes name = if wide-builtin name then [3, 3] else if same name "cinch.runtime.slotsFoldNat" then [2] else if machine-integer-builtin name then [0, 0] else if nat-arithmetic-builtin name then [2, 2] else if same name "b.newIO" then [0] else if same name "b.ioWrite" then [0, 1] else if same name "b.ioRead" || same name "b.ioSleep" then [0, 2] else if same name "b.pollCancel" then [0, 0] else if same name "cinch.runtime.bytesGet" then [1, 2] else if word-store-width name > 0 then [1, 2, 0] else if same name "cinch.runtime.bytesNew" then [2] else if same name "cinch.runtime.textF64ToDecimal" then [0] else case platform-intrinsic name of
     Some (scheme, external, arguments, result) -> platform-classes arguments
     None -> [1]
   -- A Unit argument the extern does not take is still the worker's raw word.
@@ -2145,6 +2176,7 @@ module Bootstrap.RuntimeIr where
         (converted, index) -> case call converted "@cinch_bytes_get" ["%arg0", index] of
           (read, byte) -> case call read "@cinch_nat_from_i64" [byte] of
             (done, result) -> (count-line False "%arg1" (count-line False "%arg0" done), result))
+      else if word-store-width name > 0 then word-store started (word-store-width name)
       else if same name "cinch.runtime.textF64ToDecimal" then
         (let (one, value) = fresh started "%float" in
          let converted = line one (cat ["  ", value, " = bitcast i64 %arg0 to double"]) in
@@ -5743,7 +5775,7 @@ module Bootstrap.RuntimeIr where
     if wasm32 then "declare ptr @memcpy(ptr, ptr, i32)\n" else "declare ptr @memcpy(ptr, ptr, i64)\n",
     "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers wasm32,
-    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
+    "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_set(i64, i64, i64)\ndeclare i64 @cinch_bytes_data(i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
     "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\n",

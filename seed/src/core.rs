@@ -475,6 +475,16 @@ pub enum BytesOp {
     /// `bytesCompare :: Bytes -> Bytes -> I64`: the lexicographic order
     /// of the two buffers' contents as -1/0/1, read in place.
     Compare,
+    /// `bytesSetLe32 :: Bytes -> Nat -> U32 -> Unit`: store a `U32` as the
+    /// four little-endian bytes at `i..i+4`, at any alignment, in one
+    /// store. The index carries evidence that `i + 4 <= bytes-len b`; the
+    /// bytes outside the range are untouched. `Data.Bytes.Word`'s
+    /// `bytes-write-le32` is this one operation, where a `prim` body could
+    /// not be (a pure body never stores).
+    SetLe32,
+    /// `bytesSetLe64 :: Bytes -> Nat -> U64 -> Unit`: the eight-byte form
+    /// of [`BytesOp::SetLe32`].
+    SetLe64,
 }
 
 impl BytesOp {
@@ -487,6 +497,8 @@ impl BytesOp {
             BytesOp::Data => "Data",
             BytesOp::Copy => "Copy",
             BytesOp::Compare => "Compare",
+            BytesOp::SetLe32 => "SetLe32",
+            BytesOp::SetLe64 => "SetLe64",
         }
     }
 
@@ -500,6 +512,8 @@ impl BytesOp {
             BytesOp::Data => "cinch_bytes_data",
             BytesOp::Copy => "cinch_bytes_copy",
             BytesOp::Compare => "cinch_bytes_compare",
+            BytesOp::SetLe32 => "cinch_bytes_set_le32",
+            BytesOp::SetLe64 => "cinch_bytes_set_le64",
         }
     }
 }
@@ -1253,6 +1267,8 @@ impl PrimOp {
                 "bytesData" => Bytes(BytesOp::Data),
                 "bytesCopy" => Bytes(BytesOp::Copy),
                 "bytesCompare" => Bytes(BytesOp::Compare),
+                "bytesSetLe32" => Bytes(BytesOp::SetLe32),
+                "bytesSetLe64" => Bytes(BytesOp::SetLe64),
                 "utf8Validate" => Utf8(Utf8Op::Validate),
                 "utf8CountChars" => Utf8(Utf8Op::CountChars),
                 "utf8DecodeAt" => Utf8(Utf8Op::DecodeAt),
@@ -1428,7 +1444,7 @@ impl PrimOp {
             | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir)
             | Platform(PlatformOp::ArenaNew | PlatformOp::ArenaLeave | PlatformOp::PackageOffset) => 1,
             Net(_) | Proc(_) | Pty(_) | Platform(PlatformOp::PackageText) => self.sig().0.len(),
-            Bytes(BytesOp::Set) => 3,
+            Bytes(BytesOp::Set | BytesOp::SetLe32 | BytesOp::SetLe64) => 3,
             Bytes(BytesOp::Copy) => 5,
             Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
@@ -1515,6 +1531,8 @@ impl PrimOp {
             }
             Bytes(BytesOp::Data) => (vec![Ty::Bytes], i64t),
             Bytes(BytesOp::Compare) => (vec![Ty::Bytes, Ty::Bytes], i64t),
+            Bytes(BytesOp::SetLe32) => (vec![Ty::Bytes, Ty::Nat, prim(Scalar::U32)], Ty::Unit),
+            Bytes(BytesOp::SetLe64) => (vec![Ty::Bytes, Ty::Nat, prim(Scalar::U64)], Ty::Unit),
             Utf8(Utf8Op::Validate) => (vec![Ty::Bytes], Ty::Bool),
             Utf8(Utf8Op::CountChars) => (vec![Ty::Bytes], Ty::Nat),
             Utf8(Utf8Op::DecodeAt) => {
@@ -9236,6 +9254,8 @@ mod tests {
             PrimOp::Bytes(BytesOp::Set),
             PrimOp::Bytes(BytesOp::Copy),
             PrimOp::Bytes(BytesOp::Compare),
+            PrimOp::Bytes(BytesOp::SetLe32),
+            PrimOp::Bytes(BytesOp::SetLe64),
             PrimOp::NotBool,
             PrimOp::Delay,
             PrimOp::Bound { ty: Scalar::U8, max: false },
@@ -9402,5 +9422,11 @@ mod tests {
             (vec![Ty::Bytes, Ty::Nat, Ty::Nat], Ty::Unit)
         );
         assert_eq!(PrimOp::Bytes(BytesOp::Set).arity(), 3);
+        assert_eq!(
+            PrimOp::Bytes(BytesOp::SetLe32).sig(),
+            (vec![Ty::Bytes, Ty::Nat, Ty::Prim(Scalar::U32)], Ty::Unit)
+        );
+        assert_eq!(PrimOp::Bytes(BytesOp::SetLe64).arity(), 3);
+        assert_eq!(PrimOp::Bytes(BytesOp::SetLe64).symbol(), "cinch.runtime.bytesSetLe64");
     }
 }

@@ -407,6 +407,11 @@
 //!   `index`.
 //! * `cinch_bytes_set(word: i64, index: i64, value: i64) -> i64`: write
 //!   `value` (0..=255) at `index`, returning 0 (the Unit word).
+//! * `cinch_bytes_set_le32(word, index, value: i64) -> i64` and
+//!   `cinch_bytes_set_le64`: store the low 32 (64) bits of `value` as four
+//!   (eight) little-endian bytes at `index`, at any alignment, returning 0.
+//!   Generated code stores inline and calls these only on its checked
+//!   fault path.
 //! * `cinch_bytes_copy(dst, src, di, si, n: i64) -> i64`: copy `n` bytes
 //!   of `src` at `si` into `dst` at `di` as one `memmove` (same buffer
 //!   and overlap allowed), returning 0. Every bulk copy in the prelude

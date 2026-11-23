@@ -1166,6 +1166,7 @@ module Bootstrap.Core where
     if string-compare name bytes-len-global == 0 || string-compare name bytes-get-global == 0 then Nil
     else if string-compare role "foreign" == 0 || string-compare name "b.eval" == 0
       || (string-compare role "intrinsic" == 0 && (string-compare name "cinch.runtime.bytesSet" == 0
+        || string-compare name "cinch.runtime.bytesSetLe32" == 0 || string-compare name "cinch.runtime.bytesSetLe64" == 0
         || string-compare name "cinch.runtime.bytesCopy" == 0 || string-compare name "cinch.runtime.bytesNew" == 0
         || string-compare name "cinch.runtime.slotsWrite" == 0 || string-compare name "cinch.runtime.slotsTake" == 0
         || string-compare name "cinch.runtime.slotsMove" == 0 || string-compare name "cinch.runtime.slotsClear" == 0
