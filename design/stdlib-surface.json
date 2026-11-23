@@ -1950,10 +1950,28 @@
     },
     {
       "reference_package": "net/textproto",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 64
+      "status": "partial",
+      "cinch_modules": [
+        "Text.TextProto"
+      ],
+      "remaining": [
+        "Conn, Pipeline and Writer.PrintfLine over Effect.Net connections",
+        "Incremental readers over Effect.Stream (current readers take a buffer and an offset)"
+      ],
+      "reference_declarations": 64,
+      "tests": [
+        "lib_textproto"
+      ],
+      "capability_mapping": {
+        "CanonicalMIMEHeaderKey": "canonical-header-key (SWAR lowercase and validation, then word capitalization; invalid keys unchanged)",
+        "MIMEHeader Add/Set/Get/Values/Del": "MimeHeader with header-add, header-set, header-get, header-values, header-delete, header-keys and header-entries",
+        "Reader.ReadLine/ReadContinuedLine/ReadMIMEHeader": "read-line, read-continued-line, read-mime-header over a buffer and offset",
+        "Reader.ReadCodeLine/ReadResponse": "read-code-line and read-response with expected-code prefixes",
+        "Reader.ReadDotBytes/DotReader, Writer.DotWriter": "read-dot-bytes and dot-encode as explicit byte state machines",
+        "TrimBytes/TrimString": "trim-bytes",
+        "Error/ProtocolError": "TextProtoError with UnexpectedEnd, MalformedHeader, MalformedCode and UnexpectedCode"
+      },
+      "review": "Sixty reference vectors match: twenty canonical keys (including invalid, empty and multibyte keys), eleven header blocks (continuations, repeated keys, keys with spaces, empty values, control bytes, missing terminators, leading whitespace), thirteen status lines and multi-line responses (prefix codes, mismatches, short and low codes, interleaved foreign lines), and sixteen dot decodings and encodings (stuffed dots, lone CR, missing terminators, empty bodies). The dot reader and writer are explicit state machines. Connection-level conveniences remain."
     },
     {
       "reference_package": "net/url",

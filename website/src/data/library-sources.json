@@ -1891,6 +1891,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.TextProto",
+      "path": "seed/prelude/Text/TextProto.cinch",
+      "sha256": "3bbe1d9e1cb3ceec6392119510c325ef7cac6357b3cd43a891cd7ce424c06a1b",
+      "embedded": false,
+      "values": 19,
+      "public_methods": 0
+    },
+    {
       "module": "Text.Time.Duration",
       "path": "seed/prelude/Text/Time/Duration.cinch",
       "sha256": "20fbc027b1c3295d2ad1d3ede0c48b955604990b27f2ab1d7da45334877cb7c8",

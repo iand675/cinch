@@ -1,0 +1,461 @@
+-- | Text protocol framing shared by HTTP, SMTP, NNTP and mail: lines, MIME headers, status responses and dot encoding.
+-- Readers take a buffer and an offset and return the value and the offset
+-- after it, so a caller can resume where a reader stopped. Lines end at LF
+-- with an optional preceding CR. MIME headers are an ordered multimap keyed
+-- by canonical header names: canonicalization lowercases eight bytes at a
+-- time with SWAR, validates them as header-name bytes, and then uppercases the
+-- first letter of every hyphen-separated word; keys with invalid bytes are
+-- kept as given. Dot encoding stuffs leading dots and normalizes line endings
+-- to CRLF, and dot decoding reverses it up to the terminating dot line.
+module Text.TextProto where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export MimeHeader, mime-header, header-add, header-set, header-get, header-values, header-delete, header-keys, header-entries
+  export canonical-header-key, trim-bytes
+  export TextProtoError, UnexpectedEnd, MalformedHeader, MalformedCode, UnexpectedCode, text-proto-error-message
+  export read-line, read-continued-line, read-mime-header, read-code-line, read-response, read-dot-bytes, dot-encode, render-header
+
+  -- | A malformed or truncated protocol element; offsets locate the offending line.
+  data TextProtoError where
+    -- | The input ended before a complete element at this offset.
+    UnexpectedEnd :: Nat -> TextProtoError
+    -- | A header line at this offset is not a valid "Key: value" line or begins with whitespace.
+    MalformedHeader :: Nat -> TextProtoError
+    -- | A status line at this offset does not begin with a three-digit code.
+    MalformedCode :: Nat -> TextProtoError
+    -- | The status code (second) does not have the expected leading digits (first).
+    UnexpectedCode :: Nat -> Nat -> TextProtoError
+
+  -- | Render a text protocol error.
+  text-proto-error-message :: TextProtoError -> String
+  text-proto-error-message error = case error of
+    UnexpectedEnd at -> string-concat "unexpected end of input at offset " (nat-to-string at)
+    MalformedHeader at -> string-concat "malformed MIME header line at offset " (nat-to-string at)
+    MalformedCode at -> string-concat "malformed status line at offset " (nat-to-string at)
+    UnexpectedCode expected actual -> string-concat "unexpected status code " (string-concat (nat-to-string actual) (string-concat "; expected " (nat-to-string expected)))
+
+  -- | Header fields in first-insertion order of their canonical keys, each with its values in order.
+  data MimeHeader where
+    -- | Private association list.
+    Header :: List (Bytes, List Bytes) -> MimeHeader
+
+  -- | An empty header.
+  mime-header :: MimeHeader
+  mime-header = Header Nil
+
+  -- | Append a value to a key's values; the key is canonicalized.
+  header-add :: MimeHeader -> Bytes -> Bytes -> MimeHeader
+  header-add header key value = case header of Header fields -> Header (add-field fields (canonical-header-key key) value)
+
+  -- | Add to the matching field or append a new one.
+  add-field :: List (Bytes, List Bytes) -> Bytes -> Bytes -> List (Bytes, List Bytes)
+  add-field fields key value = case fields of
+    Nil -> Cons (key, Cons value Nil) Nil
+    Cons field rest -> case field of
+      (k, values) -> if same k key then Cons (k, append-value values value) rest else Cons field (add-field rest key value)
+
+  -- | Append one value.
+  append-value :: List Bytes -> Bytes -> List Bytes
+  append-value values value = case values of Nil -> Cons value Nil; Cons v rest -> Cons v (append-value rest value)
+
+  -- | Replace a key's values with a single value.
+  header-set :: MimeHeader -> Bytes -> Bytes -> MimeHeader
+  header-set header key value = case header-delete header key of Header fields -> Header (add-field fields (canonical-header-key key) value)
+
+  -- | The first value for a key, if any.
+  header-get :: MimeHeader -> Bytes -> Option Bytes
+  header-get header key = case header-values header key of Nil -> None; Cons first rest -> Some first
+
+  -- | Every value for a key, in order.
+  header-values :: MimeHeader -> Bytes -> List Bytes
+  header-values header key = case header of Header fields -> lookup-values fields (canonical-header-key key)
+
+  -- | Values of the field with an exact key.
+  lookup-values :: List (Bytes, List Bytes) -> Bytes -> List Bytes
+  lookup-values fields key = case fields of
+    Nil -> Nil
+    Cons field rest -> case field of (k, values) -> if same k key then values else lookup-values rest key
+
+  -- | Remove a key and all its values.
+  header-delete :: MimeHeader -> Bytes -> MimeHeader
+  header-delete header key = case header of Header fields -> Header (without fields (canonical-header-key key))
+
+  -- | Fields other than an exact key.
+  without :: List (Bytes, List Bytes) -> Bytes -> List (Bytes, List Bytes)
+  without fields key = case fields of
+    Nil -> Nil
+    Cons field rest -> case field of (k, values) -> if same k key then without rest key else Cons field (without rest key)
+
+  -- | Canonical keys in order.
+  header-keys :: MimeHeader -> List Bytes
+  header-keys header = case header of Header fields -> keys-of fields
+
+  -- | Keys of an association list.
+  keys-of :: List (Bytes, List Bytes) -> List Bytes
+  keys-of fields = case fields of Nil -> Nil; Cons field rest -> case field of (k, values) -> Cons k (keys-of rest)
+
+  -- | Every field with its values.
+  header-entries :: MimeHeader -> List (Bytes, List Bytes)
+  header-entries header = case header of Header fields -> fields
+
+  -- | Byte-wise equality.
+  same :: Bytes -> Bytes -> Bool
+  same a b = eq-i64 (bytes-compare a b) 0
+
+  -- | Copy an interval.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice input start stop =
+    if start <= stop && stop <= bytes-len input then
+      let out = bytes-new (stop - start) in let copied = bytes-copy-range out input 0 start (stop - start) in out
+    else bytes-new 0
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at input i = if i < bytes-len input then bytes-get input i else 0
+
+  -- | SWAR ASCII lowercase of eight bytes: add 32 to every byte in 'A'..'Z' without crossing lanes.
+  prim lower8 :: U64 -> U64 where
+    llvm {
+      %low7 = and i64 %0, 9187201950435737471
+      %above = add i64 %low7, 2676586395008836901
+      %below = add i64 %low7, 4557430888798830399
+      %range = xor i64 %above, %below
+      %ascii = xor i64 %0, -1
+      %flags = and i64 %range, %ascii
+      %upper = and i64 %flags, -9187201950435737472
+      %bits = lshr i64 %upper, 2
+      %value = or i64 %0, %bits
+      ret i64 %value
+    }
+
+  -- | SWAR: non-zero when any of eight bytes is not a valid header-name byte (control, space, high bit or separator).
+  prim invalid8 :: U64 -> U64 where
+    llvm {
+      %high = and i64 %0, -9187201950435737472
+      %low7 = and i64 %0, 9187201950435737471
+      %over = add i64 %low7, 6872316419617283935
+      %ctl = xor i64 %over, -1
+      %control = and i64 %ctl, -9187201950435737472
+      %del = xor i64 %0, 9187201950435737471
+      %dl = and i64 %del, 9187201950435737471
+      %dz = add i64 %dl, 9187201950435737471
+      %dn = or i64 %dz, %del
+      %delbits = xor i64 %dn, -1
+      %delete = and i64 %delbits, -9187201950435737472
+      %a = or i64 %high, %control
+      %value = or i64 %a, %delete
+      ret i64 %value
+    }
+
+  -- | Whether a byte is a token character allowed in header names.
+  token-byte :: Nat -> Bool
+  token-byte b =
+    b > 32 && b < 127 && not (b == 34 || b == 40 || b == 41 || b == 44 || b == 47 || b == 58 || b == 59 || b == 60
+      || b == 61 || b == 62 || b == 63 || b == 64 || b == 91 || b == 92 || b == 93 || b == 123 || b == 125)
+
+  -- | Canonical form of a header name: "content-TYPE" becomes "Content-Type". A name containing a byte
+  -- that is not a header token, or a space, is returned unchanged.
+  canonical-header-key :: Bytes -> Bytes
+  canonical-header-key key =
+    if all-token key 0 then
+      let out = bytes-new (bytes-len key) in
+      let lowered = lower-into out key 0 in
+      let raised = raise-words out 0 True in out
+    else slice key 0 (bytes-len key)
+
+  -- | Check eight bytes at a time with SWAR, then the separators and tail bytewise.
+  all-token :: Bytes -> Nat -> Bool
+  all-token key i =
+    if i + 8 <= bytes-len key then eq-u64 (invalid8 (bytes-read-le64 key i)) 0 && separators-ok key i (i + 8) && all-token key (i + 8)
+    else if i < bytes-len key then token-byte (bytes-get key i) && all-token key (i + 1)
+    else True
+
+  -- | Reject header separators that the SWAR range check admits.
+  separators-ok :: Bytes -> Nat -> Nat -> Bool
+  separators-ok key i end = if i < end then token-byte (at key i) && separators-ok key (i + 1) end else True
+
+  -- | Lowercase into the output eight bytes at a time.
+  lower-into :: Bytes -> Bytes -> Nat -> Unit
+  lower-into out key i =
+    if i + 8 <= bytes-len key && i + 8 <= bytes-len out then let w = bytes-write-le64 out i (lower8 (bytes-read-le64 key i)) in lower-into out key (i + 8)
+    else if i < bytes-len key && i < bytes-len out then
+      let b = bytes-get key i in let w = bytes-set out i (if b >= 65 && b <= 90 then b + 32 else b) in lower-into out key (i + 1)
+    else ()
+
+  -- | Uppercase the first byte and every byte after a hyphen.
+  raise-words :: Bytes -> Nat -> Bool -> Unit
+  raise-words out i start =
+    if i < bytes-len out then
+      let b = bytes-get out i in
+      let w = if start && b >= 97 && b <= 122 then bytes-set out i (b - 32) else () in
+      raise-words out (i + 1) (b == 45)
+    else ()
+
+  -- | Remove leading and trailing spaces and tabs, as header values and continuation lines require.
+  trim-blanks :: Bytes -> Bytes
+  trim-blanks input =
+    let start = skip-blank input 0 in
+    slice input start (back-blank input (bytes-len input) start)
+
+  -- | First offset that is not a space or tab.
+  skip-blank :: Bytes -> Nat -> Nat
+  skip-blank input i = if i < bytes-len input && (bytes-get input i == 32 || bytes-get input i == 9) then skip-blank input (i + 1) else i
+
+  -- | End after the last byte that is not a space or tab, not before start.
+  back-blank :: Bytes -> Nat -> Nat -> Nat
+  back-blank input end start = if end > start && (at input (minus end 1) == 32 || at input (minus end 1) == 9) then back-blank input (minus end 1) start else end
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Remove leading and trailing ASCII whitespace (space, tab, CR, LF).
+  trim-bytes :: Bytes -> Bytes
+  trim-bytes input =
+    let start = skip-space input 0 in
+    slice input start (back-space input (bytes-len input) start)
+
+  -- | First non-whitespace offset.
+  skip-space :: Bytes -> Nat -> Nat
+  skip-space input i = if i < bytes-len input && space (bytes-get input i) then skip-space input (i + 1) else i
+
+  -- | End after the last non-whitespace byte, not before start.
+  back-space :: Bytes -> Nat -> Nat -> Nat
+  back-space input end start = if end > start && space (at input (minus end 1)) then back-space input (minus end 1) start else end
+
+  -- | Whether a byte is ASCII whitespace for trimming.
+  space :: Nat -> Bool
+  space b = b == 32 || b == 9 || b == 13 || b == 10
+
+  -- | Offset of the next LF at or after a position.
+  find-lf :: Bytes -> Nat -> Option Nat
+  find-lf input i = if i < bytes-len input then (if bytes-get input i == 10 then Some i else find-lf input (i + 1)) else None
+
+  -- | Read one line without its line ending (LF or CRLF); returns the line and the offset after the LF.
+  read-line :: Bytes -> Nat -> Result TextProtoError (Bytes, Nat)
+  read-line input start = case find-lf input start of
+    None -> Err (UnexpectedEnd start)
+    Some lf -> let end = if lf > start && at input (minus lf 1) == 13 then minus lf 1 else lf in Ok (slice input start end, lf + 1)
+
+  -- | Read a line and any continuation lines (beginning with space or tab), joined by single spaces,
+  -- with surrounding whitespace removed.
+  read-continued-line :: Bytes -> Nat -> Result TextProtoError (Bytes, Nat)
+  read-continued-line input start = case read-line input start of
+    Err error -> Err error
+    Ok (line, next) -> continue-line input (Cons (trim-blanks line) Nil) next
+
+  -- | Absorb continuation lines.
+  continue-line :: Bytes -> List Bytes -> Nat -> Result TextProtoError (Bytes, Nat)
+  continue-line input parts at-offset =
+    if at-offset < bytes-len input && (at input at-offset == 32 || at input at-offset == 9) then
+      case read-line input at-offset of
+        Err error -> Err error
+        Ok (line, next) -> continue-line input (Cons (trim-blanks line) parts) next
+    else Ok (bytes-join (reverse parts) (bytes-from-u8s [32]), at-offset)
+
+  -- | Read header lines up to and including the blank line that ends them.
+  read-mime-header :: Bytes -> Nat -> Result TextProtoError (MimeHeader, Nat)
+  read-mime-header input start =
+    if start < bytes-len input && (at input start == 32 || at input start == 9) then Err (MalformedHeader start)
+    else header-lines input start mime-header
+
+  -- | Accumulate fields until a blank line.
+  header-lines :: Bytes -> Nat -> MimeHeader -> Result TextProtoError (MimeHeader, Nat)
+  header-lines input start header = case read-continued-line input start of
+    Err error -> Err error
+    Ok (line, next) ->
+      if bytes-len line == 0 then Ok (header, next)
+      else case find-colon line 0 of
+        None -> Err (MalformedHeader start)
+        Some colon ->
+          let key = slice line 0 colon in
+          let value = trim-blanks (slice line (colon + 1) (bytes-len line)) in
+          if bytes-len key == 0 || not (key-bytes key 0) || not (value-bytes value 0) then Err (MalformedHeader start)
+          else header-lines input next (header-add header key value)
+
+  -- | Whether every byte of a header-line key is a token byte or a space; keys with spaces are accepted
+  -- as given (and left uncanonicalized), and any other byte makes the line malformed.
+  key-bytes :: Bytes -> Nat -> Bool
+  key-bytes key i = if i < bytes-len key then (token-byte (bytes-get key i) || bytes-get key i == 32) && key-bytes key (i + 1) else True
+
+  -- | Whether a header value has no control bytes other than tab.
+  value-bytes :: Bytes -> Nat -> Bool
+  value-bytes value i = if i < bytes-len value then (let b = bytes-get value i in (b >= 32 && not (b == 127) || b == 9) && value-bytes value (i + 1)) else True
+
+  -- | Offset of the first colon.
+  find-colon :: Bytes -> Nat -> Option Nat
+  find-colon line i = if i < bytes-len line then (if bytes-get line i == 58 then Some i else find-colon line (i + 1)) else None
+
+  -- | The code of a status line of at least four bytes whose fourth byte is a space or hyphen, if its
+  -- first three bytes are digits forming a code of at least 100.
+  code-of :: Bytes -> Option Nat
+  code-of line =
+    if bytes-len line >= 4 && (at line 3 == 32 || at line 3 == 45) && digit (at line 0) && digit (at line 1) && digit (at line 2) then
+      let code = (minus (at line 0) 48) * 100 + (minus (at line 1) 48) * 10 + minus (at line 2) 48 in
+      if code >= 100 then Some code else None
+    else None
+
+  -- | Whether a byte is a decimal digit.
+  digit :: Nat -> Bool
+  digit b = b >= 48 && b <= 57
+
+  -- | Whether a code matches an expected prefix: 0 accepts any code, one to three digits must match its leading digits.
+  code-matches :: Nat -> Nat -> Bool
+  code-matches expected code =
+    if expected == 0 then True
+    else if expected < 10 then nat-div code 100 == expected
+    else if expected < 100 then nat-div code 10 == expected
+    else code == expected
+
+  -- | Read a single status line "ddd message" and check its code against an expected prefix (0 accepts any);
+  -- a continuation line "ddd-message" is malformed here. Returns the code, message and next offset.
+  read-code-line :: Bytes -> Nat -> Nat -> Result TextProtoError (Nat, Bytes, Nat)
+  read-code-line input start expected = case read-line input start of
+    Err error -> Err error
+    Ok (line, next) -> case code-of line of
+      None -> Err (MalformedCode start)
+      Some code ->
+        if at line 3 == 45 then Err (MalformedCode start)
+        else if not (code-matches expected code) then Err (UnexpectedCode expected code)
+        else Ok (code, slice line 4 (bytes-len line), next)
+
+  -- | Read a possibly multi-line response: lines "ddd-text" continue it, and a line "ddd text" with the same
+  -- code ends it; other lines inside are kept verbatim. Message lines are joined with LF.
+  read-response :: Bytes -> Nat -> Nat -> Result TextProtoError (Nat, Bytes, Nat)
+  read-response input start expected = case read-line input start of
+    Err error -> Err error
+    Ok (line, next) -> case code-of line of
+      None -> Err (MalformedCode start)
+      Some code ->
+        if at line 3 == 45 then response-lines input next code (Cons (slice line 4 (bytes-len line)) Nil) expected
+        else finish-response code (Cons (slice line 4 (bytes-len line)) Nil) next expected
+
+  -- | Continue a multi-line response until its final line.
+  response-lines :: Bytes -> Nat -> Nat -> List Bytes -> Nat -> Result TextProtoError (Nat, Bytes, Nat)
+  response-lines input start code parts expected = case read-line input start of
+    Err error -> Err error
+    Ok (line, next) -> case code-of line of
+      Some c -> if c == code then (if at line 3 == 32 then finish-response code (Cons (slice line 4 (bytes-len line)) parts) next expected
+          else response-lines input next code (Cons (slice line 4 (bytes-len line)) parts) expected)
+        else response-lines input next code (Cons line parts) expected
+      None -> response-lines input next code (Cons line parts) expected
+
+  -- | Join message lines and check the code.
+  finish-response :: Nat -> List Bytes -> Nat -> Nat -> Result TextProtoError (Nat, Bytes, Nat)
+  finish-response code parts next expected =
+    if code-matches expected code then Ok (code, bytes-join (reverse parts) (bytes-from-u8s [10]), next)
+    else Err (UnexpectedCode expected code)
+
+  -- | The dot decoder's state between bytes.
+  data DotReadState where
+    -- | At the start of a line, where a dot may begin stuffing or the terminator.
+    ReadLineStart :: DotReadState
+    -- | After a dot at the start of a line.
+    ReadDot :: DotReadState
+    -- | After a dot and a CR at the start of a line.
+    ReadDotCR :: DotReadState
+    -- | After a CR inside a line.
+    ReadCR :: DotReadState
+    -- | Inside a line.
+    ReadData :: DotReadState
+
+  -- | Decode a dot-encoded body up to the terminating ".\r\n" or ".\n": a leading dot is removed from each
+  -- line, CRLF becomes LF, and a CR not followed by LF is kept. Returns the body and the offset after the terminator.
+  read-dot-bytes :: Bytes -> Nat -> Result TextProtoError (Bytes, Nat)
+  read-dot-bytes input start = dot-read input start ReadLineStart Nil
+
+  -- | Run the decoder one byte at a time; emitted bytes accumulate most recent first.
+  dot-read :: Bytes -> Nat -> DotReadState -> List Nat -> Result TextProtoError (Bytes, Nat)
+  dot-read input i state out =
+    if i >= bytes-len input then Err (UnexpectedEnd i)
+    else
+      let c = bytes-get input i in
+      case state of
+        ReadLineStart -> if c == 46 then dot-read input (i + 1) ReadDot out else data-byte input i c out
+        ReadDot -> if c == 13 then dot-read input (i + 1) ReadDotCR out else if c == 10 then Ok (pack out, i + 1) else data-byte input i c out
+        ReadDotCR -> if c == 10 then Ok (pack out, i + 1) else dot-read input i ReadData (Cons 13 out)
+        ReadCR -> if c == 10 then dot-read input (i + 1) ReadLineStart (Cons 10 out) else dot-read input i ReadData (Cons 13 out)
+        ReadData -> data-byte input i c out
+
+  -- | Handle a byte in the data state: hold a CR, end a line at LF, or emit.
+  data-byte :: Bytes -> Nat -> Nat -> List Nat -> Result TextProtoError (Bytes, Nat)
+  data-byte input i c out =
+    if c == 13 then dot-read input (i + 1) ReadCR out
+    else if c == 10 then dot-read input (i + 1) ReadLineStart (Cons 10 out)
+    else dot-read input (i + 1) ReadData (Cons c out)
+
+  -- | Bytes from a reversed list.
+  pack :: List Nat -> Bytes
+  pack out = let items = reverse out in let b = bytes-new (list-length items) in let filled = fill b 0 items in b
+
+  -- | Store list bytes in order.
+  fill :: Bytes -> Nat -> List Nat -> Unit
+  fill b i items = case items of
+    Nil -> ()
+    Cons x rest -> let w = if i < bytes-len b && x < 256 then bytes-set b i x else () in fill b (i + 1) rest
+
+  -- | The dot encoder's state between bytes.
+  data DotWriteState where
+    -- | Before any byte.
+    WriteBegin :: DotWriteState
+    -- | At the start of a line.
+    WriteLineStart :: DotWriteState
+    -- | Inside a line.
+    WriteData :: DotWriteState
+    -- | After a CR.
+    WriteCR :: DotWriteState
+
+  -- | Dot-encode a body: a dot doubled at the start of each line, a lone LF expanded to CRLF, existing
+  -- CRLF kept, and the body closed with CRLF (unless it already ended a line) and ".\r\n".
+  dot-encode :: Bytes -> Bytes
+  dot-encode body = pack (dot-close (dot-write body 0 WriteBegin Nil))
+
+  -- | Run the encoder one byte at a time.
+  dot-write :: Bytes -> Nat -> DotWriteState -> List Nat -> (DotWriteState, List Nat)
+  dot-write body i state out =
+    if i >= bytes-len body then (state, out)
+    else
+      let c = bytes-get body i in
+      case state of
+        WriteCR -> dot-write body (i + 1) (if c == 10 then WriteLineStart else WriteData) (Cons c out)
+        WriteData -> write-data body i c out
+        other -> write-data body i c (if c == 46 then Cons 46 out else out)
+
+  -- | Emit a data byte, expanding LF to CRLF and tracking CR.
+  write-data :: Bytes -> Nat -> Nat -> List Nat -> (DotWriteState, List Nat)
+  write-data body i c out =
+    if c == 13 then dot-write body (i + 1) WriteCR (Cons c out)
+    else if c == 10 then dot-write body (i + 1) WriteLineStart (Cons 10 (Cons 13 out))
+    else dot-write body (i + 1) WriteData (Cons c out)
+
+  -- | Finish the current line as needed and append the terminator.
+  dot-close :: (DotWriteState, List Nat) -> List Nat
+  dot-close result = case result of
+    (state, out) -> case state of
+      WriteLineStart -> Cons 10 (Cons 13 (Cons 46 out))
+      WriteCR -> Cons 10 (Cons 13 (Cons 46 (Cons 10 out)))
+      other -> Cons 10 (Cons 13 (Cons 46 (Cons 10 (Cons 13 out))))
+
+  -- | Render header fields as "Key: value\r\n" lines in order, followed by the blank line.
+  render-header :: MimeHeader -> Bytes
+  render-header header = case header of Header fields -> bytes-concat (reverse (Cons (bytes-from-u8s [13, 10]) (render-fields fields Nil)))
+
+  -- | Render each field's values.
+  render-fields :: List (Bytes, List Bytes) -> List Bytes -> List Bytes
+  render-fields fields out = case fields of
+    Nil -> out
+    Cons field rest -> case field of (key, values) -> render-fields rest (render-values key values out)
+
+  -- | Render one line per value.
+  render-values :: Bytes -> List Bytes -> List Bytes -> List Bytes
+  render-values key values out = case values of
+    Nil -> out
+    Cons value rest -> render-values key rest (Cons (bytes-from-u8s [13, 10]) (Cons value (Cons (bytes-from-u8s [58, 32]) (Cons key out))))
