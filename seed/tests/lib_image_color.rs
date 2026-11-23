@@ -40,7 +40,7 @@ impl Drop for ColorProject {
 /// Every public/private color, model, palette, constructor and kernel has canonical prose.
 #[test]
 fn image_color_declarations_have_canonical_documentation() {
-    let source = include_str!("../../experiments/image-color-v1/sources/Image.Color.cinch");
+    let source = include_str!("../prelude/Image/Color.cinch");
     let parsed =
         cinch::cinchdoc::parse_source(source, Some("Image.Color"), "Image.Color", None, false)
             .unwrap();
@@ -90,7 +90,7 @@ fn rust_cli_executes_image_color_with_normal_and_poison_profiles() {
                 .arg("--native")
                 .arg(directory)
                 .arg("--source")
-                .arg(repository.join("experiments/image-color-v1/sources/Image.Color.cinch"))
+                .arg(repository.join("seed/prelude/Image/Color.cinch"))
                 .arg("--work")
                 .arg(&output);
             output.join("report.json")

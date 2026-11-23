@@ -20,7 +20,7 @@ DEFAULT = ROOT / "design/stdlib-surface.json"
 
 HOMES = {
     "bufio": ["Effect.Stream", "Effect.Buffered.Core"], "bytes": ["Data.Bytes", "Data.Bytes.Word", "Data.Bytes.Search", "Data.Bytes.Build", "Data.StringIo", "Data.Bytes.View"],
-    "html": ["Text.Html"],
+    "html": ["Text.Html"], "image/color": ["Image.Color"], "image/color/palette": ["Image.Color", "Image.Color.Palette"],
     "cmp": ["Data.Compare", "Relation.Ord"], "compress/flate": ["Text.Zlib"], "compress/gzip": ["Text.Gzip"], "compress/zlib": ["Text.Zlib"],
     "container/heap": ["Data.Mutable.Heap", "Data.Mutable.HeapView"], "container/list": ["Data.List", "Data.Mutable.LinkedList"], "container/ring": ["Data.Mutable.Ring"], "context": ["Effect.Concurrent", "Effect.Clock"],
     "crypto/hkdf": ["Crypto.Kdf"], "crypto/pbkdf2": ["Crypto.Kdf"],

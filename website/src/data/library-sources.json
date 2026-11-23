@@ -1107,6 +1107,22 @@
       "public_methods": 0
     },
     {
+      "module": "Image.Color",
+      "path": "seed/prelude/Image/Color.cinch",
+      "sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
+      "embedded": false,
+      "values": 54,
+      "public_methods": 0
+    },
+    {
+      "module": "Image.Color.Palette",
+      "path": "seed/prelude/Image/Color/Palette.cinch",
+      "sha256": "4d3f13a9a42b56e54be8d4af1c5ef176035b503d83c34dc0cb54671f820ac5dc",
+      "embedded": false,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
       "module": "Prelude",
       "path": "compiler/prelude/Prelude.cinch",
       "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",

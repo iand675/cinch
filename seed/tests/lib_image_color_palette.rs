@@ -47,7 +47,7 @@ impl Drop for FixedPaletteProject {
 #[test]
 fn fixed_palette_declarations_have_canonical_documentation() {
     let source =
-        include_str!("../../experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch");
+        include_str!("../prelude/Image/Color/Palette.cinch");
     let parsed = cinch::cinchdoc::parse_source(
         source,
         Some("Image.Color.Palette"),
@@ -95,8 +95,8 @@ fn selected_compiler_executes_fixed_palettes_with_normal_and_poison_profiles() {
             let output = work.path().join("functional");
             command.arg(repository.join("tooling/check_color.py"))
                 .arg("--native").arg(directory)
-                .arg("--source").arg(repository.join("experiments/image-color-v1/sources/Image.Color.cinch"))
-                .arg("--palette").arg(repository.join("experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch"))
+                .arg("--source").arg(repository.join("seed/prelude/Image/Color.cinch"))
+                .arg("--palette").arg(repository.join("seed/prelude/Image/Color/Palette.cinch"))
                 .arg("--work").arg(&output);
             output.join("report.json")
         }

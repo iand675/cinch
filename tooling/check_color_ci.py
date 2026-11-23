@@ -37,7 +37,7 @@ def main() -> None:
         report['runtime_initialization'] = metadata
         cpu = min(os.sched_getaffinity(0))
         command = ['python3', str(ROOT / 'tooling/check_color.py'),
-                   '--source', str(ROOT / 'experiments/image-color-v1/sources/Image.Color.cinch'),
+                   '--source', str(ROOT / 'seed/prelude/Image/Color.cinch'),
                    '--compiler', str(args.compiler.resolve()), '--runtime', str(archive),
                    '--work', str(work / 'functional'), '--cpu', str(cpu), '--opt', '2']
         result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=120,

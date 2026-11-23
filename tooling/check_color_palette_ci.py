@@ -37,8 +37,8 @@ def main() -> None:
         report['runtime_initialization'] = metadata
         cpu = min(os.sched_getaffinity(0))
         command = ['python3', str(ROOT / 'tooling/check_color_palette.py'),
-                   '--source', str(ROOT / 'experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch'),
-                   '--color', str(ROOT / 'experiments/image-color-v1/sources/Image.Color.cinch'),
+                   '--source', str(ROOT / 'seed/prelude/Image/Color/Palette.cinch'),
+                   '--color', str(ROOT / 'seed/prelude/Image/Color.cinch'),
                    '--consumer', str(ROOT / 'experiments/image-color-palette-v1/consumer.cinch'),
                    '--vectors', str(ROOT / 'experiments/image-color-palette-v1/vectors.json'),
                    '--compiler', str(args.compiler.resolve()), '--runtime', str(archive),

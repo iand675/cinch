@@ -1293,10 +1293,10 @@
     {
       "reference_package": "image/color",
       "status": "partial",
-      "cinch_modules": [],
+      "cinch_modules": [
+        "Image.Color"
+      ],
       "remaining": [
-        "Public pipeline timing and performance review",
-        "Production module selection and generated reference",
         "Current Native qualification"
       ],
       "reference_declarations": 78,
@@ -1304,21 +1304,24 @@
         {
           "module": "Image.Color",
           "path": "experiments/image-color-v1/sources/Image.Color.cinch",
-          "availability": "Isolated review candidate; absent from production prelude"
+          "availability": "Historical candidate snapshot; the production module is listed in cinch_modules."
         }
       ],
       "capability_mapping": "experiments/image-color-v1/operation-map.json",
       "tests": [
         "lib_image_color"
       ],
-      "review": "All78 cumulative reference records have explicit idiomatic candidate mappings. Complete model/helper/palette and retained-owner runtime matrix passes O2 and exact accepted-IR O0; current Root C2/d91 maintained parent passes2/2. All95 declarations have canonical documentation. Actual numeric kernels pass51,052,544 scalar comparisons and actual AArch64/WebAssembly/big-endian PowerPC object checks; no foreign execution claimed. Matched public-pipeline preflights cover21 modes, but elapsed timing and production selection remain pending. No package completion or Native-family admission claimed."
+      "review": "All78 cumulative reference records have explicit idiomatic mappings. Complete model/helper/palette and retained-owner runtime matrix passes O2 and exact accepted-IR O0; current Root C2/d91 maintained parent passes2/2. All95 declarations have canonical documentation. Actual numeric kernels pass51,052,544 scalar comparisons and actual AArch64/WebAssembly/big-endian PowerPC object checks; no foreign execution claimed. Matched public-pipeline preflights cover21 modes, but elapsed timing and production selection remain pending. No package completion or Native-family admission claimed. The reviewed color and fixed-palette sources now ship under seed/prelude/Image. The maintained corpus runners select these production paths.",
+      "performance_evidence": "experiments/image-color-v1/performance-results.json"
     },
     {
       "reference_package": "image/color/palette",
       "status": "partial",
-      "cinch_modules": [],
+      "cinch_modules": [
+        "Image.Color",
+        "Image.Color.Palette"
+      ],
       "remaining": [
-        "Production module selection and generated reference",
         "Matched factory/read/nearest/model pipeline benchmarks",
         "Full current Native qualification"
       ],
@@ -1327,14 +1330,14 @@
         {
           "module": "Image.Color.Palette",
           "path": "experiments/image-color-palette-v1/sources/Image.Color.Palette.cinch",
-          "availability": "Isolated immutable fixed-table factories; absent from production prelude."
+          "availability": "Historical candidate snapshot; the production module is listed in cinch_modules."
         }
       ],
       "capability_mapping": "experiments/image-color-palette-v1/integration-files.json",
       "tests": [
         "lib_image_color_palette"
       ],
-      "review": "Both public fixed-table declarations have explicit immutable fresh-factory adaptations: Plan9 256 entries and WebSafe216. All472 entries and1024 independent queries plus32 retained-factory rounds pass O0/O2 normal/poison; portable source/IR/objects pass without foreign execution. Root current ffb5/BDF maintained parent passes2/2. No package completion or production selection."
+      "review": "Both public fixed-table declarations have explicit immutable fresh-factory adaptations: Plan9 256 entries and WebSafe216. All472 entries and1024 independent queries plus32 retained-factory rounds pass O0/O2 normal/poison; portable source/IR/objects pass without foreign execution. Root current ffb5/BDF maintained parent passes2/2. No package completion or production selection. The reviewed color and fixed-palette sources now ship under seed/prelude/Image. The maintained corpus runners select these production paths."
     },
     {
       "reference_package": "image/draw",
