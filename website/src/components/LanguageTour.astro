@@ -23,15 +23,63 @@ const representation=String.raw`implicit instance Bits :: Represent (List Bool) 
   specialize length = bit-list-length
   specialize index  = bit-list-index`;
 const xs=[1,2,3,4,5,6];
-const generator=String.raw`stage addOne :: Code Int -> Code Int
-stage addOne body = [| let x = $(body) in x + 1 |]
+const macroSourceValid=String.raw`import Ui
+import syntax Ui.Html as html
 
-generate do
-  emit (quoteDecls where
-    answer :: Int
-    answer = $(addOne [| 21 |]))`;
-const generated=String.raw`answer :: Int
-answer = let x = 21 in x + 1`;
+-- Collides with Ui.text? Never. Macros are hygienic.
+text :: Int
+text = 99
+
+person :: String -> Html
+person name = html!{<li>{name}</li>}
+
+view :: String -> List String -> Html
+view title people = html!{
+  <section class="people">
+    <h1>{title}</h1>
+    {person <$> people}
+    <Button onClick={\() -> 42}>Refresh &amp; retry</Button>
+  </section>
+}`;
+const macroSourceBroken=String.raw`import Ui
+import syntax Ui.Html as html
+
+-- Collides with Ui.text? Never. Macros are hygienic.
+text :: Int
+text = 99
+
+person :: String -> Html
+person name = html!{<li>{name}</li>}
+
+view :: String -> List String -> Html
+view title people = html!{
+  <section class="people">
+    <h1>{title}</h1>
+    {person <$> people}
+    <Button onClick={42}>Refresh &amp; retry</Button>
+  </section>
+}`;
+const macroExpanded=String.raw`-- Expanded to ordinary, type-checked Cinch.
+-- Ui.text resolves where the macro was defined.
+view :: String -> List String -> Html
+view title people = Ui.fragment
+  [ Ui.element "section" [Ui.attribute "class" "people"]
+    [ Ui.element "h1" [] [Ui.child title]
+    , Ui.child (person <$> people)
+    , Ui.component-Button
+        (Ui.ButtonProps { onClick = \() -> 42 })
+        [Ui.text "Refresh & retry"]
+    ]
+  ]`;
+const macroDiagnostic=String.raw`-- Rejected by the ordinary Cinch type checker.
+-- Provenance maps straight back to the markup hole:
+View.cinch:16:22 (in expansion of html! at 12:21):
+  type mismatch in ButtonProps.onClick
+  expected: Unit -> Int
+  got:      Int
+
+-- No opaque temp files: editors highlight {42}
+-- right inside the TSX-style tag.`;
 const simdBlocks=(count:number)=>{const full=Math.floor(count/4);return [...Array.from({length:full},(_,b)=>({tail:false,label:`VECTOR ${b+1}`,items:[0,1,2,3].map(i=>b*4+i)})),...(count%4?[{tail:true,label:'SCALAR TAIL',items:Array.from({length:count%4},(_,i)=>full*4+i)}]:[])];};
 const simdCaption=(count:number)=>{const full=Math.floor(count/4),tail=count%4;return `${count} ${count===1?'element':'elements'}, 4 lanes: ${full} vector ${full===1?'load':'loads'} and ${tail} scalar ${tail===1?'element':'elements'}. No load reads past the end of the array.`;};
 const rewrite=String.raw`rewrite mapMap forall (f :: Int -> Int)
@@ -59,10 +107,28 @@ const rewrite=String.raw`rewrite mapMap forall (f :: Int -> Int)
 </section>
 
 <section class="staging-section language-section" id="staging" aria-labelledby="staging-title">
-  <div class="tour-heading"><h2 id="staging-title">Codegen<br />with confidence.</h2><p>Generate codecs, bindings, and schemas at compile time from a database or API definition. Generated declarations pass through the exact same type, effect, and ownership checks as hand-written code, so a generator bug fails the build instead of leaking into production.</p></div>
-  <div class="staging-workbench"><CodeExcerpt code={generator} label="COMPILE-TIME GENERATOR"/><div class="staging-expansion"><span class="expansion-arrow" aria-hidden="true">↳</span><div class="gadget-controls stage-controls"><span class="mono">SPLICED VALUE</span><div class="gadget-stepper"><button type="button" data-stage-step="-1" aria-label="Decrease the spliced value">−</button><output data-stage-value aria-live="polite">21</output><button type="button" data-stage-step="1" aria-label="Increase the spliced value">+</button></div></div><CodeExcerpt code={generated} label="GENERATED CODE" caption="answer evaluates to 22."/></div></div>
-  <div class="staging-properties"><article><h3>Hygienic by default</h3><p>Bindings inside a macro resolve in the macro’s own scope. Capturing a caller’s name has to be explicit, eliminating accidental variable shadowing.</p></article><article><h3>Scoped compile-time I/O</h3><p>Generators can read schemas or run build tools through compile-time capabilities, while keeping connection handles and secrets out of the emitted binary.</p></article><article><h3>Deterministic replay</h3><p>Builds record every external input a generator read, so CI and local checkouts reproduce the exact same generated code and interface hashes.</p></article></div>
-  <a class="text-link" href="/learn/18-staging-and-macros/">Staging and code generation <span>↗</span></a>
+  <div class="tour-heading"><h2 id="staging-title">Hygienic macros.<br />Even TSX-style UI.</h2><p>Libraries can ship their own embedded syntax, from TSX-style UI markup and typed queries to state machines and binary formats, with zero special cases in the compiler. Macros are hygienic: internal helper names never collide with your local variables, embedded expressions keep their caller scope, and expanded code passes through the exact same type, effect, and ownership checks as hand-written Cinch. Paired with WebAssembly, Cinch even works as a viable frontend language.</p></div>
+  <div class="staging-workbench">
+    <div class="staging-source">
+      <div class="stage-panel" data-stage-source="valid"><CodeExcerpt code={macroSourceValid} label="TSX-STYLE SYNTAX MACRO" caption="Imported explicitly with import syntax Ui.Html as html. Paired tags, fragments, auto-escaping, and typed components."/></div>
+      <div class="stage-panel stage-panel--broken" data-stage-source="broken" hidden><CodeExcerpt code={macroSourceBroken} label="TSX-STYLE SYNTAX MACRO" caption="Passing onClick={42} instead of a callback fails the ordinary type checker inside the markup hole."/></div>
+    </div>
+    <div class="staging-expansion">
+      <span class="expansion-arrow" aria-hidden="true">↳</span>
+      <div class="gadget-controls stage-controls">
+        <span class="mono" data-stage-status>CHECKED EXPANSION</span>
+        <button type="button" class="gadget-key" data-stage-toggle aria-pressed="false">Break onClick <span aria-hidden="true">▸</span></button>
+      </div>
+      <div class="stage-panel" data-stage-output="valid"><CodeExcerpt code={macroExpanded} label="EXPANDED CINCH" caption="Local text = 99 never shadows Ui.text. Text nodes and attributes auto-escape, and ButtonProps checks onClick."/></div>
+      <div class="stage-panel stage-panel--diagnostic" data-stage-output="broken" hidden><CodeExcerpt code={macroDiagnostic} label="CHECKER DIAGNOSTIC" caption="Source maps preserve expansion provenance so errors point straight back to the expression you wrote."/></div>
+    </div>
+  </div>
+  <div class="staging-properties">
+    <article><h3>Hygienic by default</h3><p>Macro-introduced helpers resolve where the macro was defined, never clashing with your variables, while embedded expressions keep their caller scope, effects, and linear ownership.</p></article>
+    <article><h3>Viable on the frontend</h3><p>Combine TSX-style components with typed state machines (<code>machine!</code>) and compile straight to compact, GC-free WebAssembly, sharing domain types and refinements across server and browser.</p></article>
+    <article><h3>Scoped, replayable codegen</h3><p>Compile-time generators (<code>generate do</code>) read schemas or run build tools through explicit capabilities and record every input in a snapshot so CI reproduces identical generated code.</p></article>
+  </div>
+  <a class="text-link" href="/learn/18-staging-and-macros/">Hygienic macros and compile-time staging <span>↗</span></a>
 </section>
 
 <section class="optimization-section language-section light-section" id="optimization" aria-labelledby="optimization-title">
@@ -133,23 +199,32 @@ const rewrite=String.raw`rewrite mapMap forall (f :: Int -> Int)
     });
   }
 
-  // Staging: the spliced literal flows into the generated declaration.
+  // Hygienic macros: toggle valid callback vs. wrong prop type inside html!{...}.
   const staging=document.querySelector<HTMLElement>('#staging');
   if(staging){
-    const spliced=[...staging.querySelectorAll<HTMLElement>('.excerpt-number')].filter(n=>n.textContent==='21');
-    spliced.forEach(n=>n.classList.add('is-spliced'));
-    const generated=staging.querySelector<HTMLElement>('.staging-expansion .language-excerpt');
-    const caption=generated?.querySelector('.excerpt-caption');
-    let value=21;
-    const steps=staging.querySelectorAll<HTMLButtonElement>('[data-stage-step]');
-    steps.forEach(b=>b.addEventListener('click',()=>{
-      value=Math.min(99,Math.max(0,value+Number(b.dataset.stageStep)));
-      spliced.forEach(n=>{n.textContent=String(value);});
-      staging.querySelector('[data-stage-value]')!.textContent=String(value);
-      if(caption)caption.textContent=`answer evaluates to ${value+1}.`;
-      steps.forEach(s=>{s.disabled=Number(s.dataset.stageStep)<0?value===0:value===99;});
-      if(generated){generated.classList.remove('is-regenerated');void generated.offsetWidth;generated.classList.add('is-regenerated');}
-    }));
+    const toggle=staging.querySelector<HTMLButtonElement>('[data-stage-toggle]');
+    const status=staging.querySelector<HTMLElement>('[data-stage-status]');
+    const sources=staging.querySelectorAll<HTMLElement>('[data-stage-source]');
+    const outputs=staging.querySelectorAll<HTMLElement>('[data-stage-output]');
+    staging.querySelectorAll<HTMLElement>('[data-stage-source="broken"] .excerpt-number').forEach(n=>{
+      if(n.textContent==='42') n.classList.add('is-spliced');
+    });
+    toggle?.addEventListener('click',()=>{
+      const broken=toggle.getAttribute('aria-pressed')!=='true';
+      const mode=broken?'broken':'valid';
+      toggle.setAttribute('aria-pressed',String(broken));
+      toggle.firstChild!.textContent=broken?'Restore callback ':'Break onClick ';
+      if(status) status.textContent=broken?'EXPANSION REJECTED':'CHECKED EXPANSION';
+      sources.forEach(el=>{el.hidden=el.dataset.stageSource!==mode;});
+      outputs.forEach(el=>{
+        const show=el.dataset.stageOutput===mode;
+        el.hidden=!show;
+        if(show){
+          const fig=el.querySelector<HTMLElement>('.language-excerpt');
+          if(fig){fig.classList.remove('is-regenerated');void fig.offsetWidth;fig.classList.add('is-regenerated');}
+        }
+      });
+    });
   }
 
   // Map fusion: two passes and an intermediate list, or one pass.

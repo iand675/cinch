@@ -1255,6 +1255,22 @@
   position: sticky;
   top: 2rem;
 }
+.cinch-landing .staging-source {
+  min-width: 0;
+}
+.cinch-landing .stage-panel[hidden] {
+  display: none;
+}
+.cinch-landing .stage-panel--diagnostic .language-excerpt {
+  border-color: var(--amber);
+}
+.cinch-landing .stage-panel--diagnostic .language-excerpt > figcaption {
+  color: var(--amber-code-soft);
+}
+.cinch-landing .staging-properties p code {
+  font: 0.9em var(--font-mono);
+  color: var(--amber-code-soft);
+}
 .cinch-landing .stage-controls {
   margin: 0 0 1.2rem;
 }
