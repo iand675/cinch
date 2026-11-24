@@ -392,30 +392,51 @@
       "status": "partial",
       "cinch_modules": [
         "Crypto.Field25519",
+        "Crypto.P256",
         "Crypto.X25519",
         "Effect.Crypto"
       ],
       "remaining": [
-        "P-256, P-384 and P-521"
+        "P-384 and P-521"
       ],
       "reference_declarations": 23,
       "tests": [
         "lib_curve25519",
+        "lib_p256",
         "lib_effect_crypto"
       ],
       "capability_mapping": {
         "X25519/NewPrivateKey/PrivateKey.PublicKey/ECDH/Bytes": "x25519-private-key, x25519-public-key, x25519-shared and x25519-private-bytes; x25519 and x25519-base are the raw functions",
         "low-order rejection": "LowOrderPeer when the shared secret is all zero bytes",
-        "GenerateKey": "Effect.Crypto.x25519-generate"
+        "GenerateKey": "Effect.Crypto.x25519-generate and p256-generate",
+        "P256/NewPrivateKey/NewPublicKey/ECDH": "p256-private-key, p256-public-key, p256-public-key-of and p256-ecdh returning the 32-byte x coordinate"
       },
-      "review": "X25519 is a constant-time Montgomery ladder with masked swaps over the shared field module. RFC 7748 vectors including the 1000-iteration chain, a non-canonical peer coordinate, twelve independent library exchanges and five key derivations match; four low-order peers are rejected. About 120 microseconds per exchange at --opt-level 3. The NIST curves remain."
+      "review": "X25519 is a constant-time Montgomery ladder with masked swaps over the shared field module. RFC 7748 vectors including the 1000-iteration chain, a non-canonical peer coordinate, twelve independent library exchanges and five key derivations match; four low-order peers are rejected. About 120 microseconds per exchange at --opt-level 3. P-256 agreement matches six independent-library exchanges against compressed and uncompressed peers, and five out-of-range or short private keys are rejected. P-384 and P-521 remain."
     },
     {
       "reference_package": "crypto/ecdsa",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 37
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Ecdsa",
+        "Crypto.P256",
+        "Effect.Crypto"
+      ],
+      "remaining": [
+        "P-224, P-384 and P-521 keys",
+        "big-integer r/s interface (the 64-byte r||s form replaces it)"
+      ],
+      "reference_declarations": 37,
+      "tests": [
+        "lib_p256",
+        "lib_effect_crypto"
+      ],
+      "capability_mapping": {
+        "Sign/SignASN1": "ecdsa-sign and ecdsa-sign-der (deterministic RFC 6979 nonces); ecdsa-sign-hedged and ecdsa-sign-der-hedged mix caller entropy into the nonce derivation",
+        "Verify/VerifyASN1": "ecdsa-verify over 64-byte r||s and ecdsa-verify-der with strict minimal DER parsing",
+        "GenerateKey/PrivateKey.Sign with rand": "Effect.Crypto.p256-generate and ecdsa-sign-random",
+        "PrivateKey/PublicKey bytes": "Crypto.P256.p256-private-key, p256-public-key and their encoders"
+      },
+      "review": "P-256 ECDSA over the constant-time Crypto.P256 arithmetic. Forty-four deterministic signatures over eleven keys (including 1, 2, n-1 and n-2) are byte-identical to an independent library's RFC 6979 signatures in both raw and DER form. Thirty-six verifications of independently produced signatures over SHA-1, SHA-256, SHA-384 and SHA-512 digests (exercising digest truncation) agree for the original, a flipped-digest and a negated-s variant; six malformed DER encodings are rejected, and hedged signatures from system randomness verify and differ. The other NIST curves remain."
     },
     {
       "reference_package": "crypto/ed25519",
@@ -445,10 +466,26 @@
     },
     {
       "reference_package": "crypto/elliptic",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 43
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.P256"
+      ],
+      "remaining": [
+        "P-224, P-384 and P-521",
+        "the deprecated generic Curve/CurveParams big-integer arithmetic"
+      ],
+      "reference_declarations": 43,
+      "tests": [
+        "lib_p256"
+      ],
+      "capability_mapping": {
+        "P256": "Crypto.P256 module",
+        "Marshal/Unmarshal": "p256-public-key-bytes and p256-public-key with SEC 1 uncompressed encodings, rejecting off-curve and non-canonical coordinates",
+        "MarshalCompressed/UnmarshalCompressed": "p256-public-key-compressed and compressed decoding through the (p+1)/4 square root",
+        "ScalarMult/ScalarBaseMult/Add": "p256-point-mult, p256-base-mult and p256-point-add over P256Scalar and P256Point",
+        "GenerateKey": "Effect.Crypto.p256-generate"
+      },
+      "review": "Field and scalar arithmetic are two-U128 Montgomery residues driven by generated branch-free CIOS product, sum, difference and reduction kernels; points use the complete Renes-Costello-Batina formulas, and scalar multiplication is a fixed 4-bit window with masked table lookups, so timing does not depend on secrets. Encodings round-trip against an independent library and seven malformed points, including a non-residue x coordinate, are rejected."
     },
     {
       "reference_package": "crypto/fips140",

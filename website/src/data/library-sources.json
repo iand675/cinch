@@ -131,6 +131,14 @@
       "public_methods": 0
     },
     {
+      "module": "Crypto.Ecdsa",
+      "path": "seed/prelude/Crypto/Ecdsa.cinch",
+      "sha256": "6f15ab42fb1c78de630051e078c31260bdc5b3aa416ac90423471f79e171ffa1",
+      "embedded": false,
+      "values": 8,
+      "public_methods": 0
+    },
+    {
       "module": "Crypto.Ed25519",
       "path": "seed/prelude/Crypto/Ed25519.cinch",
       "sha256": "c9653a1c9514393759e3c07a4a826ff1fdf856d9dcedd5eb4ac509130350c707",
@@ -168,6 +176,14 @@
       "sha256": "130822b4a06af07c585a99e840d37c81576b642ae74a492e8d017c4a641bf6ed",
       "embedded": false,
       "values": 14,
+      "public_methods": 0
+    },
+    {
+      "module": "Crypto.P256",
+      "path": "seed/prelude/Crypto/P256.cinch",
+      "sha256": "bfc177e66a34f67b929e74cb4a0050790c35e2e0ad12f915e224390c9738ec12",
+      "embedded": false,
+      "values": 23,
       "public_methods": 0
     },
     {
@@ -1125,9 +1141,9 @@
     {
       "module": "Effect.Crypto",
       "path": "seed/prelude/Effect/Crypto.cinch",
-      "sha256": "fe15ebb83dc43db796853440107a1b1d9d96691f01d60f0998ad97beb4a32e26",
+      "sha256": "f544e591ac1f264030d3b0cfbf1839a67d7c918acf3c356088e5beb283d6a7c9",
       "embedded": false,
-      "values": 7,
+      "values": 9,
       "public_methods": 0
     },
     {

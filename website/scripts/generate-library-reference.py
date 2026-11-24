@@ -275,6 +275,8 @@ DESCRIPTIONS = {
 'Crypto.MlKem':'ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels.',
 'Text.Template':'Data-driven text templates: pipelines, control actions, definitions, builtins and printf over dynamic values.',
 'Image.Draw':'Composite rasters with Src and Over, masks and uniform colors, and dither onto palettes, with a vector Over kernel.',
+'Crypto.P256':'Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels.',
+'Crypto.Ecdsa':'Deterministic (RFC 6979) and hedged P-256 ECDSA signatures in raw and DER form with strict verification.',
 'Text.Lzw':'Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.',
 'Text.Tar':'Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.',
 'Text.TextProto':'Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail.',

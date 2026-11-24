@@ -78,11 +78,13 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Crypto.Cipher](Crypto.Cipher.md) | Ship source | CTR, OFB, CFB, CBC and GCM over any 128-bit block cipher, with constant-time or carry-less-instruction GHASH and constant-time tag checks. |
 | [Crypto.ConstantTime](Crypto.ConstantTime.md) | Ship source | Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors. |
 | [Crypto.Des](Crypto.Des.md) | Ship source | DES and Triple DES block ciphers with ECB, CBC and CTR for legacy interoperation, from a generated straight-line round kernel. |
+| [Crypto.Ecdsa](Crypto.Ecdsa.md) | Ship source | Deterministic (RFC 6979) and hedged P-256 ECDSA signatures in raw and DER form with strict verification. |
 | [Crypto.Ed25519](Crypto.Ed25519.md) | Ship source | Deterministic Ed25519 signatures with constant-time signing and strict verification. |
 | [Crypto.Field25519](Crypto.Field25519.md) | Ship source | Constant-time arithmetic modulo 2^255 - 19 with 128-bit column products, shared by X25519 and Ed25519. |
 | [Crypto.Hmac](Crypto.Hmac.md) | Ship source | Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification. |
 | [Crypto.Kdf](Crypto.Kdf.md) | Ship source | HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256. |
 | [Crypto.MlKem](Crypto.MlKem.md) | Ship source | ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels. |
+| [Crypto.P256](Crypto.P256.md) | Ship source | Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels. |
 | [Crypto.Rc4](Crypto.Rc4.md) | Ship source | The RC4 stream cipher as a persistent keystream state, for legacy data only. |
 | [Crypto.X25519](Crypto.X25519.md) | Ship source | Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection. |
 
@@ -351,7 +353,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **274 source modules**: **66 embedded** and **208 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **276 source modules**: **66 embedded** and **210 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 
