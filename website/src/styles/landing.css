@@ -983,6 +983,10 @@
   color: var(--olive-copy);
   max-width: 460px;
 }
+.feature-row code {
+  font: 0.9em var(--font-mono);
+  color: #8a4c28;
+}
 .feature-row .text-link {
   margin-top: 1.5rem;
 }

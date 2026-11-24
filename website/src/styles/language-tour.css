@@ -111,6 +111,10 @@
   font-size: 0.95rem;
   line-height: 1.85;
 }
+.cinch-landing .proof-view-copy code {
+  font: 0.9em var(--font-mono);
+  color: #8a4c28;
+}
 .cinch-landing .automation-rail {
   display: grid;
   grid-template-columns: 0.85fr 1.2fr;

@@ -49,5 +49,5 @@ const { id = 'average-figure' } = Astro.props;
     <li><span>Divisor</span><code>length orders</code><p>Nonzero, because the list is nonempty.</p></li>
     <li><span>Result</span><code>72 / 3 = 24</code><p>No runtime check on the division.</p></li>
   </ol>
-  <figcaption id={`${id}-caption`}><strong>Figure 01. Average order value.</strong> Three orders total 72. The list’s type guarantees its length is not 0, so the division is safe as written. An empty order history never reaches <code>average</code>.</figcaption>
+  <figcaption id={`${id}-caption`}><strong>Figure 01. Average order value.</strong> Three orders total 72. The <code>NonEmpty Int</code> type guarantees <code>length orders</code> is nonzero, so the division compiles with no runtime zero-check and an empty order history can never reach <code>average</code>.</figcaption>
 </figure>
