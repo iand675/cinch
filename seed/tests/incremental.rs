@@ -14,7 +14,9 @@
 //!   measured on a named project and printed (honesty discipline:
 //!   report the numbers, do not assume them).
 
-use cinch::driver::incremental::{read_cache_index, ChangeKind, EdgeKind, Session};
+use cinch::driver::incremental::{
+    item_id, read_cache_index, ChangeKind, EdgeKind, ItemKind, Session,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -305,6 +307,61 @@ fn warm_rebuild_touches_nothing_and_reports_kept() {
         warm.kept
     );
     assert!(warm.chain_ok, "warm: {warm:?}");
+}
+
+#[test]
+fn repeated_bad_edit_is_refused_and_a_corrected_edit_rebuilds() {
+    let dir = write_project(&[(
+        "Main.cinch",
+        "module Main where\n  main :: Int\n  main = 0\n",
+    )]);
+    let (mut session, _) = open(&dir);
+    let file = key(&dir, "Main.cinch");
+    session.set_source(&file, "module Main where\n  main :: Int\n  main = False\n");
+    assert!(session.rebuild_edits().is_err());
+    assert!(session.rebuild_edits().is_err());
+    session.set_source(&file, "module Main where\n  main :: Int\n  main = 1\n");
+    let rebuilt = session.rebuild_edits().expect("corrected edit");
+    assert!(rebuilt.chain_ok && rebuilt.link.verified, "{rebuilt:?}");
+    assert!(!rebuilt.rechecked.is_empty(), "{rebuilt:?}");
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn adding_and_removing_an_import_refreshes_the_session_graph() {
+    let original = "module Main where\n  main :: Int\n  main = 0\n";
+    let edited = "module Main where\n  import Extra\n  main :: Int\n  main = answer\n";
+    let extra = "module Extra where\n  answer :: Int\n  answer = 7\n";
+    let dir = write_project(&[("Main.cinch", original)]);
+    let (mut session, _) = open(&dir);
+    let extra_id = item_id(ItemKind::Module, "Extra", "");
+
+    session.set_source(&key(&dir, "Main.cinch"), edited);
+    assert!(session.rebuild_edits().is_err());
+    session.set_source(&key(&dir, "Extra.cinch"), extra);
+    let added = session.rebuild_edits().expect("new in-memory import");
+    assert!(added.full_rebuild && added.chain_ok, "{added:?}");
+    assert!(session.graph().unwrap().item(&extra_id).is_some());
+    session.set_source(&key(&dir, "Main.cinch"), original);
+    session.rebuild_edits().expect("remove in-memory import");
+    assert!(session.graph().unwrap().item(&extra_id).is_none());
+    session.set_source(&key(&dir, "Main.cinch"), edited);
+    session.rebuild_edits().expect("restore in-memory import");
+    assert!(session.graph().unwrap().item(&extra_id).is_some());
+
+    std::fs::write(dir.join("Main.cinch"), edited).unwrap();
+    std::fs::write(dir.join("Extra.cinch"), extra).unwrap();
+    let (cold_session, cold) = open(&dir);
+    assert!(cold.chain_ok);
+    assert_eq!(session.ir_artifact(), cold_session.ir_artifact());
+    std::fs::write(dir.join("Main.cinch"), original).unwrap();
+    std::fs::remove_file(dir.join("Extra.cinch")).unwrap();
+    let removed = session.rebuild().expect("removed import on disk");
+    assert!(removed.full_rebuild && removed.chain_ok, "{removed:?}");
+    assert!(session.graph().unwrap().item(&extra_id).is_none());
+    let warm = session.rebuild_edits().expect("unchanged rebuild");
+    assert!(warm.rechecked.is_empty() && warm.chain_ok, "{warm:?}");
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]

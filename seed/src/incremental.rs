@@ -50,12 +50,12 @@ use crate::core::{
 use crate::interface::{self, Iface};
 use crate::parser::FixityTable;
 use crate::{Error, Result};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use super::{
-    load_project, parse_prelude, parse_source, wit_for_source, write_artifacts, PreludeSources,
-    Project,
+    load_project, load_project_for, parse_prelude, parse_source, wit_for_source, write_artifacts,
+    PreludeSources, Project,
 };
 
 // ============================================================ REAPER: the item graph
@@ -733,19 +733,10 @@ struct Segment {
 /// Group an id list into maximal same-owner segments (the checker's
 /// emission shape: one owner's units in check order, interleaved with
 /// other owners only at segment boundaries).
-fn segment_ids(ids: &[String], modules: &[String]) -> Vec<Segment> {
-    let owner_of = |id: &str| -> String {
-        let mut best = String::new();
-        for m in modules {
-            if id.starts_with(&format!("{m}.")) && m.len() > best.len() {
-                best = m.clone();
-            }
-        }
-        best
-    };
+fn segment_ids(ids: &[String], modules: &HashSet<String>) -> Vec<Segment> {
     let mut segs: Vec<Segment> = Vec::new();
     for id in ids {
-        let owner = owner_of(id);
+        let owner = owner_module(id, modules).unwrap_or_default();
         match segs.last_mut() {
             Some(s) if s.owner == owner => s.ids.push(id.clone()),
             _ => segs.push(Segment {
@@ -870,6 +861,7 @@ pub struct Session {
     cache_dir: PathBuf,
     profile: TargetProfile,
     wit: Vec<crate::interface::WitAdapter>,
+    prelude: PreludeSources,
     /// Module name to declaring file key (user modules).
     module_file: BTreeMap<String, String>,
     /// Module name to import names (user modules).
@@ -882,12 +874,15 @@ pub struct Session {
     prelude_order: Vec<String>,
     /// File key to current source text.
     texts: BTreeMap<String, String>,
+    edits_pending: bool,
     /// File key to the content hash of the text last seen.
     text_hashes: BTreeMap<String, String>,
     /// Checked state for every module (user and prelude).
     states: BTreeMap<String, ModuleState>,
     /// Every module name (user plus prelude) for prefix attribution.
-    all_modules: Vec<String>,
+    all_modules: HashSet<String>,
+    /// Coherence of the last successfully published interface chain.
+    chain_ok: bool,
     /// The recorded emission layout (segment structure) per list, from
     /// the last full check or merge: the merge reproduces this order.
     layouts: Layouts,
@@ -956,23 +951,34 @@ impl Session {
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
+        let project = load_project(entry)?;
+        let wit = wit_for_source(entry)?;
+        let parse_started = std::time::Instant::now();
+        let prelude = parse_prelude(&wit)?;
+        let prelude_parse_ms = since_ms(parse_started);
+        let prelude_order = prelude.modules.iter().map(|m| m.name.text.clone()).collect();
+        let out_dir = root.join("build");
+        let cache_dir = out_dir.join("incr");
         let mut session = Session {
             entry: entry.to_path_buf(),
             root,
             entry_stem,
-            out_dir: PathBuf::new(),
-            cache_dir: PathBuf::new(),
+            out_dir,
+            cache_dir,
             profile: TargetProfile::native(),
-            wit: Vec::new(),
+            wit,
+            prelude,
             module_file: BTreeMap::new(),
             imports: BTreeMap::new(),
             order: Vec::new(),
             entry_modules: Vec::new(),
-            prelude_order: Vec::new(),
+            prelude_order,
             texts: BTreeMap::new(),
+            edits_pending: false,
             text_hashes: BTreeMap::new(),
             states: BTreeMap::new(),
-            all_modules: Vec::new(),
+            all_modules: HashSet::new(),
+            chain_ok: false,
             layouts: Layouts::default(),
             run: None,
             main_exit: None,
@@ -983,28 +989,43 @@ impl Session {
             queries: None,
             ir: None,
         };
-        session.out_dir = session.root.join("build");
-        session.cache_dir = session.out_dir.join("incr");
-        session.reload_project()?;
-        let report = session.rebuild_impl(true)?;
+        session.texts = session.install_project(project);
+        let mut report = session.rebuild_from_texts()?;
+        report.timings.parse_ms += prelude_parse_ms;
+        report.timings.total_ms += prelude_parse_ms;
         Ok((session, report))
     }
 
     /// Change one file's text in memory (the session's edit surface; the
     /// tests edit without racing the disk).
     pub fn set_source(&mut self, file: &str, text: &str) {
-        self.texts.insert(file.to_string(), text.to_string());
+        if self.texts.get(file).map(String::as_str) != Some(text) {
+            self.texts.insert(file.to_string(), text.to_string());
+            self.edits_pending = true;
+        }
     }
 
     /// Re-read every project file from disk and rebuild incrementally.
     pub fn rebuild(&mut self) -> Result<SessionReport> {
-        self.reload_texts_from_disk()?;
-        self.rebuild_impl(false)
+        let project = load_project(&self.entry)?;
+        self.texts = self.install_project(project);
+        self.rebuild_from_texts()
     }
 
     /// Rebuild after in-memory [`Session::set_source`] edits.
     pub fn rebuild_edits(&mut self) -> Result<SessionReport> {
-        self.rebuild_impl(false)
+        if self.edits_pending {
+            let project = load_project_for(
+                &self.entry,
+                &crate::core::BuildProfiles::native(),
+                None,
+                Some(&self.texts),
+            )?;
+            let sources = self.install_project(project);
+            // Keep edits to files that temporarily leave the import graph.
+            self.texts.extend(sources);
+        }
+        self.rebuild_from_texts()
     }
 
     /// The item graph of the current checked state (built on demand).
@@ -1068,46 +1089,50 @@ impl Session {
 
     // -------------------------------------------------------- project shape
 
-    fn reload_project(&mut self) -> Result<()> {
-        let project: Project = load_project(&self.entry)?;
-        self.module_file = project
+    fn install_project(&mut self, project: Project) -> BTreeMap<String, String> {
+        let module_file: BTreeMap<_, _> = project
             .module_file
-            .iter()
-            .map(|(m, p)| (m.clone(), p.display().to_string()))
+            .into_iter()
+            .map(|(module, file)| (module, file.display().to_string()))
             .collect();
-        self.imports = project
-            .imports
-            .iter()
-            .map(|(m, i)| (m.clone(), i.clone()))
-            .collect();
-        self.order = project.order.clone();
-        self.entry_modules = project.entry_modules.clone();
-        self.texts = project
-            .sources
-            .iter()
-            .map(|(f, t)| (f.clone(), t.clone()))
-            .collect();
-        self.all_modules = super::prelude_module_names();
-        for m in self.module_file.keys() {
-            if !self.all_modules.contains(m) {
-                self.all_modules.push(m.clone());
-            }
+        let imports: BTreeMap<_, _> = project.imports.into_iter().collect();
+        if self.module_file != module_file
+            || self.imports != imports
+            || self.order != project.order
+            || self.entry_modules != project.entry_modules
+        {
+            self.all_modules = super::prelude_module_names()
+                .into_iter()
+                .chain(module_file.keys().cloned())
+                .collect();
+            self.module_file = module_file;
+            self.imports = imports;
+            self.order = project.order;
+            self.entry_modules = project.entry_modules;
+            self.text_hashes.clear();
+            self.states.clear();
+            self.searches.clear();
+            self.graph = None;
+            self.queries = None;
         }
-        self.wit = wit_for_source(&self.entry)?;
-        Ok(())
-    }
-
-    fn reload_texts_from_disk(&mut self) -> Result<()> {
-        for file in self.module_file.values().cloned().collect::<Vec<_>>() {
-            let path = self.root.join(&file);
-            let text = std::fs::read_to_string(&path)
-                .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-            self.texts.insert(file, text);
-        }
-        Ok(())
+        self.edits_pending = false;
+        project.sources.into_iter().collect()
     }
 
     // -------------------------------------------------------- the rebuild
+
+    fn rebuild_from_texts(&mut self) -> Result<SessionReport> {
+        let result = self.rebuild_impl(self.text_hashes.is_empty());
+        if result.is_err() {
+            // A slice can fail after replacing some of the checked state.
+            // Make the next request rebuild the entire project, including
+            // when it submits the same invalid text or undoes the edit.
+            self.text_hashes.clear();
+            self.graph = None;
+            self.queries = None;
+        }
+        result
+    }
 
     fn rebuild_impl(&mut self, cold: bool) -> Result<SessionReport> {
         let t_total = std::time::Instant::now();
@@ -1115,18 +1140,17 @@ impl Session {
         let mut report = SessionReport::default();
 
         // 1. Which files changed since the last check?
-        let mut changed_files: Vec<String> = Vec::new();
-        for (file, text) in self.texts.clone() {
-            let h = interface::content_hash(&text);
-            match self.text_hashes.get(&file) {
+        let mut changed_files = HashSet::new();
+        for (file, text) in &self.texts {
+            let h = interface::content_hash(text);
+            match self.text_hashes.get(file) {
                 Some(prev) if *prev == h => {}
                 _ => {
-                    changed_files.push(file.clone());
-                    self.text_hashes.insert(file, h);
+                    changed_files.insert(file);
+                    self.text_hashes.insert(file.clone(), h);
                 }
             }
         }
-        changed_files.sort();
         let changed_modules: Vec<String> = self
             .order
             .iter()
@@ -1147,7 +1171,7 @@ impl Session {
                     report.kept.push(id);
                 }
             }
-            report.chain_ok = self.chain_ok();
+            report.chain_ok = self.chain_ok;
             // The memo is still valid at the revision: report the state it
             // is in rather than claiming the graph was not consulted. An
             // unchanged rebuild is exactly the case the memo exists for, so
@@ -1282,6 +1306,7 @@ impl Session {
 
         // 7. Artifacts: interfaces, manifest, and the linked IR.
         let ifaces = self.merged_ifaces();
+        let contract_hashes = interface::contract_hashes(&ifaces);
         let stage = self.merged_report();
         let manifest_path = self.out_dir.join(format!("{}.manifest.json", self.entry_stem));
         write_artifacts(
@@ -1304,9 +1329,9 @@ impl Session {
             &crate::driver::DriverOptions::default(),
             &crate::driver::LinkPlan::default(),
             crate::driver::Mode::EmitIr,
-            &crate::interface::contract_hashes(&ifaces),
+            &contract_hashes,
         )?;
-        report.chain_ok = self.chain_ok();
+        report.chain_ok = interface::verify_chain_with(&ifaces, &contract_hashes).is_ok();
 
         // 7b. The query graph over the state this rebuild produced. The
         //     demand re-executes what a re-checked module invalidated and
@@ -1341,6 +1366,7 @@ impl Session {
         timings.total_ms = since_ms(t_total);
         report.timings = timings;
         self.write_rebuild_manifest(&report)?;
+        self.chain_ok = report.chain_ok;
         Ok(report)
     }
 
@@ -1549,15 +1575,11 @@ impl Session {
     /// The module a rendered item id belongs to.
     fn module_of_item(&self, id: &str) -> Option<String> {
         let name = name_of_id(id);
-        let mut best: Option<String> = None;
-        for m in &self.all_modules {
-            if name.starts_with(&format!("{m}.")) || name == m.as_str() {
-                if best.as_ref().map(|b: &String| m.len() > b.len()).unwrap_or(true) {
-                    best = Some(m.clone());
-                }
-            }
+        if self.all_modules.contains(name) {
+            Some(name.to_owned())
+        } else {
+            owner_module(name, &self.all_modules)
         }
-        best
     }
 
     /// Every item id a module owns in the current checked state.
@@ -1638,9 +1660,7 @@ impl Session {
         // answering about a state it was not built from.
         self.graph = None;
         let t0 = std::time::Instant::now();
-        let adapters = self.wit.clone();
-        let prelude: PreludeSources = parse_prelude(&adapters)?;
-        self.prelude_order = prelude.modules.iter().map(|m| m.name.text.clone()).collect();
+        let prelude = &self.prelude;
         let prelude_fixities = prelude.base.clone();
         let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
         let mut exported_fixities = prelude.exported_fixities.clone();
@@ -1649,8 +1669,7 @@ impl Session {
         for name in slice {
             let file = self.module_file[name].clone();
             if !parsed_by_file.contains_key(&file) {
-                let src = self.texts[&file].clone();
-                let parsed = parse_source(&src, &file, &prelude_fixities, &exported_fixities)?;
+                let parsed = parse_source(&self.texts[&file], &file, &prelude_fixities, &exported_fixities)?;
                 for (m, f) in &parsed.fixities {
                     module_fixities.insert(m.clone(), f.clone());
                 }
@@ -1675,7 +1694,7 @@ impl Session {
         let mut files: HashMap<String, String> = HashMap::new();
         for name in slice {
             let file = self.module_file[name].clone();
-            hashes.insert(name.clone(), interface::content_hash(&self.texts[&file]));
+            hashes.insert(name.clone(), self.text_hashes[&file].clone());
             files.insert(name.clone(), file);
         }
         let scx = StagingCx {
@@ -1693,7 +1712,7 @@ impl Session {
                 &modules,
                 &hashes,
                 &scx,
-                &adapters,
+                &self.wit,
                 &self.profile,
             )?;
         // The instance-search buckets this run consulted, as the query
@@ -1722,30 +1741,30 @@ impl Session {
         // Group the run's rows per module (longest module prefix; the
         // checker's units spell out `Module.name`).
         let slice_set: BTreeSet<String> = slice.iter().cloned().collect();
-        let all = self.all_modules.clone();
+        let all = &self.all_modules;
         let mut fns_by: HashMap<String, Vec<FnDef>> = HashMap::new();
         let mut loose: Vec<FnDef> = Vec::new();
         for f in &program.fns {
-            match owner_module(&f.id.0, &all) {
+            match owner_module(&f.id.0, all) {
                 Some(m) => fns_by.entry(m).or_default().push(f.clone()),
                 None => loose.push(f.clone()),
             }
         }
         let mut totals_by: HashMap<String, Vec<crate::total::Definition>> = HashMap::new();
         for definition in program.total_bodies.definitions() {
-            if let Some(owner) = owner_module(&definition.identity, &all).or_else(|| slice.last().cloned()) {
+            if let Some(owner) = owner_module(&definition.identity, all).or_else(|| slice.last().cloned()) {
                 totals_by.entry(owner).or_default().push(definition.clone());
             }
         }
         let mut inst_by: HashMap<String, Vec<InstanceDef>> = HashMap::new();
         for i in &program.instances {
-            if let Some(m) = owner_module(&i.id.0, &all) {
+            if let Some(m) = owner_module(&i.id.0, all) {
                 inst_by.entry(m).or_default().push(i.clone());
             }
         }
         let mut laws_by: HashMap<String, Vec<LawRow>> = HashMap::new();
         for l in &program.laws {
-            if let Some(m) = owner_module(&l.instance, &all) {
+            if let Some(m) = owner_module(&l.instance, all) {
                 laws_by.entry(m).or_default().push(l.clone());
             }
         }
@@ -1759,12 +1778,12 @@ impl Session {
         }
         let mut plans_by: HashMap<String, BTreeMap<String, CtorLayout>> = HashMap::new();
         for (k, v) in &program.plans {
-            let m = owner_module(k, &all).unwrap_or_default();
+            let m = owner_module(k, all).unwrap_or_default();
             plans_by.entry(m).or_default().insert(k.clone(), v.clone());
         }
         let mut foreigns_by: HashMap<String, BTreeMap<String, ForeignPlan>> = HashMap::new();
         for (k, v) in &program.foreigns {
-            let m = owner_module(k, &all).unwrap_or_default();
+            let m = owner_module(k, all).unwrap_or_default();
             foreigns_by.entry(m).or_default().insert(k.clone(), v.clone());
         }
         let mut gen_by: HashMap<String, Vec<String>> = HashMap::new();
@@ -1774,7 +1793,7 @@ impl Session {
         let mut syntax_by: HashMap<_, _> = report.generated_syntax.iter().cloned().collect();
         let mut folds_by: HashMap<String, Vec<LitFold>> = HashMap::new();
         for f in &report.literal_folds {
-            if let Some(m) = owner_module(&f.unit, &all) {
+            if let Some(m) = owner_module(&f.unit, all) {
                 folds_by.entry(m).or_default().push(f.clone());
             }
         }
@@ -1784,13 +1803,13 @@ impl Session {
         }
         let mut safety_by: HashMap<String, Vec<SafetyAssertion>> = HashMap::new();
         for a in &report.safety.assertions {
-            if let Some(m) = owner_module(&a.definition, &all) {
+            if let Some(m) = owner_module(&a.definition, all) {
                 safety_by.entry(m).or_default().push(a.clone());
             }
         }
         let mut temp_by: HashMap<String, Vec<TemporalRow>> = HashMap::new();
         for t in &report.temporal {
-            if let Some(m) = owner_module(&t.definition, &all) {
+            if let Some(m) = owner_module(&t.definition, all) {
                 temp_by.entry(m).or_default().push(t.clone());
             }
         }
@@ -2244,12 +2263,6 @@ impl Session {
         }
     }
 
-    /// Does the merged `.cinchif` "checked against" chain verify?
-    fn chain_ok(&self) -> bool {
-        let ifaces: Vec<Iface> = self.merged_ifaces();
-        interface::verify_chain(&ifaces).is_ok()
-    }
-
     // -------------------------------------------------------- LINK
 
     /// The declaration-keyed object cache: split the fresh emission into
@@ -2459,10 +2472,9 @@ impl Session {
         for m in &order {
             let Some(state) = self.states.get(m) else { continue };
             let Some(iface) = &state.iface else { continue };
-            let iface = iface.clone();
             let source_hash = state.source_hash.clone();
             let module_id = item_id(ItemKind::Module, m, "");
-            let surface = surface_rows(&iface, &module_id);
+            let surface = surface_rows(iface, &module_id);
             let body = hash_of(&source_hash);
             g.insert_item(Item {
                 id: module_id.clone(),
@@ -2475,11 +2487,11 @@ impl Session {
                 facts: Vec::new(),
                 owner: None,
             });
-            for id in self.item_ids_from_iface(&iface, m) {
+            for id in self.item_ids_from_iface(iface, m) {
                 let kind = kind_of_id(&id);
-                let surface = surface_rows(&iface, &id);
-                let body = self.body_rows_for(m, &id, &self.states.get(m).map(|s| s.fns.clone()).unwrap_or_default());
-                let facts = contract_facts_of(&iface, &id);
+                let surface = surface_rows(iface, &id);
+                let body = self.body_rows_for(m, &id, &state.fns);
+                let facts = contract_facts_of(iface, &id);
                 for (ix, fact) in facts.iter().enumerate() {
                     let cid = contract_id(name_of_id(&id), &format!("f{ix}"));
                     let s = fact.clone();
@@ -2646,12 +2658,11 @@ impl Session {
     /// parse the same way the checker parsed it, or edges would be
     /// missed).
     fn parse_for_graph(
-        &mut self,
+        &self,
         file: &str,
         text: &str,
     ) -> Result<crate::parser::ParsedModules> {
-        let adapters = self.wit.clone();
-        let prelude = parse_prelude(&adapters)?;
+        let prelude = &self.prelude;
         let mut tables = prelude.exported_fixities.clone();
         // Thread the fixities of every file that precedes this one in
         // project order (dependency order: imports first).
@@ -2728,16 +2739,11 @@ impl Session {
 }
 
 /// The longest module prefix an id belongs to (`Module.name` ids).
-fn owner_module(id: &str, modules: &[String]) -> Option<String> {
-    let mut best: Option<String> = None;
-    for m in modules {
-        if id.starts_with(&format!("{m}.")) {
-            if best.as_ref().map(|b: &String| m.len() > b.len()).unwrap_or(true) {
-                best = Some(m.clone());
-            }
-        }
-    }
-    best
+fn owner_module(id: &str, modules: &HashSet<String>) -> Option<String> {
+    id.rmatch_indices('.')
+        .map(|(dot, _)| &id[..dot])
+        .find(|name| modules.contains(*name))
+        .map(str::to_owned)
 }
 
 // ============================================================ helpers

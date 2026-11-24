@@ -2,7 +2,7 @@
 
 use crate::parser::{parse_modules, FixityTable, ParsedModules};
 use crate::{check, codegen, layout, lexer, Error, Result};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// P29: Blaze-style incremental recompilation (the REAPER item graph,
@@ -1594,7 +1594,11 @@ struct HostOnlyImport {
 
 /// Every `module X` declaration beside `dir`, for import resolution when
 /// `X.cinch` does not exist (decision D42).
-fn index_dir_modules(dir: &Path, loaded: &HashMap<String, String>) -> HashMap<String, Vec<PathBuf>> {
+fn index_dir_modules(
+    dir: &Path,
+    loaded: &HashMap<String, String>,
+    edits: Option<&BTreeMap<String, String>>,
+) -> HashMap<String, Vec<PathBuf>> {
     let mut index: HashMap<String, Vec<PathBuf>> = HashMap::new();
     let mut stack = vec![dir.to_path_buf()];
     while let Some(current) = stack.pop() {
@@ -1619,7 +1623,7 @@ fn index_dir_modules(dir: &Path, loaded: &HashMap<String, String>) -> HashMap<St
             {
                 continue;
             }
-            let Ok(src) = std::fs::read_to_string(&path) else {
+            let Ok(src) = read_project_source(&path, edits) else {
                 continue;
             };
             let Ok(scanned) = scan_file(&src, &path.display().to_string()) else {
@@ -2035,7 +2039,17 @@ fn host_facts(build: &crate::core::BuildProfiles) -> (TargetFacts, bool) {
 /// loaded file, then to `X.cinch`, then to a unique `module X` beside the
 /// entry (decision D42).
 fn load_project(entry_path: &Path) -> Result<Project> {
-    load_project_for(entry_path, &crate::core::BuildProfiles::native(), None)
+    load_project_for(entry_path, &crate::core::BuildProfiles::native(), None, None)
+}
+
+fn read_project_source(
+    path: &Path,
+    edits: Option<&BTreeMap<String, String>>,
+) -> std::io::Result<String> {
+    match edits.and_then(|sources| sources.get(path.to_string_lossy().as_ref())) {
+        Some(text) => Ok(text.clone()),
+        None => std::fs::read_to_string(path),
+    }
 }
 
 /// [`load_project`] for one build: the target's profile decides which
@@ -2050,6 +2064,7 @@ fn load_project_for(
     entry_path: &Path,
     build: &crate::core::BuildProfiles,
     mut parse_tokens: Option<&mut HashMap<String, Vec<lexer::Token>>>,
+    edits: Option<&BTreeMap<String, String>>,
 ) -> Result<Project> {
     // Emitted code and its modules are the target: the compilation this
     // project describes is the target's.
@@ -2139,7 +2154,7 @@ fn load_project_for(
         if sources.contains_key(&key) {
             continue;
         }
-        let src = std::fs::read_to_string(&path)
+        let src = read_project_source(&path, edits)
             .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
         let tokens = source_tokens(&src, &key)?;
         let scanned = scan_source_tokens(&tokens, profile);
@@ -2237,11 +2252,14 @@ fn load_project_for(
                 // first; only an unresolved family name falls back to
                 // the embedded sources.
                 let direct = dir.join(format!("{imp}.cinch"));
-                if direct.exists() {
+                if direct.exists()
+                    || edits
+                        .is_some_and(|sources| sources.contains_key(direct.to_string_lossy().as_ref()))
+                {
                     queue.push(direct);
                     continue;
                 }
-                let index = dir_index.get_or_insert_with(|| index_dir_modules(&dir, &sources));
+                let index = dir_index.get_or_insert_with(|| index_dir_modules(&dir, &sources, edits));
                 let candidates = index.get(imp).cloned().unwrap_or_default();
                 let not_loaded: Vec<PathBuf> = candidates
                     .into_iter()
@@ -5605,7 +5623,7 @@ pub fn driver_with_profile_opts(
         return Err(Error::plain("--native-object applies to build and run"));
     }
     let mut parse_tokens = HashMap::new();
-    let project = load_project_for(path, &build, Some(&mut parse_tokens))?;
+    let project = load_project_for(path, &build, Some(&mut parse_tokens), None)?;
     // The final link is built from the closure, not from a string: every
     // contribution is tagged with the package that asked for it, raw
     // words need the root project's consent, and machine-local overrides
