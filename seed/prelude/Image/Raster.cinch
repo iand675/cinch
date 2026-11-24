@@ -1,0 +1,154 @@
+-- | Raster images: a pixel format, dimensions, a row stride and interleaved sample bytes.
+-- Formats cover grayscale, grayscale with alpha, RGB and RGBA at eight or sixteen
+-- bits per sample (sixteen-bit samples are big-endian, as PNG stores them) and
+-- palette indices with an RGBA palette. Alpha is not premultiplied. Pixel access
+-- is bounds-checked and returns non-premultiplied sixteen-bit RGBA, and
+-- raster-to-rgba8 converts any raster to eight-bit RGBA in fresh storage.
+module Image.Raster where
+
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+
+  export PixelFormat, Gray8, Gray16, GrayAlpha8, GrayAlpha16, Rgb8, Rgb16, Rgba8, Rgba16, Indexed
+  export Raster, raster, raster-format, raster-width, raster-height, raster-stride, raster-pixels, raster-palette
+  export pixel-bytes, raster-pixel, raster-to-rgba8, raster-new
+
+  -- | How samples are laid out in each pixel.
+  data PixelFormat where
+    -- | One 8-bit gray sample.
+    Gray8 :: PixelFormat
+    -- | One 16-bit big-endian gray sample.
+    Gray16 :: PixelFormat
+    -- | 8-bit gray then 8-bit alpha.
+    GrayAlpha8 :: PixelFormat
+    -- | 16-bit gray then 16-bit alpha.
+    GrayAlpha16 :: PixelFormat
+    -- | 8-bit red, green and blue.
+    Rgb8 :: PixelFormat
+    -- | 16-bit red, green and blue.
+    Rgb16 :: PixelFormat
+    -- | 8-bit red, green, blue and alpha.
+    Rgba8 :: PixelFormat
+    -- | 16-bit red, green, blue and alpha.
+    Rgba16 :: PixelFormat
+    -- | One 8-bit palette index into the raster's RGBA palette.
+    Indexed :: PixelFormat
+
+  -- | An image: format, width, height, stride in bytes, pixel bytes and the palette as RGBA quadruples.
+  data Raster where
+    -- | Private fields in the order listed above.
+    Raster :: PixelFormat -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Raster
+
+  -- | Bytes per pixel for a format.
+  pixel-bytes :: PixelFormat -> Nat
+  pixel-bytes format = case format of
+    Gray8 -> 1
+    Indexed -> 1
+    Gray16 -> 2
+    GrayAlpha8 -> 2
+    GrayAlpha16 -> 4
+    Rgb8 -> 3
+    Rgb16 -> 6
+    Rgba8 -> 4
+    Rgba16 -> 8
+
+  -- | A raster over existing pixel bytes with a tight stride; None when the bytes are too short.
+  raster :: PixelFormat -> Nat -> Nat -> Bytes -> Bytes -> Option Raster
+  raster format width height pixels palette =
+    let stride = width * pixel-bytes format in
+    if stride * height <= bytes-len pixels then Some (Raster format width height stride pixels palette) else None
+
+  -- | A zeroed raster of the given format and size.
+  raster-new :: PixelFormat -> Nat -> Nat -> Raster
+  raster-new format width height = let stride = width * pixel-bytes format in Raster format width height stride (bytes-new (stride * height)) (bytes-new 0)
+
+  -- | Pixel format.
+  raster-format :: Raster -> PixelFormat
+  raster-format r = case r of Raster f w h s p pal -> f
+
+  -- | Width in pixels.
+  raster-width :: Raster -> Nat
+  raster-width r = case r of Raster f w h s p pal -> w
+
+  -- | Height in pixels.
+  raster-height :: Raster -> Nat
+  raster-height r = case r of Raster f w h s p pal -> h
+
+  -- | Bytes from one row to the next.
+  raster-stride :: Raster -> Nat
+  raster-stride r = case r of Raster f w h s p pal -> s
+
+  -- | The pixel bytes (shared; copy before mutating).
+  raster-pixels :: Raster -> Bytes
+  raster-pixels r = case r of Raster f w h s p pal -> p
+
+  -- | The palette as RGBA quadruples (empty unless indexed).
+  raster-palette :: Raster -> Bytes
+  raster-palette r = case r of Raster f w h s p pal -> pal
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at input i = if i < bytes-len input then bytes-get input i else 0
+
+  -- | A big-endian 16-bit sample.
+  wide :: Bytes -> Nat -> Nat
+  wide input i = at input i * 256 + at input (i + 1)
+
+  -- | An 8-bit sample widened to sixteen bits.
+  widen :: Nat -> Nat
+  widen v = v * 257
+
+  -- | Non-premultiplied 16-bit RGBA of the pixel at (x, y); None outside the image.
+  raster-pixel :: Raster -> Nat -> Nat -> Option (Nat, Nat, Nat, Nat)
+  raster-pixel r x y = case r of
+    Raster format width height stride pixels palette ->
+      if x >= width || y >= height then None
+      else Some (sample format pixels palette (y * stride + x * pixel-bytes format))
+
+  -- | The 16-bit RGBA of the pixel whose first byte is at offset i.
+  sample :: PixelFormat -> Bytes -> Bytes -> Nat -> (Nat, Nat, Nat, Nat)
+  sample format pixels palette i = case format of
+    Gray8 -> (widen (at pixels i), widen (at pixels i), widen (at pixels i), 65535)
+    Gray16 -> (wide pixels i, wide pixels i, wide pixels i, 65535)
+    GrayAlpha8 -> (widen (at pixels i), widen (at pixels i), widen (at pixels i), widen (at pixels (i + 1)))
+    GrayAlpha16 -> (wide pixels i, wide pixels i, wide pixels i, wide pixels (i + 2))
+    Rgb8 -> (widen (at pixels i), widen (at pixels (i + 1)), widen (at pixels (i + 2)), 65535)
+    Rgb16 -> (wide pixels i, wide pixels (i + 2), wide pixels (i + 4), 65535)
+    Rgba8 -> (widen (at pixels i), widen (at pixels (i + 1)), widen (at pixels (i + 2)), widen (at pixels (i + 3)))
+    Rgba16 -> (wide pixels i, wide pixels (i + 2), wide pixels (i + 4), wide pixels (i + 6))
+    Indexed -> indexed palette (4 * at pixels i)
+
+  -- | A palette entry widened to sixteen bits.
+  indexed :: Bytes -> Nat -> (Nat, Nat, Nat, Nat)
+  indexed palette p = (widen (at palette p), widen (at palette (p + 1)), widen (at palette (p + 2)), widen (at palette (p + 3)))
+
+  -- | Convert to tightly packed 8-bit RGBA, keeping the high byte of 16-bit samples.
+  raster-to-rgba8 :: Raster -> Raster
+  raster-to-rgba8 r = case r of
+    Raster format width height stride pixels palette ->
+      let out = bytes-new (width * height * 4) in
+      let filled = convert-rows r out 0 0 in
+      Raster Rgba8 width height (width * 4) out (bytes-new 0)
+
+  -- | Convert every pixel in row-major order.
+  convert-rows :: Raster -> Bytes -> Nat -> Nat -> Unit
+  convert-rows r out x y =
+    if y >= raster-height r then ()
+    else if x >= raster-width r then convert-rows r out 0 (y + 1)
+    else
+      let written = store-pixel out ((y * raster-width r + x) * 4) (raster-pixel r x y) in
+      convert-rows r out (x + 1) y
+
+  -- | Store the high bytes of a 16-bit RGBA pixel.
+  store-pixel :: Bytes -> Nat -> Option (Nat, Nat, Nat, Nat) -> Unit
+  store-pixel out o pixel = case pixel of
+    Some (cr, cg, cb, ca) -> store4 out o (nat-div cr 256) (nat-div cg 256) (nat-div cb 256) (nat-div ca 256)
+    None -> ()
+
+  -- | Store four bytes when they fit.
+  store4 :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Unit
+  store4 out o a b c d =
+    if o + 4 <= bytes-len out && a < 256 && b < 256 && c < 256 && d < 256 then
+      let w0 = bytes-set out o a in let w1 = bytes-set out (o + 1) b in let w2 = bytes-set out (o + 2) c in bytes-set out (o + 3) d
+    else ()

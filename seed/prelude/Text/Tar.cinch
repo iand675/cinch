@@ -1,0 +1,755 @@
+-- | Tape archives: read V7, USTAR, PAX and GNU tar streams and write USTAR or PAX archives.
+-- An archive is a sequence of 512-byte header blocks, each followed by its
+-- file data padded to a whole block, and ends with two zero blocks. Reading
+-- verifies every header checksum (summed sixteen bytes at a time in SIMD lanes,
+-- accepting both the unsigned and the historical signed sum), applies PAX
+-- extended records and GNU long names and links to the entry they precede,
+-- returns PAX global headers as entries of their own, and decodes octal and
+-- base-256 numeric fields. Writing chooses USTAR when every field fits
+-- (splitting long names into prefix and name) and otherwise precedes the entry
+-- with a PAX extended header holding the fields that do not fit; modification
+-- times are whole seconds. Names, links and owner names are raw bytes.
+module Text.Tar where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export TarHeader, TarEntry, tar-header, tar-entry, tar-entry-header, tar-entry-data
+  export tar-kind, tar-name, tar-link, tar-mode, tar-uid, tar-gid, tar-size, tar-mtime, tar-uname, tar-gname, tar-devmajor, tar-devminor, tar-pax, tar-format
+  export tar-with-link, tar-with-mode, tar-with-owner, tar-with-mtime, tar-with-device, tar-with-pax
+  export tar-regular, tar-hardlink, tar-symlink, tar-char, tar-block, tar-directory, tar-fifo, tar-contiguous, tar-pax-global
+  export tar-format-v7, tar-format-ustar, tar-format-pax, tar-format-gnu
+  export TarError, TarBadHeader, TarBadChecksum, TarTruncated, TarFieldTooLong, TarBadPax, tar-error-message
+  export tar-read, tar-write
+
+  -- | Regular file, type byte '0'.
+  tar-regular :: Nat
+  tar-regular = 48
+
+  -- | Hard link to an earlier entry, type byte '1'.
+  tar-hardlink :: Nat
+  tar-hardlink = 49
+
+  -- | Symbolic link, type byte '2'.
+  tar-symlink :: Nat
+  tar-symlink = 50
+
+  -- | Character device, type byte '3'.
+  tar-char :: Nat
+  tar-char = 51
+
+  -- | Block device, type byte '4'.
+  tar-block :: Nat
+  tar-block = 52
+
+  -- | Directory, type byte '5'.
+  tar-directory :: Nat
+  tar-directory = 53
+
+  -- | Named pipe, type byte '6'.
+  tar-fifo :: Nat
+  tar-fifo = 54
+
+  -- | Contiguous file, type byte '7', read as a regular file.
+  tar-contiguous :: Nat
+  tar-contiguous = 55
+
+  -- | PAX global header, type byte 'g'. Read as an entry holding only its name and records, with no data.
+  tar-pax-global :: Nat
+  tar-pax-global = 103
+
+  -- | Format bit: original Unix V7 headers.
+  tar-format-v7 :: Nat
+  tar-format-v7 = 1
+
+  -- | Format bit: POSIX USTAR.
+  tar-format-ustar :: Nat
+  tar-format-ustar = 2
+
+  -- | Format bit: POSIX PAX extended headers.
+  tar-format-pax :: Nat
+  tar-format-pax = 4
+
+  -- | Format bit: GNU extensions.
+  tar-format-gnu :: Nat
+  tar-format-gnu = 8
+
+  -- | Entry metadata: type byte, name, link target, mode, user and group ids, data size, modification
+  -- time in seconds since 1970, user and group names, device numbers, PAX records and the format read.
+  data TarHeader where
+    -- | Private fields in the order listed above.
+    Header :: Nat -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Int -> Bytes -> Bytes -> Nat -> Nat -> List (Bytes, Bytes) -> Nat -> TarHeader
+
+  -- | One archive member: its header and its data (empty for links, directories and devices).
+  data TarEntry where
+    -- | Private fields: header and data.
+    Entry :: TarHeader -> Bytes -> TarEntry
+
+  -- | A header of the given type and name with mode 0644 (0755 for directories) and every other field zero or empty.
+  tar-header :: Nat -> Bytes -> TarHeader
+  tar-header kind name = Header kind name (bytes-new 0) (if kind == tar-directory then 493 else 420) 0 0 0 0 (bytes-new 0) (bytes-new 0) 0 0 Nil 0
+
+  -- | Pair a header with data; the written size is always the data length.
+  tar-entry :: TarHeader -> Bytes -> TarEntry
+  tar-entry header contents = Entry header contents
+
+  -- | An entry's header.
+  tar-entry-header :: TarEntry -> TarHeader
+  tar-entry-header entry = case entry of Entry header contents -> header
+
+  -- | An entry's data.
+  tar-entry-data :: TarEntry -> Bytes
+  tar-entry-data entry = case entry of Entry header contents -> contents
+
+  -- | Type byte.
+  tar-kind :: TarHeader -> Nat
+  tar-kind h = case h of Header k n l m u g s t un gn ma mi p f -> k
+
+  -- | Entry name, after any USTAR prefix, GNU long name or PAX path.
+  tar-name :: TarHeader -> Bytes
+  tar-name h = case h of Header k n l m u g s t un gn ma mi p f -> n
+
+  -- | Link target for hard and symbolic links.
+  tar-link :: TarHeader -> Bytes
+  tar-link h = case h of Header k n l m u g s t un gn ma mi p f -> l
+
+  -- | Permission and mode bits.
+  tar-mode :: TarHeader -> Nat
+  tar-mode h = case h of Header k n l m u g s t un gn ma mi p f -> m
+
+  -- | Owner user id.
+  tar-uid :: TarHeader -> Nat
+  tar-uid h = case h of Header k n l m u g s t un gn ma mi p f -> u
+
+  -- | Owner group id.
+  tar-gid :: TarHeader -> Nat
+  tar-gid h = case h of Header k n l m u g s t un gn ma mi p f -> g
+
+  -- | Data size in bytes as recorded in the archive.
+  tar-size :: TarHeader -> Nat
+  tar-size h = case h of Header k n l m u g s t un gn ma mi p f -> s
+
+  -- | Modification time in whole seconds since 1970-01-01 UTC.
+  tar-mtime :: TarHeader -> Int
+  tar-mtime h = case h of Header k n l m u g s t un gn ma mi p f -> t
+
+  -- | Owner user name.
+  tar-uname :: TarHeader -> Bytes
+  tar-uname h = case h of Header k n l m u g s t un gn ma mi p f -> un
+
+  -- | Owner group name.
+  tar-gname :: TarHeader -> Bytes
+  tar-gname h = case h of Header k n l m u g s t un gn ma mi p f -> gn
+
+  -- | Device major number.
+  tar-devmajor :: TarHeader -> Nat
+  tar-devmajor h = case h of Header k n l m u g s t un gn ma mi p f -> ma
+
+  -- | Device minor number.
+  tar-devminor :: TarHeader -> Nat
+  tar-devminor h = case h of Header k n l m u g s t un gn ma mi p f -> mi
+
+  -- | PAX records that apply to this entry and are not represented by another field, in archive order.
+  tar-pax :: TarHeader -> List (Bytes, Bytes)
+  tar-pax h = case h of Header k n l m u g s t un gn ma mi p f -> p
+
+  -- | Format bits observed when reading; zero for headers built in memory.
+  tar-format :: TarHeader -> Nat
+  tar-format h = case h of Header k n l m u g s t un gn ma mi p f -> f
+
+  -- | Set the link target.
+  tar-with-link :: TarHeader -> Bytes -> TarHeader
+  tar-with-link h link = case h of Header k n l m u g s t un gn ma mi p f -> Header k n link m u g s t un gn ma mi p f
+
+  -- | Set the mode bits.
+  tar-with-mode :: TarHeader -> Nat -> TarHeader
+  tar-with-mode h mode = case h of Header k n l m u g s t un gn ma mi p f -> Header k n l mode u g s t un gn ma mi p f
+
+  -- | Set user and group ids and names.
+  tar-with-owner :: TarHeader -> Nat -> Nat -> Bytes -> Bytes -> TarHeader
+  tar-with-owner h uid gid user group = case h of Header k n l m u g s t un gn ma mi p f -> Header k n l m uid gid s t user group ma mi p f
+
+  -- | Set the modification time in seconds since 1970.
+  tar-with-mtime :: TarHeader -> Int -> TarHeader
+  tar-with-mtime h time = case h of Header k n l m u g s t un gn ma mi p f -> Header k n l m u g s time un gn ma mi p f
+
+  -- | Set device major and minor numbers.
+  tar-with-device :: TarHeader -> Nat -> Nat -> TarHeader
+  tar-with-device h major minor = case h of Header k n l m u g s t un gn ma mi p f -> Header k n l m u g s t un gn major minor p f
+
+  -- | Set extra PAX records written with the entry (forcing a PAX header) and reported when read back.
+  tar-with-pax :: TarHeader -> List (Bytes, Bytes) -> TarHeader
+  tar-with-pax h records = case h of Header k n l m u g s t un gn ma mi p f -> Header k n l m u g s t un gn ma mi records f
+
+  -- | A malformed archive or an entry that cannot be written.
+  data TarError where
+    -- | The header block at this offset is not a recognizable header.
+    TarBadHeader :: Nat -> TarError
+    -- | The header block at this offset has a checksum that matches neither summing convention.
+    TarBadChecksum :: Nat -> TarError
+    -- | The archive ends inside the header or data that begins at this offset.
+    TarTruncated :: Nat -> TarError
+    -- | A field of this entry (by name) cannot be represented: a device number, mode or an over-long PAX header.
+    TarFieldTooLong :: Bytes -> TarError
+    -- | A PAX extended header at this offset is malformed.
+    TarBadPax :: Nat -> TarError
+
+  -- | Render a tar error.
+  tar-error-message :: TarError -> String
+  tar-error-message error = case error of
+    TarBadHeader at -> string-concat "invalid tar header at offset " (nat-to-string at)
+    TarBadChecksum at -> string-concat "tar header checksum mismatch at offset " (nat-to-string at)
+    TarTruncated at -> string-concat "tar archive truncated in the entry at offset " (nat-to-string at)
+    TarFieldTooLong name -> "tar header field cannot be represented"
+    TarBadPax at -> string-concat "invalid PAX extended header at offset " (nat-to-string at)
+
+  -- | Sum sixteen bytes as unsigned values (low 32 bits) and as signed values (high 32 bits, two's complement).
+  prim block-sums :: U64 -> U64 -> U64 where
+    llvm {
+      %a = bitcast i64 %0 to <8 x i8>
+      %b = bitcast i64 %1 to <8 x i8>
+      %bytes = shufflevector <8 x i8> %a, <8 x i8> %b, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+      %unsigned = zext <16 x i8> %bytes to <16 x i32>
+      %signed = sext <16 x i8> %bytes to <16 x i32>
+      %u = call i32 @llvm.vector.reduce.add.v16i32(<16 x i32> %unsigned)
+      %s = call i32 @llvm.vector.reduce.add.v16i32(<16 x i32> %signed)
+      %lo = zext i32 %u to i64
+      %hi = zext i32 %s to i64
+      %up = shl i64 %hi, 32
+      %value = or i64 %lo, %up
+      ret i64 %value
+    }
+
+  -- | Unsigned and signed sums of a 512-byte block, with the checksum field (148..155) counted as spaces.
+  checksums :: Bytes -> Nat -> (Nat, Int)
+  checksums input at = sum-blocks input at 0 0 0
+
+  -- | Accumulate sixteen-byte lanes, then replace the checksum field's contribution by eight spaces.
+  sum-blocks :: Bytes -> Nat -> Nat -> Nat -> Int -> (Nat, Int)
+  sum-blocks input at i unsigned signed =
+    if i < 512 && at + i + 16 <= bytes-len input then
+      let pair = block-sums (bytes-read-le64 input (at + i)) (bytes-read-le64 input (at + i + 8)) in
+      let u = u32-to-nat (wrapping-u64-to-u32 pair) in
+      let s = int-from-i64 (i32-to-i64 (wrapping-u64-to-i32 (wrapping-shr-u64 pair 32))) in
+      sum-blocks input at (i + 16) (unsigned + u) (signed + s)
+    else
+      let field = field-sums input (at + 148) 0 0 0 in
+      case field of (fu, fs) -> (minus (unsigned + 256) fu, signed + 256 - fs)
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Unsigned and signed sums of the eight checksum-field bytes.
+  field-sums :: Bytes -> Nat -> Nat -> Nat -> Int -> (Nat, Int)
+  field-sums input at i unsigned signed =
+    if i < 8 && at + i < bytes-len input then
+      let b = bytes-get input (at + i) in
+      field-sums input at (i + 1) (unsigned + b) (signed + (if b >= 128 then nat-to-int b - 256 else nat-to-int b))
+    else (unsigned, signed)
+
+  -- | Whether a block is entirely zero.
+  zero-block :: Bytes -> Nat -> Bool
+  zero-block input at = zero-from input at 0
+
+  -- | Check eight bytes at a time.
+  zero-from :: Bytes -> Nat -> Nat -> Bool
+  zero-from input at i =
+    if i < 512 && at + i + 8 <= bytes-len input then eq-u64 (bytes-read-le64 input (at + i)) 0 && zero-from input at (i + 8)
+    else True
+
+  -- | Bytes of a field up to its first NUL, in fresh storage.
+  field-string :: Bytes -> Nat -> Nat -> Bytes
+  field-string input at width = slice input at (at + string-length input at width 0)
+
+  -- | Length before the first NUL within the field.
+  string-length :: Bytes -> Nat -> Nat -> Nat -> Nat
+  string-length input at width i = if i < width && at + i < bytes-len input && not (bytes-get input (at + i) == 0) then string-length input at width (i + 1) else i
+
+  -- | Copy input[start, stop) into fresh storage.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice input start stop =
+    if start <= stop && stop <= bytes-len input then
+      let out = bytes-new (stop - start) in let copied = bytes-copy-range out input 0 start (stop - start) in out
+    else bytes-new 0
+
+  -- | Parse a numeric field: base-256 when the first byte's high bit is set, otherwise octal between
+  -- optional leading and trailing spaces and NULs. None for an invalid digit.
+  numeric :: Bytes -> Nat -> Nat -> Option Int
+  numeric input at width =
+    if at < bytes-len input && bytes-get input at >= 128 then Some (base256 input at width)
+    else octal input (skip-pad input at (at + width)) (at + width) 0 False
+
+  -- | Signed big-endian base-256: bit 6 of the first byte gives the sign; bit 7 is the marker.
+  base256 :: Bytes -> Nat -> Nat -> Int
+  base256 input at width =
+    let first = bytes-get-or input at in
+    let negative = first >= 192 in
+    let start = if negative then nat-to-int (nat-rem first 128) - 128 else nat-to-int (nat-rem first 128) in
+    big-digits input (at + 1) (at + width) start
+
+  -- | Accumulate base-256 digits.
+  big-digits :: Bytes -> Nat -> Nat -> Int -> Int
+  big-digits input i end acc = if i < end then big-digits input (i + 1) end (acc * 256 + nat-to-int (bytes-get-or input i)) else acc
+
+  -- | A byte or zero past the end.
+  bytes-get-or :: Bytes -> Nat -> Nat
+  bytes-get-or input i = if i < bytes-len input then bytes-get input i else 0
+
+  -- | Skip leading spaces and NULs.
+  skip-pad :: Bytes -> Nat -> Nat -> Nat
+  skip-pad input i end = if i < end && (bytes-get-or input i == 32 || bytes-get-or input i == 0) then skip-pad input (i + 1) end else i
+
+  -- | Octal digits until a space or NUL; only padding may follow the digits.
+  octal :: Bytes -> Nat -> Nat -> Int -> Bool -> Option Int
+  octal input i end acc ended =
+    if i >= end then Some acc
+    else
+      let b = bytes-get-or input i in
+      if b == 32 || b == 0 then octal input (i + 1) end acc True
+      else if b >= 48 && b <= 55 && not ended then octal input (i + 1) end (acc * 8 + nat-to-int (b - 48)) False
+      else None
+
+  -- | A nonnegative integer as a natural number.
+  natural :: Int -> Nat
+  natural value = if value >= 0 then nat-from-int value else 0
+
+  -- | Blocks needed for a data size.
+  padded :: Nat -> Nat
+  padded size = 512 * nat-div (size + 511) 512
+
+  -- | Read every entry of a complete archive, stopping at the first zero block (normally one of two).
+  tar-read :: Bytes -> Result TarError (List TarEntry)
+  tar-read input = read-from input 0 Nil Nil Nil Nil
+
+  -- | Pending GNU long name, long link and PAX records apply to the next real header.
+  read-from :: Bytes -> Nat -> List TarEntry -> List Bytes -> List Bytes -> List (Bytes, Bytes) -> Result TarError (List TarEntry)
+  read-from input at out long-name long-link pax =
+    if at + 512 > bytes-len input then (if at == bytes-len input then Ok (reverse out) else Err (TarTruncated at))
+    else if zero-block input at then end-of-archive input at out
+    else case parse-header input at of
+      Err error -> Err error
+      Ok header -> read-entry input at header out long-name long-link pax
+
+  -- | A zero block ends the archive unless a non-zero block follows it.
+  end-of-archive :: Bytes -> Nat -> List TarEntry -> Result TarError (List TarEntry)
+  end-of-archive input at out =
+    if at + 1024 <= bytes-len input && not (zero-block input (at + 512)) then Err (TarBadHeader (at + 512)) else Ok (reverse out)
+
+  -- | Dispatch on the type: GNU long names and links and PAX headers modify the next entry, global
+  -- headers are entries themselves, and header-only types carry no data whatever their size field says.
+  read-entry :: Bytes -> Nat -> TarHeader -> List TarEntry -> List Bytes -> List Bytes -> List (Bytes, Bytes) -> Result TarError (List TarEntry)
+  read-entry input at header out long-name long-link pax =
+    let kind = tar-kind header in
+    if kind == 76 || kind == 75 || kind == 120 || kind == tar-pax-global then special-entry input at header out long-name long-link pax
+    else
+      let merged = apply-pax (apply-long header long-name long-link) pax in
+      let size = if has-data (tar-kind merged) then tar-size merged else 0 in
+      if at + 512 + size > bytes-len input then Err (TarTruncated at)
+      else read-from input (at + 512 + padded size) (Cons (Entry merged (slice input (at + 512) (at + 512 + size))) out) Nil Nil Nil
+
+  -- | Read the data of a long-name, long-link, PAX or global header and continue.
+  special-entry :: Bytes -> Nat -> TarHeader -> List TarEntry -> List Bytes -> List Bytes -> List (Bytes, Bytes) -> Result TarError (List TarEntry)
+  special-entry input at header out long-name long-link pax =
+    let size = tar-size header in
+    let kind = tar-kind header in
+    if at + 512 + size > bytes-len input then Err (TarTruncated at)
+    else
+      let contents = slice input (at + 512) (at + 512 + size) in
+      let next = at + 512 + padded size in
+      if kind == 76 then read-from input next out (Cons (until-nul contents) Nil) long-link pax
+      else if kind == 75 then read-from input next out long-name (Cons (until-nul contents) Nil) pax
+      else case pax-records contents 0 Nil of
+        None -> Err (TarBadPax at)
+        Some records -> if kind == 120 then read-from input next out long-name long-link (concat-pairs pax records)
+          else read-from input next (Cons (Entry (global-header header records) (bytes-new 0)) out) long-name long-link pax
+
+  -- | Whether entries of a type carry data blocks.
+  has-data :: Nat -> Bool
+  has-data kind = not (kind == tar-hardlink || kind == tar-symlink || kind == tar-char || kind == tar-block || kind == tar-directory || kind == tar-fifo)
+
+  -- | Append two record lists.
+  concat-pairs :: List (Bytes, Bytes) -> List (Bytes, Bytes) -> List (Bytes, Bytes)
+  concat-pairs first second = case first of Nil -> second; Cons x rest -> Cons x (concat-pairs rest second)
+
+  -- | The bytes before the first NUL.
+  until-nul :: Bytes -> Bytes
+  until-nul input = field-string input 0 (bytes-len input)
+
+  -- | Replace the name and link from pending GNU long-name and long-link entries.
+  apply-long :: TarHeader -> List Bytes -> List Bytes -> TarHeader
+  apply-long header name link =
+    let named = case name of Cons n rest -> set-name header n; Nil -> header in
+    case link of Cons l rest -> tar-with-link named l; Nil -> named
+
+  -- | Replace the name.
+  set-name :: TarHeader -> Bytes -> TarHeader
+  set-name h name = case h of Header k n l m u g s t un gn ma mi p f -> Header k name l m u g s t un gn ma mi p f
+
+  -- | A global header as an entry: its name, type and records only, with no data.
+  global-header :: TarHeader -> List (Bytes, Bytes) -> TarHeader
+  global-header h records = case h of Header k n l m u g s t un gn ma mi p f -> Header k n (bytes-new 0) 0 0 0 0 0 (bytes-new 0) (bytes-new 0) 0 0 records (f + tar-format-pax)
+
+  -- | Record PAX records on a header verbatim.
+  with-pax :: TarHeader -> List (Bytes, Bytes) -> TarHeader
+  with-pax h records = case h of Header k n l m u g s t un gn ma mi p f -> Header k n l m u g s t un gn ma mi records (f + tar-format-pax)
+
+  -- | Apply recognized PAX keys to their fields and keep the rest as records; marks the PAX format when any apply.
+  apply-pax :: TarHeader -> List (Bytes, Bytes) -> TarHeader
+  apply-pax header records = case records of
+    Nil -> header
+    Cons first rest -> case first of (key, value) -> apply-pax (apply-key (mark-pax header) key value first) rest
+
+  -- | Add the PAX format bit once.
+  mark-pax :: TarHeader -> TarHeader
+  mark-pax h = case h of Header k n l m u g s t un gn ma mi p f -> Header k n l m u g s t un gn ma mi p (if nat-rem (nat-div f 4) 2 == 1 then f else f + 4)
+
+  -- | Apply one PAX record: path, linkpath, uname, gname, uid, gid, size and mtime replace their fields.
+  apply-key :: TarHeader -> Bytes -> Bytes -> (Bytes, Bytes) -> TarHeader
+  apply-key h key value item = case h of
+    Header k n l m u g s t un gn ma mi p f ->
+      if same key "path" then Header k value l m u g s t un gn ma mi p f
+      else if same key "linkpath" then Header k n value m u g s t un gn ma mi p f
+      else if same key "uname" then Header k n l m u g s t value gn ma mi p f
+      else if same key "gname" then Header k n l m u g s t un value ma mi p f
+      else if same key "uid" then Header k n l m (decimal value) g s t un gn ma mi p f
+      else if same key "gid" then Header k n l m u (decimal value) s t un gn ma mi p f
+      else if same key "size" then Header k n l m u g (decimal value) t un gn ma mi p f
+      else if same key "mtime" then Header k n l m u g s (seconds value) un gn ma mi p f
+      else Header k n l m u g s t un gn ma mi (append-pair p item) f
+
+  -- | Append one record.
+  append-pair :: List (Bytes, Bytes) -> (Bytes, Bytes) -> List (Bytes, Bytes)
+  append-pair records item = case records of Nil -> Cons item Nil; Cons x rest -> Cons x (append-pair rest item)
+
+  -- | Whether bytes equal an ASCII string.
+  same :: Bytes -> String -> Bool
+  same bytes text = eq-i64 (bytes-compare bytes (string-to-bytes text)) 0
+
+  -- | A decimal natural number, ignoring any characters after the digits.
+  decimal :: Bytes -> Nat
+  decimal input = digits input 0 0
+
+  -- | Accumulate leading decimal digits.
+  digits :: Bytes -> Nat -> Nat -> Nat
+  digits input i acc = if i < bytes-len input then digit-step input i acc else acc
+
+  -- | Consume one decimal digit, or stop.
+  digit-step :: Bytes -> Nat -> Nat -> Nat
+  digit-step input i acc = let b = bytes-get-or input i in if b >= 48 && b <= 57 then digits input (i + 1) (acc * 10 + (b - 48)) else acc
+
+  -- | Whole seconds of a PAX time, which may be negative and may carry a fraction (truncated toward zero).
+  seconds :: Bytes -> Int
+  seconds input =
+    if 0 < bytes-len input && bytes-get input 0 == 45 then 0 - nat-to-int (digits input 1 0)
+    else nat-to-int (digits input 0 0)
+
+  -- | Parse PAX records "length key=value\n"; None when any record is malformed.
+  pax-records :: Bytes -> Nat -> List (Bytes, Bytes) -> Option (List (Bytes, Bytes))
+  pax-records input at acc =
+    if at >= bytes-len input then Some (reverse acc)
+    else if bytes-get input at == 0 then Some (reverse acc)
+    else
+      let length = digits-at input at 0 in
+      let space = at + digit-count input at 0 in
+      if length == 0 || at + length > bytes-len input || space >= at + length || not (bytes-get input space == 32) || not (bytes-get input (at + length - 1) == 10) then None
+      else case find-equals input (space + 1) (at + length - 1) of
+        None -> None
+        Some eq -> pax-records input (at + length) (Cons (slice input (space + 1) eq, slice input (eq + 1) (at + length - 1)) acc)
+
+  -- | The decimal number starting at a position.
+  digits-at :: Bytes -> Nat -> Nat -> Nat
+  digits-at input i acc = digits input i acc
+
+  -- | Count decimal digits starting at a position.
+  digit-count :: Bytes -> Nat -> Nat -> Nat
+  digit-count input i n = if i < bytes-len input && bytes-get input i >= 48 && bytes-get input i <= 57 then digit-count input (i + 1) (n + 1) else n
+
+  -- | Position of the first '=' before an end, if any.
+  find-equals :: Bytes -> Nat -> Nat -> Option Nat
+  find-equals input i end = if i < end && i < bytes-len input then (if bytes-get input i == 61 then Some i else find-equals input (i + 1) end) else None
+
+  -- | Decode and verify one header block.
+  parse-header :: Bytes -> Nat -> Result TarError TarHeader
+  parse-header input at =
+    case numeric input (at + 148) 8 of
+      None -> Err (TarBadChecksum at)
+      Some stored -> case checksums input at of
+        (unsigned, signed) -> if not (stored == nat-to-int unsigned || stored == signed) then Err (TarBadChecksum at) else decode-fields input at
+
+  -- | Decode every field once the checksum is known to be valid.
+  decode-fields :: Bytes -> Nat -> Result TarError TarHeader
+  decode-fields input at =
+    let format = detect-format input at in
+    let extended = not (format == tar-format-v7) in
+    case numbers input (field-positions at extended) of
+      None -> Err (TarBadHeader at)
+      Some values -> Ok (build-header input at format extended values)
+
+  -- | Offsets and widths of mode, uid, gid, size and mtime, plus the device numbers after V7.
+  field-positions :: Nat -> Bool -> List (Nat, Nat)
+  field-positions at extended =
+    if extended then [(at + 100, 8), (at + 108, 8), (at + 116, 8), (at + 124, 12), (at + 136, 12), (at + 329, 8), (at + 337, 8)]
+    else [(at + 100, 8), (at + 108, 8), (at + 116, 8), (at + 124, 12), (at + 136, 12)]
+
+  -- | Parse each numeric field in order; None when any is malformed.
+  numbers :: Bytes -> List (Nat, Nat) -> Option (List Int)
+  numbers input fields = case fields of
+    Nil -> Some Nil
+    Cons field rest -> case field of
+      (at, width) -> case numeric input at width of
+        None -> None
+        Some value -> case numbers input rest of
+          None -> None
+          Some values -> Some (Cons value values)
+
+  -- | The value at an index, or zero past the end.
+  int-at :: List Int -> Nat -> Int
+  int-at values index = case values of Nil -> 0; Cons v rest -> if index == 0 then v else int-at rest (index - 1)
+
+  -- | Assemble a header from parsed numbers and string fields.
+  build-header :: Bytes -> Nat -> Nat -> Bool -> List Int -> TarHeader
+  build-header input at format extended values =
+    let base = field-string input at 100 in
+    let lead = if format == tar-format-ustar then field-string input (at + 345) 155 else bytes-new 0 in
+    let name = if bytes-len lead > 0 then bytes-concat [lead, bytes-from-u8s [47], base] else base in
+    let kind = bytes-get-or input (at + 156) in
+    let normalized = if kind == 0 then (if ends-with-slash name then tar-directory else tar-regular) else kind in
+    let uname = if extended then field-string input (at + 265) 32 else bytes-new 0 in
+    let gname = if extended then field-string input (at + 297) 32 else bytes-new 0 in
+    Header normalized name (field-string input (at + 157) 100) (natural (int-at values 0)) (natural (int-at values 1)) (natural (int-at values 2))
+      (natural (int-at values 3)) (int-at values 4) uname gname (natural (int-at values 5)) (natural (int-at values 6)) Nil format
+
+  -- | Whether a name ends with a slash.
+  ends-with-slash :: Bytes -> Bool
+  ends-with-slash name = 0 < bytes-len name && bytes-get name (bytes-len name - 1) == 47
+
+  -- | USTAR when the magic is "ustar\0" (whatever the version), GNU for "ustar  \0", otherwise V7.
+  detect-format :: Bytes -> Nat -> Nat
+  detect-format input at =
+    if matches input (at + 257) [117, 115, 116, 97, 114, 0] then tar-format-ustar
+    else if matches input (at + 257) [117, 115, 116, 97, 114, 32, 32, 0] then tar-format-gnu
+    else tar-format-v7
+
+  -- | Whether bytes at a position equal a list.
+  matches :: Bytes -> Nat -> List Nat -> Bool
+  matches input at expected = case expected of
+    Nil -> True
+    Cons b rest -> at < bytes-len input && bytes-get input at == b && matches input (at + 1) rest
+
+  -- | Write entries as a complete archive ending in two zero blocks. Each entry is written as USTAR
+  -- when every field fits and otherwise with a preceding PAX extended header.
+  tar-write :: List TarEntry -> Result TarError Bytes
+  tar-write entries = write-all entries Nil
+
+  -- | Accumulate encoded entries.
+  write-all :: List TarEntry -> List Bytes -> Result TarError Bytes
+  write-all entries acc = case entries of
+    Nil -> Ok (bytes-concat (reverse (Cons (bytes-new 1024) acc)))
+    Cons entry rest -> case encode-entry entry of
+      Err error -> Err error
+      Ok bytes -> write-all rest (Cons bytes acc)
+
+  -- | Largest value in an octal field of the given width (one byte is the terminator).
+  octal-limit :: Nat -> Nat
+  octal-limit width = pow8 (minus width 1)
+
+  -- | 8^n.
+  pow8 :: Nat -> Nat
+  pow8 n = if n == 0 then 1 else 8 * pow8 (n - 1)
+
+  -- | Whether bytes are ASCII without NUL.
+  plain-ascii :: Bytes -> Nat -> Bool
+  plain-ascii input i = if i < bytes-len input then (bytes-get input i > 0 && bytes-get input i < 128 && plain-ascii input (i + 1)) else True
+
+  -- | Drop non-ASCII and NUL bytes, as the fallback for USTAR fields whose full value is in a PAX record.
+  ascii-only :: Bytes -> Bytes
+  ascii-only input = bytes-from-u8s (keep-ascii input 0)
+
+  -- | The ASCII bytes of an input, in order.
+  keep-ascii :: Bytes -> Nat -> List U8
+  keep-ascii input i =
+    if i < bytes-len input then
+      let b = bytes-get input i in
+      if b > 0 && b < 128 then Cons (wrapping-i64-to-u8 (nat-to-i64 b)) (keep-ascii input (i + 1)) else keep-ascii input (i + 1)
+    else Nil
+
+  -- | Split a long ASCII name into a prefix of at most 155 bytes and a name of at most 100 at a slash.
+  split-name :: Bytes -> Option (Bytes, Bytes)
+  split-name name =
+    let n = bytes-len name in
+    if n <= 100 || not (plain-ascii name 0) then None
+    else
+      let limit = if n > 156 then (156 :: Nat) else (if bytes-get-or name (minus n 1) == 47 then minus n 1 else n) in
+      case last-slash name limit of
+        None -> None
+        Some i -> if i == 0 || minus n (i + 1) > 100 || minus n (i + 1) == 0 || i > 155 then None else Some (slice name 0 i, slice name (i + 1) n)
+
+  -- | Position of the last slash before a limit.
+  last-slash :: Bytes -> Nat -> Option Nat
+  last-slash name limit = if limit == 0 then None else if limit <= bytes-len name && bytes-get-or name (minus limit 1) == 47 then Some (minus limit 1) else last-slash name (minus limit 1)
+
+  -- | Encode one entry, with a PAX header first when any field needs one.
+  encode-entry :: TarEntry -> Result TarError Bytes
+  encode-entry entry = case entry of
+    Entry header contents -> case header of
+      Header kind name link mode uid gid size mtime uname gname major minor records format ->
+        let k = if kind == 0 then (if ends-with-slash name then tar-directory else tar-regular) else kind in
+        let size = if has-data k then bytes-len contents else 0 in
+        let split = split-name name in
+        let long-name = bytes-len name > 100 && is-none split in
+        let pax = pax-fields name long-name link uid gid size mtime uname gname in
+        if mode >= octal-limit 8 || major >= octal-limit 8 || minor >= octal-limit 8 then Err (TarFieldTooLong name)
+        else if is-empty pax && is-empty records then
+          let fields = case split of Some (p, n) -> (n, p); None -> (name, bytes-new 0) in
+          case fields of (main, lead) -> Ok (bytes-concat [block k main link mode uid gid size mtime uname gname major minor lead False, payload-blocks contents size])
+        else
+          let all-records = sort-records (concat-pairs pax records) in
+          let body = bytes-concat (map-records all-records) in
+          let pax-header = block 120 (pax-name name) (bytes-new 0) 0 0 0 (bytes-len body) 0 (bytes-new 0) (bytes-new 0) 0 0 (bytes-new 0) True in
+          let main = block k (ascii-only name) (ascii-only link) mode (fit uid 8) (fit gid 8) (fit size 12) (fit-time mtime) (ascii-only uname) (ascii-only gname) major minor (bytes-new 0) False in
+          Ok (bytes-concat [pax-header, payload-blocks body (bytes-len body), main, payload-blocks contents size])
+
+  -- | Whether an option is empty.
+  is-none :: Option (Bytes, Bytes) -> Bool
+  is-none value = case value of None -> True; Some x -> False
+
+  -- | A value if it fits an octal field, otherwise zero (its PAX record carries it).
+  fit :: Nat -> Nat -> Nat
+  fit value width = if value < octal-limit width then value else 0
+
+  -- | A time if it fits the twelve-byte octal field, otherwise zero.
+  fit-time :: Int -> Int
+  fit-time time = if time >= 0 && time < nat-to-int (octal-limit 12) then time else 0
+
+  -- | PAX records for every field that USTAR cannot hold.
+  pax-fields :: Bytes -> Bool -> Bytes -> Nat -> Nat -> Nat -> Int -> Bytes -> Bytes -> List (Bytes, Bytes)
+  pax-fields name long-name link uid gid size mtime uname gname =
+    let a = if long-name || not (plain-ascii name 0) then Cons (string-to-bytes "path", name) Nil else Nil in
+    let b = if bytes-len link > 100 || not (plain-ascii link 0) then Cons (string-to-bytes "linkpath", link) a else a in
+    let c = if uid >= octal-limit 8 then Cons (string-to-bytes "uid", nat-text uid) b else b in
+    let d = if gid >= octal-limit 8 then Cons (string-to-bytes "gid", nat-text gid) c else c in
+    let e = if size >= octal-limit 12 then Cons (string-to-bytes "size", nat-text size) d else d in
+    let f = if mtime < 0 || mtime >= nat-to-int (octal-limit 12) then Cons (string-to-bytes "mtime", string-to-bytes (int-to-string mtime)) e else e in
+    let g = if bytes-len uname > 32 || not (plain-ascii uname 0) then Cons (string-to-bytes "uname", uname) f else f in
+    if bytes-len gname > 32 || not (plain-ascii gname 0) then Cons (string-to-bytes "gname", gname) g else g
+
+  -- | Decimal text of a natural number.
+  nat-text :: Nat -> Bytes
+  nat-text value = string-to-bytes (nat-to-string value)
+
+  -- | Sort records by key bytes (insertion sort; headers carry few records).
+  sort-records :: List (Bytes, Bytes) -> List (Bytes, Bytes)
+  sort-records records = case records of Nil -> Nil; Cons x rest -> insert-item x (sort-records rest)
+
+  -- | Insert one record in key order.
+  insert-item :: (Bytes, Bytes) -> List (Bytes, Bytes) -> List (Bytes, Bytes)
+  insert-item item sorted = case sorted of
+    Nil -> Cons item Nil
+    Cons y rest -> case (item, y) of
+      ((k1, v1), (k2, v2)) -> if lt-i64 (bytes-compare k2 k1) 0 then Cons y (insert-item item rest) else Cons item sorted
+
+  -- | Encode records as "length key=value\n", where the length counts the whole record.
+  map-records :: List (Bytes, Bytes) -> List Bytes
+  map-records records = case records of
+    Nil -> Nil
+    Cons item rest -> case item of (key, value) -> Cons (pax-item key value) (map-records rest)
+
+  -- | One record whose decimal length prefix includes its own digits.
+  pax-item :: Bytes -> Bytes -> Bytes
+  pax-item key value =
+    let base = bytes-len key + bytes-len value + 3 in
+    let guess = base + nat-text-length base in
+    let size = if nat-text-length guess == nat-text-length base then guess else base + nat-text-length guess in
+    bytes-concat [nat-text size, bytes-from-u8s [32], key, bytes-from-u8s [61], value, bytes-from-u8s [10]]
+
+  -- | Decimal digits in a natural number.
+  nat-text-length :: Nat -> Nat
+  nat-text-length value = bytes-len (nat-text value)
+
+  -- | The extended header's name: the entry's directory, then PaxHeaders.0, then its base name, ASCII-only and trimmed to 100 bytes.
+  pax-name :: Bytes -> Bytes
+  pax-name name =
+    let n = bytes-len name in
+    let cut = case last-slash name n of Some i -> i + 1; None -> 0 in
+    let base = slice name cut n in
+    let joined = if bytes-len base > 0 then bytes-concat [slice name 0 cut, string-to-bytes "PaxHeaders.0/", base] else bytes-concat [slice name 0 cut, string-to-bytes "PaxHeaders.0"] in
+    trim-slashes (truncate (ascii-only joined) 100)
+
+  -- | At most the first count bytes.
+  truncate :: Bytes -> Nat -> Bytes
+  truncate input count = if bytes-len input > count then slice input 0 count else input
+
+  -- | Drop trailing slashes.
+  trim-slashes :: Bytes -> Bytes
+  trim-slashes input = if ends-with-slash input then trim-slashes (slice input 0 (minus (bytes-len input) 1)) else input
+
+  -- | Data padded to whole blocks.
+  payload-blocks :: Bytes -> Nat -> Bytes
+  payload-blocks contents size = let out = bytes-new (padded size) in let copied = if size <= bytes-len contents && size <= bytes-len out then bytes-copy-range out contents 0 0 size else () in out
+
+  -- | Encode a header block. A raw block (an extended header's own block) records only the name,
+  -- type, numeric ownership, size and time, leaving the device fields entirely zero.
+  block :: Nat -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Int -> Bytes -> Bytes -> Nat -> Nat -> Bytes -> Bool -> Bytes
+  block kind name link mode uid gid size mtime uname gname major minor lead raw =
+    let out = bytes-new 512 in
+    let a = put-string out 0 100 name in
+    let b = put-octal out 100 8 mode in
+    let c = put-octal out 108 8 uid in
+    let d = put-octal out 116 8 gid in
+    let e = put-octal out 124 12 size in
+    let f = put-octal out 136 12 (natural mtime) in
+    let g = if kind < 256 then bytes-set out 156 kind else () in
+    let h = put-string out 157 100 link in
+    let i = put-raw out 257 [117, 115, 116, 97, 114, 0, 48, 48] in
+    let j = put-string out 265 32 uname in
+    let k = put-string out 297 32 gname in
+    let l = if raw then () else put-octal out 329 8 major in
+    let m = if raw then () else put-octal out 337 8 minor in
+    let n = put-string out 345 155 lead in
+    let sum = case checksums out 0 of (unsigned, signed) -> unsigned in
+    let o = put-octal out 148 7 sum in
+    let p = bytes-set out 155 32 in
+    out
+
+  -- | Copy a string into a field, truncated to its width; a trailing slash cut by truncation becomes NUL.
+  put-string :: Bytes -> Nat -> Nat -> Bytes -> Unit
+  put-string out at width text =
+    let count = if bytes-len text < width then bytes-len text else width in
+    let copied = if at + count <= bytes-len out && count <= bytes-len text then bytes-copy-range out text at 0 count else () in
+    if bytes-len text > width && count > 0 && bytes-get-or text (minus width 1) == 47 then clear-slash out at (trailing-kept text width) else ()
+
+  -- | Length of the truncated prefix without its trailing slashes.
+  trailing-kept :: Bytes -> Nat -> Nat
+  trailing-kept text width = bytes-len (trim-slashes (slice text 0 (minus width 1)))
+
+  -- | Terminate a truncated field early.
+  clear-slash :: Bytes -> Nat -> Nat -> Unit
+  clear-slash out at n = if at + n < bytes-len out then bytes-set out (at + n) 0 else ()
+
+  -- | Write raw bytes at a position.
+  put-raw :: Bytes -> Nat -> List Nat -> Unit
+  put-raw out at values = case values of
+    Nil -> ()
+    Cons v rest -> let w = if at < bytes-len out && v < 256 then bytes-set out at v else () in put-raw out (at + 1) rest
+
+  -- | Write width-1 zero-padded octal digits followed by NUL; values that do not fit write zeros.
+  put-octal :: Bytes -> Nat -> Nat -> Nat -> Unit
+  put-octal out at width value =
+    let v = if value < octal-limit width then value else 0 in
+    octal-digits out at (minus width 1) v
+
+  -- | Fill digits from the right.
+  octal-digits :: Bytes -> Nat -> Nat -> Nat -> Unit
+  octal-digits out at count value =
+    if count == 0 then ()
+    else
+      let w = if at + minus count 1 < bytes-len out then bytes-set out (at + minus count 1) (48 + nat-rem value 8) else () in
+      octal-digits out at (minus count 1) (nat-div value 8)

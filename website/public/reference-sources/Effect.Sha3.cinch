@@ -1,0 +1,45 @@
+-- | Inspectable SHA-3 and SHAKE hashing sinks and bounded reader-to-digest copying.
+-- The immutable digest state is the sink handle. Writes accept every byte and
+-- never retain input buffers. Copying returns the advanced reader and the last
+-- valid digest on failure, and never closes a borrowed source. Extendable-output
+-- readers adapt to the generic reader protocol as unbounded sources.
+module Effect.Sha3 where
+
+  import Effect.Stream
+  import Text.Sha3
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+
+  export sha3-write, sha3-hashing-writer, sha3-copy, shake-byte-reader
+
+  -- | Hash a whole chunk, returning its accepted count and the advanced immutable state.
+  sha3-write :: forall r. using (io :: Io r) => Sha3State -> Bytes ->{IO r} (Nat, Sha3State)
+  sha3-write state input = (bytes-len input, sha3-state-update state input)
+
+  -- | Adapt a digest state to the generic byte-writer protocol.
+  -- Use the explicit state or sha3-copy when the advanced digest must be inspected.
+  sha3-hashing-writer :: forall r. using (io :: Io r) => Sha3State -> ByteWriter r
+  sha3-hashing-writer state = stream-writer (\input -> case sha3-write state input of
+    (count, next) -> (Ok count, sha3-hashing-writer next))
+
+  -- | Hash successful reader chunks through EOF, preserving both advanced handles on errors.
+  -- A zero chunk size is rejected before reading. Invalid source counts do not enter the digest.
+  sha3-copy :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Sha3State ->{IO r} (Result StreamError Nat, (ByteReader r, Sha3State))
+  sha3-copy chunk source state =
+    if chunk == 0 then (Err StreamInvalidChunkSize, (source, state))
+    else copy-from chunk source state 0
+
+  -- | Carry only the opaque digest state and accepted byte count through the bounded copying loop.
+  copy-from :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Sha3State -> Nat ->{IO r} (Result StreamError Nat, (ByteReader r, Sha3State))
+  copy-from chunk source state count = case stream-read source chunk of
+    (Err error, next) -> (Err error, (next, state))
+    (Ok input, next) -> if bytes-len input == 0 then (Ok count, (next, state))
+      else copy-from chunk next (sha3-state-update state input) (count + bytes-len input)
+
+  -- | Adapt a squeezing sponge to the generic reader protocol: every read returns exactly the
+  -- requested number of output bytes, so the source never reaches end of input. Bound it with
+  -- reader-limit when a finite stream is required.
+  shake-byte-reader :: forall r. using (io :: Io r) => ShakeReader -> ByteReader r
+  shake-byte-reader reader = stream-reader (\count -> case shake-reader-read reader count of
+    (out, next) -> (Ok out, shake-byte-reader next))

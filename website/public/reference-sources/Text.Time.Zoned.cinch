@@ -1,0 +1,278 @@
+-- Text.Time.Zoned: the `Offset`- and `Zoned`-typed text functions
+-- (design/datetime.md, layer L4; T5, T9, T10).
+--
+-- Text.Time.Iso and Text.Time.Strtime sit below the zone layer and take
+-- an offset as plain `I64` seconds; Text.Time.Rfc9557 is pure and takes
+-- an already looked-up `TimeZone`. This module is where those meet the
+-- zone layer:
+--   - RFC 3339 for a `Timestamp` at an `Offset`
+--     (`timestamp-to-string-at`, `timestamp-and-offset-from-string`);
+--   - `strftime` for a `Zoned` and for a `Timestamp` at an `Offset`
+--     (`zoned-strftime`, `timestamp-strftime-at`), through
+--     `broken-down-from-zoned`, which fills the offset, the zone
+--     abbreviation and the zone name so `%z`, `%Z` and `%Q` work;
+--   - `strptime` results to a `Zoned` (`broken-down-to-zoned-in`,
+--     `broken-down-to-zoned-at-offset`, `broken-down-to-zoned`);
+--   - the one effectful step, looking a zone up by the name a text
+--     carries (`zoned-text-lookup`), and the parse, look up and resolve
+--     conveniences built on it (`zoned-from-string`, `zoned-strptime`).
+--
+-- Design law shape.
+--   - `timestamp-to-string-at o t` is TOTAL where Text.Time.Iso's
+--     `timestamp-to-string-with-offset` answers `Option`: that `None` is
+--     for an `I64` outside +-93599, and an `Offset` is inside it by
+--     construction; the civil reading is `offset-timestamp-to-datetime`,
+--     which is total (T3). It writes the numeric offset, never `Z`, and
+--     `timestamp-and-offset-from-string` reads back the same instant
+--     and offset.
+--   - `timestamp-and-offset-from-string` reads `Z` and `-00:00` as
+--     `offset-utc` (the spelling is Text.Time.Iso's
+--     `timestamp-from-string-with-offset` to ask for).
+--   - `broken-down-from-zoned x` has the civil fields of
+--     `zoned-datetime x`, the offset in force, the Unix second, the
+--     abbreviation in force and, when the zone's name is a zone name of
+--     RFC 9557's grammar (every IANA name; not `zone-fixed`'s `+05:30`
+--     label), that name; so `%Q` prints the name, or the offset for a
+--     fixed-offset zone.
+--   - `broken-down-to-zoned-in conflict strategy zone b` reads the
+--     fields in `zone` by Text.Time.Rfc9557's resolution rules: a Unix
+--     second (`%s`) is the instant; otherwise the civil reading, with
+--     the offset (`%z`) checked against the zone by the
+--     `OffsetConflict`, or with no offset resolved by the
+--     `Disambiguation`. `zone` is the zone the caller looked up for
+--     `broken-down-zone-name b` (or chose).
+--   - `broken-down-to-zoned-at-offset b` needs no zone: the instant is
+--     the civil reading at the offset and the zone is `zone-fixed` of
+--     it.
+--   - `broken-down-to-zoned zone b` is the two with the defaults
+--     (`OffsetReject`, `Compatible`): in `Some zone`; at the offset for
+--     `None`; and `ZonedTextMissingZone` when there is neither a zone
+--     nor an offset (a civil reading names no instant).
+--   - `zoned-from-string db s` is `parse-zoned-text`, a `tzdb-lookup` of
+--     the annotation's name (none for an offset annotation), and
+--     `zoned-text-resolve-default`. `zoned-strptime db format s` is
+--     `strptime`, a lookup of the `%Q` name when one was read, and
+--     `broken-down-to-zoned`.
+--   - No operation faults; `ZonedTextError` says which stage refused.
+--
+-- NAMED REFUSALS:
+--   - a zone abbreviation as input (`%Z`, `EST`): Text.Time.Strtime
+--     refuses to parse one, and so does this module.
+--   - a default zone for a text that names none: `zoned-strptime`
+--     answers `ZonedTextMissingZone`; a caller with a zone in hand uses
+--     `broken-down-to-zoned-in`.
+--   - whether the zone handed to the pure functions is the one the text
+--     names is not checked (as Text.Time.Rfc9557).
+--   - the unreachable `None` of `broken-down-from-timestamp-at-offset`
+--     (an offset outside +-93599) reads as the civil fields alone.
+module Text.Time.Zoned where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.Bytes
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Scan
+  import Text.Time.Iso
+  import Text.Time.Strtime
+  import Text.Time.Rfc9557
+  import Data.Time.Timestamp
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+  import Effect.Time.Zone
+
+  export ZonedTextError, ZonedTextRfc9557, ZonedTextStrtime, ZonedTextLookup, ZonedTextMissingZone
+  export timestamp-to-string-at, timestamp-to-string-at-precision
+  export timestamp-and-offset-from-string, timestamp-and-offset-from-string-lenient
+  export broken-down-from-zoned, broken-down-from-timestamp-at
+  export zoned-strftime, zoned-strftime-format, timestamp-strftime-at
+  export broken-down-to-zoned-in, broken-down-to-zoned-at-offset, broken-down-to-zoned
+  export zoned-text-lookup
+  export zoned-from-string, zoned-from-string-lenient, zoned-from-string-with
+  export zoned-strptime
+
+
+  -- Which stage refused.
+  data ZonedTextError where
+    -- The RFC 9557 text, or the resolution of a civil reading and an
+    -- offset in the zone (`Rfc9557OffsetMismatch`, `Rfc9557Ambiguous`,
+    -- `Rfc9557OutOfRange`).
+    ZonedTextRfc9557 :: Rfc9557Error -> ZonedTextError
+    -- The format, the input, or the fields (no date, a contradiction).
+    ZonedTextStrtime :: StrtimeError -> ZonedTextError
+    -- The database has no usable zone of the name the text carries.
+    ZonedTextLookup :: TzLookupError -> ZonedTextError
+    -- The fields carry neither a zone name nor an offset.
+    ZonedTextMissingZone :: ZonedTextError
+
+  -- -----------------------------------------------------------------
+  -- RFC 3339 at an `Offset`.
+  -- -----------------------------------------------------------------
+
+  -- The civil reading of the instant at `o`, then the numeric offset
+  -- (`+00:00` for UTC, never `Z`), with the shortest exact fraction.
+  -- Total (header).
+  timestamp-to-string-at :: Offset -> Timestamp -> String
+  timestamp-to-string-at o ts =
+    let dt = offset-timestamp-to-datetime o ts in
+    scan-string-of-bytes (at-bytes (iso-fraction-digits (DT.time-part dt)) dt (offset-to-seconds o))
+
+  -- Exactly `digits` fraction digits, truncating.
+  timestamp-to-string-at-precision :: (digits :: InRange 0 9 I64) -> Offset -> Timestamp -> String
+  timestamp-to-string-at-precision digits o ts =
+    scan-string-of-bytes (at-bytes digits (offset-timestamp-to-datetime o ts) (offset-to-seconds o))
+
+  at-bytes :: (digits :: InRange 0 9 I64) -> DateTime -> I64 -> Bytes
+  at-bytes digits dt off =
+    let d = DT.date-part dt in
+    let b = scan-new (wrapping-add-i64 (wrapping-add-i64 (wrapping-add-i64 (iso-date-length d) 1) (iso-time-length digits)) (iso-offset-length off)) in
+    let j = scan-put-byte b (iso-write-date b 0 d) 84 in
+    let u = iso-write-offset b (iso-write-time b j digits (DT.time-part dt)) off in
+    b
+
+  -- An RFC 3339 timestamp as the instant and the offset it was written
+  -- at (strict: Text.Time.Iso's grammar).
+  timestamp-and-offset-from-string :: String -> Result IsoError (Timestamp, Offset)
+  timestamp-and-offset-from-string s = typed-offset (timestamp-from-string-with-offset s)
+
+  timestamp-and-offset-from-string-lenient :: String -> Result IsoError (Timestamp, Offset)
+  timestamp-and-offset-from-string-lenient s = typed-offset (timestamp-from-string-with-offset-lenient s)
+
+  -- The parser keeps offsets within +-93599, so `offset-from-seconds`
+  -- answers `Some`; its `None` arm is unreachable and reports the range.
+  typed-offset :: Result IsoError (Timestamp, IsoOffset) -> Result IsoError (Timestamp, Offset)
+  typed-offset r = case r of
+    Err e -> Err e
+    Ok p -> case p of
+      (ts, written) -> case offset-from-seconds (iso-offset-seconds written) of
+        None -> Err (IsoOffsetOutOfRange 0)
+        Some o -> Ok (ts, o)
+
+  -- -----------------------------------------------------------------
+  -- strftime.
+  -- -----------------------------------------------------------------
+
+  -- The civil reading at `o`, that offset and the Unix second.
+  broken-down-from-timestamp-at :: Offset -> Timestamp -> BrokenDown
+  broken-down-from-timestamp-at o ts = case broken-down-from-timestamp-at-offset (offset-to-seconds o) ts of
+    Some b -> b
+    None -> broken-down-from-datetime (offset-timestamp-to-datetime o ts)
+
+  -- Everything a `Zoned` knows (header).
+  broken-down-from-zoned :: Zoned -> BrokenDown
+  broken-down-from-zoned x =
+    let name = zone-name (zoned-time-zone x) in
+    let b = broken-down-with-zone-abbreviation (zoned-abbreviation x) (broken-down-from-timestamp-at (zoned-offset x) (zoned-timestamp x)) in
+    if rfc9557-valid-zone-name name then broken-down-with-zone-name name b else b
+
+  zoned-strftime :: String -> Zoned -> Result StrtimeError String
+  zoned-strftime fmt x = strftime fmt (broken-down-from-zoned x)
+
+  -- With a format compiled once (`strtime-format-compile`).
+  zoned-strftime-format :: Format -> Zoned -> Result StrtimeError String
+  zoned-strftime-format f x = strftime-format f (broken-down-from-zoned x)
+
+  -- The instant read at `o`: `%z` prints the offset; `%Z` and `%Q` have
+  -- no zone to name (`%Q` prints the offset).
+  timestamp-strftime-at :: Offset -> String -> Timestamp -> Result StrtimeError String
+  timestamp-strftime-at o fmt ts = strftime fmt (broken-down-from-timestamp-at o ts)
+
+  -- -----------------------------------------------------------------
+  -- strptime results to a `Zoned`.
+  -- -----------------------------------------------------------------
+
+  -- The fields read in `z` (header).
+  broken-down-to-zoned-in :: OffsetConflict -> Disambiguation -> TimeZone -> BrokenDown -> Result ZonedTextError Zoned
+  broken-down-to-zoned-in conflict strategy z b = case broken-down-unix-seconds b of
+    Some _ -> (case broken-down-to-timestamp b of
+      Err e -> Err (ZonedTextStrtime e)
+      Ok ts -> Ok (zoned-from-timestamp z ts))
+    None -> case broken-down-to-datetime b of
+      Err e -> Err (ZonedTextStrtime e)
+      Ok dt -> case zoned-resolve-datetime conflict strategy z dt (written-offset b) of
+        Err e -> Err (ZonedTextRfc9557 e)
+        Ok x -> Ok x
+
+  -- The `%z` field as a written offset. The field is within +-93599
+  -- (its setter and the parser both keep it there), so the `None` arm
+  -- of `offset-from-seconds` is unreachable and reads as no offset.
+  written-offset :: BrokenDown -> ZonedTextOffset
+  written-offset b = case broken-down-offset b of
+    None -> ZonedTextNoOffset
+    Some s -> case offset-from-seconds s of
+      None -> ZonedTextNoOffset
+      Some o -> ZonedTextNumeric o
+
+  -- The instant the fields name at their own offset, in the
+  -- fixed-offset zone of that offset. `StrtimeMissingOffset` when there
+  -- is none.
+  broken-down-to-zoned-at-offset :: BrokenDown -> Result ZonedTextError Zoned
+  broken-down-to-zoned-at-offset b = case written-offset b of
+    ZonedTextNumeric o -> (case broken-down-to-timestamp b of
+      Err e -> Err (ZonedTextStrtime e)
+      Ok ts -> Ok (zoned-from-timestamp (zone-fixed o) ts))
+    ZonedTextNoOffset -> Err (ZonedTextStrtime StrtimeMissingOffset)
+    ZonedTextZulu -> Err (ZonedTextStrtime StrtimeMissingOffset)
+
+  -- With the defaults: in `Some zone`; at the offset for `None`;
+  -- `ZonedTextMissingZone` when there is neither.
+  broken-down-to-zoned :: Option TimeZone -> BrokenDown -> Result ZonedTextError Zoned
+  broken-down-to-zoned zone b = case zone of
+    Some z -> broken-down-to-zoned-in OffsetReject Compatible z b
+    None -> case broken-down-offset b of
+      None -> Err ZonedTextMissingZone
+      Some _ -> broken-down-to-zoned-at-offset b
+
+  -- -----------------------------------------------------------------
+  -- The effectful step and the conveniences.
+  -- -----------------------------------------------------------------
+
+  -- The zone a text's annotation names: a database lookup for a name,
+  -- `zone-fixed` (no lookup) for an offset.
+  zoned-text-lookup :: forall r. using (io :: Io r) => TzDb -> ZonedText ->{IO r} Result TzLookupError TimeZone
+  zoned-text-lookup db t = case zoned-text-zone t of
+    ZoneAnnotationOffset o -> Ok (zone-fixed o)
+    ZoneAnnotationName name -> tzdb-lookup db name
+
+  -- Parse (strict), look the zone up, resolve with `OffsetReject` and
+  -- the compatible strategy.
+  zoned-from-string :: forall r. using (io :: Io r) => TzDb -> String ->{IO r} Result ZonedTextError Zoned
+  zoned-from-string db s = zoned-from-string-with OffsetReject Compatible db s
+
+  -- The same with the lenient grammar (a date with no time is the
+  -- first instant of that day in the zone).
+  zoned-from-string-lenient :: forall r. using (io :: Io r) => TzDb -> String ->{IO r} Result ZonedTextError Zoned
+  zoned-from-string-lenient db s = case parse-zoned-text-lenient s of
+    Err e -> Err (ZonedTextRfc9557 e)
+    Ok t -> resolve-looked-up OffsetReject Compatible db t
+
+  -- Strict, with the conflict policy and the strategy chosen.
+  zoned-from-string-with :: forall r. using (io :: Io r) => OffsetConflict -> Disambiguation -> TzDb -> String ->{IO r} Result ZonedTextError Zoned
+  zoned-from-string-with conflict strategy db s = case parse-zoned-text s of
+    Err e -> Err (ZonedTextRfc9557 e)
+    Ok t -> resolve-looked-up conflict strategy db t
+
+  resolve-looked-up :: forall r. using (io :: Io r) => OffsetConflict -> Disambiguation -> TzDb -> ZonedText ->{IO r} Result ZonedTextError Zoned
+  resolve-looked-up conflict strategy db t = case zoned-text-lookup db t of
+    Err e -> Err (ZonedTextLookup e)
+    Ok z -> case zoned-text-resolve conflict strategy z t of
+      Err e -> Err (ZonedTextRfc9557 e)
+      Ok x -> Ok x
+
+  -- `strptime`, then the zone: the `%Q` name looked up in `db` when
+  -- one was read, otherwise the `%z` offset as a fixed zone, otherwise
+  -- `ZonedTextMissingZone`. (`%Q` also reads a numeric offset, which
+  -- arrives here as the offset field.)
+  zoned-strptime :: forall r. using (io :: Io r) => TzDb -> String -> String ->{IO r} Result ZonedTextError Zoned
+  zoned-strptime db fmt input = case strptime fmt input of
+    Err e -> Err (ZonedTextStrtime e)
+    Ok b -> case broken-down-zone-name b of
+      None -> broken-down-to-zoned None b
+      Some name -> case tzdb-lookup db name of
+        Err e -> Err (ZonedTextLookup e)
+        Ok z -> broken-down-to-zoned (Some z) b

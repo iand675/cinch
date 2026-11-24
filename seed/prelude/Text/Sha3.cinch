@@ -1,0 +1,1354 @@
+-- | SHA3-224/256/384/512 digests, SHAKE128/256 and cSHAKE128/256 extendable output, persistent sponges and checkpoints.
+-- Keccak-f[1600] runs as generated straight-line code over twenty-five private
+-- 64-bit lanes with native rotates; every round's theta, rho, pi and chi are
+-- fused per output lane so the lanes stay in registers. A sponge is sequential
+-- across rounds, so single-message hashing is scalar rather than SIMD. Updates
+-- absorb whole rate-sized blocks directly from the retained input owner and copy
+-- pending tails into private storage. Retaining a state or reader branches the
+-- computation; buffers returned or accepted are never aliased by a state.
+module Text.Sha3 where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Binary
+
+  export sha3-sum224, sha3-sum256, sha3-sum384, sha3-sum512, shake128-sum, shake256-sum
+  export Sha3State, sha3-state224, sha3-state256, sha3-state384, sha3-state512
+  export shake128-state, shake256-state, cshake128-state, cshake256-state
+  export sha3-state-update, sha3-state-reset, sha3-state-size, sha3-state-block-size
+  export sha3-state-sum, sha3-state-append, sha3-state-save, sha3-state-append-save, sha3-state-load
+  export ShakeReader, shake-read, shake-reader-read
+  export Sha3StateError, InvalidSha3StateIdentifier, InvalidSha3StateSize, InvalidSha3StateTail, sha3-state-error-message
+
+  -- | Private Keccak state: lane (x, y) is field x + 5y, each lane little-endian in the byte view.
+  data KeccakLanes where
+    -- | The twenty-five lanes in index order.
+    Lanes :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> KeccakLanes
+
+  -- | An absorbing sponge: variant code, lanes to restore on reset, copied pending bytes and current lanes.
+  -- Codes 1-4 are SHA3-224/256/384/512, 5-6 SHAKE128/256 and 7-8 cSHAKE128/256.
+  -- Pending bytes are always fewer than one rate-sized block.
+  data Sha3State where
+    -- | Private fields in the order variant, initial lanes, pending bytes, lanes.
+    Sponge :: Nat -> KeccakLanes -> Bytes -> KeccakLanes -> Sha3State
+
+  -- | A squeezing sponge for extendable output: variant code, bytes already read from the current block, lanes.
+  data ShakeReader where
+    -- | Private fields; the current output block is the rate prefix of the lanes.
+    Squeeze :: Nat -> Nat -> KeccakLanes -> ShakeReader
+
+  -- | All-zero lanes, the initial state of every unparameterized variant.
+  zero-lanes :: KeccakLanes
+  zero-lanes = Lanes 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+  -- | Rate in bytes for a variant code: 200 minus twice the security capacity.
+  rate :: Nat -> InRange 72 168 Nat
+  rate variant =
+    if variant == 1 then 144 else if variant == 2 then 136 else if variant == 3 then 104
+    else if variant == 4 then 72 else if variant == 5 || variant == 7 then 168 else 136
+
+  -- | Fixed digest size, or the conventional default output length of an extendable variant.
+  digest-size :: Nat -> Nat
+  digest-size variant =
+    if variant == 1 then 28 else if variant == 2 then 32 else if variant == 3 then 48
+    else if variant == 4 then 64 else if variant == 5 || variant == 7 then 32 else 64
+
+  -- | Domain-separation suffix bits that precede the final padding bit.
+  domain :: Nat -> InRange 4 31 Nat
+  domain variant = if variant <= 4 then 6 else if variant <= 6 then 31 else 4
+
+  -- | Start an unparameterized variant from all-zero lanes.
+  fresh :: Nat -> Sha3State
+  fresh variant = Sponge variant zero-lanes (bytes-new 0) zero-lanes
+
+  -- | Initial SHA3-224 state.
+  sha3-state224 :: Sha3State
+  sha3-state224 = fresh 1
+
+  -- | Initial SHA3-256 state.
+  sha3-state256 :: Sha3State
+  sha3-state256 = fresh 2
+
+  -- | Initial SHA3-384 state.
+  sha3-state384 :: Sha3State
+  sha3-state384 = fresh 3
+
+  -- | Initial SHA3-512 state.
+  sha3-state512 :: Sha3State
+  sha3-state512 = fresh 4
+
+  -- | Initial SHAKE128 state, with 128-bit security and a 168-byte rate.
+  shake128-state :: Sha3State
+  shake128-state = fresh 5
+
+  -- | Initial SHAKE256 state, with 256-bit security and a 136-byte rate.
+  shake256-state :: Sha3State
+  shake256-state = fresh 6
+
+  -- | cSHAKE128 with a function name and customization string. With both empty it is exactly SHAKE128.
+  cshake128-state :: Bytes -> Bytes -> Sha3State
+  cshake128-state name custom = customized 5 7 name custom
+
+  -- | cSHAKE256 with a function name and customization string. With both empty it is exactly SHAKE256.
+  cshake256-state :: Bytes -> Bytes -> Sha3State
+  cshake256-state name custom = customized 6 8 name custom
+
+  -- | Absorb bytepad(encode-string(name) || encode-string(custom), rate) and record it as the reset point.
+  customized :: Nat -> Nat -> Bytes -> Bytes -> Sha3State
+  customized plain variant name custom =
+    if bytes-len name == 0 && bytes-len custom == 0 then fresh plain
+    else
+      let width = rate variant in
+      let prefix = join (left-encode width) (join (encode-string name) (encode-string custom)) in
+      let padded = join prefix (bytes-new (nat-rem (width - nat-rem (bytes-len prefix) width) width)) in
+      case sha3-state-update (fresh variant) padded of
+        Sponge v initial pending lanes -> Sponge variant lanes pending lanes
+
+  -- | Prefix a byte string with its bit length as a left-encoded integer.
+  encode-string :: Bytes -> Bytes
+  encode-string input = join (left-encode (bytes-len input * 8)) input
+
+  -- | Encode a natural number as its minimal big-endian byte count followed by those bytes (at least one).
+  left-encode :: Nat -> Bytes
+  left-encode value =
+    let digits = big-endian value in
+    join (bytes-from-u8s [wrapping-i64-to-u8 (nat-to-i64 (bytes-len digits))]) digits
+
+  -- | Minimal big-endian bytes of a natural number, with zero encoded as one zero byte.
+  big-endian :: Nat -> Bytes
+  big-endian value = if value < 256 then bytes-from-u8s [wrapping-i64-to-u8 (nat-to-i64 value)]
+    else join (big-endian (nat-div value 256)) (bytes-from-u8s [wrapping-i64-to-u8 (nat-to-i64 (nat-rem value 256))])
+
+  -- | Compute a fresh 28-byte SHA3-224 digest.
+  sha3-sum224 :: Bytes -> Bytes
+  sha3-sum224 input = sha3-state-sum (sha3-state-update sha3-state224 input)
+
+  -- | Compute a fresh 32-byte SHA3-256 digest.
+  sha3-sum256 :: Bytes -> Bytes
+  sha3-sum256 input = sha3-state-sum (sha3-state-update sha3-state256 input)
+
+  -- | Compute a fresh 48-byte SHA3-384 digest.
+  sha3-sum384 :: Bytes -> Bytes
+  sha3-sum384 input = sha3-state-sum (sha3-state-update sha3-state384 input)
+
+  -- | Compute a fresh 64-byte SHA3-512 digest.
+  sha3-sum512 :: Bytes -> Bytes
+  sha3-sum512 input = sha3-state-sum (sha3-state-update sha3-state512 input)
+
+  -- | Read exactly the requested number of SHAKE128 output bytes for a complete input.
+  shake128-sum :: Bytes -> Nat -> Bytes
+  shake128-sum input count = case shake-read (sha3-state-update shake128-state input) count of (out, reader) -> out
+
+  -- | Read exactly the requested number of SHAKE256 output bytes for a complete input.
+  shake256-sum :: Bytes -> Nat -> Bytes
+  shake256-sum input count = case shake-read (sha3-state-update shake256-state input) count of (out, reader) -> out
+
+  -- | Absorb a complete chunk without mutating any previous state or retaining the input buffer.
+  -- Empty chunks preserve the supplied state.
+  sha3-state-update :: Sha3State -> Bytes -> Sha3State
+  sha3-state-update state input = if bytes-len input == 0 then state else case state of
+    Sponge variant initial pending lanes ->
+      let width = rate variant in
+      let have = bytes-len pending in
+      if have == 0 then absorb-from variant initial lanes input 0
+      else if have < width then
+        let needed = width - have in
+        if bytes-len input < needed then Sponge variant initial (join pending input) lanes
+        else
+          let block = bytes-new width in
+          let first = bytes-copy-range block pending 0 0 have in
+          let last = bytes-copy-range block input have 0 needed in
+          let next = hold-input block (absorb-at width lanes (bytes-data block)) in
+          absorb-from variant initial next input needed
+      else state
+
+  -- | Absorb every complete suffix block and retain only a fresh final partial block.
+  absorb-from :: Nat -> KeccakLanes -> KeccakLanes -> Bytes -> Nat -> Sha3State
+  absorb-from variant initial lanes input start =
+    if start <= bytes-len input then
+      let width = rate variant in
+      let remaining = bytes-len input - start in
+      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
+      let blocks = nat-div remaining width in
+      let next = hold-input input (absorb-blocks width lanes address blocks) in
+      let tail = nat-rem remaining width in
+      if tail <= bytes-len input then Sponge variant initial (part input (bytes-len input - tail) tail) next
+      else Sponge variant initial (bytes-new 0) next
+    else Sponge variant initial (bytes-new 0) lanes
+
+  -- | Absorb a counted run of complete blocks from a retained caller-owned interval.
+  absorb-blocks :: InRange 72 168 Nat -> KeccakLanes -> I64 -> Nat -> KeccakLanes
+  absorb-blocks width lanes address count =
+    if count == 0 then lanes
+    else absorb-blocks width (absorb-at width lanes address) (wrapping-add-i64 address (nat-to-i64 width)) (count - 1)
+
+  -- | Dispatch one proved complete block to the rate-specific generated absorb step.
+  absorb-at :: Nat -> KeccakLanes -> I64 -> KeccakLanes
+  absorb-at width lanes address =
+    if width == 136 then keccak-absorb17 lanes address
+    else if width == 168 then keccak-absorb21 lanes address
+    else if width == 144 then keccak-absorb18 lanes address
+    else if width == 104 then keccak-absorb13 lanes address
+    else keccak-absorb9 lanes address
+
+  -- | Load one little-endian lane word from an exact interval inside a proved complete block.
+  prim lane-word :: I64 -> I64 -> U64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %value = load i64, ptr %at, align 1
+      ret i64 %value
+    } when endian little
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %host = load i64, ptr %at, align 1
+      %value = call i64 @llvm.bswap.i64(i64 %host)
+      ret i64 %value
+    } when endian big
+
+  -- | Keep an owner alive until a strict raw-address computation has completed.
+  hold-input :: forall a. Bytes -> a -> a
+  hold-input owner value = case bytes-len owner of _ -> value
+
+  -- | Copy an exact interval into fresh storage without retaining a mutable source alias.
+  part :: Bytes -> Nat -> Nat -> Bytes
+  part input start count = if start + count <= bytes-len input then
+    let out = bytes-new count in let copied = bytes-copy-range out input 0 start count in out
+    else bytes-new 0
+
+  -- | Concatenate two intervals in fresh storage, preserving both inputs.
+  join :: Bytes -> Bytes -> Bytes
+  join first last =
+    let n = bytes-len first in let out = bytes-new (n + bytes-len last) in
+    let a = bytes-copy-range out first 0 0 n in
+    let b = bytes-copy-range out last n 0 (bytes-len last) in out
+
+  -- | Return to the variant's initial lanes, keeping any cSHAKE customization; the supplied state is unchanged.
+  sha3-state-reset :: Sha3State -> Sha3State
+  sha3-state-reset state = case state of Sponge variant initial pending lanes -> Sponge variant initial (bytes-new 0) initial
+
+  -- | Digest size of a fixed variant, or the default output length (32 or 64) of an extendable one.
+  sha3-state-size :: Sha3State -> Nat
+  sha3-state-size state = case state of Sponge variant initial pending lanes -> digest-size variant
+
+  -- | Rate in bytes: the block size absorbed per permutation.
+  sha3-state-block-size :: Sha3State -> Nat
+  sha3-state-block-size state = case state of Sponge variant initial pending lanes -> rate variant
+
+  -- | Pad the pending bytes with the domain suffix and final bit, then absorb the last block.
+  finish :: Nat -> Bytes -> KeccakLanes -> KeccakLanes
+  finish variant pending lanes =
+    let width = rate variant in
+    let n = bytes-len pending in
+    if n < width then
+      let block = bytes-new width in
+      let copied = bytes-copy-range block pending 0 0 n in
+      let mark = bytes-set block n (domain variant) in
+      let last = bytes-get block (width - 1) in
+      let close = bytes-set block (width - 1) (u8-to-nat (bit-or-u8 (wrapping-i64-to-u8 (nat-to-i64 last)) 128)) in
+      hold-input block (absorb-at width lanes (bytes-data block))
+    else lanes
+
+  -- | Write the rate prefix of the lanes as little-endian bytes into fresh storage.
+  render-block :: Nat -> KeccakLanes -> Bytes
+  render-block width lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let out = bytes-new width in
+      let words = [l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15, l16, l17, l18, l19, l20] in
+      let written = put-lanes out 0 words in out
+
+  -- | Store successive lanes while a complete eight-byte interval remains.
+  put-lanes :: Bytes -> Nat -> List U64 -> Unit
+  put-lanes out pos words = case words of
+    Nil -> ()
+    Cons word rest -> if pos + 8 <= bytes-len out then let w = bytes-write-le64 out pos word in put-lanes out (pos + 8) rest else ()
+
+  -- | Return the fixed-size digest, or the default-length output of an extendable variant, without changing the state.
+  sha3-state-sum :: Sha3State -> Bytes
+  sha3-state-sum state = case shake-read state (sha3-state-size state) of (out, reader) -> out
+
+  -- | Append the digest to a copied prefix, preserving the state and caller buffer.
+  sha3-state-append :: Bytes -> Sha3State -> Bytes
+  sha3-state-append prefix state = join prefix (sha3-state-sum state)
+
+  -- | Finalize a copy of the sponge and read its first output bytes; the reader continues the stream.
+  -- Fixed-size variants may be read past their digest size, which yields their underlying sponge output.
+  shake-read :: Sha3State -> Nat -> (Bytes, ShakeReader)
+  shake-read state count = case state of
+    Sponge variant initial pending lanes -> shake-reader-read (Squeeze variant 0 (finish variant pending lanes)) count
+
+  -- | Read the next output bytes, permuting whenever a rate-sized block is exhausted.
+  shake-reader-read :: ShakeReader -> Nat -> (Bytes, ShakeReader)
+  shake-reader-read reader count =
+    let out = bytes-new count in
+    let next = squeeze-into out 0 reader in
+    (out, next)
+
+  -- | Fill the destination from successive output blocks and return the advanced reader.
+  squeeze-into :: Bytes -> Nat -> ShakeReader -> ShakeReader
+  squeeze-into out pos reader = case reader of
+    Squeeze variant offset lanes ->
+      let width = rate variant in
+      if pos < bytes-len out then
+        if offset < width then
+          let take = if bytes-len out - pos < width - offset then bytes-len out - pos else width - offset in
+          let block = render-block width lanes in
+          let copied = if offset + take <= bytes-len block && pos + take <= bytes-len out then bytes-copy-range out block pos offset take else () in
+          squeeze-into out (pos + take) (Squeeze variant (offset + take) lanes)
+        else squeeze-into out pos (Squeeze variant 0 (keccak-permute lanes))
+      else reader
+
+  -- | Store all twenty-five lanes little-endian at a checked complete interval.
+  put-all :: Bytes -> Nat -> KeccakLanes -> Unit
+  put-all out pos lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      put-lanes out pos [l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15, l16, l17, l18, l19, l20, l21, l22, l23, l24]
+
+  -- | Return 573 checkpoint bytes: ASCII kec, the variant byte, initial lanes, current lanes,
+  -- the pending length byte and the pending bytes zero-padded to the largest rate (168).
+  sha3-state-save :: Sha3State -> Bytes
+  sha3-state-save state = case state of
+    Sponge variant initial pending lanes ->
+      let out = bytes-new 573 in
+      let h0 = bytes-set out 0 107 in let h1 = bytes-set out 1 101 in
+      let h2 = bytes-set out 2 99 in let h3 = bytes-set out 3 (variant-byte variant) in
+      let a = put-all out 4 initial in
+      let b = put-all out 204 lanes in
+      let n = put-pending out pending in
+      out
+
+  -- | Store the pending length byte and the pending bytes when they fit below the largest rate.
+  put-pending :: Bytes -> Bytes -> Unit
+  put-pending out pending =
+    if bytes-len pending < 168 && 405 + bytes-len pending <= bytes-len out then
+      let c = bytes-set out 404 (bytes-len pending) in bytes-copy-range out pending 405 0 (bytes-len pending)
+    else ()
+
+  -- | Normalize a variant code to its identifier byte.
+  variant-byte :: Nat -> InRange 1 8 Nat
+  variant-byte variant = if variant <= 1 then 1 else if variant >= 8 then 8 else variant
+
+  -- | Append the complete checkpoint to a copied prefix without mutating either input.
+  sha3-state-append-save :: Bytes -> Sha3State -> Bytes
+  sha3-state-append-save prefix state = join prefix (sha3-state-save state)
+
+  -- | A checkpoint's identifier, exact byte length or pending length is invalid.
+  data Sha3StateError where
+    -- | The four-byte kec/variant identifier is absent or differs from the template's variant.
+    InvalidSha3StateIdentifier :: Sha3StateError
+    -- | Expected complete checkpoint length and actual input length, in that order.
+    InvalidSha3StateSize :: Nat -> Nat -> Sha3StateError
+    -- | The recorded pending length is not below the variant's rate.
+    InvalidSha3StateTail :: Nat -> Sha3StateError
+
+  -- | Render identifier, size and pending-length errors.
+  sha3-state-error-message :: Sha3StateError -> String
+  sha3-state-error-message error = case error of
+    InvalidSha3StateIdentifier -> "SHA-3 state identifier is invalid"
+    InvalidSha3StateSize expected actual -> string-concat "SHA-3 state requires " (string-concat (nat-to-string expected) (string-concat " bytes; received " (nat-to-string actual)))
+    InvalidSha3StateTail length -> string-concat "SHA-3 state pending length is invalid: " (nat-to-string length)
+
+  -- | Read one little-endian lane after checking its complete interval.
+  read-lane :: Bytes -> Nat -> U64
+  read-lane input pos = if pos + 8 <= bytes-len input then bytes-read-le64 input pos else 0
+
+  -- | Read twenty-five consecutive lanes.
+  read-lanes :: Bytes -> Nat -> KeccakLanes
+  read-lanes input p =
+    Lanes (read-lane input p) (read-lane input (p + 8)) (read-lane input (p + 16)) (read-lane input (p + 24)) (read-lane input (p + 32))
+      (read-lane input (p + 40)) (read-lane input (p + 48)) (read-lane input (p + 56)) (read-lane input (p + 64)) (read-lane input (p + 72))
+      (read-lane input (p + 80)) (read-lane input (p + 88)) (read-lane input (p + 96)) (read-lane input (p + 104)) (read-lane input (p + 112))
+      (read-lane input (p + 120)) (read-lane input (p + 128)) (read-lane input (p + 136)) (read-lane input (p + 144)) (read-lane input (p + 152))
+      (read-lane input (p + 160)) (read-lane input (p + 168)) (read-lane input (p + 176)) (read-lane input (p + 184)) (read-lane input (p + 192))
+
+  -- | Restore a checkpoint for the template's variant, copying only live pending bytes.
+  -- Identifier checks precede the exact-size check, which precedes the pending-length check.
+  sha3-state-load :: Sha3State -> Bytes -> Result Sha3StateError Sha3State
+  sha3-state-load template input = case template of
+    Sponge variant old-initial old-pending old-lanes ->
+      if 4 <= bytes-len input then
+        if bytes-get input 0 == 107 && bytes-get input 1 == 101 && bytes-get input 2 == 99 && bytes-get input 3 == variant then
+          if bytes-len input == 573 then
+            let n = bytes-get input 404 in
+            if n < rate variant then Ok (Sponge variant (read-lanes input 4) (part input 405 n) (read-lanes input 204))
+            else Err (InvalidSha3StateTail n)
+          else Err (InvalidSha3StateSize 573 (bytes-len input))
+        else Err InvalidSha3StateIdentifier
+      else Err InvalidSha3StateIdentifier
+
+  -- | Generated Keccak-f[1600] permutation: twenty-four rounds over twenty-five private lanes.
+  -- Regenerate with python3 tooling/generate_sha3_kernels.py; do not edit this suffix.
+  keccak-permute :: KeccakLanes -> KeccakLanes
+  keccak-permute lanes = keccak-rounds-h (keccak-rounds-g (keccak-rounds-f (keccak-rounds-e (keccak-rounds-d (keccak-rounds-c (keccak-rounds-b (keccak-rounds-a (lanes))))))))
+
+  -- | Apply rounds 0 through 2 of the permutation.
+  keccak-rounds-a :: KeccakLanes -> KeccakLanes
+  keccak-rounds-a lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let cr0x0 = keccak-parity l0 l5 l10 l15 l20 in
+      let cr0x1 = keccak-parity l1 l6 l11 l16 l21 in
+      let cr0x2 = keccak-parity l2 l7 l12 l17 l22 in
+      let cr0x3 = keccak-parity l3 l8 l13 l18 l23 in
+      let cr0x4 = keccak-parity l4 l9 l14 l19 l24 in
+      let dr0x0 = keccak-theta cr0x4 cr0x1 in
+      let dr0x1 = keccak-theta cr0x0 cr0x2 in
+      let dr0x2 = keccak-theta cr0x1 cr0x3 in
+      let dr0x3 = keccak-theta cr0x2 cr0x4 in
+      let dr0x4 = keccak-theta cr0x3 cr0x0 in
+      let ar0y0x0 = keccak-chi-iota l0 dr0x0 0 l6 dr0x1 44 l12 dr0x2 43 1 in
+      let ar0y0x1 = keccak-chi l6 dr0x1 44 l12 dr0x2 43 l18 dr0x3 21 in
+      let ar0y0x2 = keccak-chi l12 dr0x2 43 l18 dr0x3 21 l24 dr0x4 14 in
+      let ar0y0x3 = keccak-chi l18 dr0x3 21 l24 dr0x4 14 l0 dr0x0 0 in
+      let ar0y0x4 = keccak-chi l24 dr0x4 14 l0 dr0x0 0 l6 dr0x1 44 in
+      let ar0y1x0 = keccak-chi l3 dr0x3 28 l9 dr0x4 20 l10 dr0x0 3 in
+      let ar0y1x1 = keccak-chi l9 dr0x4 20 l10 dr0x0 3 l16 dr0x1 45 in
+      let ar0y1x2 = keccak-chi l10 dr0x0 3 l16 dr0x1 45 l22 dr0x2 61 in
+      let ar0y1x3 = keccak-chi l16 dr0x1 45 l22 dr0x2 61 l3 dr0x3 28 in
+      let ar0y1x4 = keccak-chi l22 dr0x2 61 l3 dr0x3 28 l9 dr0x4 20 in
+      let ar0y2x0 = keccak-chi l1 dr0x1 1 l7 dr0x2 6 l13 dr0x3 25 in
+      let ar0y2x1 = keccak-chi l7 dr0x2 6 l13 dr0x3 25 l19 dr0x4 8 in
+      let ar0y2x2 = keccak-chi l13 dr0x3 25 l19 dr0x4 8 l20 dr0x0 18 in
+      let ar0y2x3 = keccak-chi l19 dr0x4 8 l20 dr0x0 18 l1 dr0x1 1 in
+      let ar0y2x4 = keccak-chi l20 dr0x0 18 l1 dr0x1 1 l7 dr0x2 6 in
+      let ar0y3x0 = keccak-chi l4 dr0x4 27 l5 dr0x0 36 l11 dr0x1 10 in
+      let ar0y3x1 = keccak-chi l5 dr0x0 36 l11 dr0x1 10 l17 dr0x2 15 in
+      let ar0y3x2 = keccak-chi l11 dr0x1 10 l17 dr0x2 15 l23 dr0x3 56 in
+      let ar0y3x3 = keccak-chi l17 dr0x2 15 l23 dr0x3 56 l4 dr0x4 27 in
+      let ar0y3x4 = keccak-chi l23 dr0x3 56 l4 dr0x4 27 l5 dr0x0 36 in
+      let ar0y4x0 = keccak-chi l2 dr0x2 62 l8 dr0x3 55 l14 dr0x4 39 in
+      let ar0y4x1 = keccak-chi l8 dr0x3 55 l14 dr0x4 39 l15 dr0x0 41 in
+      let ar0y4x2 = keccak-chi l14 dr0x4 39 l15 dr0x0 41 l21 dr0x1 2 in
+      let ar0y4x3 = keccak-chi l15 dr0x0 41 l21 dr0x1 2 l2 dr0x2 62 in
+      let ar0y4x4 = keccak-chi l21 dr0x1 2 l2 dr0x2 62 l8 dr0x3 55 in
+      let cr1x0 = keccak-parity ar0y0x0 ar0y1x0 ar0y2x0 ar0y3x0 ar0y4x0 in
+      let cr1x1 = keccak-parity ar0y0x1 ar0y1x1 ar0y2x1 ar0y3x1 ar0y4x1 in
+      let cr1x2 = keccak-parity ar0y0x2 ar0y1x2 ar0y2x2 ar0y3x2 ar0y4x2 in
+      let cr1x3 = keccak-parity ar0y0x3 ar0y1x3 ar0y2x3 ar0y3x3 ar0y4x3 in
+      let cr1x4 = keccak-parity ar0y0x4 ar0y1x4 ar0y2x4 ar0y3x4 ar0y4x4 in
+      let dr1x0 = keccak-theta cr1x4 cr1x1 in
+      let dr1x1 = keccak-theta cr1x0 cr1x2 in
+      let dr1x2 = keccak-theta cr1x1 cr1x3 in
+      let dr1x3 = keccak-theta cr1x2 cr1x4 in
+      let dr1x4 = keccak-theta cr1x3 cr1x0 in
+      let ar1y0x0 = keccak-chi-iota ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 32898 in
+      let ar1y0x1 = keccak-chi ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 in
+      let ar1y0x2 = keccak-chi ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 in
+      let ar1y0x3 = keccak-chi ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 in
+      let ar1y0x4 = keccak-chi ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 in
+      let ar1y1x0 = keccak-chi ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 in
+      let ar1y1x1 = keccak-chi ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 in
+      let ar1y1x2 = keccak-chi ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 in
+      let ar1y1x3 = keccak-chi ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 in
+      let ar1y1x4 = keccak-chi ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 in
+      let ar1y2x0 = keccak-chi ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 in
+      let ar1y2x1 = keccak-chi ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 in
+      let ar1y2x2 = keccak-chi ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 in
+      let ar1y2x3 = keccak-chi ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 in
+      let ar1y2x4 = keccak-chi ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 in
+      let ar1y3x0 = keccak-chi ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 in
+      let ar1y3x1 = keccak-chi ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 in
+      let ar1y3x2 = keccak-chi ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 in
+      let ar1y3x3 = keccak-chi ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 in
+      let ar1y3x4 = keccak-chi ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 in
+      let ar1y4x0 = keccak-chi ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 in
+      let ar1y4x1 = keccak-chi ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 in
+      let ar1y4x2 = keccak-chi ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 in
+      let ar1y4x3 = keccak-chi ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 in
+      let ar1y4x4 = keccak-chi ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 in
+      let cr2x0 = keccak-parity ar1y0x0 ar1y1x0 ar1y2x0 ar1y3x0 ar1y4x0 in
+      let cr2x1 = keccak-parity ar1y0x1 ar1y1x1 ar1y2x1 ar1y3x1 ar1y4x1 in
+      let cr2x2 = keccak-parity ar1y0x2 ar1y1x2 ar1y2x2 ar1y3x2 ar1y4x2 in
+      let cr2x3 = keccak-parity ar1y0x3 ar1y1x3 ar1y2x3 ar1y3x3 ar1y4x3 in
+      let cr2x4 = keccak-parity ar1y0x4 ar1y1x4 ar1y2x4 ar1y3x4 ar1y4x4 in
+      let dr2x0 = keccak-theta cr2x4 cr2x1 in
+      let dr2x1 = keccak-theta cr2x0 cr2x2 in
+      let dr2x2 = keccak-theta cr2x1 cr2x3 in
+      let dr2x3 = keccak-theta cr2x2 cr2x4 in
+      let dr2x4 = keccak-theta cr2x3 cr2x0 in
+      let ar2y0x0 = keccak-chi-iota ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 9223372036854808714 in
+      let ar2y0x1 = keccak-chi ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 in
+      let ar2y0x2 = keccak-chi ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 in
+      let ar2y0x3 = keccak-chi ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 in
+      let ar2y0x4 = keccak-chi ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 in
+      let ar2y1x0 = keccak-chi ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 in
+      let ar2y1x1 = keccak-chi ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 in
+      let ar2y1x2 = keccak-chi ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 in
+      let ar2y1x3 = keccak-chi ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 in
+      let ar2y1x4 = keccak-chi ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 in
+      let ar2y2x0 = keccak-chi ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 in
+      let ar2y2x1 = keccak-chi ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 in
+      let ar2y2x2 = keccak-chi ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 in
+      let ar2y2x3 = keccak-chi ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 in
+      let ar2y2x4 = keccak-chi ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 in
+      let ar2y3x0 = keccak-chi ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 in
+      let ar2y3x1 = keccak-chi ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 in
+      let ar2y3x2 = keccak-chi ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 in
+      let ar2y3x3 = keccak-chi ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 in
+      let ar2y3x4 = keccak-chi ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 in
+      let ar2y4x0 = keccak-chi ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 in
+      let ar2y4x1 = keccak-chi ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 in
+      let ar2y4x2 = keccak-chi ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 in
+      let ar2y4x3 = keccak-chi ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 in
+      let ar2y4x4 = keccak-chi ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 in
+      Lanes ar2y0x0 ar2y0x1 ar2y0x2 ar2y0x3 ar2y0x4 ar2y1x0 ar2y1x1 ar2y1x2 ar2y1x3 ar2y1x4 ar2y2x0 ar2y2x1 ar2y2x2 ar2y2x3 ar2y2x4 ar2y3x0 ar2y3x1 ar2y3x2 ar2y3x3 ar2y3x4 ar2y4x0 ar2y4x1 ar2y4x2 ar2y4x3 ar2y4x4
+
+  -- | Apply rounds 3 through 5 of the permutation.
+  keccak-rounds-b :: KeccakLanes -> KeccakLanes
+  keccak-rounds-b lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let cr0x0 = keccak-parity l0 l5 l10 l15 l20 in
+      let cr0x1 = keccak-parity l1 l6 l11 l16 l21 in
+      let cr0x2 = keccak-parity l2 l7 l12 l17 l22 in
+      let cr0x3 = keccak-parity l3 l8 l13 l18 l23 in
+      let cr0x4 = keccak-parity l4 l9 l14 l19 l24 in
+      let dr0x0 = keccak-theta cr0x4 cr0x1 in
+      let dr0x1 = keccak-theta cr0x0 cr0x2 in
+      let dr0x2 = keccak-theta cr0x1 cr0x3 in
+      let dr0x3 = keccak-theta cr0x2 cr0x4 in
+      let dr0x4 = keccak-theta cr0x3 cr0x0 in
+      let ar0y0x0 = keccak-chi-iota l0 dr0x0 0 l6 dr0x1 44 l12 dr0x2 43 9223372039002292224 in
+      let ar0y0x1 = keccak-chi l6 dr0x1 44 l12 dr0x2 43 l18 dr0x3 21 in
+      let ar0y0x2 = keccak-chi l12 dr0x2 43 l18 dr0x3 21 l24 dr0x4 14 in
+      let ar0y0x3 = keccak-chi l18 dr0x3 21 l24 dr0x4 14 l0 dr0x0 0 in
+      let ar0y0x4 = keccak-chi l24 dr0x4 14 l0 dr0x0 0 l6 dr0x1 44 in
+      let ar0y1x0 = keccak-chi l3 dr0x3 28 l9 dr0x4 20 l10 dr0x0 3 in
+      let ar0y1x1 = keccak-chi l9 dr0x4 20 l10 dr0x0 3 l16 dr0x1 45 in
+      let ar0y1x2 = keccak-chi l10 dr0x0 3 l16 dr0x1 45 l22 dr0x2 61 in
+      let ar0y1x3 = keccak-chi l16 dr0x1 45 l22 dr0x2 61 l3 dr0x3 28 in
+      let ar0y1x4 = keccak-chi l22 dr0x2 61 l3 dr0x3 28 l9 dr0x4 20 in
+      let ar0y2x0 = keccak-chi l1 dr0x1 1 l7 dr0x2 6 l13 dr0x3 25 in
+      let ar0y2x1 = keccak-chi l7 dr0x2 6 l13 dr0x3 25 l19 dr0x4 8 in
+      let ar0y2x2 = keccak-chi l13 dr0x3 25 l19 dr0x4 8 l20 dr0x0 18 in
+      let ar0y2x3 = keccak-chi l19 dr0x4 8 l20 dr0x0 18 l1 dr0x1 1 in
+      let ar0y2x4 = keccak-chi l20 dr0x0 18 l1 dr0x1 1 l7 dr0x2 6 in
+      let ar0y3x0 = keccak-chi l4 dr0x4 27 l5 dr0x0 36 l11 dr0x1 10 in
+      let ar0y3x1 = keccak-chi l5 dr0x0 36 l11 dr0x1 10 l17 dr0x2 15 in
+      let ar0y3x2 = keccak-chi l11 dr0x1 10 l17 dr0x2 15 l23 dr0x3 56 in
+      let ar0y3x3 = keccak-chi l17 dr0x2 15 l23 dr0x3 56 l4 dr0x4 27 in
+      let ar0y3x4 = keccak-chi l23 dr0x3 56 l4 dr0x4 27 l5 dr0x0 36 in
+      let ar0y4x0 = keccak-chi l2 dr0x2 62 l8 dr0x3 55 l14 dr0x4 39 in
+      let ar0y4x1 = keccak-chi l8 dr0x3 55 l14 dr0x4 39 l15 dr0x0 41 in
+      let ar0y4x2 = keccak-chi l14 dr0x4 39 l15 dr0x0 41 l21 dr0x1 2 in
+      let ar0y4x3 = keccak-chi l15 dr0x0 41 l21 dr0x1 2 l2 dr0x2 62 in
+      let ar0y4x4 = keccak-chi l21 dr0x1 2 l2 dr0x2 62 l8 dr0x3 55 in
+      let cr1x0 = keccak-parity ar0y0x0 ar0y1x0 ar0y2x0 ar0y3x0 ar0y4x0 in
+      let cr1x1 = keccak-parity ar0y0x1 ar0y1x1 ar0y2x1 ar0y3x1 ar0y4x1 in
+      let cr1x2 = keccak-parity ar0y0x2 ar0y1x2 ar0y2x2 ar0y3x2 ar0y4x2 in
+      let cr1x3 = keccak-parity ar0y0x3 ar0y1x3 ar0y2x3 ar0y3x3 ar0y4x3 in
+      let cr1x4 = keccak-parity ar0y0x4 ar0y1x4 ar0y2x4 ar0y3x4 ar0y4x4 in
+      let dr1x0 = keccak-theta cr1x4 cr1x1 in
+      let dr1x1 = keccak-theta cr1x0 cr1x2 in
+      let dr1x2 = keccak-theta cr1x1 cr1x3 in
+      let dr1x3 = keccak-theta cr1x2 cr1x4 in
+      let dr1x4 = keccak-theta cr1x3 cr1x0 in
+      let ar1y0x0 = keccak-chi-iota ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 32907 in
+      let ar1y0x1 = keccak-chi ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 in
+      let ar1y0x2 = keccak-chi ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 in
+      let ar1y0x3 = keccak-chi ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 in
+      let ar1y0x4 = keccak-chi ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 in
+      let ar1y1x0 = keccak-chi ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 in
+      let ar1y1x1 = keccak-chi ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 in
+      let ar1y1x2 = keccak-chi ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 in
+      let ar1y1x3 = keccak-chi ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 in
+      let ar1y1x4 = keccak-chi ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 in
+      let ar1y2x0 = keccak-chi ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 in
+      let ar1y2x1 = keccak-chi ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 in
+      let ar1y2x2 = keccak-chi ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 in
+      let ar1y2x3 = keccak-chi ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 in
+      let ar1y2x4 = keccak-chi ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 in
+      let ar1y3x0 = keccak-chi ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 in
+      let ar1y3x1 = keccak-chi ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 in
+      let ar1y3x2 = keccak-chi ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 in
+      let ar1y3x3 = keccak-chi ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 in
+      let ar1y3x4 = keccak-chi ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 in
+      let ar1y4x0 = keccak-chi ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 in
+      let ar1y4x1 = keccak-chi ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 in
+      let ar1y4x2 = keccak-chi ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 in
+      let ar1y4x3 = keccak-chi ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 in
+      let ar1y4x4 = keccak-chi ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 in
+      let cr2x0 = keccak-parity ar1y0x0 ar1y1x0 ar1y2x0 ar1y3x0 ar1y4x0 in
+      let cr2x1 = keccak-parity ar1y0x1 ar1y1x1 ar1y2x1 ar1y3x1 ar1y4x1 in
+      let cr2x2 = keccak-parity ar1y0x2 ar1y1x2 ar1y2x2 ar1y3x2 ar1y4x2 in
+      let cr2x3 = keccak-parity ar1y0x3 ar1y1x3 ar1y2x3 ar1y3x3 ar1y4x3 in
+      let cr2x4 = keccak-parity ar1y0x4 ar1y1x4 ar1y2x4 ar1y3x4 ar1y4x4 in
+      let dr2x0 = keccak-theta cr2x4 cr2x1 in
+      let dr2x1 = keccak-theta cr2x0 cr2x2 in
+      let dr2x2 = keccak-theta cr2x1 cr2x3 in
+      let dr2x3 = keccak-theta cr2x2 cr2x4 in
+      let dr2x4 = keccak-theta cr2x3 cr2x0 in
+      let ar2y0x0 = keccak-chi-iota ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 2147483649 in
+      let ar2y0x1 = keccak-chi ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 in
+      let ar2y0x2 = keccak-chi ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 in
+      let ar2y0x3 = keccak-chi ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 in
+      let ar2y0x4 = keccak-chi ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 in
+      let ar2y1x0 = keccak-chi ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 in
+      let ar2y1x1 = keccak-chi ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 in
+      let ar2y1x2 = keccak-chi ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 in
+      let ar2y1x3 = keccak-chi ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 in
+      let ar2y1x4 = keccak-chi ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 in
+      let ar2y2x0 = keccak-chi ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 in
+      let ar2y2x1 = keccak-chi ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 in
+      let ar2y2x2 = keccak-chi ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 in
+      let ar2y2x3 = keccak-chi ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 in
+      let ar2y2x4 = keccak-chi ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 in
+      let ar2y3x0 = keccak-chi ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 in
+      let ar2y3x1 = keccak-chi ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 in
+      let ar2y3x2 = keccak-chi ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 in
+      let ar2y3x3 = keccak-chi ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 in
+      let ar2y3x4 = keccak-chi ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 in
+      let ar2y4x0 = keccak-chi ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 in
+      let ar2y4x1 = keccak-chi ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 in
+      let ar2y4x2 = keccak-chi ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 in
+      let ar2y4x3 = keccak-chi ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 in
+      let ar2y4x4 = keccak-chi ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 in
+      Lanes ar2y0x0 ar2y0x1 ar2y0x2 ar2y0x3 ar2y0x4 ar2y1x0 ar2y1x1 ar2y1x2 ar2y1x3 ar2y1x4 ar2y2x0 ar2y2x1 ar2y2x2 ar2y2x3 ar2y2x4 ar2y3x0 ar2y3x1 ar2y3x2 ar2y3x3 ar2y3x4 ar2y4x0 ar2y4x1 ar2y4x2 ar2y4x3 ar2y4x4
+
+  -- | Apply rounds 6 through 8 of the permutation.
+  keccak-rounds-c :: KeccakLanes -> KeccakLanes
+  keccak-rounds-c lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let cr0x0 = keccak-parity l0 l5 l10 l15 l20 in
+      let cr0x1 = keccak-parity l1 l6 l11 l16 l21 in
+      let cr0x2 = keccak-parity l2 l7 l12 l17 l22 in
+      let cr0x3 = keccak-parity l3 l8 l13 l18 l23 in
+      let cr0x4 = keccak-parity l4 l9 l14 l19 l24 in
+      let dr0x0 = keccak-theta cr0x4 cr0x1 in
+      let dr0x1 = keccak-theta cr0x0 cr0x2 in
+      let dr0x2 = keccak-theta cr0x1 cr0x3 in
+      let dr0x3 = keccak-theta cr0x2 cr0x4 in
+      let dr0x4 = keccak-theta cr0x3 cr0x0 in
+      let ar0y0x0 = keccak-chi-iota l0 dr0x0 0 l6 dr0x1 44 l12 dr0x2 43 9223372039002292353 in
+      let ar0y0x1 = keccak-chi l6 dr0x1 44 l12 dr0x2 43 l18 dr0x3 21 in
+      let ar0y0x2 = keccak-chi l12 dr0x2 43 l18 dr0x3 21 l24 dr0x4 14 in
+      let ar0y0x3 = keccak-chi l18 dr0x3 21 l24 dr0x4 14 l0 dr0x0 0 in
+      let ar0y0x4 = keccak-chi l24 dr0x4 14 l0 dr0x0 0 l6 dr0x1 44 in
+      let ar0y1x0 = keccak-chi l3 dr0x3 28 l9 dr0x4 20 l10 dr0x0 3 in
+      let ar0y1x1 = keccak-chi l9 dr0x4 20 l10 dr0x0 3 l16 dr0x1 45 in
+      let ar0y1x2 = keccak-chi l10 dr0x0 3 l16 dr0x1 45 l22 dr0x2 61 in
+      let ar0y1x3 = keccak-chi l16 dr0x1 45 l22 dr0x2 61 l3 dr0x3 28 in
+      let ar0y1x4 = keccak-chi l22 dr0x2 61 l3 dr0x3 28 l9 dr0x4 20 in
+      let ar0y2x0 = keccak-chi l1 dr0x1 1 l7 dr0x2 6 l13 dr0x3 25 in
+      let ar0y2x1 = keccak-chi l7 dr0x2 6 l13 dr0x3 25 l19 dr0x4 8 in
+      let ar0y2x2 = keccak-chi l13 dr0x3 25 l19 dr0x4 8 l20 dr0x0 18 in
+      let ar0y2x3 = keccak-chi l19 dr0x4 8 l20 dr0x0 18 l1 dr0x1 1 in
+      let ar0y2x4 = keccak-chi l20 dr0x0 18 l1 dr0x1 1 l7 dr0x2 6 in
+      let ar0y3x0 = keccak-chi l4 dr0x4 27 l5 dr0x0 36 l11 dr0x1 10 in
+      let ar0y3x1 = keccak-chi l5 dr0x0 36 l11 dr0x1 10 l17 dr0x2 15 in
+      let ar0y3x2 = keccak-chi l11 dr0x1 10 l17 dr0x2 15 l23 dr0x3 56 in
+      let ar0y3x3 = keccak-chi l17 dr0x2 15 l23 dr0x3 56 l4 dr0x4 27 in
+      let ar0y3x4 = keccak-chi l23 dr0x3 56 l4 dr0x4 27 l5 dr0x0 36 in
+      let ar0y4x0 = keccak-chi l2 dr0x2 62 l8 dr0x3 55 l14 dr0x4 39 in
+      let ar0y4x1 = keccak-chi l8 dr0x3 55 l14 dr0x4 39 l15 dr0x0 41 in
+      let ar0y4x2 = keccak-chi l14 dr0x4 39 l15 dr0x0 41 l21 dr0x1 2 in
+      let ar0y4x3 = keccak-chi l15 dr0x0 41 l21 dr0x1 2 l2 dr0x2 62 in
+      let ar0y4x4 = keccak-chi l21 dr0x1 2 l2 dr0x2 62 l8 dr0x3 55 in
+      let cr1x0 = keccak-parity ar0y0x0 ar0y1x0 ar0y2x0 ar0y3x0 ar0y4x0 in
+      let cr1x1 = keccak-parity ar0y0x1 ar0y1x1 ar0y2x1 ar0y3x1 ar0y4x1 in
+      let cr1x2 = keccak-parity ar0y0x2 ar0y1x2 ar0y2x2 ar0y3x2 ar0y4x2 in
+      let cr1x3 = keccak-parity ar0y0x3 ar0y1x3 ar0y2x3 ar0y3x3 ar0y4x3 in
+      let cr1x4 = keccak-parity ar0y0x4 ar0y1x4 ar0y2x4 ar0y3x4 ar0y4x4 in
+      let dr1x0 = keccak-theta cr1x4 cr1x1 in
+      let dr1x1 = keccak-theta cr1x0 cr1x2 in
+      let dr1x2 = keccak-theta cr1x1 cr1x3 in
+      let dr1x3 = keccak-theta cr1x2 cr1x4 in
+      let dr1x4 = keccak-theta cr1x3 cr1x0 in
+      let ar1y0x0 = keccak-chi-iota ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 9223372036854808585 in
+      let ar1y0x1 = keccak-chi ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 in
+      let ar1y0x2 = keccak-chi ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 in
+      let ar1y0x3 = keccak-chi ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 in
+      let ar1y0x4 = keccak-chi ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 in
+      let ar1y1x0 = keccak-chi ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 in
+      let ar1y1x1 = keccak-chi ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 in
+      let ar1y1x2 = keccak-chi ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 in
+      let ar1y1x3 = keccak-chi ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 in
+      let ar1y1x4 = keccak-chi ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 in
+      let ar1y2x0 = keccak-chi ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 in
+      let ar1y2x1 = keccak-chi ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 in
+      let ar1y2x2 = keccak-chi ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 in
+      let ar1y2x3 = keccak-chi ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 in
+      let ar1y2x4 = keccak-chi ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 in
+      let ar1y3x0 = keccak-chi ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 in
+      let ar1y3x1 = keccak-chi ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 in
+      let ar1y3x2 = keccak-chi ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 in
+      let ar1y3x3 = keccak-chi ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 in
+      let ar1y3x4 = keccak-chi ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 in
+      let ar1y4x0 = keccak-chi ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 in
+      let ar1y4x1 = keccak-chi ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 in
+      let ar1y4x2 = keccak-chi ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 in
+      let ar1y4x3 = keccak-chi ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 in
+      let ar1y4x4 = keccak-chi ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 in
+      let cr2x0 = keccak-parity ar1y0x0 ar1y1x0 ar1y2x0 ar1y3x0 ar1y4x0 in
+      let cr2x1 = keccak-parity ar1y0x1 ar1y1x1 ar1y2x1 ar1y3x1 ar1y4x1 in
+      let cr2x2 = keccak-parity ar1y0x2 ar1y1x2 ar1y2x2 ar1y3x2 ar1y4x2 in
+      let cr2x3 = keccak-parity ar1y0x3 ar1y1x3 ar1y2x3 ar1y3x3 ar1y4x3 in
+      let cr2x4 = keccak-parity ar1y0x4 ar1y1x4 ar1y2x4 ar1y3x4 ar1y4x4 in
+      let dr2x0 = keccak-theta cr2x4 cr2x1 in
+      let dr2x1 = keccak-theta cr2x0 cr2x2 in
+      let dr2x2 = keccak-theta cr2x1 cr2x3 in
+      let dr2x3 = keccak-theta cr2x2 cr2x4 in
+      let dr2x4 = keccak-theta cr2x3 cr2x0 in
+      let ar2y0x0 = keccak-chi-iota ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 138 in
+      let ar2y0x1 = keccak-chi ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 in
+      let ar2y0x2 = keccak-chi ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 in
+      let ar2y0x3 = keccak-chi ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 in
+      let ar2y0x4 = keccak-chi ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 in
+      let ar2y1x0 = keccak-chi ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 in
+      let ar2y1x1 = keccak-chi ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 in
+      let ar2y1x2 = keccak-chi ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 in
+      let ar2y1x3 = keccak-chi ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 in
+      let ar2y1x4 = keccak-chi ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 in
+      let ar2y2x0 = keccak-chi ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 in
+      let ar2y2x1 = keccak-chi ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 in
+      let ar2y2x2 = keccak-chi ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 in
+      let ar2y2x3 = keccak-chi ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 in
+      let ar2y2x4 = keccak-chi ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 in
+      let ar2y3x0 = keccak-chi ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 in
+      let ar2y3x1 = keccak-chi ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 in
+      let ar2y3x2 = keccak-chi ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 in
+      let ar2y3x3 = keccak-chi ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 in
+      let ar2y3x4 = keccak-chi ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 in
+      let ar2y4x0 = keccak-chi ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 in
+      let ar2y4x1 = keccak-chi ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 in
+      let ar2y4x2 = keccak-chi ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 in
+      let ar2y4x3 = keccak-chi ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 in
+      let ar2y4x4 = keccak-chi ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 in
+      Lanes ar2y0x0 ar2y0x1 ar2y0x2 ar2y0x3 ar2y0x4 ar2y1x0 ar2y1x1 ar2y1x2 ar2y1x3 ar2y1x4 ar2y2x0 ar2y2x1 ar2y2x2 ar2y2x3 ar2y2x4 ar2y3x0 ar2y3x1 ar2y3x2 ar2y3x3 ar2y3x4 ar2y4x0 ar2y4x1 ar2y4x2 ar2y4x3 ar2y4x4
+
+  -- | Apply rounds 9 through 11 of the permutation.
+  keccak-rounds-d :: KeccakLanes -> KeccakLanes
+  keccak-rounds-d lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let cr0x0 = keccak-parity l0 l5 l10 l15 l20 in
+      let cr0x1 = keccak-parity l1 l6 l11 l16 l21 in
+      let cr0x2 = keccak-parity l2 l7 l12 l17 l22 in
+      let cr0x3 = keccak-parity l3 l8 l13 l18 l23 in
+      let cr0x4 = keccak-parity l4 l9 l14 l19 l24 in
+      let dr0x0 = keccak-theta cr0x4 cr0x1 in
+      let dr0x1 = keccak-theta cr0x0 cr0x2 in
+      let dr0x2 = keccak-theta cr0x1 cr0x3 in
+      let dr0x3 = keccak-theta cr0x2 cr0x4 in
+      let dr0x4 = keccak-theta cr0x3 cr0x0 in
+      let ar0y0x0 = keccak-chi-iota l0 dr0x0 0 l6 dr0x1 44 l12 dr0x2 43 136 in
+      let ar0y0x1 = keccak-chi l6 dr0x1 44 l12 dr0x2 43 l18 dr0x3 21 in
+      let ar0y0x2 = keccak-chi l12 dr0x2 43 l18 dr0x3 21 l24 dr0x4 14 in
+      let ar0y0x3 = keccak-chi l18 dr0x3 21 l24 dr0x4 14 l0 dr0x0 0 in
+      let ar0y0x4 = keccak-chi l24 dr0x4 14 l0 dr0x0 0 l6 dr0x1 44 in
+      let ar0y1x0 = keccak-chi l3 dr0x3 28 l9 dr0x4 20 l10 dr0x0 3 in
+      let ar0y1x1 = keccak-chi l9 dr0x4 20 l10 dr0x0 3 l16 dr0x1 45 in
+      let ar0y1x2 = keccak-chi l10 dr0x0 3 l16 dr0x1 45 l22 dr0x2 61 in
+      let ar0y1x3 = keccak-chi l16 dr0x1 45 l22 dr0x2 61 l3 dr0x3 28 in
+      let ar0y1x4 = keccak-chi l22 dr0x2 61 l3 dr0x3 28 l9 dr0x4 20 in
+      let ar0y2x0 = keccak-chi l1 dr0x1 1 l7 dr0x2 6 l13 dr0x3 25 in
+      let ar0y2x1 = keccak-chi l7 dr0x2 6 l13 dr0x3 25 l19 dr0x4 8 in
+      let ar0y2x2 = keccak-chi l13 dr0x3 25 l19 dr0x4 8 l20 dr0x0 18 in
+      let ar0y2x3 = keccak-chi l19 dr0x4 8 l20 dr0x0 18 l1 dr0x1 1 in
+      let ar0y2x4 = keccak-chi l20 dr0x0 18 l1 dr0x1 1 l7 dr0x2 6 in
+      let ar0y3x0 = keccak-chi l4 dr0x4 27 l5 dr0x0 36 l11 dr0x1 10 in
+      let ar0y3x1 = keccak-chi l5 dr0x0 36 l11 dr0x1 10 l17 dr0x2 15 in
+      let ar0y3x2 = keccak-chi l11 dr0x1 10 l17 dr0x2 15 l23 dr0x3 56 in
+      let ar0y3x3 = keccak-chi l17 dr0x2 15 l23 dr0x3 56 l4 dr0x4 27 in
+      let ar0y3x4 = keccak-chi l23 dr0x3 56 l4 dr0x4 27 l5 dr0x0 36 in
+      let ar0y4x0 = keccak-chi l2 dr0x2 62 l8 dr0x3 55 l14 dr0x4 39 in
+      let ar0y4x1 = keccak-chi l8 dr0x3 55 l14 dr0x4 39 l15 dr0x0 41 in
+      let ar0y4x2 = keccak-chi l14 dr0x4 39 l15 dr0x0 41 l21 dr0x1 2 in
+      let ar0y4x3 = keccak-chi l15 dr0x0 41 l21 dr0x1 2 l2 dr0x2 62 in
+      let ar0y4x4 = keccak-chi l21 dr0x1 2 l2 dr0x2 62 l8 dr0x3 55 in
+      let cr1x0 = keccak-parity ar0y0x0 ar0y1x0 ar0y2x0 ar0y3x0 ar0y4x0 in
+      let cr1x1 = keccak-parity ar0y0x1 ar0y1x1 ar0y2x1 ar0y3x1 ar0y4x1 in
+      let cr1x2 = keccak-parity ar0y0x2 ar0y1x2 ar0y2x2 ar0y3x2 ar0y4x2 in
+      let cr1x3 = keccak-parity ar0y0x3 ar0y1x3 ar0y2x3 ar0y3x3 ar0y4x3 in
+      let cr1x4 = keccak-parity ar0y0x4 ar0y1x4 ar0y2x4 ar0y3x4 ar0y4x4 in
+      let dr1x0 = keccak-theta cr1x4 cr1x1 in
+      let dr1x1 = keccak-theta cr1x0 cr1x2 in
+      let dr1x2 = keccak-theta cr1x1 cr1x3 in
+      let dr1x3 = keccak-theta cr1x2 cr1x4 in
+      let dr1x4 = keccak-theta cr1x3 cr1x0 in
+      let ar1y0x0 = keccak-chi-iota ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 2147516425 in
+      let ar1y0x1 = keccak-chi ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 in
+      let ar1y0x2 = keccak-chi ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 in
+      let ar1y0x3 = keccak-chi ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 in
+      let ar1y0x4 = keccak-chi ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 in
+      let ar1y1x0 = keccak-chi ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 in
+      let ar1y1x1 = keccak-chi ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 in
+      let ar1y1x2 = keccak-chi ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 in
+      let ar1y1x3 = keccak-chi ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 in
+      let ar1y1x4 = keccak-chi ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 in
+      let ar1y2x0 = keccak-chi ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 in
+      let ar1y2x1 = keccak-chi ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 in
+      let ar1y2x2 = keccak-chi ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 in
+      let ar1y2x3 = keccak-chi ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 in
+      let ar1y2x4 = keccak-chi ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 in
+      let ar1y3x0 = keccak-chi ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 in
+      let ar1y3x1 = keccak-chi ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 in
+      let ar1y3x2 = keccak-chi ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 in
+      let ar1y3x3 = keccak-chi ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 in
+      let ar1y3x4 = keccak-chi ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 in
+      let ar1y4x0 = keccak-chi ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 in
+      let ar1y4x1 = keccak-chi ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 in
+      let ar1y4x2 = keccak-chi ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 in
+      let ar1y4x3 = keccak-chi ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 in
+      let ar1y4x4 = keccak-chi ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 in
+      let cr2x0 = keccak-parity ar1y0x0 ar1y1x0 ar1y2x0 ar1y3x0 ar1y4x0 in
+      let cr2x1 = keccak-parity ar1y0x1 ar1y1x1 ar1y2x1 ar1y3x1 ar1y4x1 in
+      let cr2x2 = keccak-parity ar1y0x2 ar1y1x2 ar1y2x2 ar1y3x2 ar1y4x2 in
+      let cr2x3 = keccak-parity ar1y0x3 ar1y1x3 ar1y2x3 ar1y3x3 ar1y4x3 in
+      let cr2x4 = keccak-parity ar1y0x4 ar1y1x4 ar1y2x4 ar1y3x4 ar1y4x4 in
+      let dr2x0 = keccak-theta cr2x4 cr2x1 in
+      let dr2x1 = keccak-theta cr2x0 cr2x2 in
+      let dr2x2 = keccak-theta cr2x1 cr2x3 in
+      let dr2x3 = keccak-theta cr2x2 cr2x4 in
+      let dr2x4 = keccak-theta cr2x3 cr2x0 in
+      let ar2y0x0 = keccak-chi-iota ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 2147483658 in
+      let ar2y0x1 = keccak-chi ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 in
+      let ar2y0x2 = keccak-chi ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 in
+      let ar2y0x3 = keccak-chi ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 in
+      let ar2y0x4 = keccak-chi ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 in
+      let ar2y1x0 = keccak-chi ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 in
+      let ar2y1x1 = keccak-chi ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 in
+      let ar2y1x2 = keccak-chi ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 in
+      let ar2y1x3 = keccak-chi ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 in
+      let ar2y1x4 = keccak-chi ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 in
+      let ar2y2x0 = keccak-chi ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 in
+      let ar2y2x1 = keccak-chi ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 in
+      let ar2y2x2 = keccak-chi ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 in
+      let ar2y2x3 = keccak-chi ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 in
+      let ar2y2x4 = keccak-chi ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 in
+      let ar2y3x0 = keccak-chi ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 in
+      let ar2y3x1 = keccak-chi ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 in
+      let ar2y3x2 = keccak-chi ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 in
+      let ar2y3x3 = keccak-chi ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 in
+      let ar2y3x4 = keccak-chi ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 in
+      let ar2y4x0 = keccak-chi ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 in
+      let ar2y4x1 = keccak-chi ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 in
+      let ar2y4x2 = keccak-chi ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 in
+      let ar2y4x3 = keccak-chi ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 in
+      let ar2y4x4 = keccak-chi ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 in
+      Lanes ar2y0x0 ar2y0x1 ar2y0x2 ar2y0x3 ar2y0x4 ar2y1x0 ar2y1x1 ar2y1x2 ar2y1x3 ar2y1x4 ar2y2x0 ar2y2x1 ar2y2x2 ar2y2x3 ar2y2x4 ar2y3x0 ar2y3x1 ar2y3x2 ar2y3x3 ar2y3x4 ar2y4x0 ar2y4x1 ar2y4x2 ar2y4x3 ar2y4x4
+
+  -- | Apply rounds 12 through 14 of the permutation.
+  keccak-rounds-e :: KeccakLanes -> KeccakLanes
+  keccak-rounds-e lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let cr0x0 = keccak-parity l0 l5 l10 l15 l20 in
+      let cr0x1 = keccak-parity l1 l6 l11 l16 l21 in
+      let cr0x2 = keccak-parity l2 l7 l12 l17 l22 in
+      let cr0x3 = keccak-parity l3 l8 l13 l18 l23 in
+      let cr0x4 = keccak-parity l4 l9 l14 l19 l24 in
+      let dr0x0 = keccak-theta cr0x4 cr0x1 in
+      let dr0x1 = keccak-theta cr0x0 cr0x2 in
+      let dr0x2 = keccak-theta cr0x1 cr0x3 in
+      let dr0x3 = keccak-theta cr0x2 cr0x4 in
+      let dr0x4 = keccak-theta cr0x3 cr0x0 in
+      let ar0y0x0 = keccak-chi-iota l0 dr0x0 0 l6 dr0x1 44 l12 dr0x2 43 2147516555 in
+      let ar0y0x1 = keccak-chi l6 dr0x1 44 l12 dr0x2 43 l18 dr0x3 21 in
+      let ar0y0x2 = keccak-chi l12 dr0x2 43 l18 dr0x3 21 l24 dr0x4 14 in
+      let ar0y0x3 = keccak-chi l18 dr0x3 21 l24 dr0x4 14 l0 dr0x0 0 in
+      let ar0y0x4 = keccak-chi l24 dr0x4 14 l0 dr0x0 0 l6 dr0x1 44 in
+      let ar0y1x0 = keccak-chi l3 dr0x3 28 l9 dr0x4 20 l10 dr0x0 3 in
+      let ar0y1x1 = keccak-chi l9 dr0x4 20 l10 dr0x0 3 l16 dr0x1 45 in
+      let ar0y1x2 = keccak-chi l10 dr0x0 3 l16 dr0x1 45 l22 dr0x2 61 in
+      let ar0y1x3 = keccak-chi l16 dr0x1 45 l22 dr0x2 61 l3 dr0x3 28 in
+      let ar0y1x4 = keccak-chi l22 dr0x2 61 l3 dr0x3 28 l9 dr0x4 20 in
+      let ar0y2x0 = keccak-chi l1 dr0x1 1 l7 dr0x2 6 l13 dr0x3 25 in
+      let ar0y2x1 = keccak-chi l7 dr0x2 6 l13 dr0x3 25 l19 dr0x4 8 in
+      let ar0y2x2 = keccak-chi l13 dr0x3 25 l19 dr0x4 8 l20 dr0x0 18 in
+      let ar0y2x3 = keccak-chi l19 dr0x4 8 l20 dr0x0 18 l1 dr0x1 1 in
+      let ar0y2x4 = keccak-chi l20 dr0x0 18 l1 dr0x1 1 l7 dr0x2 6 in
+      let ar0y3x0 = keccak-chi l4 dr0x4 27 l5 dr0x0 36 l11 dr0x1 10 in
+      let ar0y3x1 = keccak-chi l5 dr0x0 36 l11 dr0x1 10 l17 dr0x2 15 in
+      let ar0y3x2 = keccak-chi l11 dr0x1 10 l17 dr0x2 15 l23 dr0x3 56 in
+      let ar0y3x3 = keccak-chi l17 dr0x2 15 l23 dr0x3 56 l4 dr0x4 27 in
+      let ar0y3x4 = keccak-chi l23 dr0x3 56 l4 dr0x4 27 l5 dr0x0 36 in
+      let ar0y4x0 = keccak-chi l2 dr0x2 62 l8 dr0x3 55 l14 dr0x4 39 in
+      let ar0y4x1 = keccak-chi l8 dr0x3 55 l14 dr0x4 39 l15 dr0x0 41 in
+      let ar0y4x2 = keccak-chi l14 dr0x4 39 l15 dr0x0 41 l21 dr0x1 2 in
+      let ar0y4x3 = keccak-chi l15 dr0x0 41 l21 dr0x1 2 l2 dr0x2 62 in
+      let ar0y4x4 = keccak-chi l21 dr0x1 2 l2 dr0x2 62 l8 dr0x3 55 in
+      let cr1x0 = keccak-parity ar0y0x0 ar0y1x0 ar0y2x0 ar0y3x0 ar0y4x0 in
+      let cr1x1 = keccak-parity ar0y0x1 ar0y1x1 ar0y2x1 ar0y3x1 ar0y4x1 in
+      let cr1x2 = keccak-parity ar0y0x2 ar0y1x2 ar0y2x2 ar0y3x2 ar0y4x2 in
+      let cr1x3 = keccak-parity ar0y0x3 ar0y1x3 ar0y2x3 ar0y3x3 ar0y4x3 in
+      let cr1x4 = keccak-parity ar0y0x4 ar0y1x4 ar0y2x4 ar0y3x4 ar0y4x4 in
+      let dr1x0 = keccak-theta cr1x4 cr1x1 in
+      let dr1x1 = keccak-theta cr1x0 cr1x2 in
+      let dr1x2 = keccak-theta cr1x1 cr1x3 in
+      let dr1x3 = keccak-theta cr1x2 cr1x4 in
+      let dr1x4 = keccak-theta cr1x3 cr1x0 in
+      let ar1y0x0 = keccak-chi-iota ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 9223372036854775947 in
+      let ar1y0x1 = keccak-chi ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 in
+      let ar1y0x2 = keccak-chi ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 in
+      let ar1y0x3 = keccak-chi ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 in
+      let ar1y0x4 = keccak-chi ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 in
+      let ar1y1x0 = keccak-chi ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 in
+      let ar1y1x1 = keccak-chi ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 in
+      let ar1y1x2 = keccak-chi ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 in
+      let ar1y1x3 = keccak-chi ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 in
+      let ar1y1x4 = keccak-chi ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 in
+      let ar1y2x0 = keccak-chi ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 in
+      let ar1y2x1 = keccak-chi ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 in
+      let ar1y2x2 = keccak-chi ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 in
+      let ar1y2x3 = keccak-chi ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 in
+      let ar1y2x4 = keccak-chi ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 in
+      let ar1y3x0 = keccak-chi ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 in
+      let ar1y3x1 = keccak-chi ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 in
+      let ar1y3x2 = keccak-chi ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 in
+      let ar1y3x3 = keccak-chi ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 in
+      let ar1y3x4 = keccak-chi ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 in
+      let ar1y4x0 = keccak-chi ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 in
+      let ar1y4x1 = keccak-chi ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 in
+      let ar1y4x2 = keccak-chi ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 in
+      let ar1y4x3 = keccak-chi ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 in
+      let ar1y4x4 = keccak-chi ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 in
+      let cr2x0 = keccak-parity ar1y0x0 ar1y1x0 ar1y2x0 ar1y3x0 ar1y4x0 in
+      let cr2x1 = keccak-parity ar1y0x1 ar1y1x1 ar1y2x1 ar1y3x1 ar1y4x1 in
+      let cr2x2 = keccak-parity ar1y0x2 ar1y1x2 ar1y2x2 ar1y3x2 ar1y4x2 in
+      let cr2x3 = keccak-parity ar1y0x3 ar1y1x3 ar1y2x3 ar1y3x3 ar1y4x3 in
+      let cr2x4 = keccak-parity ar1y0x4 ar1y1x4 ar1y2x4 ar1y3x4 ar1y4x4 in
+      let dr2x0 = keccak-theta cr2x4 cr2x1 in
+      let dr2x1 = keccak-theta cr2x0 cr2x2 in
+      let dr2x2 = keccak-theta cr2x1 cr2x3 in
+      let dr2x3 = keccak-theta cr2x2 cr2x4 in
+      let dr2x4 = keccak-theta cr2x3 cr2x0 in
+      let ar2y0x0 = keccak-chi-iota ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 9223372036854808713 in
+      let ar2y0x1 = keccak-chi ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 in
+      let ar2y0x2 = keccak-chi ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 in
+      let ar2y0x3 = keccak-chi ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 in
+      let ar2y0x4 = keccak-chi ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 in
+      let ar2y1x0 = keccak-chi ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 in
+      let ar2y1x1 = keccak-chi ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 in
+      let ar2y1x2 = keccak-chi ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 in
+      let ar2y1x3 = keccak-chi ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 in
+      let ar2y1x4 = keccak-chi ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 in
+      let ar2y2x0 = keccak-chi ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 in
+      let ar2y2x1 = keccak-chi ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 in
+      let ar2y2x2 = keccak-chi ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 in
+      let ar2y2x3 = keccak-chi ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 in
+      let ar2y2x4 = keccak-chi ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 in
+      let ar2y3x0 = keccak-chi ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 in
+      let ar2y3x1 = keccak-chi ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 in
+      let ar2y3x2 = keccak-chi ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 in
+      let ar2y3x3 = keccak-chi ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 in
+      let ar2y3x4 = keccak-chi ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 in
+      let ar2y4x0 = keccak-chi ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 in
+      let ar2y4x1 = keccak-chi ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 in
+      let ar2y4x2 = keccak-chi ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 in
+      let ar2y4x3 = keccak-chi ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 in
+      let ar2y4x4 = keccak-chi ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 in
+      Lanes ar2y0x0 ar2y0x1 ar2y0x2 ar2y0x3 ar2y0x4 ar2y1x0 ar2y1x1 ar2y1x2 ar2y1x3 ar2y1x4 ar2y2x0 ar2y2x1 ar2y2x2 ar2y2x3 ar2y2x4 ar2y3x0 ar2y3x1 ar2y3x2 ar2y3x3 ar2y3x4 ar2y4x0 ar2y4x1 ar2y4x2 ar2y4x3 ar2y4x4
+
+  -- | Apply rounds 15 through 17 of the permutation.
+  keccak-rounds-f :: KeccakLanes -> KeccakLanes
+  keccak-rounds-f lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let cr0x0 = keccak-parity l0 l5 l10 l15 l20 in
+      let cr0x1 = keccak-parity l1 l6 l11 l16 l21 in
+      let cr0x2 = keccak-parity l2 l7 l12 l17 l22 in
+      let cr0x3 = keccak-parity l3 l8 l13 l18 l23 in
+      let cr0x4 = keccak-parity l4 l9 l14 l19 l24 in
+      let dr0x0 = keccak-theta cr0x4 cr0x1 in
+      let dr0x1 = keccak-theta cr0x0 cr0x2 in
+      let dr0x2 = keccak-theta cr0x1 cr0x3 in
+      let dr0x3 = keccak-theta cr0x2 cr0x4 in
+      let dr0x4 = keccak-theta cr0x3 cr0x0 in
+      let ar0y0x0 = keccak-chi-iota l0 dr0x0 0 l6 dr0x1 44 l12 dr0x2 43 9223372036854808579 in
+      let ar0y0x1 = keccak-chi l6 dr0x1 44 l12 dr0x2 43 l18 dr0x3 21 in
+      let ar0y0x2 = keccak-chi l12 dr0x2 43 l18 dr0x3 21 l24 dr0x4 14 in
+      let ar0y0x3 = keccak-chi l18 dr0x3 21 l24 dr0x4 14 l0 dr0x0 0 in
+      let ar0y0x4 = keccak-chi l24 dr0x4 14 l0 dr0x0 0 l6 dr0x1 44 in
+      let ar0y1x0 = keccak-chi l3 dr0x3 28 l9 dr0x4 20 l10 dr0x0 3 in
+      let ar0y1x1 = keccak-chi l9 dr0x4 20 l10 dr0x0 3 l16 dr0x1 45 in
+      let ar0y1x2 = keccak-chi l10 dr0x0 3 l16 dr0x1 45 l22 dr0x2 61 in
+      let ar0y1x3 = keccak-chi l16 dr0x1 45 l22 dr0x2 61 l3 dr0x3 28 in
+      let ar0y1x4 = keccak-chi l22 dr0x2 61 l3 dr0x3 28 l9 dr0x4 20 in
+      let ar0y2x0 = keccak-chi l1 dr0x1 1 l7 dr0x2 6 l13 dr0x3 25 in
+      let ar0y2x1 = keccak-chi l7 dr0x2 6 l13 dr0x3 25 l19 dr0x4 8 in
+      let ar0y2x2 = keccak-chi l13 dr0x3 25 l19 dr0x4 8 l20 dr0x0 18 in
+      let ar0y2x3 = keccak-chi l19 dr0x4 8 l20 dr0x0 18 l1 dr0x1 1 in
+      let ar0y2x4 = keccak-chi l20 dr0x0 18 l1 dr0x1 1 l7 dr0x2 6 in
+      let ar0y3x0 = keccak-chi l4 dr0x4 27 l5 dr0x0 36 l11 dr0x1 10 in
+      let ar0y3x1 = keccak-chi l5 dr0x0 36 l11 dr0x1 10 l17 dr0x2 15 in
+      let ar0y3x2 = keccak-chi l11 dr0x1 10 l17 dr0x2 15 l23 dr0x3 56 in
+      let ar0y3x3 = keccak-chi l17 dr0x2 15 l23 dr0x3 56 l4 dr0x4 27 in
+      let ar0y3x4 = keccak-chi l23 dr0x3 56 l4 dr0x4 27 l5 dr0x0 36 in
+      let ar0y4x0 = keccak-chi l2 dr0x2 62 l8 dr0x3 55 l14 dr0x4 39 in
+      let ar0y4x1 = keccak-chi l8 dr0x3 55 l14 dr0x4 39 l15 dr0x0 41 in
+      let ar0y4x2 = keccak-chi l14 dr0x4 39 l15 dr0x0 41 l21 dr0x1 2 in
+      let ar0y4x3 = keccak-chi l15 dr0x0 41 l21 dr0x1 2 l2 dr0x2 62 in
+      let ar0y4x4 = keccak-chi l21 dr0x1 2 l2 dr0x2 62 l8 dr0x3 55 in
+      let cr1x0 = keccak-parity ar0y0x0 ar0y1x0 ar0y2x0 ar0y3x0 ar0y4x0 in
+      let cr1x1 = keccak-parity ar0y0x1 ar0y1x1 ar0y2x1 ar0y3x1 ar0y4x1 in
+      let cr1x2 = keccak-parity ar0y0x2 ar0y1x2 ar0y2x2 ar0y3x2 ar0y4x2 in
+      let cr1x3 = keccak-parity ar0y0x3 ar0y1x3 ar0y2x3 ar0y3x3 ar0y4x3 in
+      let cr1x4 = keccak-parity ar0y0x4 ar0y1x4 ar0y2x4 ar0y3x4 ar0y4x4 in
+      let dr1x0 = keccak-theta cr1x4 cr1x1 in
+      let dr1x1 = keccak-theta cr1x0 cr1x2 in
+      let dr1x2 = keccak-theta cr1x1 cr1x3 in
+      let dr1x3 = keccak-theta cr1x2 cr1x4 in
+      let dr1x4 = keccak-theta cr1x3 cr1x0 in
+      let ar1y0x0 = keccak-chi-iota ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 9223372036854808578 in
+      let ar1y0x1 = keccak-chi ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 in
+      let ar1y0x2 = keccak-chi ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 in
+      let ar1y0x3 = keccak-chi ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 in
+      let ar1y0x4 = keccak-chi ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 in
+      let ar1y1x0 = keccak-chi ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 in
+      let ar1y1x1 = keccak-chi ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 in
+      let ar1y1x2 = keccak-chi ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 in
+      let ar1y1x3 = keccak-chi ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 in
+      let ar1y1x4 = keccak-chi ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 in
+      let ar1y2x0 = keccak-chi ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 in
+      let ar1y2x1 = keccak-chi ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 in
+      let ar1y2x2 = keccak-chi ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 in
+      let ar1y2x3 = keccak-chi ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 in
+      let ar1y2x4 = keccak-chi ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 in
+      let ar1y3x0 = keccak-chi ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 in
+      let ar1y3x1 = keccak-chi ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 in
+      let ar1y3x2 = keccak-chi ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 in
+      let ar1y3x3 = keccak-chi ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 in
+      let ar1y3x4 = keccak-chi ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 in
+      let ar1y4x0 = keccak-chi ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 in
+      let ar1y4x1 = keccak-chi ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 in
+      let ar1y4x2 = keccak-chi ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 in
+      let ar1y4x3 = keccak-chi ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 in
+      let ar1y4x4 = keccak-chi ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 in
+      let cr2x0 = keccak-parity ar1y0x0 ar1y1x0 ar1y2x0 ar1y3x0 ar1y4x0 in
+      let cr2x1 = keccak-parity ar1y0x1 ar1y1x1 ar1y2x1 ar1y3x1 ar1y4x1 in
+      let cr2x2 = keccak-parity ar1y0x2 ar1y1x2 ar1y2x2 ar1y3x2 ar1y4x2 in
+      let cr2x3 = keccak-parity ar1y0x3 ar1y1x3 ar1y2x3 ar1y3x3 ar1y4x3 in
+      let cr2x4 = keccak-parity ar1y0x4 ar1y1x4 ar1y2x4 ar1y3x4 ar1y4x4 in
+      let dr2x0 = keccak-theta cr2x4 cr2x1 in
+      let dr2x1 = keccak-theta cr2x0 cr2x2 in
+      let dr2x2 = keccak-theta cr2x1 cr2x3 in
+      let dr2x3 = keccak-theta cr2x2 cr2x4 in
+      let dr2x4 = keccak-theta cr2x3 cr2x0 in
+      let ar2y0x0 = keccak-chi-iota ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 9223372036854775936 in
+      let ar2y0x1 = keccak-chi ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 in
+      let ar2y0x2 = keccak-chi ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 in
+      let ar2y0x3 = keccak-chi ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 in
+      let ar2y0x4 = keccak-chi ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 in
+      let ar2y1x0 = keccak-chi ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 in
+      let ar2y1x1 = keccak-chi ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 in
+      let ar2y1x2 = keccak-chi ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 in
+      let ar2y1x3 = keccak-chi ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 in
+      let ar2y1x4 = keccak-chi ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 in
+      let ar2y2x0 = keccak-chi ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 in
+      let ar2y2x1 = keccak-chi ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 in
+      let ar2y2x2 = keccak-chi ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 in
+      let ar2y2x3 = keccak-chi ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 in
+      let ar2y2x4 = keccak-chi ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 in
+      let ar2y3x0 = keccak-chi ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 in
+      let ar2y3x1 = keccak-chi ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 in
+      let ar2y3x2 = keccak-chi ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 in
+      let ar2y3x3 = keccak-chi ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 in
+      let ar2y3x4 = keccak-chi ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 in
+      let ar2y4x0 = keccak-chi ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 in
+      let ar2y4x1 = keccak-chi ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 in
+      let ar2y4x2 = keccak-chi ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 in
+      let ar2y4x3 = keccak-chi ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 in
+      let ar2y4x4 = keccak-chi ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 in
+      Lanes ar2y0x0 ar2y0x1 ar2y0x2 ar2y0x3 ar2y0x4 ar2y1x0 ar2y1x1 ar2y1x2 ar2y1x3 ar2y1x4 ar2y2x0 ar2y2x1 ar2y2x2 ar2y2x3 ar2y2x4 ar2y3x0 ar2y3x1 ar2y3x2 ar2y3x3 ar2y3x4 ar2y4x0 ar2y4x1 ar2y4x2 ar2y4x3 ar2y4x4
+
+  -- | Apply rounds 18 through 20 of the permutation.
+  keccak-rounds-g :: KeccakLanes -> KeccakLanes
+  keccak-rounds-g lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let cr0x0 = keccak-parity l0 l5 l10 l15 l20 in
+      let cr0x1 = keccak-parity l1 l6 l11 l16 l21 in
+      let cr0x2 = keccak-parity l2 l7 l12 l17 l22 in
+      let cr0x3 = keccak-parity l3 l8 l13 l18 l23 in
+      let cr0x4 = keccak-parity l4 l9 l14 l19 l24 in
+      let dr0x0 = keccak-theta cr0x4 cr0x1 in
+      let dr0x1 = keccak-theta cr0x0 cr0x2 in
+      let dr0x2 = keccak-theta cr0x1 cr0x3 in
+      let dr0x3 = keccak-theta cr0x2 cr0x4 in
+      let dr0x4 = keccak-theta cr0x3 cr0x0 in
+      let ar0y0x0 = keccak-chi-iota l0 dr0x0 0 l6 dr0x1 44 l12 dr0x2 43 32778 in
+      let ar0y0x1 = keccak-chi l6 dr0x1 44 l12 dr0x2 43 l18 dr0x3 21 in
+      let ar0y0x2 = keccak-chi l12 dr0x2 43 l18 dr0x3 21 l24 dr0x4 14 in
+      let ar0y0x3 = keccak-chi l18 dr0x3 21 l24 dr0x4 14 l0 dr0x0 0 in
+      let ar0y0x4 = keccak-chi l24 dr0x4 14 l0 dr0x0 0 l6 dr0x1 44 in
+      let ar0y1x0 = keccak-chi l3 dr0x3 28 l9 dr0x4 20 l10 dr0x0 3 in
+      let ar0y1x1 = keccak-chi l9 dr0x4 20 l10 dr0x0 3 l16 dr0x1 45 in
+      let ar0y1x2 = keccak-chi l10 dr0x0 3 l16 dr0x1 45 l22 dr0x2 61 in
+      let ar0y1x3 = keccak-chi l16 dr0x1 45 l22 dr0x2 61 l3 dr0x3 28 in
+      let ar0y1x4 = keccak-chi l22 dr0x2 61 l3 dr0x3 28 l9 dr0x4 20 in
+      let ar0y2x0 = keccak-chi l1 dr0x1 1 l7 dr0x2 6 l13 dr0x3 25 in
+      let ar0y2x1 = keccak-chi l7 dr0x2 6 l13 dr0x3 25 l19 dr0x4 8 in
+      let ar0y2x2 = keccak-chi l13 dr0x3 25 l19 dr0x4 8 l20 dr0x0 18 in
+      let ar0y2x3 = keccak-chi l19 dr0x4 8 l20 dr0x0 18 l1 dr0x1 1 in
+      let ar0y2x4 = keccak-chi l20 dr0x0 18 l1 dr0x1 1 l7 dr0x2 6 in
+      let ar0y3x0 = keccak-chi l4 dr0x4 27 l5 dr0x0 36 l11 dr0x1 10 in
+      let ar0y3x1 = keccak-chi l5 dr0x0 36 l11 dr0x1 10 l17 dr0x2 15 in
+      let ar0y3x2 = keccak-chi l11 dr0x1 10 l17 dr0x2 15 l23 dr0x3 56 in
+      let ar0y3x3 = keccak-chi l17 dr0x2 15 l23 dr0x3 56 l4 dr0x4 27 in
+      let ar0y3x4 = keccak-chi l23 dr0x3 56 l4 dr0x4 27 l5 dr0x0 36 in
+      let ar0y4x0 = keccak-chi l2 dr0x2 62 l8 dr0x3 55 l14 dr0x4 39 in
+      let ar0y4x1 = keccak-chi l8 dr0x3 55 l14 dr0x4 39 l15 dr0x0 41 in
+      let ar0y4x2 = keccak-chi l14 dr0x4 39 l15 dr0x0 41 l21 dr0x1 2 in
+      let ar0y4x3 = keccak-chi l15 dr0x0 41 l21 dr0x1 2 l2 dr0x2 62 in
+      let ar0y4x4 = keccak-chi l21 dr0x1 2 l2 dr0x2 62 l8 dr0x3 55 in
+      let cr1x0 = keccak-parity ar0y0x0 ar0y1x0 ar0y2x0 ar0y3x0 ar0y4x0 in
+      let cr1x1 = keccak-parity ar0y0x1 ar0y1x1 ar0y2x1 ar0y3x1 ar0y4x1 in
+      let cr1x2 = keccak-parity ar0y0x2 ar0y1x2 ar0y2x2 ar0y3x2 ar0y4x2 in
+      let cr1x3 = keccak-parity ar0y0x3 ar0y1x3 ar0y2x3 ar0y3x3 ar0y4x3 in
+      let cr1x4 = keccak-parity ar0y0x4 ar0y1x4 ar0y2x4 ar0y3x4 ar0y4x4 in
+      let dr1x0 = keccak-theta cr1x4 cr1x1 in
+      let dr1x1 = keccak-theta cr1x0 cr1x2 in
+      let dr1x2 = keccak-theta cr1x1 cr1x3 in
+      let dr1x3 = keccak-theta cr1x2 cr1x4 in
+      let dr1x4 = keccak-theta cr1x3 cr1x0 in
+      let ar1y0x0 = keccak-chi-iota ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 9223372039002259466 in
+      let ar1y0x1 = keccak-chi ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 in
+      let ar1y0x2 = keccak-chi ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 in
+      let ar1y0x3 = keccak-chi ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 in
+      let ar1y0x4 = keccak-chi ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 in
+      let ar1y1x0 = keccak-chi ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 in
+      let ar1y1x1 = keccak-chi ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 in
+      let ar1y1x2 = keccak-chi ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 in
+      let ar1y1x3 = keccak-chi ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 in
+      let ar1y1x4 = keccak-chi ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 in
+      let ar1y2x0 = keccak-chi ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 in
+      let ar1y2x1 = keccak-chi ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 in
+      let ar1y2x2 = keccak-chi ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 in
+      let ar1y2x3 = keccak-chi ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 in
+      let ar1y2x4 = keccak-chi ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 in
+      let ar1y3x0 = keccak-chi ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 in
+      let ar1y3x1 = keccak-chi ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 in
+      let ar1y3x2 = keccak-chi ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 in
+      let ar1y3x3 = keccak-chi ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 in
+      let ar1y3x4 = keccak-chi ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 in
+      let ar1y4x0 = keccak-chi ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 in
+      let ar1y4x1 = keccak-chi ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 in
+      let ar1y4x2 = keccak-chi ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 in
+      let ar1y4x3 = keccak-chi ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 in
+      let ar1y4x4 = keccak-chi ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 in
+      let cr2x0 = keccak-parity ar1y0x0 ar1y1x0 ar1y2x0 ar1y3x0 ar1y4x0 in
+      let cr2x1 = keccak-parity ar1y0x1 ar1y1x1 ar1y2x1 ar1y3x1 ar1y4x1 in
+      let cr2x2 = keccak-parity ar1y0x2 ar1y1x2 ar1y2x2 ar1y3x2 ar1y4x2 in
+      let cr2x3 = keccak-parity ar1y0x3 ar1y1x3 ar1y2x3 ar1y3x3 ar1y4x3 in
+      let cr2x4 = keccak-parity ar1y0x4 ar1y1x4 ar1y2x4 ar1y3x4 ar1y4x4 in
+      let dr2x0 = keccak-theta cr2x4 cr2x1 in
+      let dr2x1 = keccak-theta cr2x0 cr2x2 in
+      let dr2x2 = keccak-theta cr2x1 cr2x3 in
+      let dr2x3 = keccak-theta cr2x2 cr2x4 in
+      let dr2x4 = keccak-theta cr2x3 cr2x0 in
+      let ar2y0x0 = keccak-chi-iota ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 9223372039002292353 in
+      let ar2y0x1 = keccak-chi ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 in
+      let ar2y0x2 = keccak-chi ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 in
+      let ar2y0x3 = keccak-chi ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 in
+      let ar2y0x4 = keccak-chi ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 in
+      let ar2y1x0 = keccak-chi ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 in
+      let ar2y1x1 = keccak-chi ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 in
+      let ar2y1x2 = keccak-chi ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 in
+      let ar2y1x3 = keccak-chi ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 in
+      let ar2y1x4 = keccak-chi ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 in
+      let ar2y2x0 = keccak-chi ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 in
+      let ar2y2x1 = keccak-chi ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 in
+      let ar2y2x2 = keccak-chi ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 in
+      let ar2y2x3 = keccak-chi ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 in
+      let ar2y2x4 = keccak-chi ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 in
+      let ar2y3x0 = keccak-chi ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 in
+      let ar2y3x1 = keccak-chi ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 in
+      let ar2y3x2 = keccak-chi ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 in
+      let ar2y3x3 = keccak-chi ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 in
+      let ar2y3x4 = keccak-chi ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 in
+      let ar2y4x0 = keccak-chi ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 in
+      let ar2y4x1 = keccak-chi ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 in
+      let ar2y4x2 = keccak-chi ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 in
+      let ar2y4x3 = keccak-chi ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 in
+      let ar2y4x4 = keccak-chi ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 in
+      Lanes ar2y0x0 ar2y0x1 ar2y0x2 ar2y0x3 ar2y0x4 ar2y1x0 ar2y1x1 ar2y1x2 ar2y1x3 ar2y1x4 ar2y2x0 ar2y2x1 ar2y2x2 ar2y2x3 ar2y2x4 ar2y3x0 ar2y3x1 ar2y3x2 ar2y3x3 ar2y3x4 ar2y4x0 ar2y4x1 ar2y4x2 ar2y4x3 ar2y4x4
+
+  -- | Apply rounds 21 through 23 of the permutation.
+  keccak-rounds-h :: KeccakLanes -> KeccakLanes
+  keccak-rounds-h lanes = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      let cr0x0 = keccak-parity l0 l5 l10 l15 l20 in
+      let cr0x1 = keccak-parity l1 l6 l11 l16 l21 in
+      let cr0x2 = keccak-parity l2 l7 l12 l17 l22 in
+      let cr0x3 = keccak-parity l3 l8 l13 l18 l23 in
+      let cr0x4 = keccak-parity l4 l9 l14 l19 l24 in
+      let dr0x0 = keccak-theta cr0x4 cr0x1 in
+      let dr0x1 = keccak-theta cr0x0 cr0x2 in
+      let dr0x2 = keccak-theta cr0x1 cr0x3 in
+      let dr0x3 = keccak-theta cr0x2 cr0x4 in
+      let dr0x4 = keccak-theta cr0x3 cr0x0 in
+      let ar0y0x0 = keccak-chi-iota l0 dr0x0 0 l6 dr0x1 44 l12 dr0x2 43 9223372036854808704 in
+      let ar0y0x1 = keccak-chi l6 dr0x1 44 l12 dr0x2 43 l18 dr0x3 21 in
+      let ar0y0x2 = keccak-chi l12 dr0x2 43 l18 dr0x3 21 l24 dr0x4 14 in
+      let ar0y0x3 = keccak-chi l18 dr0x3 21 l24 dr0x4 14 l0 dr0x0 0 in
+      let ar0y0x4 = keccak-chi l24 dr0x4 14 l0 dr0x0 0 l6 dr0x1 44 in
+      let ar0y1x0 = keccak-chi l3 dr0x3 28 l9 dr0x4 20 l10 dr0x0 3 in
+      let ar0y1x1 = keccak-chi l9 dr0x4 20 l10 dr0x0 3 l16 dr0x1 45 in
+      let ar0y1x2 = keccak-chi l10 dr0x0 3 l16 dr0x1 45 l22 dr0x2 61 in
+      let ar0y1x3 = keccak-chi l16 dr0x1 45 l22 dr0x2 61 l3 dr0x3 28 in
+      let ar0y1x4 = keccak-chi l22 dr0x2 61 l3 dr0x3 28 l9 dr0x4 20 in
+      let ar0y2x0 = keccak-chi l1 dr0x1 1 l7 dr0x2 6 l13 dr0x3 25 in
+      let ar0y2x1 = keccak-chi l7 dr0x2 6 l13 dr0x3 25 l19 dr0x4 8 in
+      let ar0y2x2 = keccak-chi l13 dr0x3 25 l19 dr0x4 8 l20 dr0x0 18 in
+      let ar0y2x3 = keccak-chi l19 dr0x4 8 l20 dr0x0 18 l1 dr0x1 1 in
+      let ar0y2x4 = keccak-chi l20 dr0x0 18 l1 dr0x1 1 l7 dr0x2 6 in
+      let ar0y3x0 = keccak-chi l4 dr0x4 27 l5 dr0x0 36 l11 dr0x1 10 in
+      let ar0y3x1 = keccak-chi l5 dr0x0 36 l11 dr0x1 10 l17 dr0x2 15 in
+      let ar0y3x2 = keccak-chi l11 dr0x1 10 l17 dr0x2 15 l23 dr0x3 56 in
+      let ar0y3x3 = keccak-chi l17 dr0x2 15 l23 dr0x3 56 l4 dr0x4 27 in
+      let ar0y3x4 = keccak-chi l23 dr0x3 56 l4 dr0x4 27 l5 dr0x0 36 in
+      let ar0y4x0 = keccak-chi l2 dr0x2 62 l8 dr0x3 55 l14 dr0x4 39 in
+      let ar0y4x1 = keccak-chi l8 dr0x3 55 l14 dr0x4 39 l15 dr0x0 41 in
+      let ar0y4x2 = keccak-chi l14 dr0x4 39 l15 dr0x0 41 l21 dr0x1 2 in
+      let ar0y4x3 = keccak-chi l15 dr0x0 41 l21 dr0x1 2 l2 dr0x2 62 in
+      let ar0y4x4 = keccak-chi l21 dr0x1 2 l2 dr0x2 62 l8 dr0x3 55 in
+      let cr1x0 = keccak-parity ar0y0x0 ar0y1x0 ar0y2x0 ar0y3x0 ar0y4x0 in
+      let cr1x1 = keccak-parity ar0y0x1 ar0y1x1 ar0y2x1 ar0y3x1 ar0y4x1 in
+      let cr1x2 = keccak-parity ar0y0x2 ar0y1x2 ar0y2x2 ar0y3x2 ar0y4x2 in
+      let cr1x3 = keccak-parity ar0y0x3 ar0y1x3 ar0y2x3 ar0y3x3 ar0y4x3 in
+      let cr1x4 = keccak-parity ar0y0x4 ar0y1x4 ar0y2x4 ar0y3x4 ar0y4x4 in
+      let dr1x0 = keccak-theta cr1x4 cr1x1 in
+      let dr1x1 = keccak-theta cr1x0 cr1x2 in
+      let dr1x2 = keccak-theta cr1x1 cr1x3 in
+      let dr1x3 = keccak-theta cr1x2 cr1x4 in
+      let dr1x4 = keccak-theta cr1x3 cr1x0 in
+      let ar1y0x0 = keccak-chi-iota ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 2147483649 in
+      let ar1y0x1 = keccak-chi ar0y1x1 dr1x1 44 ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 in
+      let ar1y0x2 = keccak-chi ar0y2x2 dr1x2 43 ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 in
+      let ar1y0x3 = keccak-chi ar0y3x3 dr1x3 21 ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 in
+      let ar1y0x4 = keccak-chi ar0y4x4 dr1x4 14 ar0y0x0 dr1x0 0 ar0y1x1 dr1x1 44 in
+      let ar1y1x0 = keccak-chi ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 in
+      let ar1y1x1 = keccak-chi ar0y1x4 dr1x4 20 ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 in
+      let ar1y1x2 = keccak-chi ar0y2x0 dr1x0 3 ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 in
+      let ar1y1x3 = keccak-chi ar0y3x1 dr1x1 45 ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 in
+      let ar1y1x4 = keccak-chi ar0y4x2 dr1x2 61 ar0y0x3 dr1x3 28 ar0y1x4 dr1x4 20 in
+      let ar1y2x0 = keccak-chi ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 in
+      let ar1y2x1 = keccak-chi ar0y1x2 dr1x2 6 ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 in
+      let ar1y2x2 = keccak-chi ar0y2x3 dr1x3 25 ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 in
+      let ar1y2x3 = keccak-chi ar0y3x4 dr1x4 8 ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 in
+      let ar1y2x4 = keccak-chi ar0y4x0 dr1x0 18 ar0y0x1 dr1x1 1 ar0y1x2 dr1x2 6 in
+      let ar1y3x0 = keccak-chi ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 in
+      let ar1y3x1 = keccak-chi ar0y1x0 dr1x0 36 ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 in
+      let ar1y3x2 = keccak-chi ar0y2x1 dr1x1 10 ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 in
+      let ar1y3x3 = keccak-chi ar0y3x2 dr1x2 15 ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 in
+      let ar1y3x4 = keccak-chi ar0y4x3 dr1x3 56 ar0y0x4 dr1x4 27 ar0y1x0 dr1x0 36 in
+      let ar1y4x0 = keccak-chi ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 in
+      let ar1y4x1 = keccak-chi ar0y1x3 dr1x3 55 ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 in
+      let ar1y4x2 = keccak-chi ar0y2x4 dr1x4 39 ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 in
+      let ar1y4x3 = keccak-chi ar0y3x0 dr1x0 41 ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 in
+      let ar1y4x4 = keccak-chi ar0y4x1 dr1x1 2 ar0y0x2 dr1x2 62 ar0y1x3 dr1x3 55 in
+      let cr2x0 = keccak-parity ar1y0x0 ar1y1x0 ar1y2x0 ar1y3x0 ar1y4x0 in
+      let cr2x1 = keccak-parity ar1y0x1 ar1y1x1 ar1y2x1 ar1y3x1 ar1y4x1 in
+      let cr2x2 = keccak-parity ar1y0x2 ar1y1x2 ar1y2x2 ar1y3x2 ar1y4x2 in
+      let cr2x3 = keccak-parity ar1y0x3 ar1y1x3 ar1y2x3 ar1y3x3 ar1y4x3 in
+      let cr2x4 = keccak-parity ar1y0x4 ar1y1x4 ar1y2x4 ar1y3x4 ar1y4x4 in
+      let dr2x0 = keccak-theta cr2x4 cr2x1 in
+      let dr2x1 = keccak-theta cr2x0 cr2x2 in
+      let dr2x2 = keccak-theta cr2x1 cr2x3 in
+      let dr2x3 = keccak-theta cr2x2 cr2x4 in
+      let dr2x4 = keccak-theta cr2x3 cr2x0 in
+      let ar2y0x0 = keccak-chi-iota ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 9223372039002292232 in
+      let ar2y0x1 = keccak-chi ar1y1x1 dr2x1 44 ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 in
+      let ar2y0x2 = keccak-chi ar1y2x2 dr2x2 43 ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 in
+      let ar2y0x3 = keccak-chi ar1y3x3 dr2x3 21 ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 in
+      let ar2y0x4 = keccak-chi ar1y4x4 dr2x4 14 ar1y0x0 dr2x0 0 ar1y1x1 dr2x1 44 in
+      let ar2y1x0 = keccak-chi ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 in
+      let ar2y1x1 = keccak-chi ar1y1x4 dr2x4 20 ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 in
+      let ar2y1x2 = keccak-chi ar1y2x0 dr2x0 3 ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 in
+      let ar2y1x3 = keccak-chi ar1y3x1 dr2x1 45 ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 in
+      let ar2y1x4 = keccak-chi ar1y4x2 dr2x2 61 ar1y0x3 dr2x3 28 ar1y1x4 dr2x4 20 in
+      let ar2y2x0 = keccak-chi ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 in
+      let ar2y2x1 = keccak-chi ar1y1x2 dr2x2 6 ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 in
+      let ar2y2x2 = keccak-chi ar1y2x3 dr2x3 25 ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 in
+      let ar2y2x3 = keccak-chi ar1y3x4 dr2x4 8 ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 in
+      let ar2y2x4 = keccak-chi ar1y4x0 dr2x0 18 ar1y0x1 dr2x1 1 ar1y1x2 dr2x2 6 in
+      let ar2y3x0 = keccak-chi ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 in
+      let ar2y3x1 = keccak-chi ar1y1x0 dr2x0 36 ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 in
+      let ar2y3x2 = keccak-chi ar1y2x1 dr2x1 10 ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 in
+      let ar2y3x3 = keccak-chi ar1y3x2 dr2x2 15 ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 in
+      let ar2y3x4 = keccak-chi ar1y4x3 dr2x3 56 ar1y0x4 dr2x4 27 ar1y1x0 dr2x0 36 in
+      let ar2y4x0 = keccak-chi ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 in
+      let ar2y4x1 = keccak-chi ar1y1x3 dr2x3 55 ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 in
+      let ar2y4x2 = keccak-chi ar1y2x4 dr2x4 39 ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 in
+      let ar2y4x3 = keccak-chi ar1y3x0 dr2x0 41 ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 in
+      let ar2y4x4 = keccak-chi ar1y4x1 dr2x1 2 ar1y0x2 dr2x2 62 ar1y1x3 dr2x3 55 in
+      Lanes ar2y0x0 ar2y0x1 ar2y0x2 ar2y0x3 ar2y0x4 ar2y1x0 ar2y1x1 ar2y1x2 ar2y1x3 ar2y1x4 ar2y2x0 ar2y2x1 ar2y2x2 ar2y2x3 ar2y2x4 ar2y3x0 ar2y3x1 ar2y3x2 ar2y3x3 ar2y3x4 ar2y4x0 ar2y4x1 ar2y4x2 ar2y4x3 ar2y4x4
+
+  -- | XOR one proved complete 72-byte block of little-endian words into the rate lanes, then permute.
+  keccak-absorb9 :: KeccakLanes -> I64 -> KeccakLanes
+  keccak-absorb9 lanes address = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      keccak-permute (Lanes (bit-xor-u64 l0 (lane-word address 0)) (bit-xor-u64 l1 (lane-word address 8)) (bit-xor-u64 l2 (lane-word address 16)) (bit-xor-u64 l3 (lane-word address 24)) (bit-xor-u64 l4 (lane-word address 32)) (bit-xor-u64 l5 (lane-word address 40)) (bit-xor-u64 l6 (lane-word address 48)) (bit-xor-u64 l7 (lane-word address 56)) (bit-xor-u64 l8 (lane-word address 64)) l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24)
+
+  -- | XOR one proved complete 104-byte block of little-endian words into the rate lanes, then permute.
+  keccak-absorb13 :: KeccakLanes -> I64 -> KeccakLanes
+  keccak-absorb13 lanes address = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      keccak-permute (Lanes (bit-xor-u64 l0 (lane-word address 0)) (bit-xor-u64 l1 (lane-word address 8)) (bit-xor-u64 l2 (lane-word address 16)) (bit-xor-u64 l3 (lane-word address 24)) (bit-xor-u64 l4 (lane-word address 32)) (bit-xor-u64 l5 (lane-word address 40)) (bit-xor-u64 l6 (lane-word address 48)) (bit-xor-u64 l7 (lane-word address 56)) (bit-xor-u64 l8 (lane-word address 64)) (bit-xor-u64 l9 (lane-word address 72)) (bit-xor-u64 l10 (lane-word address 80)) (bit-xor-u64 l11 (lane-word address 88)) (bit-xor-u64 l12 (lane-word address 96)) l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24)
+
+  -- | XOR one proved complete 136-byte block of little-endian words into the rate lanes, then permute.
+  keccak-absorb17 :: KeccakLanes -> I64 -> KeccakLanes
+  keccak-absorb17 lanes address = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      keccak-permute (Lanes (bit-xor-u64 l0 (lane-word address 0)) (bit-xor-u64 l1 (lane-word address 8)) (bit-xor-u64 l2 (lane-word address 16)) (bit-xor-u64 l3 (lane-word address 24)) (bit-xor-u64 l4 (lane-word address 32)) (bit-xor-u64 l5 (lane-word address 40)) (bit-xor-u64 l6 (lane-word address 48)) (bit-xor-u64 l7 (lane-word address 56)) (bit-xor-u64 l8 (lane-word address 64)) (bit-xor-u64 l9 (lane-word address 72)) (bit-xor-u64 l10 (lane-word address 80)) (bit-xor-u64 l11 (lane-word address 88)) (bit-xor-u64 l12 (lane-word address 96)) (bit-xor-u64 l13 (lane-word address 104)) (bit-xor-u64 l14 (lane-word address 112)) (bit-xor-u64 l15 (lane-word address 120)) (bit-xor-u64 l16 (lane-word address 128)) l17 l18 l19 l20 l21 l22 l23 l24)
+
+  -- | XOR one proved complete 144-byte block of little-endian words into the rate lanes, then permute.
+  keccak-absorb18 :: KeccakLanes -> I64 -> KeccakLanes
+  keccak-absorb18 lanes address = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      keccak-permute (Lanes (bit-xor-u64 l0 (lane-word address 0)) (bit-xor-u64 l1 (lane-word address 8)) (bit-xor-u64 l2 (lane-word address 16)) (bit-xor-u64 l3 (lane-word address 24)) (bit-xor-u64 l4 (lane-word address 32)) (bit-xor-u64 l5 (lane-word address 40)) (bit-xor-u64 l6 (lane-word address 48)) (bit-xor-u64 l7 (lane-word address 56)) (bit-xor-u64 l8 (lane-word address 64)) (bit-xor-u64 l9 (lane-word address 72)) (bit-xor-u64 l10 (lane-word address 80)) (bit-xor-u64 l11 (lane-word address 88)) (bit-xor-u64 l12 (lane-word address 96)) (bit-xor-u64 l13 (lane-word address 104)) (bit-xor-u64 l14 (lane-word address 112)) (bit-xor-u64 l15 (lane-word address 120)) (bit-xor-u64 l16 (lane-word address 128)) (bit-xor-u64 l17 (lane-word address 136)) l18 l19 l20 l21 l22 l23 l24)
+
+  -- | XOR one proved complete 168-byte block of little-endian words into the rate lanes, then permute.
+  keccak-absorb21 :: KeccakLanes -> I64 -> KeccakLanes
+  keccak-absorb21 lanes address = case lanes of
+    Lanes l0 l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l20 l21 l22 l23 l24 ->
+      keccak-permute (Lanes (bit-xor-u64 l0 (lane-word address 0)) (bit-xor-u64 l1 (lane-word address 8)) (bit-xor-u64 l2 (lane-word address 16)) (bit-xor-u64 l3 (lane-word address 24)) (bit-xor-u64 l4 (lane-word address 32)) (bit-xor-u64 l5 (lane-word address 40)) (bit-xor-u64 l6 (lane-word address 48)) (bit-xor-u64 l7 (lane-word address 56)) (bit-xor-u64 l8 (lane-word address 64)) (bit-xor-u64 l9 (lane-word address 72)) (bit-xor-u64 l10 (lane-word address 80)) (bit-xor-u64 l11 (lane-word address 88)) (bit-xor-u64 l12 (lane-word address 96)) (bit-xor-u64 l13 (lane-word address 104)) (bit-xor-u64 l14 (lane-word address 112)) (bit-xor-u64 l15 (lane-word address 120)) (bit-xor-u64 l16 (lane-word address 128)) (bit-xor-u64 l17 (lane-word address 136)) (bit-xor-u64 l18 (lane-word address 144)) (bit-xor-u64 l19 (lane-word address 152)) (bit-xor-u64 l20 (lane-word address 160)) l21 l22 l23 l24)
+
+  -- | Column parity: the exclusive-or of the five lanes in one column.
+  prim keccak-parity :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %x0 = xor i64 %0, %1
+      %x1 = xor i64 %x0, %2
+      %x2 = xor i64 %x1, %3
+      %value = xor i64 %x2, %4
+      ret i64 %value
+    }
+
+  -- | Theta word for a column from the preceding column's parity and the following column's parity rotated by one.
+  prim keccak-theta :: U64 -> U64 -> U64 where
+    llvm {
+      %r = call i64 @llvm.fshl.i64(i64 %1, i64 %1, i64 1)
+      %value = xor i64 %0, %r
+      ret i64 %value
+    }
+
+  -- | One output lane: theta, rho and pi applied to the three source lanes, combined by chi as b0 xor (not b1 and b2).
+  prim keccak-chi :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %t0 = xor i64 %0, %1
+      %b0 = call i64 @llvm.fshl.i64(i64 %t0, i64 %t0, i64 %2)
+      %t1 = xor i64 %3, %4
+      %b1 = call i64 @llvm.fshl.i64(i64 %t1, i64 %t1, i64 %5)
+      %t2 = xor i64 %6, %7
+      %b2 = call i64 @llvm.fshl.i64(i64 %t2, i64 %t2, i64 %8)
+      %n1 = xor i64 %b1, -1
+      %m = and i64 %n1, %b2
+      %chi = xor i64 %b0, %m
+      ret i64 %chi
+    }
+
+  -- | Output lane (0, 0), which additionally absorbs the round constant.
+  prim keccak-chi-iota :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 where
+    llvm {
+      %t0 = xor i64 %0, %1
+      %b0 = call i64 @llvm.fshl.i64(i64 %t0, i64 %t0, i64 %2)
+      %t1 = xor i64 %3, %4
+      %b1 = call i64 @llvm.fshl.i64(i64 %t1, i64 %t1, i64 %5)
+      %t2 = xor i64 %6, %7
+      %b2 = call i64 @llvm.fshl.i64(i64 %t2, i64 %t2, i64 %8)
+      %n1 = xor i64 %b1, -1
+      %m = and i64 %n1, %b2
+      %chi = xor i64 %b0, %m
+      %value = xor i64 %chi, %9
+      ret i64 %value
+    }

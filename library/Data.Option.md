@@ -10,7 +10,7 @@ Import with `import Data.Option`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Category.Traversable](Category.Traversable.md), [Data.Core](Data.Core.md).
+[Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Category.Traversable](Category.Traversable.md), [Data.Core](Data.Core.md), [Effect.Sequencing](Effect.Sequencing.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -55,7 +55,7 @@ The present values, in order; `None`s drop (`Data.Maybe.catMaybes`).
 every home (this function's signature is exactly the cycle that
 module exists to break).
 
-[Source](/reference-sources/Data.Option.cinch) · line 75
+[Source](/reference-sources/Data.Option.cinch) · line 76
 
 <a id="value-66726f6d2d6f7074696f6e"></a>
 
@@ -67,7 +67,7 @@ The value, or the default when there is none
 (`Data.Maybe.fromMaybe`); the default leads for the same reason, and
 because the result's type is the default's type.
 
-[Source](/reference-sources/Data.Option.cinch) · line 55
+[Source](/reference-sources/Data.Option.cinch) · line 56
 
 <a id="value-69732d6e6f6e65"></a>
 
@@ -85,7 +85,7 @@ because the result's type is the default's type.
 
 The presence tests: the tag read, no payload work, no constraint.
 
-[Source](/reference-sources/Data.Option.cinch) · line 61
+[Source](/reference-sources/Data.Option.cinch) · line 62
 
 <a id="value-6c6973742d746f2d6f7074696f6e"></a>
 
@@ -97,7 +97,7 @@ The first element, or `None` for the empty list
 (`Data.Maybe.listToMaybe`); the tail is deliberately not inspected,
 so this is O(1) on any list.
 
-[Source](/reference-sources/Data.Option.cinch) · line 110
+[Source](/reference-sources/Data.Option.cinch) · line 111
 
 <a id="value-6d61702d6f7074696f6e"></a>
 
@@ -119,7 +119,7 @@ main = case map-option (\x -> x + 1) (Some 1) of
 0
 ```
 
-[Source](/reference-sources/Data.Option.cinch) · line 95
+[Source](/reference-sources/Data.Option.cinch) · line 96
 
 <a id="value-6d61796265"></a>
 
@@ -132,7 +132,7 @@ consumes. The default leads and the function follows, matching
 Haskell's `maybe` (`maybe d f o`); parity of argument order is the
 point of these combinators, and the option is the thing opened last.
 
-[Source](/reference-sources/Data.Option.cinch) · line 47
+[Source](/reference-sources/Data.Option.cinch) · line 48
 
 <a id="value-6f7074696f6e2d746f2d6c697374"></a>
 
@@ -143,7 +143,7 @@ point of these combinators, and the option is the thing opened last.
 A `Some` is a one-element list and a `None` the empty list
 (`Data.Maybe.maybeToList`); `list-to-option` is its left inverse.
 
-[Source](/reference-sources/Data.Option.cinch) · line 102
+[Source](/reference-sources/Data.Option.cinch) · line 103
 
 <a id="value-6f722d656c7365"></a>
 
@@ -159,7 +159,7 @@ implicit surface). The name is the value-fallback one, as in Scala's
 `or_else` is deliberately not the shape, so an eager second option
 is never built.
 
-[Source](/reference-sources/Data.Option.cinch) · line 122
+[Source](/reference-sources/Data.Option.cinch) · line 123
 
 # Instances
 
@@ -196,4 +196,4 @@ from Category.Traversable).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Option.cinch`. Source SHA-256: `907ea837397289a0b3b672cdfd458c1f8a5d474c8387c5a1bd8ed2823463da01`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Option.cinch`. Source SHA-256: `a2ded2aaed9211dacecc4849049bf802ed0d0d701a8ed7453a78508a8b1a8cf7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

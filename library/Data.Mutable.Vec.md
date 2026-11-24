@@ -354,4 +354,4 @@ reallocation.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Vec.cinch`. Source SHA-256: `61fff082140825bba9490ae212de6dcfec740a684d0cc336adc6058c9b89dde7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Vec.cinch`. Source SHA-256: `65dbfe173b5386a2a8f5ee25f8e0896b0ea688534c327e99db165352ee1c474e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -16,6 +16,7 @@ module Data.Option where
   -- imported from two homes is an ambiguity error, and the types live in
   -- exactly one place now.
   import Data.Core
+  import Effect.Sequencing (OptionSequencing)
   import Algebra.Semigroup
   import Algebra.Monoid
   import Category.Functor

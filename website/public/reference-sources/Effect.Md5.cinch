@@ -1,0 +1,37 @@
+-- | Inspectable MD5 hashing sinks and bounded reader-to-digest copying.
+-- The immutable digest state is the sink handle. Writes accept every byte and
+-- never retain input buffers. Copying returns the advanced reader and the last
+-- valid digest on failure, and never closes a borrowed source.
+module Effect.Md5 where
+
+  import Effect.Stream
+  import Text.Md5
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+
+  export md5-write, md5-hashing-writer, md5-copy
+
+  -- | Hash a whole chunk, returning its accepted count and the advanced immutable state.
+  md5-write :: forall r. using (io :: Io r) => Md5State -> Bytes ->{IO r} (Nat, Md5State)
+  md5-write state input = (bytes-len input, md5-state-update state input)
+
+  -- | Adapt a digest state to the generic byte-writer protocol.
+  -- Use the explicit state or md5-copy when the advanced digest must be inspected.
+  md5-hashing-writer :: forall r. using (io :: Io r) => Md5State -> ByteWriter r
+  md5-hashing-writer state = stream-writer (\input -> case md5-write state input of
+    (count, next) -> (Ok count, md5-hashing-writer next))
+
+  -- | Hash successful reader chunks through EOF, preserving both advanced handles on errors.
+  -- A zero chunk size is rejected before reading. Invalid source counts do not enter the digest.
+  md5-copy :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Md5State ->{IO r} (Result StreamError Nat, (ByteReader r, Md5State))
+  md5-copy chunk source state =
+    if chunk == 0 then (Err StreamInvalidChunkSize, (source, state))
+    else copy-from chunk source state 0
+
+  -- | Carry only the opaque digest state and accepted byte count through the bounded copying loop.
+  copy-from :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Md5State -> Nat ->{IO r} (Result StreamError Nat, (ByteReader r, Md5State))
+  copy-from chunk source state count = case stream-read source chunk of
+    (Err error, next) -> (Err error, (next, state))
+    (Ok input, next) -> if bytes-len input == 0 then (Ok count, (next, state))
+      else copy-from chunk next (md5-state-update state input) (count + bytes-len input)

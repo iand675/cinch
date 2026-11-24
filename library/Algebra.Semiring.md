@@ -89,4 +89,4 @@ Data.Int, beside their other instances.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Semiring.cinch`. Source SHA-256: `9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Semiring.cinch`. Source SHA-256: `9294495f17cdabec65d1e264550d5f3a02ba0456b6ebb95b9a2e36401d14b0d7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

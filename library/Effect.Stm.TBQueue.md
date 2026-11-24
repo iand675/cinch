@@ -100,7 +100,7 @@ makes a queue no write can ever enter.
 
 ## `tbqueue-new-io`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tbqueue-new-io</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">STM</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TBQueue</span>.<span class="tok-constructor">TBQueue</span> <span class="tok-variable">a</span>)</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tbqueue-new-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">STM</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TBQueue</span>.<span class="tok-constructor">TBQueue</span> <span class="tok-variable">a</span>))</code></pre>
 
 [Source](/reference-sources/Effect.Stm.TBQueue.cinch)
 

@@ -1,0 +1,2167 @@
+-- | Text templates: data-driven text with actions in delimiters, as in "Hello, {{.name}}!".
+-- A template set holds a main template and the templates it defines. Text is
+-- copied through; actions evaluate pipelines over a dynamic value (nil,
+-- booleans, integers, floats, strings, lists and string-keyed maps) and print
+-- the result. Actions cover fields and variables, function calls and
+-- pipelines, if/else-if, range (lists, maps in key order, and integers, with
+-- break and continue), with/else-with, template invocation, define and block,
+-- comments, trim markers ("{{- " and " -}}") and custom delimiters. The
+-- builtin functions are and, or, not, len, index, slice, print, printf,
+-- println, eq, ne, lt, le, gt, ge, html, js and urlquery; printf follows the
+-- usual verbs, flags, widths and precisions, with exactly rounded floats.
+-- Further functions take dynamic values and may fail. The source is lexed,
+-- then parsed into node spines, then executed by an explicit evaluator; the
+-- search for delimiters and HTML escaping scan sixteen bytes at a time.
+module Text.Template where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Json
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Int
+  import Data.Result
+  import Data.String
+  import Data.Unicode.Kernel
+  import Text.Show (nat-to-string, int-to-string)
+
+  export TemplateValue, TvNil, TvBool, TvInt, TvFloat, TvString, TvList, TvListEnd, TvMap, TvMapEnd
+  export template-list, template-map, template-from-json, template-is-true
+  export TemplateError, TemplateParseError, TemplateExecError, template-error-message
+  export MissingKey, MissingKeyDefault, MissingKeyZero, MissingKeyError
+  export TemplateFunction, Template, template-new, template-delims, template-missing-key, template-funcs
+  export template-parse, template-execute, template-execute-named, template-names, template-name
+  export template-html-escape, template-js-escape, template-url-query-escape, template-sprintf
+
+  -- ---------------------------------------------------------------------
+  -- Values.
+  -- ---------------------------------------------------------------------
+
+  -- | A dynamic value: lists and maps are spines, and map entries are kept in increasing key order.
+  data TemplateValue where
+    -- | No value: a missing field or an explicit null.
+    TvNil :: TemplateValue
+    -- | A boolean.
+    TvBool :: Bool -> TemplateValue
+    -- | An integer.
+    TvInt :: Int -> TemplateValue
+    -- | A binary64 float.
+    TvFloat :: F64 -> TemplateValue
+    -- | A string.
+    TvString :: String -> TemplateValue
+    -- | A list element followed by the rest of the list.
+    TvList :: TemplateValue -> TemplateValue -> TemplateValue
+    -- | The end of a list (alone, the empty list).
+    TvListEnd :: TemplateValue
+    -- | A map entry (key and value) followed by the entries with greater keys.
+    TvMap :: String -> TemplateValue -> TemplateValue -> TemplateValue
+    -- | The end of a map (alone, the empty map).
+    TvMapEnd :: TemplateValue
+
+  -- | A list value from elements in order.
+  template-list :: List TemplateValue -> TemplateValue
+  template-list items = case items of Nil -> TvListEnd; Cons x rest -> TvList x (template-list rest)
+
+  -- | A map value from entries in any order; a repeated key keeps its last value.
+  template-map :: List (String, TemplateValue) -> TemplateValue
+  template-map entries = build-map entries TvMapEnd
+
+  -- | Insert entries one at a time.
+  build-map :: List (String, TemplateValue) -> TemplateValue -> TemplateValue
+  build-map entries acc = case entries of Nil -> acc; Cons e rest -> case e of (k, v) -> build-map rest (map-insert acc k v)
+
+  -- | Insert or replace one entry, keeping keys in order.
+  map-insert :: TemplateValue -> String -> TemplateValue -> TemplateValue
+  map-insert m k v = case m of
+    TvMap key value rest ->
+      if eq-i64 (string-compare k key) 0 then TvMap k v rest
+      else if lt-i64 (string-compare k key) 0 then TvMap k v m
+      else TvMap key value (map-insert rest k v)
+    other -> TvMap k v TvMapEnd
+
+  -- | Convert a JSON value: null, booleans, integers, floats, strings, arrays and objects.
+  template-from-json :: Json -> TemplateValue
+  template-from-json j = case j of
+    JNull -> TvNil
+    JBool b -> TvBool b
+    JNum n -> TvInt n
+    JFloat f -> TvFloat f
+    JStr s -> TvString s
+    JArr item rest -> TvList (template-from-json item) (template-from-json rest)
+    JArrEnd -> TvListEnd
+    JObj key value rest -> map-insert (template-from-json rest) key (template-from-json value)
+    JObjEnd -> TvMapEnd
+
+  -- | Truth: false for nil, false, zero, the empty string and empty lists and maps.
+  template-is-true :: TemplateValue -> Bool
+  template-is-true v = case v of
+    TvNil -> False
+    TvBool b -> b
+    TvInt n -> not (n == 0)
+    TvFloat f -> not (feq-f64 f (f64-from-decimal (string-to-bytes "0")))
+    TvString s -> string-byte-length s > 0
+    TvList x rest -> True
+    TvListEnd -> False
+    TvMap k x rest -> True
+    TvMapEnd -> False
+
+  -- ---------------------------------------------------------------------
+  -- Errors and template sets.
+  -- ---------------------------------------------------------------------
+
+  -- | A failure: parsing ("template: name:line: problem") or executing ("template: name: problem").
+  data TemplateError where
+    -- | The template text is malformed.
+    TemplateParseError :: String -> TemplateError
+    -- | Execution failed.
+    TemplateExecError :: String -> TemplateError
+
+  -- | Render an error.
+  template-error-message :: TemplateError -> String
+  template-error-message e = case e of TemplateParseError m -> m; TemplateExecError m -> m
+
+  -- | What a missing map key evaluates to.
+  data MissingKey where
+    -- | No value (printed as "<no value>").
+    MissingKeyDefault :: MissingKey
+    -- | The zero value, which for dynamic maps is also no value.
+    MissingKeyZero :: MissingKey
+    -- | An execution error.
+    MissingKeyError :: MissingKey
+
+  -- | A user function: its arguments in order give a value or an error message.
+  data TemplateFunction where
+    -- | The function.
+    TemplateFunction :: (List TemplateValue -> Result String TemplateValue) -> TemplateFunction
+
+  -- | A template set: its name, delimiters, missing-key mode, functions and the parsed templates by name.
+  data Template where
+    -- | Fields in the order listed above.
+    Template :: String -> Bytes -> Bytes -> MissingKey -> List (String, TemplateFunction) -> List (String, Node) -> Template
+
+  -- | An empty set named name, with "{{" and "}}" delimiters.
+  template-new :: String -> Template
+  template-new name = Template name (string-to-bytes "{{") (string-to-bytes "}}") MissingKeyDefault Nil Nil
+
+  -- | Set the delimiters used by later parses; empty strings restore the defaults.
+  template-delims :: Template -> String -> String -> Template
+  template-delims t left right = case t of
+    Template name l r mk fs ts -> Template name (if left == "" then string-to-bytes "{{" else string-to-bytes left) (if right == "" then string-to-bytes "}}" else string-to-bytes right) mk fs ts
+
+  -- | Set the missing-key mode.
+  template-missing-key :: Template -> MissingKey -> Template
+  template-missing-key t mode = case t of Template name l r mk fs ts -> Template name l r mode fs ts
+
+  -- | Add functions (later entries replace earlier ones with the same name).
+  template-funcs :: Template -> List (String, TemplateFunction) -> Template
+  template-funcs t more = case t of Template name l r mk fs ts -> Template name l r mk (append-pairs more fs) ts
+
+  -- | Prepend pairs so they shadow existing ones.
+  append-pairs :: forall a. List (String, a) -> List (String, a) -> List (String, a)
+  append-pairs xs ys = case xs of Nil -> ys; Cons x rest -> Cons x (append-pairs rest ys)
+
+  -- | The set's main name.
+  template-name :: Template -> String
+  template-name t = case t of Template name l r mk fs ts -> name
+
+  -- | Names of the templates defined so far.
+  template-names :: Template -> List String
+  template-names t = case t of Template name l r mk fs ts -> map fst-name ts
+
+  -- | The name of an entry.
+  fst-name :: (String, Node) -> String
+  fst-name p = case p of (n, x) -> n
+
+  -- | Parse text as the main template, adding the templates it defines. A body that is only white space does not
+  -- replace a template that already has one.
+  template-parse :: Template -> String -> Result TemplateError Template
+  template-parse t text = case t of
+    Template name l r mk fs ts -> case lex (string-to-bytes text) l r of
+      Err message -> Err (TemplateParseError (string-concat-all ["template: ", name, ":", message]))
+      Ok tokens -> case parse-top name (func-names fs) tokens of
+        Err message -> Err (TemplateParseError (string-concat-all ["template: ", name, ":", message]))
+        Ok (root, defs) -> Ok (Template name l r mk fs (associate (Cons (name, root) defs) ts))
+
+  -- | Add parsed templates to a set, keeping a non-empty body over an empty one.
+  associate :: List (String, Node) -> List (String, Node) -> List (String, Node)
+  associate fresh ts = case fresh of
+    Nil -> ts
+    Cons d rest -> case d of
+      (n, root) -> case lookup-node ts n of
+        Some old -> if is-empty-tree root && not (is-empty-tree old) then associate rest ts else associate rest (Cons d (drop-node ts n))
+        None -> associate rest (Cons d ts)
+
+  -- | A template body by name.
+  lookup-node :: List (String, Node) -> String -> Option Node
+  lookup-node ts n = case ts of Nil -> None; Cons d rest -> case d of (m, root) -> if m == n then Some root else lookup-node rest n
+
+  -- | Remove a template by name.
+  drop-node :: List (String, Node) -> String -> List (String, Node)
+  drop-node ts n = case ts of Nil -> Nil; Cons d rest -> case d of (m, root) -> if m == n then drop-node rest n else Cons d (drop-node rest n)
+
+  -- | Whether a body holds only white-space text.
+  is-empty-tree :: Node -> Bool
+  is-empty-tree node = case node of
+    NdEnd -> True
+    NdText b next -> all-space b 0 && is-empty-tree next
+    other -> False
+
+  -- | Whether every byte is white space.
+  all-space :: Bytes -> Nat -> Bool
+  all-space b i = if i >= bytes-len b then True else if is-space (at b i) then all-space b (i + 1) else False
+
+  -- | Function names visible to the parser: builtins and the set's functions.
+  func-names :: List (String, TemplateFunction) -> List String
+  func-names fs = case fs of Nil -> builtin-names; Cons f rest -> case f of (n, g) -> Cons n (func-names rest)
+
+  -- | The builtin function names.
+  builtin-names :: List String
+  builtin-names = ["and", "or", "not", "len", "index", "slice", "print", "printf", "println", "eq", "ne", "lt", "le", "gt", "ge", "html", "js", "urlquery", "call"]
+
+  -- | Execute the main template with data.
+  template-execute :: Template -> TemplateValue -> Result TemplateError Bytes
+  template-execute t data-value = template-execute-named t (template-name t) data-value
+
+  -- | Execute a named template of the set with data.
+  template-execute-named :: Template -> String -> TemplateValue -> Result TemplateError Bytes
+  template-execute-named t name data-value = case t of
+    Template main l r mk fs ts -> case lookup-node ts name of
+      None -> Err (TemplateExecError (string-concat-all ["template: no template \"", name, "\" associated with template \"", main, "\""]))
+      Some root -> case exec (Ctx ts fs mk name 0) root data-value Nil (Cons ("$", data-value) Nil) of
+        Err message -> Err (TemplateExecError (string-concat-all ["template: ", name, ": ", message]))
+        Ok run -> case run of Run out vars flow -> Ok (bytes-concat (reverse out))
+
+  -- ---------------------------------------------------------------------
+  -- Lexing.
+  -- ---------------------------------------------------------------------
+
+  -- | A lexical item.
+  data Tok where
+    -- | Text between actions (trim markers already applied).
+    TokText :: Bytes -> Tok
+    -- | An action's opening delimiter.
+    TokLeft :: Tok
+    -- | An action's closing delimiter.
+    TokRight :: Tok
+    -- | A run of white space inside an action.
+    TokSpace :: Tok
+    -- | An identifier or keyword.
+    TokIdent :: String -> Tok
+    -- | A field name after its dot.
+    TokField :: String -> Tok
+    -- | The cursor ".".
+    TokDot :: Tok
+    -- | A variable, "$" included.
+    TokVar :: String -> Tok
+    -- | A number's spelling.
+    TokNumber :: String -> Tok
+    -- | A character constant's code point.
+    TokChar :: Nat -> Tok
+    -- | A quoted or raw string's value.
+    TokString :: String -> Tok
+    -- | "|".
+    TokPipe :: Tok
+    -- | "(".
+    TokOpen :: Tok
+    -- | ")".
+    TokClose :: Tok
+    -- | ":=".
+    TokDeclare :: Tok
+    -- | "=".
+    TokAssign :: Tok
+    -- | ",".
+    TokComma :: Tok
+
+  -- | An item and the line it starts on.
+  data Lexeme where
+    -- | Item, then line.
+    Lexeme :: Tok -> Nat -> Lexeme
+
+  -- | Lex a whole template; errors carry "line: problem".
+  lex :: Bytes -> Bytes -> Bytes -> Result String (List Lexeme)
+  lex s left right = lex-text s left right 0 1 Nil
+
+  -- | Text state: copy text up to the next opening delimiter (lexemes gather in reverse).
+  lex-text :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-text s left right i line acc =
+    let k = find-delim s left i in
+    if k >= bytes-len s then Ok (reverse (push-text s i (bytes-len s) line acc))
+    else
+      let after = k + bytes-len left in
+      let trim = at s after == 45 && is-space (at s (after + 1)) && after + 1 < bytes-len s in
+      let end = if trim then trim-right s i k else k in
+      let texted = push-text s i end line acc in
+      let start = if trim then after + 2 else after in
+      let here = line + newlines s i k 0 in
+      if at s start == 47 && at s (start + 1) == 42 then lex-comment s left right (start + 2) here texted
+      else lex-action s left right start here 0 (Cons (Lexeme TokLeft here) texted)
+
+  -- | Add a text item when it is not empty.
+  push-text :: Bytes -> Nat -> Nat -> Nat -> List Lexeme -> List Lexeme
+  push-text s i end line acc = if end > i then Cons (Lexeme (TokText (slice s i end)) line) acc else acc
+
+  -- | The end of text after dropping trailing white space, not before start.
+  trim-right :: Bytes -> Nat -> Nat -> Nat
+  trim-right s start end = if end > start && is-space (at s (end - 1)) then trim-right s start (end - 1) else end
+
+  -- | Skip leading white space.
+  trim-left :: Bytes -> Nat -> Nat
+  trim-left s i = if i < bytes-len s && is-space (at s i) then trim-left s (i + 1) else i
+
+  -- | Line feeds in s[i, k).
+  newlines :: Bytes -> Nat -> Nat -> Nat -> Nat
+  newlines s i k n = if i >= k then n else newlines s (i + 1) k (if at s i == 10 then n + 1 else n)
+
+  -- | A comment after "/*": through "*/", which must be followed by the closing delimiter (optionally trimmed).
+  lex-comment :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-comment s left right i line acc = case find-bytes s (string-to-bytes "*/") i of
+    None -> Err (string-concat (nat-to-string line) ": unclosed comment")
+    Some k ->
+      let after = k + 2 in
+      let here = line + newlines s i k 0 in
+      if has-trimmed-right s after right then lex-text s left right (trim-left s (after + 2 + bytes-len right)) here acc
+      else if starts-with s after right then lex-text s left right (after + bytes-len right) here acc
+      else Err (string-concat (nat-to-string here) ": comment ends before closing delimiter")
+
+  -- | Whether " -" and the closing delimiter start at i.
+  has-trimmed-right :: Bytes -> Nat -> Bytes -> Bool
+  has-trimmed-right s i right = is-space (at s i) && i < bytes-len s && at s (i + 1) == 45 && starts-with s (i + 2) right
+
+  -- | Action state: items until the closing delimiter; depth counts open parentheses.
+  lex-action :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-action s left right i line depth acc =
+    if has-trimmed-right s i right then close-action s left right (trim-left s (i + 2 + bytes-len right)) line depth acc
+    else if starts-with s i right then close-action s left right (i + bytes-len right) line depth acc
+    else if i >= bytes-len s then Err (string-concat (nat-to-string line) ": unclosed action")
+    else
+      let c = at s i in
+      if is-space c then lex-space s left right i line depth acc
+      else if c == 61 then lex-action s left right (i + 1) line depth (Cons (Lexeme TokAssign line) acc)
+      else if c == 58 then (if at s (i + 1) == 61 then lex-action s left right (i + 2) line depth (Cons (Lexeme TokDeclare line) acc) else Err (string-concat (nat-to-string line) ": expected :="))
+      else if c == 124 then lex-action s left right (i + 1) line depth (Cons (Lexeme TokPipe line) acc)
+      else if c == 44 then lex-action s left right (i + 1) line depth (Cons (Lexeme TokComma line) acc)
+      else if c == 40 then lex-action s left right (i + 1) line (depth + 1) (Cons (Lexeme TokOpen line) acc)
+      else if c == 41 then (if depth == 0 then Err (string-concat (nat-to-string line) ": unexpected right paren") else lex-action s left right (i + 1) line (depth - 1) (Cons (Lexeme TokClose line) acc))
+      else if c == 34 then lex-quote s left right (i + 1) line depth acc
+      else if c == 96 then lex-raw s left right (i + 1) line depth acc
+      else if c == 39 then lex-char s left right (i + 1) line depth acc
+      else if c == 36 then lex-word s left right i line depth acc
+      else if c == 46 && not (is-digit (at s (i + 1)) && i + 1 < bytes-len s) then lex-word s left right i line depth acc
+      else if c == 46 || c == 43 || c == 45 || is-digit c then lex-number s left right i line depth acc
+      else if is-alpha c then lex-word s left right i line depth acc
+      else Err (string-concat (nat-to-string line) ": unrecognized character in action")
+
+  -- | The closing delimiter: parentheses must balance, then text resumes.
+  close-action :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  close-action s left right next line depth acc =
+    if depth > 0 then Err (string-concat (nat-to-string line) ": unclosed left paren")
+    else lex-text s left right next line (Cons (Lexeme TokRight line) acc)
+
+  -- | White space inside an action, stopping before a trim-marked closing delimiter.
+  lex-space :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-space s left right i line depth acc =
+    let j = space-run s right i in
+    let lines = newlines s i j 0 in
+    if j == i then lex-action s left right i line depth acc
+    else lex-action s left right j (line + lines) depth (Cons (Lexeme TokSpace line) acc)
+
+  -- | The end of a space run, leaving the space of a " -" trim marker.
+  space-run :: Bytes -> Bytes -> Nat -> Nat
+  space-run s right i = if i < bytes-len s && is-space (at s i) && not (has-trimmed-right s i right) then space-run s right (i + 1) else i
+
+  -- | A word from start: a variable ("$" and letters), a field ("." and letters), or an identifier or keyword.
+  -- Its first byte says which.
+  lex-word :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-word s left right start line depth acc =
+    let kind = at s start in
+    let j = alnum-run s (start + 1) in
+    if not (at-terminator s j right) then Err (string-concat (nat-to-string line) ": bad character in action")
+    else
+      let word = text-of (slice s start j) in
+      let token = if kind == 36 then TokVar word else if kind == 46 then (if j == start + 1 then TokDot else TokField (text-of (slice s (start + 1) j))) else TokIdent word in
+      lex-action s left right j line depth (Cons (Lexeme token line) acc)
+
+  -- | The end of letters, digits and underscores (any non-ASCII byte counts as a letter).
+  alnum-run :: Bytes -> Nat -> Nat
+  alnum-run s i = if i < bytes-len s && (is-alpha (at s i) || is-digit (at s i)) then alnum-run s (i + 1) else i
+
+  -- | Whether a word may end at i: white space, the end, punctuation that starts another item, or the closing delimiter.
+  at-terminator :: Bytes -> Nat -> Bytes -> Bool
+  at-terminator s i right =
+    if i >= bytes-len s then True
+    else
+      let c = at s i in
+      is-space c || c == 46 || c == 44 || c == 124 || c == 58 || c == 41 || c == 40 || starts-with s i right
+
+  -- | A number: sign, digits, prefixes, fraction and exponent, as one spelling.
+  lex-number :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-number s left right i line depth acc =
+    let j = number-run s (if at s i == 43 || at s i == 45 then i + 1 else i) in
+    if j < bytes-len s && is-alpha (at s j) then Err (string-concat (nat-to-string line) ": bad number syntax")
+    else if j == i + 1 && (at s i == 43 || at s i == 45) then Err (string-concat (nat-to-string line) ": bad number syntax")
+    else lex-action s left right j line depth (Cons (Lexeme (TokNumber (text-of (slice s i j))) line) acc)
+
+  -- | The end of a number's digits, letters of prefixes and exponents, points and exponent signs.
+  number-run :: Bytes -> Nat -> Nat
+  number-run s i =
+    if i >= bytes-len s then i
+    else
+      let c = at s i in
+      if is-digit c || c == 46 || c == 95 || (lower c >= 97 && lower c <= 102) || lower c == 120 || lower c == 111 || lower c == 112 then number-run s (i + 1)
+      else if (c == 43 || c == 45) && i > 0 && (lower (at s (i - 1)) == 101 || lower (at s (i - 1)) == 112) then number-run s (i + 1)
+      else i
+
+  -- | A quoted string: escapes are decoded; a line break or the end is an error.
+  lex-quote :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-quote s left right i line depth acc = case unquote s i 34 Nil of
+    Err message -> Err (string-concat-all [nat-to-string line, ": ", message])
+    Ok (value, next) -> lex-action s left right next line depth (Cons (Lexeme (TokString (text-of value)) line) acc)
+
+  -- | A raw string up to the next backquote; carriage returns are dropped.
+  lex-raw :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-raw s left right i line depth acc = case find-byte s 96 i of
+    None -> Err (string-concat (nat-to-string line) ": unterminated raw quoted string")
+    Some k -> lex-action s left right (k + 1) (line + newlines s i k 0) depth (Cons (Lexeme (TokString (text-of (drop-cr (slice s i k)))) line) acc)
+
+  -- | A character constant: one character or escape between single quotes.
+  lex-char :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> List Lexeme -> Result String (List Lexeme)
+  lex-char s left right i line depth acc = case unquote s i 39 Nil of
+    Err message -> Err (string-concat (nat-to-string line) ": unterminated character constant")
+    Ok (value, next) ->
+      let n = rune-size value 0 in
+      if n == 0 || not (n == bytes-len value) then Err (string-concat (nat-to-string line) ": malformed character constant")
+      else lex-action s left right next line depth (Cons (Lexeme (TokChar (rune-value value 0 n)) line) acc)
+
+  -- | Decode quoted text from i up to the closing quote byte; pieces gather in reverse.
+  unquote :: Bytes -> Nat -> Nat -> List Bytes -> Result String (Bytes, Nat)
+  unquote s i q pieces =
+    if i >= bytes-len s || at s i == 10 then Err "unterminated quoted string"
+    else
+      let c = at s i in
+      if c == q then Ok (bytes-concat (reverse pieces), i + 1)
+      else if c == 92 then escape-seq s (i + 1) q pieces
+      else unquote s (i + 1) q (Cons (slice s i (i + 1)) pieces)
+
+  -- | One escape after a backslash: \a \b \f \n \r \t \v \\ \' \" \xHH \ooo \uHHHH \UHHHHHHHH.
+  escape-seq :: Bytes -> Nat -> Nat -> List Bytes -> Result String (Bytes, Nat)
+  escape-seq s i q pieces =
+    let c = at s i in
+    let simple = if c == 97 then (7 :: Nat) else if c == 98 then (8 :: Nat) else if c == 102 then (12 :: Nat) else if c == 110 then (10 :: Nat) else if c == 114 then (13 :: Nat) else if c == 116 then (9 :: Nat) else if c == 118 then (11 :: Nat) else if c == 92 then (92 :: Nat) else if c == 39 && q == 39 then (39 :: Nat) else if c == 34 && q == 34 then (34 :: Nat) else 256 in
+    if i >= bytes-len s then Err "unterminated quoted string"
+    else if simple < 256 then unquote s (i + 1) q (Cons (from-list [simple]) pieces)
+    else if c == 120 then hex-escape s (i + 1) 2 q pieces False
+    else if c == 117 then hex-escape s (i + 1) 4 q pieces True
+    else if c == 85 then hex-escape s (i + 1) 8 q pieces True
+    else if c >= 48 && c <= 55 then octal-escape s i q pieces
+    else Err "invalid syntax"
+
+  -- | A hexadecimal escape of n digits: a byte (\x) or a code point (\u, \U).
+  hex-escape :: Bytes -> Nat -> Nat -> Nat -> List Bytes -> Bool -> Result String (Bytes, Nat)
+  hex-escape s i n q pieces rune =
+    let value = hex-value s i (i + n) 0 in
+    if i + n > bytes-len s || not (all-hex s i (i + n)) then Err "invalid syntax"
+    else if rune then (if value > 1114111 || (value >= 55296 && value <= 57343) then Err "invalid syntax" else unquote s (i + n) q (Cons (encode-rune value) pieces))
+    else unquote s (i + n) q (Cons (from-list [value]) pieces)
+
+  -- | A three-digit octal byte escape.
+  octal-escape :: Bytes -> Nat -> Nat -> List Bytes -> Result String (Bytes, Nat)
+  octal-escape s i q pieces =
+    let d0 = at s i in let d1 = at s (i + 1) in let d2 = at s (i + 2) in
+    if not (is-octal d0 && is-octal d1 && is-octal d2) then Err "invalid syntax"
+    else
+      let value = (minus d0 48 * 8 + minus d1 48) * 8 + minus d2 48 in
+      if value > 255 then Err "invalid syntax" else unquote s (i + 3) q (Cons (from-list [value]) pieces)
+
+  -- | Whether s[i, j) are hexadecimal digits.
+  all-hex :: Bytes -> Nat -> Nat -> Bool
+  all-hex s i j = if i >= j then True else if is-hex (at s i) then all-hex s (i + 1) j else False
+
+  -- | The value of hexadecimal digits.
+  hex-value :: Bytes -> Nat -> Nat -> Nat -> Nat
+  hex-value s i j acc = if i >= j then acc else hex-value s (i + 1) j (acc * 16 + hex-digit (at s i))
+
+  -- | Remove carriage returns.
+  drop-cr :: Bytes -> Bytes
+  drop-cr b = from-list (drop-cr-from b 0 Nil)
+
+  -- | Bytes other than carriage returns, in order.
+  drop-cr-from :: Bytes -> Nat -> List Nat -> List Nat
+  drop-cr-from b i acc = if i >= bytes-len b then reverse acc else drop-cr-from b (i + 1) (if at b i == 13 then acc else Cons (at b i) acc)
+
+  -- | The offset of the next opening delimiter at or after i, or the length: sixteen bytes per step for its first byte.
+  find-delim :: Bytes -> Bytes -> Nat -> Nat
+  find-delim s left i =
+    if i >= bytes-len s then bytes-len s
+    else
+      let k = if i + 16 <= bytes-len s then i + i64-to-nat (hold s (find16 (bytes-data s) (nat-to-i64 i) (small (at left 0)))) else scalar-find s (at left 0) i in
+      if k >= bytes-len s then bytes-len s
+      else if k >= i + 16 then find-delim s left (i + 16)
+      else if starts-with s k left then k
+      else find-delim s left (k + 1)
+
+  -- | The first offset of a byte at or after i, or the length.
+  scalar-find :: Bytes -> Nat -> Nat -> Nat
+  scalar-find s b i = if i >= bytes-len s || at s i == b then (if i >= bytes-len s then bytes-len s else i) else scalar-find s b (i + 1)
+
+  -- ---------------------------------------------------------------------
+  -- Parse trees.
+  -- ---------------------------------------------------------------------
+
+  -- | Operands, commands and pipelines, in one family so parenthesized pipelines can nest.
+  data Expr where
+    -- | The cursor ".".
+    ExDot :: Expr
+    -- | The constant nil.
+    ExNil :: Expr
+    -- | A boolean, number or string constant.
+    ExConst :: TemplateValue -> Expr
+    -- | Fields of the cursor, as in ".a.b".
+    ExField :: List String -> Expr
+    -- | A variable and fields of it, as in "$x.a".
+    ExVar :: String -> List String -> Expr
+    -- | A function name.
+    ExFunc :: String -> Expr
+    -- | Fields of a parenthesized pipeline's value.
+    ExChain :: Expr -> List String -> Expr
+    -- | A pipeline: declared variables, whether they are assigned rather than declared, and its commands.
+    ExPipe :: List String -> Bool -> Expr -> Expr
+    -- | A command (its operand spine), then the rest of the pipeline's commands.
+    ExCmd :: Expr -> Expr -> Expr
+    -- | The end of a command spine.
+    ExCmdEnd :: Expr
+    -- | An operand, then the rest of the command's operands.
+    ExArg :: Expr -> Expr -> Expr
+    -- | The end of an operand spine.
+    ExArgEnd :: Expr
+
+  -- | A parsed template body: a spine of nodes, each holding the rest.
+  data Node where
+    -- | Literal text.
+    NdText :: Bytes -> Node -> Node
+    -- | An action whose value is printed unless it declares variables.
+    NdAction :: Expr -> Node -> Node
+    -- | if: pipeline, then-list, else-list.
+    NdIf :: Expr -> Node -> Node -> Node -> Node
+    -- | range: pipeline, body, else-list.
+    NdRange :: Expr -> Node -> Node -> Node -> Node
+    -- | with: pipeline, body, else-list.
+    NdWith :: Expr -> Node -> Node -> Node -> Node
+    -- | A template call: name and pipeline (the empty command spine for none).
+    NdTemplate :: String -> Expr -> Node -> Node
+    -- | Leave the innermost range.
+    NdBreak :: Node -> Node
+    -- | Start the innermost range's next iteration.
+    NdContinue :: Node -> Node
+    -- | The end of a spine.
+    NdEnd :: Node
+
+  -- | Link reversed nodes into a spine.
+  node-spine :: List Node -> Node -> Node
+  node-spine reversed tail = case reversed of Nil -> tail; Cons n rest -> node-spine rest (relink n tail)
+
+  -- | The same node followed by a different rest.
+  relink :: Node -> Node -> Node
+  relink n tail = case n of
+    NdText b x -> NdText b tail
+    NdAction p x -> NdAction p tail
+    NdIf p a b x -> NdIf p a b tail
+    NdRange p a b x -> NdRange p a b tail
+    NdWith p a b x -> NdWith p a b tail
+    NdTemplate name p x -> NdTemplate name p tail
+    NdBreak x -> NdBreak tail
+    NdContinue x -> NdContinue tail
+    NdEnd -> tail
+
+  -- | Link reversed expressions into a spine with a constructor.
+  arg-spine :: List Expr -> Expr
+  arg-spine reversed = arg-link reversed ExArgEnd
+
+  -- | Operand spine from reversed operands.
+  arg-link :: List Expr -> Expr -> Expr
+  arg-link reversed tail = case reversed of Nil -> tail; Cons e rest -> arg-link rest (ExArg e tail)
+
+  -- | Command spine from reversed commands.
+  cmd-link :: List Expr -> Expr -> Expr
+  cmd-link reversed tail = case reversed of Nil -> tail; Cons e rest -> cmd-link rest (ExCmd e tail)
+
+  -- ---------------------------------------------------------------------
+  -- Parsing.
+  -- ---------------------------------------------------------------------
+
+  -- | Parser state: remaining items, variables in scope, definitions so far, and range nesting.
+  data Ps where
+    -- | Fields in the order listed above.
+    Ps :: List Lexeme -> List String -> List (String, Node) -> Nat -> Ps
+
+  -- | How an item list ended.
+  data Ending where
+    -- | The input ended.
+    EndEof :: Ending
+    -- | {{end}}.
+    EndEnd :: Ending
+    -- | {{else}}.
+    EndElse :: Ending
+    -- | {{else if ...}}: the pipeline follows.
+    EndElseIf :: Ending
+    -- | {{else with ...}}: the pipeline follows.
+    EndElseWith :: Ending
+
+  -- | Parse a whole template: the main body and its definitions.
+  parse-top :: String -> List String -> List Lexeme -> Result String (Node, List (String, Node))
+  parse-top name funcs tokens = case parse-list funcs True (Ps tokens (Cons "$" Nil) Nil 0) Nil of
+    Err e -> Err e
+    Ok (body, ending, ps) -> case ending of
+      EndEof -> (case ps of Ps ts vars defs depth -> Ok (body, reverse defs))
+      other -> Err (string-concat (nat-to-string (line-at ps)) ": unexpected {{end}} or {{else}}")
+
+  -- | The line of the next item (or the last line).
+  line-at :: Ps -> Nat
+  line-at ps = case ps of Ps ts vars defs depth -> case ts of Cons l rest -> (case l of Lexeme t line -> line); Nil -> 0
+
+  -- | A parse error at the next item's line.
+  fail :: forall a. Ps -> String -> Result String a
+  fail ps message = Err (string-concat-all [nat-to-string (line-at ps), ": ", message])
+
+  -- | Drop white-space items.
+  skip :: Ps -> Ps
+  skip ps = case ps of
+    Ps ts vars defs depth -> case ts of
+      Cons l rest -> (case l of Lexeme t line -> case t of TokSpace -> skip (Ps rest vars defs depth); other -> ps)
+      Nil -> ps
+
+  -- | The next item, if any.
+  peek :: Ps -> Option Tok
+  peek ps = case ps of Ps ts vars defs depth -> case ts of Cons l rest -> (case l of Lexeme t line -> Some t); Nil -> None
+
+  -- | Consume one item.
+  advance :: Ps -> Ps
+  advance ps = case ps of Ps ts vars defs depth -> case ts of Cons l rest -> Ps rest vars defs depth; Nil -> ps
+
+  -- | Expect the closing delimiter after optional white space.
+  expect-right :: Ps -> String -> Result String Ps
+  expect-right ps context = let p = skip ps in case peek p of
+    Some TokRight -> Ok (advance p)
+    other -> fail p (string-concat "unexpected item in " context)
+
+  -- | Items until {{end}}, {{else}} or the end; nodes gather in reverse.
+  parse-list :: List String -> Bool -> Ps -> List Node -> Result String (Node, Ending, Ps)
+  parse-list funcs top ps acc = case peek ps of
+    None -> Ok (node-spine acc NdEnd, EndEof, ps)
+    Some t -> case t of
+      TokText b -> parse-list funcs top (advance ps) (Cons (NdText b NdEnd) acc)
+      TokLeft -> action funcs top (skip (advance ps)) acc
+      other -> fail ps "unexpected item"
+
+  -- | After an opening delimiter: a keyword, a definition, or an action pipeline.
+  action :: List String -> Bool -> Ps -> List Node -> Result String (Node, Ending, Ps)
+  action funcs top ps acc = case peek ps of
+    Some (TokIdent word) ->
+      if word == "end" then (case expect-right (advance ps) "end" of Err e -> Err e; Ok p -> Ok (node-spine acc NdEnd, EndEnd, p))
+      else if word == "else" then else-clause (skip (advance ps)) acc
+      else if word == "if" || word == "range" || word == "with" then (case control funcs word (advance ps) of
+        Err e -> Err e
+        Ok (n, p) -> parse-list funcs top p (Cons n acc))
+      else if word == "template" then (case template-clause funcs (skip (advance ps)) of
+        Err e -> Err e
+        Ok (n, p) -> parse-list funcs top p (Cons n acc))
+      else if word == "block" then (case block-clause funcs (skip (advance ps)) of
+        Err e -> Err e
+        Ok (n, p) -> parse-list funcs top p (Cons n acc))
+      else if word == "define" then (if top then (case definition funcs (skip (advance ps)) of Err e -> Err e; Ok p -> parse-list funcs top p acc) else fail ps "unexpected <define> in command")
+      else if word == "break" || word == "continue" then loop-control funcs top word ps acc
+      else plain-action funcs top ps acc
+    other -> plain-action funcs top ps acc
+
+  -- | An action pipeline.
+  plain-action :: List String -> Bool -> Ps -> List Node -> Result String (Node, Ending, Ps)
+  plain-action funcs top ps acc = case pipeline funcs "command" ps False of
+    Err e -> Err e
+    Ok (p, next) -> parse-list funcs top next (Cons (NdAction p NdEnd) acc)
+
+  -- | {{break}} or {{continue}}, only inside a range.
+  loop-control :: List String -> Bool -> String -> Ps -> List Node -> Result String (Node, Ending, Ps)
+  loop-control funcs top word ps acc = case ps of
+    Ps ts vars defs depth ->
+      if depth == 0 then fail ps (string-concat-all ["{{", word, "}} outside {{range}}"])
+      else case expect-right (advance ps) word of
+        Err e -> Err e
+        Ok p -> parse-list funcs top p (Cons (if word == "break" then NdBreak NdEnd else NdContinue NdEnd) acc)
+
+  -- | After "else": a plain else, or "else if" / "else with" whose pipeline follows.
+  else-clause :: Ps -> List Node -> Result String (Node, Ending, Ps)
+  else-clause ps acc = case peek ps of
+    Some TokRight -> Ok (node-spine acc NdEnd, EndElse, advance ps)
+    Some (TokIdent word) ->
+      if word == "if" then Ok (node-spine acc NdEnd, EndElseIf, advance ps)
+      else if word == "with" then Ok (node-spine acc NdEnd, EndElseWith, advance ps)
+      else fail ps "unexpected item in else"
+    other -> fail ps "unexpected item in else"
+
+  -- | if, range or with: a pipeline, a body and an optional else part; variables declared inside leave scope after it.
+  control :: List String -> String -> Ps -> Result String (Node, Ps)
+  control funcs kind ps = case ps of
+    Ps ts saved defs depth -> case pipeline funcs kind ps (kind == "range") of
+      Err e -> Err e
+      Ok (p, after) -> case parse-list funcs False (with-depth after (if kind == "range" then depth + 1 else depth)) Nil of
+        Err e -> Err e
+        Ok (body, ending, rest) -> case else-part funcs kind (with-depth rest depth) ending of
+          Err e -> Err e
+          Ok (alt, done) -> Ok (control-node kind p body alt, with-vars done saved)
+
+  -- | The else part of a control for how its body ended.
+  else-part :: List String -> String -> Ps -> Ending -> Result String (Node, Ps)
+  else-part funcs kind ps ending = case ending of
+    EndEnd -> Ok (NdEnd, ps)
+    EndElse -> (case parse-list funcs False ps Nil of
+      Err e -> Err e
+      Ok (alt, ending2, rest) -> case ending2 of EndEnd -> Ok (alt, rest); other -> fail rest (string-concat "expected end; found else in " kind))
+    EndElseIf -> if kind == "if" then (case control funcs "if" ps of Err e -> Err e; Ok (n, rest) -> Ok (relink n NdEnd, rest)) else fail ps (string-concat "unexpected else if in " kind)
+    EndElseWith -> if kind == "with" then (case control funcs "with" ps of Err e -> Err e; Ok (n, rest) -> Ok (relink n NdEnd, rest)) else fail ps (string-concat "unexpected else with in " kind)
+    EndEof -> fail ps "unexpected EOF"
+
+  -- | The node for a control kind.
+  control-node :: String -> Expr -> Node -> Node -> Node
+  control-node kind p body alt = if kind == "if" then NdIf p body alt NdEnd else if kind == "range" then NdRange p body alt NdEnd else NdWith p body alt NdEnd
+
+  -- | Set the range nesting.
+  with-depth :: Ps -> Nat -> Ps
+  with-depth ps depth = case ps of Ps ts vars defs d -> Ps ts vars defs depth
+
+  -- | Restore the variables in scope.
+  with-vars :: Ps -> List String -> Ps
+  with-vars ps vars = case ps of Ps ts v defs depth -> Ps ts vars defs depth
+
+  -- | {{template "name" pipeline?}}.
+  template-clause :: List String -> Ps -> Result String (Node, Ps)
+  template-clause funcs ps = case peek ps of
+    Some (TokString name) ->
+      let p = skip (advance ps) in
+      (case peek p of
+        Some TokRight -> Ok (NdTemplate name ExCmdEnd NdEnd, advance p)
+        other -> case pipeline funcs "template clause" p False of Err e -> Err e; Ok (pipe, rest) -> Ok (NdTemplate name pipe NdEnd, rest))
+    other -> fail ps "unexpected item in template clause"
+
+  -- | {{block "name" pipeline}} body {{end}}: a definition and a call to it.
+  block-clause :: List String -> Ps -> Result String (Node, Ps)
+  block-clause funcs ps = case peek ps of
+    Some (TokString name) -> (case pipeline funcs "block clause" (skip (advance ps)) False of
+      Err e -> Err e
+      Ok (pipe, after) -> case parse-list funcs False (with-vars (with-depth after 0) (Cons "$" Nil)) Nil of
+        Err e -> Err e
+        Ok (body, ending, rest) -> case ending of
+          EndEnd -> Ok (NdTemplate name pipe NdEnd, with-depth (with-vars (add-def rest name body) (vars-of after)) (depth-of after))
+          other -> fail rest "unexpected item in block clause")
+    other -> fail ps "unexpected item in block clause"
+
+  -- | {{define "name"}} body {{end}} at the top level.
+  definition :: List String -> Ps -> Result String Ps
+  definition funcs ps = case peek ps of
+    Some (TokString name) -> (case expect-right (advance ps) "define clause" of
+      Err e -> Err e
+      Ok after -> case parse-list funcs False (with-vars after (Cons "$" Nil)) Nil of
+        Err e -> Err e
+        Ok (body, ending, rest) -> case ending of
+          EndEnd -> Ok (with-vars (add-def rest name body) (vars-of after))
+          other -> fail rest "unexpected item in define clause")
+    other -> fail ps "unexpected item in define clause"
+
+  -- | The variables in scope.
+  vars-of :: Ps -> List String
+  vars-of ps = case ps of Ps ts vars defs depth -> vars
+
+  -- | The range nesting.
+  depth-of :: Ps -> Nat
+  depth-of ps = case ps of Ps ts vars defs depth -> depth
+
+  -- | Record a definition.
+  add-def :: Ps -> String -> Node -> Ps
+  add-def ps name body = case ps of Ps ts vars defs depth -> Ps ts vars (Cons (name, body) defs) depth
+
+  -- | A pipeline up to the closing delimiter: optional declarations, then commands separated by "|".
+  pipeline :: List String -> String -> Ps -> Bool -> Result String (Expr, Ps)
+  pipeline funcs context ps ranging = case declarations (skip ps) context ranging Nil False of
+    Err e -> Err e
+    Ok (decls, assign, after) -> commands funcs context after TokRight decls assign Nil
+
+  -- | Leading "$x :=", "$x =" or (in range) "$i, $e :=".
+  declarations :: Ps -> String -> Bool -> List String -> Bool -> Result String (List String, Bool, Ps)
+  declarations ps context ranging decls assign = case peek ps of
+    Some (TokVar v) ->
+      let after = skip (advance ps) in
+      (case peek after of
+        Some TokDeclare -> Ok (reverse (Cons v decls), False, declare-var (advance after) v)
+        Some TokAssign -> Ok (reverse (Cons v decls), True, declare-var (advance after) v)
+        Some TokComma ->
+          if ranging && list-length decls == 0 then declarations (declare-var (skip (advance after)) v) context ranging (Cons v decls) assign
+          else fail after (string-concat "too many declarations in " context)
+        other -> if list-length decls > 0 then fail after "range can only initialize variables" else Ok (Nil, False, ps))
+    other -> if list-length decls > 0 then fail ps "range can only initialize variables" else Ok (Nil, False, ps)
+
+  -- | Bring a variable into scope.
+  declare-var :: Ps -> String -> Ps
+  declare-var ps v = case ps of Ps ts vars defs depth -> Ps ts (Cons v vars) defs depth
+
+  -- | Commands (reversed) until the closer; then checks for an empty pipeline and non-executable stages.
+  commands :: List String -> String -> Ps -> Tok -> List String -> Bool -> List Expr -> Result String (Expr, Ps)
+  commands funcs context ps closer decls assign acc =
+    let p = skip ps in
+    case peek p of
+      None -> fail p "unclosed action"
+      Some t ->
+        if same-tok t closer then
+          (if list-length acc == 0 then fail p (string-concat "missing value for " context)
+          else if has-constant-stage (reverse acc) 0 then fail p "non executable command in pipeline stage"
+          else Ok (ExPipe decls assign (cmd-link acc ExCmdEnd), advance p))
+        else if starts-operand t then (case command funcs p Nil of
+          Err e -> Err e
+          Ok (cmd, next) -> commands funcs context next closer decls assign (Cons cmd acc))
+        else fail p (string-concat "unexpected item in " context)
+
+  -- | Whether a later stage starts with a constant, the cursor or nil.
+  has-constant-stage :: List Expr -> Nat -> Bool
+  has-constant-stage cmds i = case cmds of
+    Nil -> False
+    Cons c rest -> (i > 0 && constant-head c) || has-constant-stage rest (i + 1)
+
+  -- | Whether a command's first operand is not executable.
+  constant-head :: Expr -> Bool
+  constant-head c = case c of ExArg first rest -> (case first of ExConst v -> True; ExDot -> True; ExNil -> True; other -> False); other -> False
+
+  -- | Whether two closer items are the same kind.
+  same-tok :: Tok -> Tok -> Bool
+  same-tok a b = case a of TokRight -> (case b of TokRight -> True; other -> False); TokClose -> (case b of TokClose -> True; other -> False); other -> False
+
+  -- | Whether an item can begin an operand.
+  starts-operand :: Tok -> Bool
+  starts-operand t = case t of
+    TokIdent w -> not (is-keyword w)
+    TokDot -> True
+    TokField f -> True
+    TokVar v -> True
+    TokNumber n -> True
+    TokChar c -> True
+    TokString s -> True
+    TokOpen -> True
+    other -> False
+
+  -- | Keywords that cannot be operands.
+  is-keyword :: String -> Bool
+  is-keyword w = w == "if" || w == "else" || w == "end" || w == "range" || w == "with" || w == "define" || w == "template" || w == "block" || w == "break" || w == "continue"
+
+  -- | One command: operands separated by white space, ended by "|" (consumed) or a closer (left).
+  command :: List String -> Ps -> List Expr -> Result String (Expr, Ps)
+  command funcs ps acc = case operand funcs (skip ps) of
+    Err e -> Err e
+    Ok (found, after) ->
+      let args = case found of Some e -> Cons e acc; None -> acc in
+      case peek after of
+        Some TokSpace -> command funcs after args
+        Some TokPipe -> finish-command after args (advance after)
+        Some TokRight -> finish-command after args after
+        Some TokClose -> finish-command after args after
+        other -> fail after "unexpected item in operand"
+
+  -- | A command from its operands, which must not be empty.
+  finish-command :: Ps -> List Expr -> Ps -> Result String (Expr, Ps)
+  finish-command at-ps args next = if list-length args == 0 then fail at-ps "empty command" else Ok (arg-spine args, next)
+
+  -- | A term and any fields chained onto it.
+  operand :: List String -> Ps -> Result String (Option Expr, Ps)
+  operand funcs ps = case term funcs ps of
+    Err e -> Err e
+    Ok (found, after) -> case found of
+      None -> Ok (None, after)
+      Some t -> case chain after Nil of
+        (fields, rest) ->
+          if list-length fields == 0 then Ok (Some t, rest)
+          else case t of
+            ExField fs -> Ok (Some (ExField (append-strings fs fields)), rest)
+            ExVar v fs -> Ok (Some (ExVar v (append-strings fs fields)), rest)
+            ExConst c -> fail after "unexpected . after term"
+            ExNil -> fail after "unexpected . after term"
+            ExDot -> fail after "unexpected . after term"
+            other -> Ok (Some (ExChain t fields), rest)
+
+  -- | Consecutive field items (no white space between).
+  chain :: Ps -> List String -> (List String, Ps)
+  chain ps acc = case peek ps of
+    Some (TokField f) -> chain (advance ps) (Cons f acc)
+    other -> (reverse acc, ps)
+
+  -- | Concatenate two lists of names.
+  append-strings :: List String -> List String -> List String
+  append-strings xs ys = case xs of Nil -> ys; Cons x rest -> Cons x (append-strings rest ys)
+
+  -- | A term: a function, constant, cursor, field, variable or parenthesized pipeline.
+  term :: List String -> Ps -> Result String (Option Expr, Ps)
+  term funcs ps = case peek ps of
+    Some t -> (case t of
+      TokIdent w ->
+        if w == "true" then Ok (Some (ExConst (TvBool True)), advance ps)
+        else if w == "false" then Ok (Some (ExConst (TvBool False)), advance ps)
+        else if w == "nil" then Ok (Some ExNil, advance ps)
+        else if is-keyword w then Ok (None, ps)
+        else if has-string funcs w then Ok (Some (ExFunc w), advance ps)
+        else fail ps (string-concat-all ["function \"", w, "\" not defined"])
+      TokDot -> Ok (Some ExDot, advance ps)
+      TokField f -> Ok (Some (ExField (Cons f Nil)), advance ps)
+      TokVar v -> if in-scope ps v then Ok (Some (ExVar v Nil), advance ps) else fail ps (string-concat-all ["undefined variable \"", v, "\""])
+      TokNumber n -> (case number-value n of Some value -> Ok (Some (ExConst value), advance ps); None -> fail ps (string-concat-all ["illegal number syntax: \"", n, "\""]))
+      TokChar c -> Ok (Some (ExConst (TvInt (to-int c))), advance ps)
+      TokString s -> Ok (Some (ExConst (TvString s)), advance ps)
+      TokOpen -> (case declarations (skip (advance ps)) "parenthesized pipeline" False Nil False of
+        Err e -> Err e
+        Ok (decls, assign, after) -> case commands funcs "parenthesized pipeline" after TokClose decls assign Nil of
+          Err e -> Err e
+          Ok (p, rest) -> Ok (Some p, rest))
+      other -> Ok (None, ps))
+    None -> Ok (None, ps)
+
+  -- | Whether a variable is in scope.
+  in-scope :: Ps -> String -> Bool
+  in-scope ps v = case ps of Ps ts vars defs depth -> has-string vars v
+
+  -- | Whether a list holds a string.
+  has-string :: List String -> String -> Bool
+  has-string xs s = case xs of Nil -> False; Cons x rest -> x == s || has-string rest s
+
+  -- | A number constant: integers in decimal, hexadecimal, octal or binary, or a decimal float.
+  number-value :: String -> Option TemplateValue
+  number-value text =
+    let raw = strip-underscores (string-to-bytes text) in
+    let negative = at raw 0 == 45 in
+    let body = if at raw 0 == 45 || at raw 0 == 43 then slice raw 1 (bytes-len raw) else raw in
+    if bytes-len body == 0 then None
+    else if at body 0 == 48 && bytes-len body > 2 && (lower (at body 1) == 120 || lower (at body 1) == 111 || lower (at body 1) == 98) then
+      based (slice body 2 (bytes-len body)) (if lower (at body 1) == 120 then (16 :: Nat) else if lower (at body 1) == 111 then (8 :: Nat) else 2) negative
+    else if has-float-mark body 0 then (if decimal-float body then Some (TvFloat (f64-from-decimal raw)) else None)
+    else if at body 0 == 48 && bytes-len body > 1 then based (slice body 1 (bytes-len body)) 8 negative
+    else based body 10 negative
+
+  -- | Digits in a base as a signed integer.
+  based :: Bytes -> Nat -> Bool -> Option TemplateValue
+  based digits base negative =
+    if bytes-len digits == 0 || not (all-digits digits 0 base) then None
+    else let n = to-int (digits-in digits 0 base 0) in Some (TvInt (if negative then int-neg n else n))
+
+  -- | Whether every byte is a digit of the base.
+  all-digits :: Bytes -> Nat -> Nat -> Bool
+  all-digits b i base = if i >= bytes-len b then True else if is-hex (at b i) && hex-digit (at b i) < base then all-digits b (i + 1) base else False
+
+  -- | The value of digits in a base.
+  digits-in :: Bytes -> Nat -> Nat -> Nat -> Nat
+  digits-in b i base acc = if i >= bytes-len b then acc else digits-in b (i + 1) base (acc * base + hex-digit (at b i))
+
+  -- | Whether a spelling has a point or exponent.
+  has-float-mark :: Bytes -> Nat -> Bool
+  has-float-mark b i = if i >= bytes-len b then False else if at b i == 46 || lower (at b i) == 101 then True else has-float-mark b (i + 1)
+
+  -- | Whether a spelling is digits, an optional point and digits, and an optional exponent, with some digit.
+  decimal-float :: Bytes -> Bool
+  decimal-float b =
+    let i = digit-run b 0 in
+    let j = if at b i == 46 then digit-run b (i + 1) else i in
+    let mantissa = j > (if at b i == 46 then (1 :: Nat) else 0) in
+    if j >= bytes-len b then mantissa
+    else if lower (at b j) == 101 then
+      (let k = if at b (j + 1) == 43 || at b (j + 1) == 45 then j + 2 else j + 1 in let e = digit-run b k in mantissa && e > k && e == bytes-len b)
+    else False
+
+  -- | The end of a run of decimal digits.
+  digit-run :: Bytes -> Nat -> Nat
+  digit-run b i = if i < bytes-len b && is-digit (at b i) then digit-run b (i + 1) else i
+
+  -- | Drop digit-separating underscores.
+  strip-underscores :: Bytes -> Bytes
+  strip-underscores b = from-list (keep-not b 95 0 Nil)
+
+  -- | Bytes other than one value, in order.
+  keep-not :: Bytes -> Nat -> Nat -> List Nat -> List Nat
+  keep-not b v i acc = if i >= bytes-len b then reverse acc else keep-not b v (i + 1) (if at b i == v then acc else Cons (at b i) acc)
+
+  -- ---------------------------------------------------------------------
+  -- Execution.
+  -- ---------------------------------------------------------------------
+
+  -- | Execution context: the set's templates and functions, the missing-key mode, the running template's name and
+  -- the call depth.
+  data Ctx where
+    -- | Fields in the order listed above.
+    Ctx :: List (String, Node) -> List (String, TemplateFunction) -> MissingKey -> String -> Nat -> Ctx
+
+  -- | How a list of nodes finished.
+  data Flow where
+    -- | It ran to its end.
+    FlowNext :: Flow
+    -- | A {{break}} left the innermost range.
+    FlowBreak :: Flow
+    -- | A {{continue}} ends the iteration.
+    FlowContinue :: Flow
+
+  -- | Execution state after a list: output pieces (reversed), variables (innermost first) and the flow.
+  data Run where
+    -- | Fields in the order listed above.
+    Run :: List Bytes -> List (String, TemplateValue) -> Flow -> Run
+
+  -- | Whether a flow continues with the next sibling.
+  is-next :: Flow -> Bool
+  is-next f = case f of FlowNext -> True; other -> False
+
+  -- | Run a node spine with a cursor value.
+  exec :: Ctx -> Node -> TemplateValue -> List Bytes -> List (String, TemplateValue) -> Result String Run
+  exec ctx node dot out vars = case node of
+    NdEnd -> Ok (Run out vars FlowNext)
+    NdText b next -> exec ctx next dot (Cons b out) vars
+    NdAction p next -> (case eval-pipe ctx p dot vars of
+      Err e -> Err e
+      Ok (v, vars2) -> exec ctx next dot (if declares p then out else Cons (print-value v) out) vars2)
+    NdIf p body alt next -> (case eval-pipe ctx p dot vars of
+      Err e -> Err e
+      Ok (v, vars2) -> scoped ctx next dot vars (exec ctx (if template-is-true v then body else alt) dot out vars2))
+    NdWith p body alt next -> (case eval-pipe ctx p dot vars of
+      Err e -> Err e
+      Ok (v, vars2) -> scoped ctx next dot vars (if template-is-true v then exec ctx body v out vars2 else exec ctx alt dot out vars2))
+    NdRange p body alt next -> (case eval-pipe-value ctx p dot vars of
+      Err e -> Err e
+      Ok v -> scoped ctx next dot vars (range-over ctx p body alt dot v out vars))
+    NdTemplate name p next -> (case call-template ctx name p dot vars of
+      Err e -> Err e
+      Ok pieces -> exec ctx next dot (append-bytes pieces out) vars)
+    NdBreak next -> Ok (Run out vars FlowBreak)
+    NdContinue next -> Ok (Run out vars FlowContinue)
+
+  -- | After a nested list: drop the variables it declared (keeping assignments to outer ones), then continue with the
+  -- siblings unless it broke out or continued.
+  scoped :: Ctx -> Node -> TemplateValue -> List (String, TemplateValue) -> Result String Run -> Result String Run
+  scoped ctx next dot vars result = case result of
+    Err e -> Err e
+    Ok run -> case run of
+      Run out2 vars2 flow ->
+        let kept = pop-to vars2 (list-length vars) in
+        if is-next flow then exec ctx next dot out2 kept else Ok (Run out2 kept flow)
+
+  -- | Drop variables until n remain.
+  pop-to :: List (String, TemplateValue) -> Nat -> List (String, TemplateValue)
+  pop-to vars n = if list-length vars <= n then vars else case vars of Nil -> Nil; Cons v rest -> pop-to rest n
+
+  -- | Prepend reversed pieces of an inner run onto the output.
+  append-bytes :: List Bytes -> List Bytes -> List Bytes
+  append-bytes inner out = case reverse inner of Nil -> out; Cons b rest -> append-bytes-in (Cons b rest) out
+
+  -- | Push pieces in order onto the reversed output.
+  append-bytes-in :: List Bytes -> List Bytes -> List Bytes
+  append-bytes-in pieces out = case pieces of Nil -> out; Cons b rest -> append-bytes-in rest (Cons b out)
+
+  -- | Whether a pipeline declares or assigns variables (and so prints nothing).
+  declares :: Expr -> Bool
+  declares p = case p of ExPipe decls assign cmds -> list-length decls > 0; other -> False
+
+  -- | Call a template with the pipeline's value (nil without one) as its data.
+  call-template :: Ctx -> String -> Expr -> TemplateValue -> List (String, TemplateValue) -> Result String (List Bytes)
+  call-template ctx name p dot vars = case ctx of
+    Ctx ts fs mk current depth -> case lookup-node ts name of
+      None -> Err (string-concat-all ["no such template \"", name, "\""])
+      Some root ->
+        if depth >= 10000 then Err "exceeded maximum template depth (10000)"
+        else
+          let value = case p of ExCmdEnd -> Ok TvNil; other -> eval-pipe-value ctx p dot vars in
+          case value of
+            Err e -> Err e
+            Ok v -> case exec (Ctx ts fs mk name (depth + 1)) root v Nil (Cons ("$", v) Nil) of
+              Err e -> Err e
+              Ok run -> case run of Run inner vars2 flow -> Ok inner
+
+  -- | Range over a list (index and element), a map (key and value in key order) or an integer (each value below
+  -- it); nothing to range over runs the else list.
+  range-over :: Ctx -> Expr -> Node -> Node -> TemplateValue -> TemplateValue -> List Bytes -> List (String, TemplateValue) -> Result String Run
+  range-over ctx p body alt dot v out vars = case v of
+    TvList x rest -> iterate ctx p body (items v 0 Nil) out vars
+    TvMap k x rest -> iterate ctx p body (items v 0 Nil) out vars
+    TvInt n ->
+      if n <= 0 then exec ctx alt dot out vars
+      else if list-length (decl-names p) > 1 then Err (string-concat-all ["can't use ", int-to-string n, " to iterate over more than one variable"])
+      else iterate ctx p body (counting 0 n Nil) out vars
+    TvListEnd -> exec ctx alt dot out vars
+    TvMapEnd -> exec ctx alt dot out vars
+    TvNil -> exec ctx alt dot out vars
+    other -> Err (string-concat "range can't iterate over " (sprint-one v))
+
+  -- | Index-element pairs of a list or key-value pairs of a map, in order.
+  items :: TemplateValue -> Nat -> List (TemplateValue, TemplateValue) -> List (TemplateValue, TemplateValue)
+  items v i acc = case v of
+    TvList x rest -> items rest (i + 1) (Cons (TvInt (to-int i), x) acc)
+    TvMap k x rest -> items rest (i + 1) (Cons (TvString k, x) acc)
+    other -> reverse acc
+
+  -- | The pairs (i, i) for i below n.
+  counting :: Int -> Int -> List (TemplateValue, TemplateValue) -> List (TemplateValue, TemplateValue)
+  counting i n acc = if i >= n then reverse acc else counting (int-add i 1) n (Cons (TvInt i, TvInt i) acc)
+
+  -- | The variables a pipeline declares.
+  decl-names :: Expr -> List String
+  decl-names p = case p of ExPipe decls assign cmds -> decls; other -> Nil
+
+  -- | Whether a pipeline assigns rather than declares.
+  is-assign :: Expr -> Bool
+  is-assign p = case p of ExPipe decls assign cmds -> assign; other -> False
+
+  -- | Run the body for each pair, binding the range variables (one: the element; two: index or key, then element).
+  iterate :: Ctx -> Expr -> Node -> List (TemplateValue, TemplateValue) -> List Bytes -> List (String, TemplateValue) -> Result String Run
+  iterate ctx p body pairs out vars = case pairs of
+    Nil -> Ok (Run out vars FlowNext)
+    Cons pair rest -> case pair of
+      (index, elem) -> case bind-range p index elem vars of
+        Err e -> Err e
+        Ok bound -> case exec ctx body elem out bound of
+          Err e -> Err e
+          Ok run -> case run of
+            Run out2 vars2 flow ->
+              let kept = pop-to vars2 (list-length vars) in
+              case flow of
+                FlowBreak -> Ok (Run out2 kept FlowNext)
+                other -> iterate ctx p body rest out2 kept
+
+  -- | Bind range variables for one iteration.
+  bind-range :: Expr -> TemplateValue -> TemplateValue -> List (String, TemplateValue) -> Result String (List (String, TemplateValue))
+  bind-range p index elem vars = case decl-names p of
+    Nil -> Ok vars
+    Cons first rest -> case rest of
+      Nil -> if is-assign p then set-var vars first elem else Ok (Cons (first, elem) vars)
+      Cons second more -> if is-assign p then (case set-var vars first index of Err e -> Err e; Ok v2 -> set-var v2 second elem) else Ok (Cons (second, elem) (Cons (first, index) vars))
+
+  -- | Assign an existing variable.
+  set-var :: List (String, TemplateValue) -> String -> TemplateValue -> Result String (List (String, TemplateValue))
+  set-var vars name value = case vars of
+    Nil -> Err (string-concat "undefined variable: " name)
+    Cons v rest -> case v of
+      (n, old) -> if n == name then Ok (Cons (n, value) rest) else (case set-var rest name value of Err e -> Err e; Ok r -> Ok (Cons v r))
+
+  -- | A variable's value.
+  get-var :: List (String, TemplateValue) -> String -> Result String TemplateValue
+  get-var vars name = case vars of
+    Nil -> Err (string-concat "undefined variable: " name)
+    Cons v rest -> case v of (n, value) -> if n == name then Ok value else get-var rest name
+
+  -- | A pipeline's value and the variables after its declarations or assignments.
+  eval-pipe :: Ctx -> Expr -> TemplateValue -> List (String, TemplateValue) -> Result String (TemplateValue, List (String, TemplateValue))
+  eval-pipe ctx p dot vars = case eval-pipe-value ctx p dot vars of
+    Err e -> Err e
+    Ok v -> case p of
+      ExPipe decls assign cmds -> (case bind-all decls assign v vars of Err e -> Err e; Ok vars2 -> Ok (v, vars2))
+      other -> Ok (v, vars)
+
+  -- | Declare (push) or assign each declared variable to the value.
+  bind-all :: List String -> Bool -> TemplateValue -> List (String, TemplateValue) -> Result String (List (String, TemplateValue))
+  bind-all decls assign v vars = case decls of
+    Nil -> Ok vars
+    Cons d rest -> if assign then (case set-var vars d v of Err e -> Err e; Ok vars2 -> bind-all rest assign v vars2) else bind-all rest assign v (Cons (d, v) vars)
+
+  -- | A pipeline's value: each command's result is the final argument of the next.
+  eval-pipe-value :: Ctx -> Expr -> TemplateValue -> List (String, TemplateValue) -> Result String TemplateValue
+  eval-pipe-value ctx p dot vars = case p of
+    ExPipe decls assign cmds -> eval-cmds ctx cmds dot vars None
+    other -> eval-arg ctx p dot vars
+
+  -- | Fold the command spine.
+  eval-cmds :: Ctx -> Expr -> TemplateValue -> List (String, TemplateValue) -> Option TemplateValue -> Result String TemplateValue
+  eval-cmds ctx cmds dot vars final = case cmds of
+    ExCmd cmd rest -> (case eval-command ctx cmd dot vars final of Err e -> Err e; Ok v -> eval-cmds ctx rest dot vars (Some v))
+    other -> case final of Some v -> Ok v; None -> Ok TvNil
+
+  -- | The operands of a spine as a list.
+  operands :: Expr -> List Expr
+  operands e = case e of ExArg x rest -> Cons x (operands rest); other -> Nil
+
+  -- | One command: a function call, or a single value (which takes no arguments).
+  eval-command :: Ctx -> Expr -> TemplateValue -> List (String, TemplateValue) -> Option TemplateValue -> Result String TemplateValue
+  eval-command ctx cmd dot vars final = case operands cmd of
+    Nil -> Err "empty command"
+    Cons head args -> case head of
+      ExFunc name -> call ctx name args final dot vars
+      ExNil -> Err "nil is not a command"
+      other ->
+        if list-length args > 0 || is-some final then Err (string-concat "can't give argument to non-function " (describe head))
+        else eval-arg ctx head dot vars
+
+  -- | Whether an option holds a value.
+  is-some :: Option TemplateValue -> Bool
+  is-some o = case o of Some v -> True; None -> False
+
+  -- | A short description of an operand for messages.
+  describe :: Expr -> String
+  describe e = case e of
+    ExDot -> "."
+    ExField fs -> string-concat "." (join-names fs)
+    ExVar v fs -> if list-length fs == 0 then v else string-concat-all [v, ".", join-names fs]
+    ExConst v -> sprint-one v
+    other -> "value"
+
+  -- | Names joined by dots.
+  join-names :: List String -> String
+  join-names fs = case fs of Nil -> ""; Cons f rest -> case rest of Nil -> f; Cons g more -> string-concat-all [f, ".", join-names rest]
+
+  -- | An operand's value.
+  eval-arg :: Ctx -> Expr -> TemplateValue -> List (String, TemplateValue) -> Result String TemplateValue
+  eval-arg ctx e dot vars = case e of
+    ExDot -> Ok dot
+    ExNil -> Ok TvNil
+    ExConst v -> Ok v
+    ExField fs -> fields ctx dot fs
+    ExVar v fs -> (case get-var vars v of Err err -> Err err; Ok value -> fields ctx value fs)
+    ExFunc name -> call ctx name Nil None dot vars
+    ExChain p fs -> (case eval-arg ctx p dot vars of Err err -> Err err; Ok value -> fields ctx value fs)
+    ExPipe decls assign cmds -> eval-cmds ctx cmds dot vars None
+    other -> Err "unexpected operand"
+
+  -- | Follow a field chain.
+  fields :: Ctx -> TemplateValue -> List String -> Result String TemplateValue
+  fields ctx v fs = case fs of
+    Nil -> Ok v
+    Cons f rest -> case field ctx v f of Err e -> Err e; Ok next -> fields ctx next rest
+
+  -- | One field: a map entry (missing entries follow the missing-key mode); no value has no fields.
+  field :: Ctx -> TemplateValue -> String -> Result String TemplateValue
+  field ctx v name = case ctx of
+    Ctx ts fs mk current depth -> case v of
+      TvMap k x rest -> (case map-get v name of
+        Some found -> Ok found
+        None -> case mk of MissingKeyError -> Err (string-concat-all ["map has no entry for key \"", name, "\""]); other -> Ok TvNil)
+      TvMapEnd -> (case mk of MissingKeyError -> Err (string-concat-all ["map has no entry for key \"", name, "\""]); other -> Ok TvNil)
+      TvNil -> (case mk of MissingKeyError -> Err (string-concat-all ["nil data; no entry for key \"", name, "\""]); other -> Ok TvNil)
+      other -> Err (string-concat-all ["can't evaluate field ", name, " in type ", type-name v])
+
+  -- | A map entry by key.
+  map-get :: TemplateValue -> String -> Option TemplateValue
+  map-get m k = case m of TvMap key value rest -> if key == k then Some value else map-get rest k; other -> None
+
+  -- | The dynamic type name of a value, as messages show it.
+  type-name :: TemplateValue -> String
+  type-name v = case v of
+    TvNil -> "<nil>"
+    TvBool b -> "bool"
+    TvInt n -> "int"
+    TvFloat f -> "float64"
+    TvString s -> "string"
+    TvList x rest -> "[]interface {}"
+    TvListEnd -> "[]interface {}"
+    TvMap k x rest -> "map[string]interface {}"
+    TvMapEnd -> "map[string]interface {}"
+
+  -- | Call a function: and and or evaluate their arguments lazily; user functions shadow builtins.
+  call :: Ctx -> String -> List Expr -> Option TemplateValue -> TemplateValue -> List (String, TemplateValue) -> Result String TemplateValue
+  call ctx name args final dot vars = case ctx of
+    Ctx ts fs mk current depth ->
+      case lookup-func fs name of
+        Some f -> (case eval-args ctx args dot vars Nil of
+          Err e -> Err e
+          Ok values -> case f of
+            TemplateFunction g -> case g (with-final values final) of
+              Ok v -> Ok v
+              Err message -> Err (string-concat-all ["error calling ", name, ": ", message]))
+        None ->
+          if name == "and" || name == "or" then lazy ctx (name == "and") args final dot vars TvNil False
+          else case eval-args ctx args dot vars Nil of
+            Err e -> Err e
+            Ok values -> case builtin name (with-final values final) of
+              Ok v -> Ok v
+              Err message -> Err (string-concat-all ["error calling ", name, ": ", message])
+
+  -- | A user function by name.
+  lookup-func :: List (String, TemplateFunction) -> String -> Option TemplateFunction
+  lookup-func fs name = case fs of Nil -> None; Cons f rest -> case f of (n, g) -> if n == name then Some g else lookup-func rest name
+
+  -- | Arguments with the piped value last.
+  with-final :: List TemplateValue -> Option TemplateValue -> List TemplateValue
+  with-final values final = case final of Some v -> append-values values (Cons v Nil); None -> values
+
+  -- | Concatenate value lists.
+  append-values :: List TemplateValue -> List TemplateValue -> List TemplateValue
+  append-values xs ys = case xs of Nil -> ys; Cons x rest -> Cons x (append-values rest ys)
+
+  -- | Evaluate operands in order.
+  eval-args :: Ctx -> List Expr -> TemplateValue -> List (String, TemplateValue) -> List TemplateValue -> Result String (List TemplateValue)
+  eval-args ctx args dot vars acc = case args of
+    Nil -> Ok (reverse acc)
+    Cons a rest -> case eval-arg ctx a dot vars of Err e -> Err e; Ok v -> eval-args ctx rest dot vars (Cons v acc)
+
+  -- | and: the first false argument or the last; or: the first true argument or the last. Later arguments are not
+  -- evaluated once the answer is known.
+  lazy :: Ctx -> Bool -> List Expr -> Option TemplateValue -> TemplateValue -> List (String, TemplateValue) -> TemplateValue -> Bool -> Result String TemplateValue
+  lazy ctx conj args final dot vars last seen = case args of
+    Cons a rest -> (case eval-arg ctx a dot vars of
+      Err e -> Err e
+      Ok v -> if template-is-true v == not conj then Ok v else lazy ctx conj rest final dot vars v True)
+    Nil -> case final of
+      Some v -> Ok v
+      None -> if seen then Ok last else Err (string-concat-all ["wrong number of args for ", if conj then "and" else "or", ": want at least 1 got 0"])
+
+  -- ---------------------------------------------------------------------
+  -- Builtin functions.
+  -- ---------------------------------------------------------------------
+
+  -- | A builtin applied to evaluated arguments.
+  builtin :: String -> List TemplateValue -> Result String TemplateValue
+  builtin name args =
+    if name == "not" then (case args of Cons x rest -> (case rest of Nil -> Ok (TvBool (not (template-is-true x))); other -> arity name 1 args); Nil -> arity name 1 args)
+    else if name == "len" then (case args of Cons x rest -> (case rest of Nil -> length-of x; other -> arity name 1 args); Nil -> arity name 1 args)
+    else if name == "index" then (case args of Cons x rest -> index-all x rest; Nil -> Err "wrong number of args for index: want at least 1 got 0")
+    else if name == "slice" then (case args of Cons x rest -> slice-value x rest; Nil -> Err "wrong number of args for slice: want at least 1 got 0")
+    else if name == "print" then Ok (TvString (text-of (sprint args)))
+    else if name == "println" then Ok (TvString (text-of (sprintln args)))
+    else if name == "printf" then (case args of
+      Cons f rest -> (case f of TvString format -> Ok (TvString (text-of (template-sprintf format rest))); other -> Err (string-concat "wrong type for value; expected string; got " (type-name f)))
+      Nil -> Err "wrong number of args for printf: want at least 1 got 0")
+    else if name == "eq" then (case args of Cons x rest -> (case equal-any x rest of Err e -> Err e; Ok b -> Ok (TvBool b)); Nil -> Err "missing argument for comparison")
+    else if name == "ne" || name == "lt" || name == "le" || name == "gt" || name == "ge" then binary name args
+    else if name == "html" then Ok (TvString (text-of (template-html-escape (string-to-bytes (escape-args args)))))
+    else if name == "js" then Ok (TvString (text-of (template-js-escape (string-to-bytes (escape-args args)))))
+    else if name == "urlquery" then Ok (TvString (text-of (template-url-query-escape (string-to-bytes (escape-args args)))))
+    else if name == "call" then Err "call of nil"
+    else Err (string-concat-all ["\"", name, "\" is not a defined function"])
+
+  -- | An arity error.
+  arity :: String -> Nat -> List TemplateValue -> Result String TemplateValue
+  arity name want args = Err (string-concat-all ["wrong number of args for ", name, ": want ", nat-to-string want, " got ", nat-to-string (list-length args)])
+
+  -- | A two-argument comparison.
+  binary :: String -> List TemplateValue -> Result String TemplateValue
+  binary name args = case args of
+    Cons x rest -> (case rest of
+      Cons y more -> (case more of Nil -> (case relation name x y of Err e -> Err e; Ok b -> Ok (TvBool b)); other -> arity name 2 args)
+      Nil -> arity name 2 args)
+    Nil -> arity name 2 args
+
+  -- | ne, lt, le, gt or ge of two values.
+  relation :: String -> TemplateValue -> TemplateValue -> Result String Bool
+  relation name x y =
+    if name == "ne" then (case equal x y of Err e -> Err e; Ok b -> Ok (not b))
+    else case less x y of
+      Err e -> Err e
+      Ok b ->
+        if name == "lt" then Ok b
+        else if name == "ge" then Ok (not b)
+        else case equal x y of
+          Err e -> Err e
+          Ok q -> if name == "le" then Ok (b || q) else Ok (not (b || q))
+
+  -- | The text the escaping functions work on: a lone string as it is, else the arguments printed.
+  escape-args :: List TemplateValue -> String
+  escape-args args = case args of
+    Cons x rest -> (case rest of Nil -> (case x of TvString s -> s; other -> text-of (sprint args)); other -> text-of (sprint args))
+    Nil -> ""
+
+  -- | len of a string (in bytes), list or map.
+  length-of :: TemplateValue -> Result String TemplateValue
+  length-of v = case v of
+    TvString s -> Ok (TvInt (to-int (string-byte-length s)))
+    TvList x rest -> Ok (TvInt (to-int (count v 0)))
+    TvListEnd -> Ok (TvInt 0)
+    TvMap k x rest -> Ok (TvInt (to-int (count v 0)))
+    TvMapEnd -> Ok (TvInt 0)
+    other -> Err (string-concat "len of type " (type-name v))
+
+  -- | Elements or entries of a spine.
+  count :: TemplateValue -> Nat -> Nat
+  count v n = case v of TvList x rest -> count rest (n + 1); TvMap k x rest -> count rest (n + 1); other -> n
+
+  -- | index x i j ...: successive list positions and map keys.
+  index-all :: TemplateValue -> List TemplateValue -> Result String TemplateValue
+  index-all x idx = case idx of
+    Nil -> Ok x
+    Cons i rest -> case index-one x i of Err e -> Err e; Ok v -> index-all v rest
+
+  -- | One indexing step.
+  index-one :: TemplateValue -> TemplateValue -> Result String TemplateValue
+  index-one x i = case x of
+    TvNil -> Err "index of untyped nil"
+    TvMap k v rest -> (case i of TvString key -> (case map-get x key of Some found -> Ok found; None -> Ok TvNil); other -> Err (string-concat "value has type " (string-concat (type-name i) "; should be string")))
+    TvMapEnd -> (case i of TvString key -> Ok TvNil; other -> Err (string-concat "value has type " (string-concat (type-name i) "; should be string")))
+    TvList v rest -> list-index x i
+    TvListEnd -> list-index x i
+    other -> Err (string-concat "can't index item of type " (type-name x))
+
+  -- | A list position, bounds-checked.
+  list-index :: TemplateValue -> TemplateValue -> Result String TemplateValue
+  list-index x i = case i of
+    TvInt n -> if n < 0 || n >= to-int (count x 0) then Err (string-concat "index out of range: " (int-to-string n)) else Ok (nth-value x (int-nat n))
+    other -> Err (string-concat "cannot index slice/array with type " (type-name i))
+
+  -- | A non-negative integer as a natural number (negatives become zero).
+  int-nat :: Int -> Nat
+  int-nat n = case checked-int-to-i64 n of Some k -> i64-to-nat k; None -> 0
+
+  -- | The n-th list element.
+  nth-value :: TemplateValue -> Nat -> TemplateValue
+  nth-value x n = case x of TvList v rest -> if n == 0 then v else nth-value rest (n - 1); other -> TvNil
+
+  -- | slice x [i [j [k]]] of a string (bytes) or list; k bounds the capacity and is checked only.
+  slice-value :: TemplateValue -> List TemplateValue -> Result String TemplateValue
+  slice-value x idx =
+    let size = case x of TvString s -> string-byte-length s; other -> count x 0 in
+    case slice-indices idx size Nil of
+      Err e -> Err e
+      Ok bounds -> case x of
+        TvString s -> (if list-length bounds > 2 then Err "cannot 3-index slice a string" else Ok (TvString (text-of (slice (string-to-bytes s) (nth-nat bounds 0 0) (nth-nat bounds 1 size)))))
+        TvList v rest -> Ok (template-list (take-range (list-values x) (nth-nat bounds 0 0) (nth-nat bounds 1 size)))
+        TvListEnd -> Ok TvListEnd
+        TvNil -> Err "slice of untyped nil"
+        other -> Err (string-concat "can't slice item of type " (type-name x))
+
+  -- | Check slice indices: integers within the size, in order.
+  slice-indices :: List TemplateValue -> Nat -> List Nat -> Result String (List Nat)
+  slice-indices idx size acc = case idx of
+    Nil -> if ordered (reverse acc) then Ok (reverse acc) else Err "invalid slice index"
+    Cons i rest -> case i of
+      TvInt n -> if n < 0 || n > to-int size then Err (string-concat "index out of range: " (int-to-string n)) else slice-indices rest size (Cons (int-nat n) acc)
+      other -> Err (string-concat "cannot index slice/array with type " (type-name i))
+
+  -- | Whether indices do not decrease.
+  ordered :: List Nat -> Bool
+  ordered xs = case xs of Nil -> True; Cons x rest -> case rest of Nil -> True; Cons y more -> x <= y && ordered rest
+
+  -- | The n-th index or a default.
+  nth-nat :: List Nat -> Nat -> Nat -> Nat
+  nth-nat xs n d = case xs of Nil -> d; Cons x rest -> if n == 0 then x else nth-nat rest (n - 1) d
+
+  -- | The elements of a list value.
+  list-values :: TemplateValue -> List TemplateValue
+  list-values v = case v of TvList x rest -> Cons x (list-values rest); other -> Nil
+
+  -- | Elements [i, j).
+  take-range :: List TemplateValue -> Nat -> Nat -> List TemplateValue
+  take-range xs i j = case xs of Nil -> Nil; Cons x rest -> if i > 0 then take-range rest (i - 1) (minus j 1) else if j == 0 then Nil else Cons x (take-range rest 0 (j - 1))
+
+  -- | eq x y ...: whether x equals any of the others. Values of different kinds cannot be compared (except with nil,
+  -- which equals only nil); lists and maps cannot be compared.
+  equal-any :: TemplateValue -> List TemplateValue -> Result String Bool
+  equal-any x ys = case ys of
+    Nil -> Ok False
+    Cons y rest -> case equal x y of Err e -> Err e; Ok b -> if b then Ok True else equal-any x rest
+
+  -- | Equality of two basic values.
+  equal :: TemplateValue -> TemplateValue -> Result String Bool
+  equal x y = case x of
+    TvNil -> (case y of TvNil -> Ok True; other -> Ok False)
+    TvBool a -> (case y of TvBool b -> Ok (a == b); TvNil -> Ok False; other -> Err "incompatible types for comparison")
+    TvInt a -> (case y of TvInt b -> Ok (a == b); TvNil -> Ok False; other -> Err "incompatible types for comparison")
+    TvFloat a -> (case y of TvFloat b -> Ok (feq-f64 a b); TvNil -> Ok False; other -> Err "incompatible types for comparison")
+    TvString a -> (case y of TvString b -> Ok (a == b); TvNil -> Ok False; other -> Err "incompatible types for comparison")
+    other -> (case y of TvNil -> Ok False; other2 -> Err (string-concat "non-comparable type " (type-name x)))
+
+  -- | x < y for integers, floats or strings of the same kind.
+  less :: TemplateValue -> TemplateValue -> Result String Bool
+  less x y = case x of
+    TvInt a -> (case y of TvInt b -> Ok (a < b); other -> bad-compare y)
+    TvFloat a -> (case y of TvFloat b -> Ok (flt-f64 a b); other -> bad-compare y)
+    TvString a -> (case y of TvString b -> Ok (lt-i64 (string-compare a b) 0); other -> bad-compare y)
+    other -> Err "invalid type for comparison"
+
+  -- | The error for an ordering across kinds.
+  bad-compare :: TemplateValue -> Result String Bool
+  bad-compare y = case y of TvBool b -> Err "invalid type for comparison"; other -> Err "incompatible types for comparison"
+
+  -- ---------------------------------------------------------------------
+  -- Printing.
+  -- ---------------------------------------------------------------------
+
+  -- | An action's printed value: no value prints as "<no value>".
+  print-value :: TemplateValue -> Bytes
+  print-value v = case v of TvNil -> string-to-bytes "<no value>"; other -> string-to-bytes (sprint-one v)
+
+  -- | The default text of one value.
+  sprint-one :: TemplateValue -> String
+  sprint-one v = text-of (format-value (plain-spec ()) 118 v)
+
+  -- | Operands printed with their default formats, with a space between operands when neither is a string.
+  sprint :: List TemplateValue -> Bytes
+  sprint args = bytes-concat (sprint-from args False True Nil)
+
+  -- | Pieces (reversed) of print's output.
+  sprint-from :: List TemplateValue -> Bool -> Bool -> List Bytes -> List Bytes
+  sprint-from args previous first acc = case args of
+    Nil -> reverse acc
+    Cons x rest ->
+      let current = is-string x in
+      let spaced = if not first && not current && not previous then Cons (string-to-bytes " ") acc else acc in
+      sprint-from rest current False (Cons (format-value (plain-spec ()) 118 x) spaced)
+
+  -- | Whether a value is a string.
+  is-string :: TemplateValue -> Bool
+  is-string v = case v of TvString s -> True; other -> False
+
+  -- | Operands separated by spaces, then a line feed.
+  sprintln :: List TemplateValue -> Bytes
+  sprintln args = bytes-concat [bytes-join (map default-text args) (string-to-bytes " "), string-to-bytes "\n"]
+
+  -- | A value in its default format.
+  default-text :: TemplateValue -> Bytes
+  default-text v = format-value (plain-spec ()) 118 v
+
+  -- | Formatting flags, width and precision.
+  data Spec where
+    -- | Minus, plus, sharp, space and zero flags, then the width and precision when given.
+    Spec :: Bool -> Bool -> Bool -> Bool -> Bool -> Option Nat -> Option Nat -> Spec
+
+  -- | No flags, width or precision.
+  plain-spec :: Unit -> Spec
+  plain-spec unit = Spec False False False False False None None
+
+  -- | Format arguments by a format string: verbs %v %d %b %o %O %x %X %c %q %U %e %E %f %F %g %G %s %t %T and %%,
+  -- flags "-+# 0", widths and precisions (including "*"). Problems are written in place as %!verb(type=value),
+  -- %!verb(MISSING), %!(NOVERB) and a trailing %!(EXTRA type=value, ...).
+  template-sprintf :: String -> List TemplateValue -> Bytes
+  template-sprintf format args = printf-from (string-to-bytes format) 0 args Nil
+
+  -- | Scan the format from i with the remaining arguments; pieces gather in reverse.
+  printf-from :: Bytes -> Nat -> List TemplateValue -> List Bytes -> Bytes
+  printf-from f i args acc =
+    if i >= bytes-len f then bytes-concat (reverse (extra args acc))
+    else
+      let k = scalar-find f 37 i in
+      let acc2 = if k > i then Cons (slice f i k) acc else acc in
+      if k >= bytes-len f then bytes-concat (reverse (extra args acc2))
+      else directive f (k + 1) args acc2 (plain-spec ())
+
+  -- | The trailing report of unused arguments.
+  extra :: List TemplateValue -> List Bytes -> List Bytes
+  extra args acc = case args of
+    Nil -> acc
+    Cons x rest -> Cons (bytes-concat [string-to-bytes "%!(EXTRA ", bytes-join (map extra-one args) (string-to-bytes ", "), string-to-bytes ")"]) acc
+
+  -- | One unused argument as type=value.
+  extra-one :: TemplateValue -> Bytes
+  extra-one v = case v of TvNil -> string-to-bytes "<nil>"; other -> bytes-concat [string-to-bytes (type-name v), string-to-bytes "=", format-value (plain-spec ()) 118 v]
+
+  -- | After "%": flags, width, precision, then the verb.
+  directive :: Bytes -> Nat -> List TemplateValue -> List Bytes -> Spec -> Bytes
+  directive f i args acc fs = case fs of
+    Spec minus plus sharp space zero width prec ->
+      let c = at f i in
+      if i >= bytes-len f then bytes-concat (reverse (extra args (Cons (string-to-bytes "%!(NOVERB)") acc)))
+      else if c == 45 then directive f (i + 1) args acc (Spec True plus sharp space False width prec)
+      else if c == 43 then directive f (i + 1) args acc (Spec minus True sharp space zero width prec)
+      else if c == 35 then directive f (i + 1) args acc (Spec minus plus True space zero width prec)
+      else if c == 32 then directive f (i + 1) args acc (Spec minus plus sharp True zero width prec)
+      else if c == 48 then directive f (i + 1) args acc (Spec minus plus sharp space (not minus) width prec)
+      else width-part f i args acc fs
+
+  -- | The width: digits or "*".
+  width-part :: Bytes -> Nat -> List TemplateValue -> List Bytes -> Spec -> Bytes
+  width-part f i args acc fs = case fs of
+    Spec minus plus sharp space zero width prec ->
+      if at f i == 42 then (case args of
+        Cons a rest -> (case a of
+          TvInt n -> if n < 0 then precision-part f (i + 1) rest acc (Spec True plus sharp space False (Some (int-nat (int-neg n))) prec) else precision-part f (i + 1) rest acc (Spec minus plus sharp space zero (Some (int-nat n)) prec)
+          other -> precision-part f (i + 1) rest (Cons (string-to-bytes "%!(BADWIDTH)") acc) fs)
+        Nil -> precision-part f (i + 1) args (Cons (string-to-bytes "%!(BADWIDTH)") acc) fs)
+      else
+        let j = digit-run f i in
+        precision-part f j args acc (if j > i then Spec minus plus sharp space zero (Some (digits-in (slice f i j) 0 10 0)) prec else fs)
+
+  -- | The precision: "." then digits or "*".
+  precision-part :: Bytes -> Nat -> List TemplateValue -> List Bytes -> Spec -> Bytes
+  precision-part f i args acc fs = case fs of
+    Spec minus plus sharp space zero width prec ->
+      if not (at f i == 46) || i >= bytes-len f then verb-part f i args acc fs
+      else if at f (i + 1) == 42 then (case args of
+        Cons a rest -> (case a of
+          TvInt n -> verb-part f (i + 2) rest acc (Spec minus plus sharp space zero width (if n < 0 then None else Some (int-nat n)))
+          other -> verb-part f (i + 2) rest (Cons (string-to-bytes "%!(BADPREC)") acc) fs)
+        Nil -> verb-part f (i + 2) args (Cons (string-to-bytes "%!(BADPREC)") acc) fs)
+      else
+        let j = digit-run f (i + 1) in
+        verb-part f j args acc (Spec minus plus sharp space zero width (Some (digits-in (slice f (i + 1) j) 0 10 0)))
+
+  -- | The verb, applied to the next argument.
+  verb-part :: Bytes -> Nat -> List TemplateValue -> List Bytes -> Spec -> Bytes
+  verb-part f i args acc fs =
+    if i >= bytes-len f then bytes-concat (reverse (extra args (Cons (string-to-bytes "%!(NOVERB)") acc)))
+    else
+      let n = rune-size f i in
+      let size = if n == 0 then (1 :: Nat) else n in
+      let verb = if n == 0 then (65533 :: Nat) else rune-value f i n in
+      if verb == 37 then printf-from f (i + size) args (Cons (string-to-bytes "%") acc)
+      else case args of
+        Nil -> printf-from f (i + size) args (Cons (bytes-concat [string-to-bytes "%!", encode-rune verb, string-to-bytes "(MISSING)"]) acc)
+        Cons x rest -> printf-from f (i + size) rest (Cons (format-value fs verb x) acc)
+
+  -- | Format one value by a verb.
+  format-value :: Spec -> Nat -> TemplateValue -> Bytes
+  format-value fs verb v =
+    if verb == 84 then pad fs (string-to-bytes (type-name v))
+    else case v of
+      TvNil -> if verb == 118 then pad fs (string-to-bytes "<nil>") else bytes-concat [string-to-bytes "%!", encode-rune verb, string-to-bytes "(<nil>)"]
+      TvBool b -> if verb == 118 || verb == 116 then pad fs (string-to-bytes (if b then "true" else "false")) else bad-verb verb v
+      TvInt n -> format-int fs verb n v
+      TvFloat x -> format-float fs verb x v
+      TvString s -> format-string fs verb s v
+      TvList x rest -> bytes-concat [string-to-bytes "[", bytes-join (map (format-value fs verb) (list-values v)) (string-to-bytes " "), string-to-bytes "]"]
+      TvListEnd -> string-to-bytes "[]"
+      TvMap k x rest -> bytes-concat [string-to-bytes "map[", bytes-join (map-entries fs verb v) (string-to-bytes " "), string-to-bytes "]"]
+      TvMapEnd -> string-to-bytes "map[]"
+
+  -- | Map entries as key:value.
+  map-entries :: Spec -> Nat -> TemplateValue -> List Bytes
+  map-entries fs verb m = case m of
+    TvMap k x rest -> Cons (bytes-concat [format-value fs verb (TvString k), string-to-bytes ":", format-value fs verb x]) (map-entries fs verb rest)
+    other -> Nil
+
+  -- | A verb that does not apply: %!verb(type=value).
+  bad-verb :: Nat -> TemplateValue -> Bytes
+  bad-verb verb v = bytes-concat [string-to-bytes "%!", encode-rune verb, string-to-bytes "(", string-to-bytes (type-name v), string-to-bytes "=", format-value (plain-spec ()) 118 v, string-to-bytes ")"]
+
+  -- | Pad to the width with spaces (left, or right with the minus flag), counting code points.
+  pad :: Spec -> Bytes -> Bytes
+  pad fs b = case fs of
+    Spec minus plus sharp space zero width prec -> case width of
+      None -> b
+      Some w ->
+        let n = rune-count b 0 0 in
+        if n >= w then b
+        else if minus then bytes-concat [b, bytes-repeat (w - n) (string-to-bytes " ")]
+        else bytes-concat [bytes-repeat (w - n) (string-to-bytes " "), b]
+
+  -- | Code points in UTF-8 text (invalid bytes count one each).
+  rune-count :: Bytes -> Nat -> Nat -> Nat
+  rune-count b i n = if i >= bytes-len b then n else let k = rune-size b i in rune-count b (i + (if k == 0 then (1 :: Nat) else k)) (n + 1)
+
+  -- | Integers: %d %v (decimal), %b, %o, %O, %x, %X, %c, %q, %U.
+  format-int :: Spec -> Nat -> Int -> TemplateValue -> Bytes
+  format-int fs verb n v =
+    let negative = n < 0 in
+    let magnitude = int-nat (if negative then int-neg n else n) in
+    if verb == 100 || verb == 118 then integer fs verb negative magnitude 10 False
+    else if verb == 98 then integer fs verb negative magnitude 2 False
+    else if verb == 111 || verb == 79 then integer fs verb negative magnitude 8 False
+    else if verb == 120 then integer fs verb negative magnitude 16 False
+    else if verb == 88 then integer fs verb negative magnitude 16 True
+    else if verb == 99 then pad fs (encode-rune (if negative || magnitude > 1114111 || (magnitude >= 55296 && magnitude <= 57343) then (65533 :: Nat) else magnitude))
+    else if verb == 113 then pad fs (quote-rune (if negative || magnitude > 1114111 then (65533 :: Nat) else magnitude))
+    else if verb == 85 then pad fs (bytes-concat [string-to-bytes "U+", pad-left-zeros (digits-of magnitude 16 True) 4])
+    else bad-verb verb v
+
+  -- | Digits, precision, prefix, sign and padding of an integer.
+  integer :: Spec -> Nat -> Bool -> Nat -> Nat -> Bool -> Bytes
+  integer fs verb negative magnitude base upper = case fs of
+    Spec minus plus sharp space zero width prec ->
+      let sign = if negative then string-to-bytes "-" else if plus then string-to-bytes "+" else if space then string-to-bytes " " else no-bytes () in
+      let raw = if magnitude == 0 && is-zero-prec prec then no-bytes () else digits-of magnitude base upper in
+      let wanted = case prec of Some p -> p; None -> if zero && not minus then (case width of Some w -> (if w >= bytes-len sign then w - bytes-len sign else 0); None -> 0) else 0 in
+      let padded = pad-left-zeros raw wanted in
+      let lead = if verb == 79 then string-to-bytes "0o" else if not sharp then no-bytes () else if base == 16 then string-to-bytes (if upper then "0X" else "0x") else if base == 2 then string-to-bytes "0b" else if base == 8 && not (at padded 0 == 48) then string-to-bytes "0" else no-bytes () in
+      pad (Spec minus plus sharp space False width prec) (bytes-concat [sign, lead, padded])
+
+  -- | Whether a precision is exactly zero.
+  is-zero-prec :: Option Nat -> Bool
+  is-zero-prec p = case p of Some n -> n == 0; None -> False
+
+  -- | The digits of a natural number in a base.
+  digits-of :: Nat -> Nat -> Bool -> Bytes
+  digits-of n base upper = if n == 0 then string-to-bytes "0" else from-list (digit-list n base upper Nil)
+
+  -- | Digits most significant first.
+  digit-list :: Nat -> Nat -> Bool -> List Nat -> List Nat
+  digit-list n base upper acc =
+    if n == 0 || base < 2 then acc
+    else
+      let d = nat-rem n (if base == 2 then (2 :: Nat) else if base == 8 then (8 :: Nat) else if base == 16 then (16 :: Nat) else 10) in
+      let q = nat-div n (if base == 2 then (2 :: Nat) else if base == 8 then (8 :: Nat) else if base == 16 then (16 :: Nat) else 10) in
+      digit-list q base upper (Cons (if d < 10 then 48 + d else (if upper then (55 :: Nat) else 87) + d) acc)
+
+  -- | Left-pad with zeros to a length.
+  pad-left-zeros :: Bytes -> Nat -> Bytes
+  pad-left-zeros b n = if bytes-len b >= n then b else bytes-concat [bytes-repeat (n - bytes-len b) (string-to-bytes "0"), b]
+
+  -- | Strings: %s %v, %q (quoted), %x and %X (hexadecimal bytes); the precision truncates to code points.
+  format-string :: Spec -> Nat -> String -> TemplateValue -> Bytes
+  format-string fs verb s v = case fs of
+    Spec minus plus sharp space zero width prec ->
+      let b = case prec of Some p -> take-runes (string-to-bytes s) p 0 0; None -> string-to-bytes s in
+      if verb == 115 || verb == 118 then pad fs b
+      else if verb == 113 then pad fs (quote-string b)
+      else if verb == 120 || verb == 88 then pad fs (hex-bytes b (verb == 88) space sharp)
+      else bad-verb verb v
+
+  -- | The first n code points.
+  take-runes :: Bytes -> Nat -> Nat -> Nat -> Bytes
+  take-runes b n i k = if k >= n || i >= bytes-len b then slice b 0 i else let r = rune-size b i in take-runes b n (i + (if r == 0 then (1 :: Nat) else r)) (k + 1)
+
+  -- | Bytes in hexadecimal, optionally separated by spaces and prefixed.
+  hex-bytes :: Bytes -> Bool -> Bool -> Bool -> Bytes
+  hex-bytes b upper spaced prefixed = bytes-join (hex-pieces b upper prefixed spaced 0 Nil) (if spaced then string-to-bytes " " else no-bytes ())
+
+  -- | Hex pieces: per byte when spaced, else one piece.
+  hex-pieces :: Bytes -> Bool -> Bool -> Bool -> Nat -> List Bytes -> List Bytes
+  hex-pieces b upper prefixed spaced i acc =
+    if i >= bytes-len b then (if spaced then reverse acc else Cons (bytes-concat [if prefixed && bytes-len b > 0 then string-to-bytes (if upper then "0X" else "0x") else no-bytes (), bytes-concat (reverse acc)]) Nil)
+    else
+      let pair = pad-left-zeros (digits-of (at b i) 16 upper) 2 in
+      hex-pieces b upper prefixed spaced (i + 1) (Cons (if spaced && prefixed then bytes-concat [string-to-bytes (if upper then "0X" else "0x"), pair] else pair) acc)
+
+  -- | A double-quoted string literal: printable code points as they are, others escaped.
+  quote-string :: Bytes -> Bytes
+  quote-string b = bytes-concat [string-to-bytes "\"", bytes-concat (quote-from b 0 34 Nil), string-to-bytes "\""]
+
+  -- | A single-quoted character literal.
+  quote-rune :: Nat -> Bytes
+  quote-rune c = bytes-concat [string-to-bytes "'", quote-one c 39, string-to-bytes "'"]
+
+  -- | Quoted pieces of text (reversed, returned in order).
+  quote-from :: Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  quote-from b i q acc =
+    if i >= bytes-len b then reverse acc
+    else
+      let n = rune-size b i in
+      if n == 0 then quote-from b (i + 1) q (Cons (bytes-concat [string-to-bytes "\\x", pad-left-zeros (digits-of (at b i) 16 False) 2]) acc)
+      else quote-from b (i + n) q (Cons (quote-one (rune-value b i n) q) acc)
+
+  -- | One code point inside a literal quoted with q.
+  quote-one :: Nat -> Nat -> Bytes
+  quote-one c q =
+    if c == q || c == 92 then from-list [92, c]
+    else if printable c then encode-rune c
+    else if c == 7 then string-to-bytes "\\a"
+    else if c == 8 then string-to-bytes "\\b"
+    else if c == 12 then string-to-bytes "\\f"
+    else if c == 10 then string-to-bytes "\\n"
+    else if c == 13 then string-to-bytes "\\r"
+    else if c == 9 then string-to-bytes "\\t"
+    else if c == 11 then string-to-bytes "\\v"
+    else if c < 32 || c == 127 then bytes-concat [string-to-bytes "\\x", pad-left-zeros (digits-of c 16 False) 2]
+    else if c < 65536 then bytes-concat [string-to-bytes "\\u", pad-left-zeros (digits-of c 16 False) 4]
+    else bytes-concat [string-to-bytes "\\U", pad-left-zeros (digits-of c 16 False) 8]
+
+  -- | Whether a code point is printable (letters, marks, numbers, punctuation, symbols and the ASCII space).
+  printable :: Nat -> Bool
+  printable c = c < 1114112 && unicode-is-print-code (wrapping-i64-to-i32 (nat-to-i64 c))
+
+  -- ---------------------------------------------------------------------
+  -- Floats.
+  -- ---------------------------------------------------------------------
+
+  -- | Floats: %v %g %G (shortest digits unless a precision is given), %e %E and %f %F (precision 6 by default).
+  -- Digits are exact: a precision rounds the binary value's exact decimal expansion half to even.
+  format-float :: Spec -> Nat -> F64 -> TemplateValue -> Bytes
+  format-float fs verb x v =
+    let bits = f64-bits x in
+    let negative = not (eq-u64 (wrapping-shr-u64 bits 63) (wrapping-i64-to-u64 0)) in
+    let field = u64-nat (bit-and-u64 (wrapping-shr-u64 bits 52) (wrapping-i64-to-u64 2047)) in
+    let fraction = u64-nat (bit-and-u64 bits (wrapping-i64-to-u64 4503599627370495)) in
+    if not (verb == 118 || verb == 103 || verb == 71 || verb == 101 || verb == 69 || verb == 102 || verb == 70) then bad-verb verb v
+    else if field == 2047 then special fs negative (fraction == 0)
+    else signed fs negative (float-body fs verb negative field fraction x)
+
+  -- | Infinity (with its sign) or NaN (without, unless asked), padded with spaces.
+  special :: Spec -> Bool -> Bool -> Bytes
+  special fs negative infinite = case fs of
+    Spec minus plus sharp space zero width prec ->
+      let text = if infinite then (if negative then "-Inf" else if space && not plus then " Inf" else "+Inf") else (if plus then "+NaN" else if space then " NaN" else "NaN") in
+      pad (Spec minus plus sharp space False width prec) (string-to-bytes text)
+
+  -- | Sign and padding: zeros sit between the sign and the digits.
+  signed :: Spec -> Bool -> Bytes -> Bytes
+  signed fs negative body = case fs of
+    Spec minus plus sharp space zero width prec ->
+      let sign = if negative then string-to-bytes "-" else if plus then string-to-bytes "+" else if space then string-to-bytes " " else no-bytes () in
+      case width of
+        Some w -> if zero && not minus && w > bytes-len sign + bytes-len body then bytes-concat [sign, bytes-repeat (w - bytes-len sign - bytes-len body) (string-to-bytes "0"), body] else pad fs (bytes-concat [sign, body])
+        None -> bytes-concat [sign, body]
+
+  -- | The unsigned text of a finite float for a verb.
+  float-body :: Spec -> Nat -> Bool -> Nat -> Nat -> F64 -> Bytes
+  float-body fs verb negative field fraction x = case fs of
+    Spec minus plus sharp space zero width prec ->
+      let upper = verb == 71 || verb == 69 in
+      if verb == 101 || verb == 69 then
+        (let p = case prec of Some n -> n; None -> 6 in
+        case exact field fraction of (d, dp) -> case round-to d dp (int-add (to-int p) 1) of (r, rdp) -> exp-form r rdp p upper)
+      else if verb == 102 || verb == 70 then
+        (let p = case prec of Some n -> n; None -> 6 in
+        case exact field fraction of (d, dp) -> case round-to d dp (int-add dp (to-int p)) of (r, rdp) -> fixed-form r rdp p)
+      else case prec of
+        None -> (case shortest x of (d, dp) -> general d dp (bytes-len d) True upper)
+        Some p0 ->
+          let p = if p0 == 0 then (1 :: Nat) else p0 in
+          case exact field fraction of (d, dp) -> case round-to d dp (to-int p) of (r, rdp) -> general r rdp p False upper
+
+  -- | %g: exponent form when the exponent is below -4 or at least the precision (6 for shortest digits), else fixed.
+  general :: Bytes -> Int -> Nat -> Bool -> Bool -> Bytes
+  general d dp p shortest-digits upper =
+    let nd = bytes-len d in
+    let eprec = if shortest-digits then to-int 6 else (if p > nd && to-int nd >= dp then to-int nd else to-int p) in
+    let x = int-sub dp 1 in
+    if nd == 0 then string-to-bytes "0"
+    else if x < int-neg 4 || x >= eprec then exp-form d dp (minus (if p > nd then nd else p) 1) upper
+    else fixed-form d dp (int-nat (int-sub (to-int (if to-int p > dp then nd else p)) dp))
+
+  -- | d.ddd e±xx with prec digits after the point.
+  exp-form :: Bytes -> Int -> Nat -> Bool -> Bytes
+  exp-form d dp prec upper =
+    let first = if bytes-len d == 0 then string-to-bytes "0" else slice d 0 1 in
+    let rest = if prec > 0 then bytes-concat [string-to-bytes ".", pad-right-zeros (slice d 1 (bytes-len d)) prec] else no-bytes () in
+    let e = if bytes-len d == 0 then to-int 0 else int-sub dp 1 in
+    let mark = if upper then "E" else "e" in
+    let sign = if e < 0 then "-" else "+" in
+    bytes-concat [first, rest, string-to-bytes mark, string-to-bytes sign, pad-left-zeros (string-to-bytes (nat-to-string (int-nat (if e < 0 then int-neg e else e)))) 2]
+
+  -- | Integer part, then prec digits after the point.
+  fixed-form :: Bytes -> Int -> Nat -> Bytes
+  fixed-form d dp prec =
+    let whole = if dp > 0 then pad-right-zeros (slice d 0 (if int-nat dp < bytes-len d then int-nat dp else bytes-len d)) (int-nat dp) else string-to-bytes "0" in
+    let frac = if prec > 0 then bytes-concat [string-to-bytes ".", from-list (fraction-digits d dp 0 prec Nil)] else no-bytes () in
+    bytes-concat [whole, frac]
+
+  -- | Digits after the point: position dp + i of the digit string, or zero outside it.
+  fraction-digits :: Bytes -> Int -> Nat -> Nat -> List Nat -> List Nat
+  fraction-digits d dp i prec acc =
+    if i >= prec then reverse acc
+    else
+      let k = int-add dp (to-int i) in
+      let digit = if k >= 0 && int-nat k < bytes-len d then at d (int-nat k) else 48 in
+      fraction-digits d dp (i + 1) prec (Cons digit acc)
+
+  -- | Right-pad with zeros, or cut, to a length.
+  pad-right-zeros :: Bytes -> Nat -> Bytes
+  pad-right-zeros b n = if bytes-len b >= n then slice b 0 n else bytes-concat [b, bytes-repeat (n - bytes-len b) (string-to-bytes "0")]
+
+  -- | The exact decimal digits of a finite binary64 magnitude (no trailing zeros) and the decimal point position.
+  exact :: Nat -> Nat -> (Bytes, Int)
+  exact field fraction =
+    let mantissa = if field == 0 then fraction else fraction + power 2 52 in
+    let e2 = if field == 0 then int-neg (to-int 1074) else int-sub (to-int field) (to-int 1075) in
+    if mantissa == 0 then (no-bytes (), to-int 0)
+    else if e2 >= 0 then (let d = string-to-bytes (nat-to-string (mantissa * power 2 (int-nat e2))) in (strip-zeros d, to-int (bytes-len d)))
+    else
+      let k = int-nat (int-neg e2) in
+      let d = string-to-bytes (nat-to-string (mantissa * power 5 k)) in
+      (strip-zeros d, int-sub (to-int (bytes-len d)) (to-int k))
+
+  -- | The shortest digits that round-trip and the decimal point position.
+  shortest :: F64 -> (Bytes, Int)
+  shortest x =
+    let text = f64-to-decimal x in
+    let start = if at text 0 == 45 then (1 :: Nat) else 0 in
+    let e = case find-byte text 101 0 of Some k -> k; None -> bytes-len text in
+    let mantissa = keep-not (slice text start e) 46 0 Nil in
+    let point = case find-byte text 46 start of Some k -> minus k start; None -> minus e start in
+    let exponent = parse-int (slice text (e + 1) (bytes-len text)) in
+    let digits = strip-zeros (strip-leading (from-list mantissa) 0) in
+    if bytes-len digits == 0 then (digits, to-int 0) else (digits, int-add (to-int point) exponent)
+
+  -- | Drop leading zeros.
+  strip-leading :: Bytes -> Nat -> Bytes
+  strip-leading b i = if i < bytes-len b && at b i == 48 then strip-leading b (i + 1) else slice b i (bytes-len b)
+
+  -- | A signed decimal integer.
+  parse-int :: Bytes -> Int
+  parse-int b = if at b 0 == 45 then int-neg (to-int (digits-in b 1 10 0)) else to-int (digits-in b 0 10 0)
+
+  -- | Drop trailing zeros.
+  strip-zeros :: Bytes -> Bytes
+  strip-zeros d = slice d 0 (trailing d (bytes-len d))
+
+  -- | The length without trailing zeros.
+  trailing :: Bytes -> Nat -> Nat
+  trailing d n = if n > 0 && at d (n - 1) == 48 then trailing d (n - 1) else n
+
+  -- | b^e.
+  power :: Nat -> Nat -> Nat
+  power b e = if e == 0 then (1 :: Nat) else let h = power b (nat-div e 2) in if nat-rem e 2 == 0 then h * h else h * h * b
+
+  -- | Round digits to n significant digits, half to even; the result has no trailing zeros.
+  round-to :: Bytes -> Int -> Int -> (Bytes, Int)
+  round-to d dp n =
+    if n < 0 then (no-bytes (), dp)
+    else
+      let keep = int-nat n in
+      if keep >= bytes-len d then (d, dp)
+      else
+        let next = at d keep in
+        let rest = any-nonzero d (keep + 1) in
+        let up = next > 53 || (next == 53 && (rest || (keep > 0 && nat-rem (at d (keep - 1)) 2 == 1))) in
+        if not up then (strip-zeros (slice d 0 keep), dp)
+        else case increment (slice d 0 keep) of
+          (r, carried) -> if carried then (string-to-bytes "1", int-add dp 1) else (strip-zeros r, dp)
+
+  -- | Whether any digit from i is not zero.
+  any-nonzero :: Bytes -> Nat -> Bool
+  any-nonzero d i = if i >= bytes-len d then False else if not (at d i == 48) then True else any-nonzero d (i + 1)
+
+  -- | Add one in the last place; whether the carry left the digits (all nines, or none).
+  increment :: Bytes -> (Bytes, Bool)
+  increment d = case bump-digits (reverse (to-list d 0 Nil)) Nil of (digits, carry) -> (from-list digits, carry)
+
+  -- | The digits in order.
+  to-list :: Bytes -> Nat -> List Nat -> List Nat
+  to-list b i acc = if i >= bytes-len b then reverse acc else to-list b (i + 1) (Cons (at b i) acc)
+
+  -- | Increment least-significant-first digits, building the result most-significant-first.
+  bump-digits :: List Nat -> List Nat -> (List Nat, Bool)
+  bump-digits rev acc = case rev of
+    Nil -> (acc, True)
+    Cons x rest -> if x == 57 then bump-digits rest (Cons 48 acc) else (prepend-rev rest (Cons (x + 1) acc), False)
+
+  -- | Reverse a list onto another.
+  prepend-rev :: List Nat -> List Nat -> List Nat
+  prepend-rev rev acc = case rev of Nil -> acc; Cons x rest -> prepend-rev rest (Cons x acc)
+
+  -- | A U64 as a natural number.
+  u64-nat :: U64 -> Nat
+  u64-nat w = u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 w 32)) * 4294967296 + u32-to-nat (wrapping-u64-to-u32 w)
+
+  -- ---------------------------------------------------------------------
+  -- Escaping.
+  -- ---------------------------------------------------------------------
+
+  -- | Escape for HTML text: quotes, "&", "<" and ">" become references and NUL becomes U+FFFD. Plain runs are found
+  -- sixteen bytes at a time.
+  template-html-escape :: Bytes -> Bytes
+  template-html-escape b = bytes-concat (reverse (html-from b 0 Nil))
+
+  -- | Escape from an offset; pieces gather in reverse.
+  html-from :: Bytes -> Nat -> List Bytes -> List Bytes
+  html-from b i acc =
+    if i >= bytes-len b then acc
+    else
+      let k = if i + 16 <= bytes-len b then i64-to-nat (hold b (html-span (bytes-data b) (nat-to-i64 i) 34)) else html-plain b i 0 in
+      if k > 0 then html-from b (i + k) (Cons (slice b i (i + k)) acc)
+      else
+        let c = at b i in
+        let replacement = if c == 0 then encode-rune 65533 else string-to-bytes (if c == 34 then "&#34;" else if c == 39 then "&#39;" else if c == 38 then "&amp;" else if c == 60 then "&lt;" else "&gt;") in
+        html-from b (i + 1) (Cons replacement acc)
+
+  -- | Plain bytes from i, one at a time.
+  html-plain :: Bytes -> Nat -> Nat -> Nat
+  html-plain b i n = if i < bytes-len b && not (html-special (at b i)) then html-plain b (i + 1) (n + 1) else n
+
+  -- | Bytes HTML escaping replaces.
+  html-special :: Nat -> Bool
+  html-special c = c == 34 || c == 39 || c == 38 || c == 60 || c == 62 || c == 0
+
+  -- | Escape for JavaScript strings: backslash and quotes get backslashes; "<", ">", "&", "=" and ASCII controls
+  -- become \u00XX; non-printable code points become \uXXXX.
+  template-js-escape :: Bytes -> Bytes
+  template-js-escape b = bytes-concat (reverse (js-from b 0 Nil))
+
+  -- | Escape from an offset; pieces gather in reverse.
+  js-from :: Bytes -> Nat -> List Bytes -> List Bytes
+  js-from b i acc =
+    if i >= bytes-len b then acc
+    else
+      let c = at b i in
+      if c >= 128 then
+        (let n = rune-size b i in
+        if n == 0 then js-from b (i + 1) (Cons (string-to-bytes "\\uFFFD") acc)
+        else
+          let r = rune-value b i n in
+          js-from b (i + n) (Cons (if printable r then slice b i (i + n) else bytes-concat [string-to-bytes "\\u", pad-left-zeros (digits-of r 16 True) 4]) acc))
+      else if c == 92 then js-from b (i + 1) (Cons (string-to-bytes "\\\\") acc)
+      else if c == 39 then js-from b (i + 1) (Cons (string-to-bytes "\\'") acc)
+      else if c == 34 then js-from b (i + 1) (Cons (string-to-bytes "\\\"") acc)
+      else if c == 60 || c == 62 || c == 38 || c == 61 || c < 32 then js-from b (i + 1) (Cons (bytes-concat [string-to-bytes "\\u00", pad-left-zeros (digits-of c 16 True) 2]) acc)
+      else js-from b (i + 1) (Cons (slice b i (i + 1)) acc)
+
+  -- | Escape for a URL query component: letters, digits and "-_.~" stay, a space becomes "+", other bytes become %XX.
+  template-url-query-escape :: Bytes -> Bytes
+  template-url-query-escape b = bytes-concat (reverse (query-from b 0 Nil))
+
+  -- | Escape from an offset; pieces gather in reverse.
+  query-from :: Bytes -> Nat -> List Bytes -> List Bytes
+  query-from b i acc =
+    if i >= bytes-len b then acc
+    else
+      let c = at b i in
+      if (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c == 45 || c == 95 || c == 46 || c == 126 then query-from b (i + 1) (Cons (slice b i (i + 1)) acc)
+      else if c == 32 then query-from b (i + 1) (Cons (string-to-bytes "+") acc)
+      else query-from b (i + 1) (Cons (bytes-concat [string-to-bytes "%", pad-left-zeros (digits-of c 16 True) 2]) acc)
+
+  -- ---------------------------------------------------------------------
+  -- Bytes and characters.
+  -- ---------------------------------------------------------------------
+
+  -- | A natural number as an integer.
+  to-int :: Nat -> Int
+  to-int n = nat-to-int n
+
+  -- | An empty buffer.
+  no-bytes :: Unit -> Bytes
+  no-bytes unit = bytes-new 0
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at s i = if i < bytes-len s then bytes-get s i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | A copy of s[a, b).
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice s a b =
+    let n = minus b a in
+    let out = bytes-new n in
+    if a + n <= bytes-len s then let copied = bytes-copy-range out s 0 a n in out else out
+
+  -- | Bytes from byte values.
+  from-list :: List Nat -> Bytes
+  from-list values = let out = bytes-new (list-length values) in let filled = fill out 0 values in out
+
+  -- | Store values from an offset.
+  fill :: Bytes -> Nat -> List Nat -> Unit
+  fill out i values = case values of Nil -> (); Cons v rest -> let w = if i < bytes-len out && v < 256 then bytes-set out i v else () in fill out (i + 1) rest
+
+  -- | Bytes as a string, with invalid UTF-8 replaced.
+  text-of :: Bytes -> String
+  text-of b = case string-from-bytes b of Some t -> t; None -> text-of (repair b 0 Nil)
+
+  -- | Replace invalid sequences with U+FFFD.
+  repair :: Bytes -> Nat -> List Bytes -> Bytes
+  repair b i acc =
+    if i >= bytes-len b then bytes-concat (reverse acc)
+    else let n = rune-size b i in if n == 0 then repair b (i + 1) (Cons (encode-rune 65533) acc) else repair b (i + n) (Cons (slice b i (i + n)) acc)
+
+  -- | Space, tab, carriage return or line feed.
+  is-space :: Nat -> Bool
+  is-space c = c == 32 || c == 9 || c == 13 || c == 10
+
+  -- | An ASCII digit.
+  is-digit :: Nat -> Bool
+  is-digit c = c >= 48 && c <= 57
+
+  -- | A letter, underscore or non-ASCII byte.
+  is-alpha :: Nat -> Bool
+  is-alpha c = (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == 95 || c >= 128
+
+  -- | A hexadecimal digit.
+  is-hex :: Nat -> Bool
+  is-hex c = is-digit c || (lower c >= 97 && lower c <= 102)
+
+  -- | An octal digit.
+  is-octal :: Nat -> Bool
+  is-octal c = c >= 48 && c <= 55
+
+  -- | A hexadecimal digit's value (also decimal digits of any base up to 16).
+  hex-digit :: Nat -> Nat
+  hex-digit c = if c >= 48 && c <= 57 then c - 48 else if lower c >= 97 && lower c <= 102 then minus (lower c) 87 else (99 :: Nat)
+
+  -- | ASCII lower case.
+  lower :: Nat -> Nat
+  lower c = if c >= 65 && c <= 90 then c + 32 else c
+
+  -- | Whether a byte string occurs at i.
+  starts-with :: Bytes -> Nat -> Bytes -> Bool
+  starts-with s i p = if i + bytes-len p > bytes-len s then False else matches s p i 0
+
+  -- | Whether needle occurs at i.
+  matches :: Bytes -> Bytes -> Nat -> Nat -> Bool
+  matches s needle i k = if k >= bytes-len needle then True else if at s (i + k) == at needle k then matches s needle i (k + 1) else False
+
+  -- | The first occurrence of a byte string at or after i.
+  find-bytes :: Bytes -> Bytes -> Nat -> Option Nat
+  find-bytes s needle i = if i + bytes-len needle > bytes-len s then None else if matches s needle i 0 then Some i else find-bytes s needle (i + 1)
+
+  -- | The first occurrence of a byte at or after i.
+  find-byte :: Bytes -> Nat -> Nat -> Option Nat
+  find-byte s b i = let k = scalar-find s b i in if k < bytes-len s then Some k else None
+
+  -- | The length of the valid UTF-8 sequence at i (1 to 4), or 0.
+  rune-size :: Bytes -> Nat -> Nat
+  rune-size s i =
+    let b = at s i in
+    if i >= bytes-len s then 0
+    else if b < 128 then 1
+    else if b >= 194 && b <= 223 then (if i + 1 < bytes-len s && cont (at s (i + 1)) then (2 :: Nat) else 0)
+    else if b >= 224 && b <= 239 then
+      (let c = at s (i + 1) in if i + 2 < bytes-len s && c >= (if b == 224 then (160 :: Nat) else 128) && c <= (if b == 237 then (159 :: Nat) else 191) && cont (at s (i + 2)) then (3 :: Nat) else 0)
+    else if b >= 240 && b <= 244 then
+      (let c = at s (i + 1) in if i + 3 < bytes-len s && c >= (if b == 240 then (144 :: Nat) else 128) && c <= (if b == 244 then (143 :: Nat) else 191) && cont (at s (i + 2)) && cont (at s (i + 3)) then (4 :: Nat) else 0)
+    else 0
+
+  -- | A continuation byte.
+  cont :: Nat -> Bool
+  cont b = b >= 128 && b <= 191
+
+  -- | The code point of a valid sequence of n bytes at i.
+  rune-value :: Bytes -> Nat -> Nat -> Nat
+  rune-value s i n =
+    if n == 1 then at s i
+    else if n == 2 then minus (at s i) 192 * 64 + low6 s (i + 1)
+    else if n == 3 then (minus (at s i) 224 * 64 + low6 s (i + 1)) * 64 + low6 s (i + 2)
+    else ((minus (at s i) 240 * 64 + low6 s (i + 1)) * 64 + low6 s (i + 2)) * 64 + low6 s (i + 3)
+
+  -- | A continuation byte's payload.
+  low6 :: Bytes -> Nat -> Nat
+  low6 s i = minus (at s i) 128
+
+  -- | The UTF-8 bytes of a code point.
+  encode-rune :: Nat -> Bytes
+  encode-rune c =
+    if c < 128 then from-list [c]
+    else if c < 2048 then from-list [192 + nat-div c 64, 128 + nat-rem c 64]
+    else if c < 65536 then from-list [224 + nat-div c 4096, 128 + nat-rem (nat-div c 64) 64, 128 + nat-rem c 64]
+    else from-list [240 + nat-div c 262144, 128 + nat-rem (nat-div c 4096) 64, 128 + nat-rem (nat-div c 64) 64, 128 + nat-rem c 64]
+
+  -- | Keep a buffer alive until a raw load has completed.
+  hold :: forall a. Bytes -> a -> a
+  hold b value = case bytes-len b of
+    _ -> value
+
+  -- | A non-negative machine count as a natural number.
+  i64-to-nat :: I64 -> Nat
+  i64-to-nat k = if 0 <= k then nat-from-i64 k else 0
+
+  -- | A small value as a machine integer.
+  small :: Nat -> I64
+  small n = if n < 4294967296 then nat-to-i64 n else 0
+
+  -- | The index of the first byte equal to the third argument among the sixteen at base + offset, or 16. Lane order is memory order on every target; the first match is an unsigned minimum over lane indices.
+  prim find16 :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %v = load <16 x i8>, ptr %at, align 1
+      %e8 = trunc i64 %2 to i8
+      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
+      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
+      %s0 = icmp eq <16 x i8> %v, %extra
+      %pick = select <16 x i1> %s0, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
+      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
+      %r = zext i8 %first to i64
+      ret i64 %r
+    }
+
+  -- | Leading bytes among the sixteen at base + offset that HTML escaping leaves unchanged (16 when all are): stops at quotes, '&', '<', '>', NUL and one extra byte.
+  prim html-span :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %v = load <16 x i8>, ptr %at, align 1
+      %e8 = trunc i64 %2 to i8
+      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
+      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
+      %s0 = icmp eq <16 x i8> %v, %extra
+      %t0 = icmp eq <16 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %u0 = or <16 x i1> %s0, %t0
+      %t1 = icmp eq <16 x i8> %v, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
+      %u1 = or <16 x i1> %u0, %t1
+      %t2 = icmp eq <16 x i8> %v, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
+      %u2 = or <16 x i1> %u1, %t2
+      %t3 = icmp eq <16 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %u3 = or <16 x i1> %u2, %t3
+      %t4 = icmp eq <16 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %u4 = or <16 x i1> %u3, %t4
+      %t5 = icmp eq <16 x i8> %v, <i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0>
+      %u5 = or <16 x i1> %u4, %t5
+      %pick = select <16 x i1> %u5, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
+      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
+      %r = zext i8 %first to i64
+      ret i64 %r
+    }
+
+  -- | The bits of a binary64 float.
+  prim f64-bits :: F64 -> U64 where
+    llvm {
+      %b = bitcast double %0 to i64
+      ret i64 %b
+    }

@@ -1,0 +1,29 @@
+-- | Pseudorandom sources seeded from the operating system: the effectful entry to Data.Rand.
+--
+-- Each call draws fresh seed material from Effect.Random's entropy source (128 bits for PCG, 256 for ChaCha8),
+-- so two sources made this way are independent and unpredictable; drawing from them is then pure and
+-- replayable (keep the source, or its encoding, to replay). Use a ChaCha8 source when outputs must also be
+-- hard to predict from earlier outputs.
+module Effect.Rand where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.ChaCha8
+  import Data.Rand
+  import Data.Result
+  import Effect.Random
+
+  export random-pcg, random-chacha8
+
+  -- | A little-endian word of a buffer (zero past its end).
+  word :: Bytes -> Nat -> U64
+  word b i = if i + 8 <= bytes-len b then bytes-read-le64 b i else 0
+
+  -- | A PCG generator seeded with 128 bits of operating-system entropy.
+  random-pcg :: forall r. using (io :: Io r) => Unit ->{IO r} Pcg
+  random-pcg u = let b = random-bytes 16 in pcg-new (word b 0) (word b 8)
+
+  -- | A ChaCha8 generator seeded with 256 bits of operating-system entropy (the seed always has the required
+  -- 32 bytes, so the result is Ok whenever the entropy source answers).
+  random-chacha8 :: forall r. using (io :: Io r) => Unit ->{IO r} Result ChaCha8Error ChaCha8
+  random-chacha8 u = chacha8-new (random-bytes 32)

@@ -90,4 +90,4 @@ non-zerohood and its transfer is rejected by the preservation law
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/NonZero.cinch`. Source SHA-256: `dc4fbe2ec9eb0ed867615d3d683bd55fd675bfdd6ae6eb57d6eb73435822b96b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/NonZero.cinch`. Source SHA-256: `d09f99b17ce4e051a2ac0435c0563f094fe8b0fba310ece953a3c67d40f7327a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

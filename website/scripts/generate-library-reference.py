@@ -16,14 +16,48 @@ import re
 import subprocess
 import tempfile
 import shutil
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 PRELUDE = ROOT / 'seed/prelude'
 OUTPUT = ROOT / 'library'
 MANIFEST = ROOT / 'website/src/data/library-sources.json'
 DESCRIPTIONS = {
+'Data.Time.Arithmetic':'Calendar-aware spans applied to dates, wall-clock times, date-times and instants, with explicit overflow results.',
+'Data.Time.Date':'Civil calendar dates with validated construction, weekday and ordinal queries, and day arithmetic.',
+'Data.Time.DateTime':'Civil date and wall-clock time pairs without a time zone.',
+'Data.Time.Duration':'Exact signed elapsed-time durations with nanosecond precision and checked arithmetic.',
+'Data.Time.Monotonic':'Monotonic clock readings for measuring elapsed time; never related to the civil calendar.',
+'Data.Time.Offset':'Fixed offsets from UTC with validated ranges.',
+'Data.Time.Span':'Calendar-aware spans that keep each unit (years through nanoseconds), with balancing and rounding.',
+'Data.Time.TimeOfDay':'Civil wall-clock times of day with nanosecond precision.',
+'Data.Time.Timestamp':'Instants on the Unix time line with nanosecond precision and checked arithmetic.',
+'Data.Time.Unit':'Span units, rounding modes and the shared rounding kernel.',
+'Data.Time.Weekday':'The seven days of the week with ordering and offset arithmetic.',
+'Data.Time.Zone.Posix':'POSIX TZ rule strings: parsing and evaluating standard/daylight transition rules.',
+'Data.Time.Zone.Types':'Shared vocabulary for time zones: transitions, ambiguity and disambiguation policies.',
+'Data.Time.Zone.Tzif':'Reading TZif time zone files (RFC 9636) into checked transition tables.',
+'Data.Time.Zone':'Time zones: offsets for instants, resolution of civil times, and fixed or rule-based zones.',
+'Data.Time.Zoned.Arithmetic':'Arithmetic, differences and rounding on zoned date-times.',
+'Data.Time.Zoned':'Instants paired with a time zone, with civil field access.',
+'Text.Time.Duration':'ISO 8601 and friendly duration text for spans and exact durations, printing and parsing.',
+'Text.Time.Iso':'ISO 8601 extended format and RFC 3339 printing and parsing for dates, times, date-times and timestamps.',
+'Text.Time.Rfc2822':'RFC 2822/5322 internet-message date-time printing and parsing.',
+'Text.Time.Rfc9557':'RFC 9557 date-time text with bracketed time zone annotations for zoned values.',
+'Text.Time.Scan':'Shared byte cursor, digit readers and digit writers for the time text modules.',
+'Text.Time.Strtime':'POSIX strftime/strptime-style formatting and parsing over broken-down time fields.',
+'Text.Time.Zoned':'Offset and zoned-value text functions.',
+'Effect.Time.Zone':'The system time zone database and the current system zone.',
+'Effect.Time':'Typed readers for the system and monotonic clocks.',
 'Crypto.Hmac':'Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification.',
+'Crypto.Aes':'AES-128/192/256 with AES-NI or ARMv8 instructions after detection and a constant-time, table-free SIMD fallback.',
+'Crypto.Cipher':'CTR, OFB, CFB, CBC and GCM over any 128-bit block cipher, with constant-time or carry-less-instruction GHASH and constant-time tag checks.',
+'Crypto.Field25519':'Constant-time arithmetic modulo 2^255 - 19 with 128-bit column products, shared by X25519 and Ed25519.',
+'Crypto.X25519':'Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection.',
+'Crypto.Ed25519':'Deterministic Ed25519 signatures with constant-time signing and strict verification.',
 'Crypto.Kdf':'HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256.',
+'Image.Png':'PNG decoding of every color type, depth and interlace method with SIMD scanline reconstruction, and PNG encoding.',
+'Image.Raster':'Gray, gray-alpha, RGB, RGBA and paletted rasters at eight and sixteen bits with pixel access and RGBA conversion.',
 'Image.Color':'Color representations, conversion models and immutable palettes with first-nearest lookup.',
 'Image.Color.Palette':'Immutable factories for the ordered 256-color Plan 9 and 216-color WebSafe palettes.',
 'Crypto.ConstantTime':'Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors.',
@@ -196,6 +230,11 @@ DESCRIPTIONS = {
 'Effect.Adler32':'Inspectable scalar checksum sinks, generic byte writers and bounded reader-to-Adler-32 copying with advanced source continuations.',
 'Effect.Crc32':'CRC-32 stream writers and bounded copying into an inspectable checksum state.',
 'Effect.Crc64':'Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations.',
+'Effect.Sha512':'Inspectable SHA-384/SHA-512/SHA-512/t states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations.',
+'Effect.Sha1':'Inspectable SHA-1 states, generic digest sinks and bounded reader-to-hash copying for legacy formats.',
+'Effect.Md5':'Inspectable MD5 states, generic digest sinks and bounded reader-to-hash copying for legacy formats.',
+'Effect.Sha3':'Inspectable SHA-3/SHAKE states, generic digest sinks, bounded reader-to-hash copying and SHAKE output as a generic reader.',
+'Effect.Crypto':'Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source.',
 'Effect.Sha256':'Inspectable SHA-224/SHA-256 states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations.',
 'Effect.Ascii85':'ASCII85 encoding writers and decoding byte readers with explicit finalization, bounded read-ahead and sticky stream errors.',
 'Text.Base32':'Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffer operations and persistent incremental states.',
@@ -222,12 +261,57 @@ DESCRIPTIONS = {
 'Text.Adler32':'Portable SIMD Adler-32 with bounded machine-word segments, persistent states, network-order digests and checked versioned checkpoints.',
 'Text.Crc32':'Prepared reflected polynomial tables, persistent CRC-32 states and table-checked binary checkpoints.',
 'Text.Crc64':'Immutable SIMD-built polynomial tables, slicing-by-eight CRC-64, persistent states, network-order digests and table-checked checkpoints.',
+'Text.Sha512':'Portable SHA-384, SHA-512, SHA-512/224 and SHA-512/256 with two-lane SIMD schedules, native rotates, persistent states and checked binary checkpoints.',
+'Text.Sha1':'SHA-1 for legacy interoperability, with a four-lane SIMD schedule, persistent states and checked binary checkpoints.',
+'Text.Md5':'MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints.',
+'Text.Sha3':'SHA3-224/256/384/512, SHAKE128/256 and cSHAKE128/256 over a register-resident Keccak permutation, with persistent sponges, output readers and checkpoints.',
+'Text.TabWriter':'Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing.',
+'Text.Bzip2':'Decompress concatenated bzip2 streams with table-driven Huffman decoding and verified block and stream CRCs.',
+'Text.Mail':'Parse and format RFC 5322 mail addresses, read message header blocks and parse header dates, with SIMD atom scanning.',
+'Crypto.Des':'DES and Triple DES block ciphers with ECB, CBC and CTR for legacy interoperation, from a generated straight-line round kernel.',
+'Crypto.Rc4':'The RC4 stream cipher as a persistent keystream state, for legacy data only.',
+'Image.Gif':'Decode and encode GIF images and animations: palettes, transparency, delays, disposal, looping and interlace.',
+'Text.Xml':'Decode XML into namespace-aware tokens or element trees and encode tokens with escaping and indentation.',
+'Crypto.MlKem':'ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels.',
+'Text.Template':'Data-driven text templates: pipelines, control actions, definitions, builtins and printf over dynamic values.',
+'Image.Draw':'Composite rasters with Src and Over, masks and uniform colors, and dither onto palettes, with a vector Over kernel.',
+'Crypto.P256':'Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels.',
+'Crypto.Ecdsa':'Deterministic (RFC 6979) and hedged P-256 ECDSA signatures in raw and DER form with strict verification.',
+'Image.Jpeg':'Baseline and progressive JPEG decoding to YCbCr, gray, RGB or CMYK planes, and baseline encoding, with vector IDCT, FDCT, Huffman and colour kernels.',
+'Crypto.ChaCha20Poly1305':'ChaCha20 and XChaCha20 streams, Poly1305 and the ChaCha20-Poly1305 and XChaCha20-Poly1305 AEADs with vector row kernels.',
+'Crypto.Hpke':'Hybrid public key encryption (RFC 9180) over DHKEM X25519 and P-256, HKDF and AES-GCM or ChaCha20-Poly1305, in all four modes.',
+'Text.Smtp':'SMTP without a connection: reply state machine, command validation, extensions, dot-stuffing and PLAIN/CRAM-MD5 exchanges.',
+'Effect.Smtp':'An SMTP client over sockets with explicit client state: greeting with HELO fallback, authentication, envelope, data, quit and send-mail.',
+'Data.ChaCha8':'The ChaCha8 pseudorandom generator: four interleaved eight-round blocks per vector kernel call, byte reads and state encoding.',
+'Text.Cookie':'HTTP cookies: parse Set-Cookie and Cookie header lines, serialize cookies as Set-Cookie values and validate them.',
+'Data.CookieJar':'An RFC 6265 cookie jar as an immutable value: store the cookies responses set and choose the cookies a request sends.',
+'Text.Punycode':'Punycode (RFC 3492) encoding and decoding, and ASCII-compatible host names with xn-- labels.',
+'Data.Float':'Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target.',
+'Data.Rand':'Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf.',
+'Effect.Rand':'Pseudorandom sources seeded from operating-system entropy.',
+'Text.Lzw':'Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.',
+'Text.Tar':'Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.',
+'Text.TextProto':'Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail.',
+'Text.Zip':'Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or deflated archives.',
+'Text.Asn1':'ASN.1 value trees with a strict DER decoder and canonical DER encoder, including explicit and implicit tags and times.',
 'Text.Sha256':'Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints.',
 'Text.Digest':'Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol.',
 'Text.Shellwords':'Shell-style word splitting/joining; this is data parsing, not execution of a shell command.',
 'Text.Zlib':'Compression/decompression operations and named malformed/unsupported-stream results.',
 'Text.Otlp':'OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers.',
 }
+
+SUMMARIES={}
+
+def describe(name):
+    """Return the curated description, or the first sentence of the module's own documentation comment."""
+    return DESCRIPTIONS.get(name) or SUMMARIES.get(name) or f'The {name} module.'
+
+def summarize(markdown):
+    """First sentence (or line) of a module documentation comment, as one plain line."""
+    text=' '.join(markdown.strip().split())
+    match=re.match(r'(.+?[.!?])(\s|$)',text)
+    return match.group(1) if match else text
 
 def sources():
     return {'.'.join(p.relative_to(PRELUDE).with_suffix('').parts): p for p in sorted(PRELUDE.rglob('*.cinch'))}
@@ -259,6 +343,17 @@ def highlighted_markdown(compiler, text):
     return result.stdout
 
 
+def unpack(package, out):
+    """Project a packed interface object into one canonical `.cinchif` document per module.
+    Builds that still write loose interfaces beside the package are copied unchanged."""
+    loose=list(package.parent.glob('*.cinchif'))
+    for path in loose:shutil.copyfile(path,out/path.name)
+    if loose or not package.exists():return
+    sys.path.insert(0,str(ROOT/'tooling'))
+    from pack_interfaces import PackedInterfaces, canonical
+    for name,_,document in PackedInterfaces(package.read_bytes()).documents:
+        (out/(name+'.cinchif')).write_bytes(canonical(document))
+
 def collect_interfaces(compiler):
     temp=tempfile.TemporaryDirectory(prefix='cinch-library-')
     work=Path(temp.name);manifest=json.loads((PRELUDE/'cinch-base.cinchpkg').read_text())
@@ -268,21 +363,25 @@ def collect_interfaces(compiler):
         if name not in embedded:(work/(name+'.cinch')).write_bytes(path.read_bytes())
     env={**os.environ,'CINCH_STORE':str(work/'store')}
     entry=work/'Main.cinch'
+    ifaces=work/'interfaces';ifaces.mkdir()
     def check(name):
         entry.write_text('module Main where\n'+(f'  import {name}\n' if name else '')+'  main :: Int\n  main = 0\n')
         result=subprocess.run([compiler,'check',str(entry)],cwd=work,env=env,capture_output=True,text=True,timeout=90)
         if result.returncode: raise RuntimeError(f'Rust compiler rejected {name or "Prelude"}:\n{result.stderr}')
+        unpack(work/'build'/'Main.cpk',ifaces)
         print('Checked '+(name or 'embedded base'),flush=True)
     check(None)
     for name in all_sources:
         if name not in embedded:check(name)
-    return temp,work/'build'
+    return temp,ifaces
 
 def generate(ifaces, compiler):
     all_sources=sources()
     embedded={m['name'] for m in json.loads((PRELUDE/'cinch-base.cinchpkg').read_text())['modules']}
     interfaces={name:json.loads((ifaces/(name+'.cinchif')).read_text()) for name in all_sources}
     documents={name:doc_json(compiler,path,name,ifaces/(name+'.cinchif')) for name,path in all_sources.items()}
+    for name,parsed in documents.items():
+        if parsed['doc'] and parsed['doc']['markdown'].strip():SUMMARIES[name]=summarize(parsed['doc']['markdown'])
     doc_by_id={decl['id']:decl for parsed in documents.values() for decl in flatten_decls(parsed['declarations'])}
     comments={name:{decl['name']:{'line':decl['source']['line'],'doc':decl['doc']['markdown']} for decl in flatten_decls(parsed['declarations']) if decl['doc']} for name,parsed in documents.items()}
     downloads=ROOT/'website/public/reference-sources';downloads.mkdir(parents=True,exist_ok=True)
@@ -325,7 +424,7 @@ def generate(ifaces, compiler):
             closure.add(module)
             for child in re.findall(r'^  import ([\w.]+)',all_sources[module].read_text(),re.M):deps(child)
         deps(name)
-        lines=[f'# {name}','',DESCRIPTIONS[name],'', '<span class="support-tag support-tag--current">Embedded</span> Available from the compiler\'s embedded base family.' if embedded_here else '<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.', '',f'Import with `import {name}`. '+('Selected exports may already be in Prelude.' if name!='Prelude' else 'This module is implicitly available.'),'',f'[Download exact module source](/reference-sources/{name}.cinch) · [How library modules are loaded](00-index.md)','']
+        lines=[f'# {name}','',describe(name),'', '<span class="support-tag support-tag--current">Embedded</span> Available from the compiler\'s embedded base family.' if embedded_here else '<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.', '',f'Import with `import {name}`. '+('Selected exports may already be in Prelude.' if name!='Prelude' else 'This module is implicitly available.'),'',f'[Download exact module source](/reference-sources/{name}.cinch) · [How library modules are loaded](00-index.md)','']
         if imports:lines+=['# Dependencies','',', '.join(f'[{i}]({i}.md)' if i in all_sources else f'`{i}` (compiler-generated vocabulary)' for i in imports)+'.','']
         if not embedded_here:
             lines+=['Non-embedded source closure: '+', '.join(f'[{m}]({m}.md)' for m in sorted(closure))+'.','']
@@ -398,7 +497,7 @@ def generate(ifaces, compiler):
         subset=[e for e in entries if e['module'].split('.')[0]==group]
         index += [f'## {group}','','| Module | Distribution | Purpose |','| --- | --- | --- |']
         for e in subset:
-            name=e['module'];index.append(f'| [{name}]({name}.md) | '+('Embedded' if e['embedded'] else 'Ship source')+f' | {DESCRIPTIONS[name]} |')
+            name=e['module'];index.append(f'| [{name}]({name}.md) | '+('Embedded' if e['embedded'] else 'Ship source')+f' | {markdown_text(describe(name))} |')
         index+=['']
     index+=['# Scope and verification','',f'This generation covers **{len(entries)} source modules**: **{sum(e["embedded"] for e in entries)} embedded** and **{sum(not e["embedded"] for e in entries)} source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.','','Signatures preserve the compiler\'s rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language\'s similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).','','Regenerate with `python3 website/scripts/generate-library-reference.py --compiler /path/to/cinch`. Check source drift with `python3 website/scripts/generate-library-reference.py --check`.','']
     (OUTPUT/'00-index.md').write_text('\n'.join(index))

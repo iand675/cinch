@@ -1,0 +1,832 @@
+-- | Block-cipher modes over any 128-bit block cipher: CTR, OFB and CFB keystreams, CBC, and GCM authenticated encryption.
+-- A BlockCipher packages a cipher's forward and inverse block functions over
+-- U128 blocks whose byte i occupies bits 8i..8i+7 (memory order). Keystream
+-- modes share one explicit state machine, XorStream, whose register, buffered
+-- keystream and consumption count persist across calls of any length; retaining
+-- a stream branches it. CBC processes whole blocks and carries its chaining
+-- value explicitly. GCM follows NIST SP 800-38D: GHASH uses a constant-time
+-- portable multiplication or PCLMULQDQ after CPU feature detection, tags are
+-- compared in constant time, and no plaintext is released before the tag
+-- verifies. Every returned buffer is fresh; inputs are never retained or mutated.
+module Crypto.Cipher where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Wide
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export BlockCipher, block-cipher, block-encrypt, block-decrypt, cipher-block-size
+  export block-from-bytes, block-to-bytes
+  export CipherError, InvalidIvSize, InvalidInputSize, InvalidNonceSize, InvalidTagSize, MessageTooLarge, AuthenticationFailed, cipher-error-message
+  export XorStream, ctr-stream, ofb-stream, cfb-encrypt-stream, cfb-decrypt-stream, stream-xor, ctr-xor, ofb-xor, cfb-encrypt, cfb-decrypt
+  export CbcState, cbc-encrypter, cbc-decrypter, cbc-crypt-blocks, cbc-encrypt, cbc-decrypt
+  export Gcm, gcm, gcm-with-nonce-size, gcm-with-tag-size, gcm-nonce-size, gcm-tag-size, gcm-overhead, gcm-seal, gcm-open, gcm-hardware
+
+  -- | A 128-bit block cipher as its forward and inverse block permutations.
+  data BlockCipher where
+    -- | Encrypt and decrypt functions over canonical U128 blocks.
+    BlockCipher :: (U128 -> U128) -> (U128 -> U128) -> BlockCipher
+
+  -- | Package forward and inverse block functions; decrypt must invert encrypt.
+  block-cipher :: (U128 -> U128) -> (U128 -> U128) -> BlockCipher
+  block-cipher encrypt decrypt = BlockCipher encrypt decrypt
+
+  -- | Apply the forward permutation to one block.
+  block-encrypt :: BlockCipher -> U128 -> U128
+  block-encrypt cipher block = case cipher of BlockCipher encrypt decrypt -> encrypt block
+
+  -- | Apply the inverse permutation to one block.
+  block-decrypt :: BlockCipher -> U128 -> U128
+  block-decrypt cipher block = case cipher of BlockCipher encrypt decrypt -> decrypt block
+
+  -- | Block size in bytes, always 16.
+  cipher-block-size :: BlockCipher -> Nat
+  cipher-block-size cipher = 16
+
+  -- | Read sixteen bytes at a position as a canonical block, or None when they are not all present.
+  block-from-bytes :: Bytes -> Nat -> Option U128
+  block-from-bytes input pos = if pos + 16 <= bytes-len input then Some (block-at input pos) else None
+
+  -- | Return a block's sixteen bytes in fresh storage.
+  block-to-bytes :: U128 -> Bytes
+  block-to-bytes block = let out = bytes-new 16 in let written = put-block out 0 block in out
+
+  -- | Read a complete block at a checked position; incomplete positions read as zero.
+  block-at :: Bytes -> Nat -> U128
+  block-at input pos =
+    if pos + 16 <= bytes-len input then
+      bit-or-u128 (u64-to-u128 (bytes-read-le64 input pos)) (wrapping-shl-u128 (u64-to-u128 (bytes-read-le64 input (pos + 8))) 64)
+    else 0
+
+  -- | Store a block at a checked complete position.
+  put-block :: Bytes -> Nat -> U128 -> Unit
+  put-block out pos block =
+    if pos + 16 <= bytes-len out then
+      let low = bytes-write-le64 out pos (wrapping-u128-to-u64 block) in
+      bytes-write-le64 out (pos + 8) (wrapping-u128-to-u64 (wrapping-shr-u128 block 64))
+    else ()
+
+  -- | Read up to sixteen bytes as a block padded with zero bytes.
+  partial-block :: Bytes -> Nat -> Nat -> U128
+  partial-block input pos count =
+    if count < 16 && pos + count <= bytes-len input then
+      let scratch = bytes-new 16 in let copied = bytes-copy-range scratch input 0 pos count in block-at scratch 0
+    else block-at input pos
+
+  -- | Mask keeping the first count bytes of a block (all bytes for 16 or more).
+  prefix-mask :: Nat -> U128
+  prefix-mask count = if count >= 16 then max-bound-u128 else wrapping-sub-u128 (wrapping-shl-u128 1 (byte-shift count)) 1
+
+  -- | Bit offset of a byte index below sixteen.
+  byte-shift :: Nat -> U32
+  byte-shift count = if count < 16 then wrapping-i64-to-u32 (nat-to-i64 (count * 8)) else 0
+
+  -- | XOR count bytes of input at pos with the low bytes of a keystream block into out at the same position.
+  xor-tail :: Bytes -> Bytes -> Nat -> Nat -> U128 -> Unit
+  xor-tail out input pos count stream =
+    if count == 0 then ()
+    else if pos < bytes-len input && pos < bytes-len out then
+      let key = u8-to-nat (wrapping-u128-to-u8 stream) in
+      let value = u8-to-nat (bit-xor-u8 (wrapping-i64-to-u8 (nat-to-i64 (bytes-get input pos))) (wrapping-i64-to-u8 (nat-to-i64 key))) in
+      let written = bytes-set out pos value in
+      xor-tail out input (pos + 1) (count - 1) (wrapping-shr-u128 stream 8)
+    else ()
+
+  -- | A cipher misuse or authentication failure; every operation reports one before producing output.
+  data CipherError where
+    -- | The initialization vector must be exactly the given size; the actual size follows.
+    InvalidIvSize :: Nat -> Nat -> CipherError
+    -- | A block mode received input that is not a whole number of blocks.
+    InvalidInputSize :: Nat -> CipherError
+    -- | A GCM nonce has the wrong size (expected, actual), or a zero size was requested.
+    InvalidNonceSize :: Nat -> Nat -> CipherError
+    -- | A GCM tag size outside 12 to 16 bytes was requested.
+    InvalidTagSize :: Nat -> CipherError
+    -- | The message exceeds the mode's limit on processed data.
+    MessageTooLarge :: CipherError
+    -- | The GCM tag did not verify; no plaintext is released.
+    AuthenticationFailed :: CipherError
+
+  -- | Render a cipher error.
+  cipher-error-message :: CipherError -> String
+  cipher-error-message error = case error of
+    InvalidIvSize expected actual -> string-concat "initialization vector must be " (string-concat (nat-to-string expected) (string-concat " bytes; received " (nat-to-string actual)))
+    InvalidInputSize actual -> string-concat "input is not a whole number of 16-byte blocks: " (nat-to-string actual)
+    InvalidNonceSize expected actual -> string-concat "nonce must be " (string-concat (nat-to-string expected) (string-concat " bytes; received " (nat-to-string actual)))
+    InvalidTagSize size -> string-concat "GCM tag size must be 12 to 16 bytes: " (nat-to-string size)
+    MessageTooLarge -> "message exceeds the mode's data limit"
+    AuthenticationFailed -> "message authentication failed"
+
+  -- | A keystream mode's state: cipher, mode (1 CTR, 2 OFB, 3 CFB encrypt, 4 CFB decrypt), register,
+  -- current keystream block, bytes of it already used (0 to 16), and the CFB ciphertext feedback gathered so far.
+  data XorStream where
+    -- | Private fields in the order listed above.
+    Keystream :: BlockCipher -> Nat -> U128 -> U128 -> Nat -> U128 -> XorStream
+
+  -- | Start a stream from a sixteen-byte initialization vector, with no keystream buffered yet.
+  -- The IV also seeds the CFB feedback, so the first commit installs it as the register.
+  start-stream :: Nat -> BlockCipher -> Bytes -> Result CipherError XorStream
+  start-stream mode cipher iv =
+    if bytes-len iv == 16 then Ok (Keystream cipher mode (block-at iv 0) 0 16 (block-at iv 0))
+    else Err (InvalidIvSize 16 (bytes-len iv))
+
+  -- | Counter mode: the IV is a 128-bit big-endian counter incremented once per block, wrapping.
+  ctr-stream :: BlockCipher -> Bytes -> Result CipherError XorStream
+  ctr-stream cipher iv = start-stream 1 cipher iv
+
+  -- | Output feedback mode: each keystream block encrypts the previous one, starting from the IV.
+  ofb-stream :: BlockCipher -> Bytes -> Result CipherError XorStream
+  ofb-stream cipher iv = start-stream 2 cipher iv
+
+  -- | Full-block cipher feedback encryption: each keystream block encrypts the previous ciphertext block.
+  cfb-encrypt-stream :: BlockCipher -> Bytes -> Result CipherError XorStream
+  cfb-encrypt-stream cipher iv = start-stream 3 cipher iv
+
+  -- | Full-block cipher feedback decryption, the inverse of cfb-encrypt-stream for the same IV.
+  cfb-decrypt-stream :: BlockCipher -> Bytes -> Result CipherError XorStream
+  cfb-decrypt-stream cipher iv = start-stream 4 cipher iv
+
+  -- | Produce the next keystream block and advance the register for the stream's mode.
+  -- CTR increments the counter, OFB feeds the keystream block back, and CFB keeps the register,
+  -- which cfb-commit replaces with the completed ciphertext block before each refill.
+  refill :: XorStream -> XorStream
+  refill stream = case stream of
+    Keystream cipher mode register key used feedback ->
+      let next = block-encrypt cipher register in
+      if mode == 1 then Keystream cipher mode (counter-next register) next 0 0
+      else if mode == 2 then Keystream cipher mode next next 0 0
+      else Keystream cipher mode register next 0 0
+
+  -- | Increment a block as a 128-bit big-endian counter, wrapping at 2^128.
+  counter-next :: U128 -> U128
+  counter-next block = swap-bytes-u128 (wrapping-add-u128 (swap-bytes-u128 block) 1)
+
+  -- | XOR an input of any length with the keystream, returning fresh output and the advanced stream.
+  -- Applying the same stream to the output reverses it for CTR and OFB; CFB uses its matching decrypt stream.
+  stream-xor :: XorStream -> Bytes -> (Bytes, XorStream)
+  stream-xor stream input =
+    let out = bytes-new (bytes-len input) in
+    let next = xor-from stream input out 0 in
+    (out, next)
+
+  -- | Consume buffered keystream bytes, then whole blocks, then retain a partial block.
+  xor-from :: XorStream -> Bytes -> Bytes -> Nat -> XorStream
+  xor-from stream input out pos = case stream of
+    Keystream cipher mode register key used feedback ->
+      if pos >= bytes-len input then stream
+      else if used >= 16 && pos + 16 <= bytes-len input then xor-from (xor-blocks (cfb-commit stream) input out pos) input out (pos + 16 * nat-div (bytes-len input - pos) 16)
+      else if used >= 16 then xor-from (refill (cfb-commit stream)) input out pos
+      else
+        let available = 16 - used in
+        let remaining = bytes-len input - pos in
+        let take = if remaining < available then remaining else available in
+        let shifted = wrapping-shr-u128 key (byte-shift used) in
+        let mixed = xor-tail out input pos take shifted in
+        let gathered = gather mode feedback (partial-block input pos take) shifted take used in
+        xor-from (Keystream cipher mode register key (used + take) gathered) input out (pos + take)
+
+  -- | Add this chunk's ciphertext bytes to the CFB feedback block at their positions.
+  -- Encryption derives them from the input and keystream; decryption takes them from the input.
+  gather :: Nat -> U128 -> U128 -> U128 -> Nat -> Nat -> U128
+  gather mode feedback chunk shifted take used =
+    if mode == 3 then bit-or-u128 feedback (wrapping-shl-u128 (bit-and-u128 (bit-xor-u128 chunk shifted) (prefix-mask take)) (byte-shift used))
+    else if mode == 4 then bit-or-u128 feedback (wrapping-shl-u128 (bit-and-u128 chunk (prefix-mask take)) (byte-shift used))
+    else 0
+
+  -- | Whole-block fast path: with no keystream buffered, transform every complete block of the
+  -- remaining input directly and return the stream positioned after the last complete block.
+  xor-blocks :: XorStream -> Bytes -> Bytes -> Nat -> XorStream
+  xor-blocks stream input out pos = case stream of
+    Keystream cipher mode register key used feedback ->
+      if pos + 16 <= bytes-len input then
+        let block = block-at input pos in
+        let stream-key = block-encrypt cipher register in
+        let result = bit-xor-u128 block stream-key in
+        let written = put-block out pos result in
+        let next = if mode == 1 then counter-next register else if mode == 2 then stream-key else if mode == 3 then result else block in
+        xor-blocks (Keystream cipher mode next stream-key 16 next) input out (pos + 16)
+      else stream
+
+  -- | Make a completed CFB ciphertext block the next register.
+  cfb-commit :: XorStream -> XorStream
+  cfb-commit stream = case stream of
+    Keystream cipher mode register key used feedback ->
+      if mode >= 3 && used == 16 then Keystream cipher mode feedback key used 0 else stream
+
+  -- | One-shot counter-mode XOR from an IV.
+  ctr-xor :: BlockCipher -> Bytes -> Bytes -> Result CipherError Bytes
+  ctr-xor cipher iv input = case ctr-stream cipher iv of
+    Err error -> Err error
+    Ok stream -> case stream-xor stream input of (out, next) -> Ok out
+
+  -- | One-shot output-feedback XOR from an IV.
+  ofb-xor :: BlockCipher -> Bytes -> Bytes -> Result CipherError Bytes
+  ofb-xor cipher iv input = case ofb-stream cipher iv of
+    Err error -> Err error
+    Ok stream -> case stream-xor stream input of (out, next) -> Ok out
+
+  -- | One-shot cipher-feedback encryption from an IV.
+  cfb-encrypt :: BlockCipher -> Bytes -> Bytes -> Result CipherError Bytes
+  cfb-encrypt cipher iv input = case cfb-encrypt-stream cipher iv of
+    Err error -> Err error
+    Ok stream -> case stream-xor stream input of (out, next) -> Ok out
+
+  -- | One-shot cipher-feedback decryption from an IV.
+  cfb-decrypt :: BlockCipher -> Bytes -> Bytes -> Result CipherError Bytes
+  cfb-decrypt cipher iv input = case cfb-decrypt-stream cipher iv of
+    Err error -> Err error
+    Ok stream -> case stream-xor stream input of (out, next) -> Ok out
+
+  -- | CBC state: cipher, direction (True encrypts) and the chaining value for the next block.
+  data CbcState where
+    -- | Private fields in the order listed above.
+    Cbc :: BlockCipher -> Bool -> U128 -> CbcState
+
+  -- | Start CBC encryption from a sixteen-byte IV.
+  cbc-encrypter :: BlockCipher -> Bytes -> Result CipherError CbcState
+  cbc-encrypter cipher iv = if bytes-len iv == 16 then Ok (Cbc cipher True (block-at iv 0)) else Err (InvalidIvSize 16 (bytes-len iv))
+
+  -- | Start CBC decryption from a sixteen-byte IV.
+  cbc-decrypter :: BlockCipher -> Bytes -> Result CipherError CbcState
+  cbc-decrypter cipher iv = if bytes-len iv == 16 then Ok (Cbc cipher False (block-at iv 0)) else Err (InvalidIvSize 16 (bytes-len iv))
+
+  -- | Encrypt or decrypt whole blocks, returning fresh output and the state chained to the last block.
+  -- Input that is not a multiple of sixteen bytes is rejected before any work; CBC applies no padding.
+  cbc-crypt-blocks :: CbcState -> Bytes -> Result CipherError (Bytes, CbcState)
+  cbc-crypt-blocks state input =
+    if nat-rem (bytes-len input) 16 == 0 then
+      let out = bytes-new (bytes-len input) in
+      let next = cbc-from state input out 0 in Ok (out, next)
+    else Err (InvalidInputSize (bytes-len input))
+
+  -- | Chain each block through the cipher in the state's direction.
+  cbc-from :: CbcState -> Bytes -> Bytes -> Nat -> CbcState
+  cbc-from state input out pos = case state of
+    Cbc cipher encrypt chain ->
+      if pos + 16 <= bytes-len input then
+        let block = block-at input pos in
+        if encrypt then
+          let sealed = block-encrypt cipher (bit-xor-u128 block chain) in
+          let written = put-block out pos sealed in cbc-from (Cbc cipher encrypt sealed) input out (pos + 16)
+        else
+          let opened = bit-xor-u128 (block-decrypt cipher block) chain in
+          let written = put-block out pos opened in cbc-from (Cbc cipher encrypt block) input out (pos + 16)
+      else state
+
+  -- | One-shot CBC encryption of whole blocks.
+  cbc-encrypt :: BlockCipher -> Bytes -> Bytes -> Result CipherError Bytes
+  cbc-encrypt cipher iv input = case cbc-encrypter cipher iv of
+    Err error -> Err error
+    Ok state -> case cbc-crypt-blocks state input of Ok (out, next) -> Ok out; Err error -> Err error
+
+  -- | One-shot CBC decryption of whole blocks.
+  cbc-decrypt :: BlockCipher -> Bytes -> Bytes -> Result CipherError Bytes
+  cbc-decrypt cipher iv input = case cbc-decrypter cipher iv of
+    Err error -> Err error
+    Ok state -> case cbc-crypt-blocks state input of Ok (out, next) -> Ok out; Err error -> Err error
+
+  -- | A GCM instance: cipher, hash key H, nonce size, tag size and whether GHASH uses carry-less instructions.
+  data Gcm where
+    -- | Private fields in the order listed above.
+    GcmState :: BlockCipher -> U128 -> Nat -> Nat -> Bool -> Gcm
+
+  -- | GCM with the standard 12-byte nonce and 16-byte tag.
+  gcm :: BlockCipher -> Gcm
+  gcm cipher = GcmState cipher (block-encrypt cipher 0) 12 16 (ne-u32 (clmul-available 0) 0)
+
+  -- | GCM with a non-standard nonce size; sizes other than 12 derive the initial counter through GHASH.
+  gcm-with-nonce-size :: BlockCipher -> Nat -> Result CipherError Gcm
+  gcm-with-nonce-size cipher size = if size == 0 then Err (InvalidNonceSize 12 0) else case gcm cipher of
+    GcmState c h nonce tag fast -> Ok (GcmState c h size tag fast)
+
+  -- | GCM with a truncated tag of 12 to 16 bytes.
+  gcm-with-tag-size :: BlockCipher -> Nat -> Result CipherError Gcm
+  gcm-with-tag-size cipher size = if size >= 12 && size <= 16 then case gcm cipher of
+      GcmState c h nonce tag fast -> Ok (GcmState c h nonce size fast)
+    else Err (InvalidTagSize size)
+
+  -- | Required nonce size in bytes.
+  gcm-nonce-size :: Gcm -> Nat
+  gcm-nonce-size g = case g of GcmState c h nonce tag fast -> nonce
+
+  -- | Tag size in bytes.
+  gcm-tag-size :: Gcm -> Nat
+  gcm-tag-size g = case g of GcmState c h nonce tag fast -> tag
+
+  -- | Bytes a sealed message adds to its plaintext: the tag size.
+  gcm-overhead :: Gcm -> Nat
+  gcm-overhead g = gcm-tag-size g
+
+  -- | Whether GHASH runs on carry-less multiplication instructions.
+  gcm-hardware :: Gcm -> Bool
+  gcm-hardware g = case g of GcmState c h nonce tag fast -> fast
+
+  -- | Multiply by the hash key with the selected implementation.
+  hash-step :: Bool -> U128 -> U128 -> U128
+  hash-step fast h y = if fast then ghash-multiply-clmul y h else ghash-multiply y h
+
+  -- | Absorb an input region into the GHASH accumulator, zero-padding its final partial block.
+  ghash-bytes :: Bool -> U128 -> U128 -> Bytes -> Nat -> U128
+  ghash-bytes fast h y input pos =
+    if pos + 16 <= bytes-len input then ghash-bytes fast h (hash-step fast h (bit-xor-u128 y (block-at input pos))) input (pos + 16)
+    else if pos < bytes-len input then hash-step fast h (bit-xor-u128 y (partial-block input pos (bytes-len input - pos)))
+    else y
+
+  -- | The length block: additional-data and ciphertext bit lengths as big-endian 64-bit integers.
+  length-block :: Nat -> Nat -> U128
+  length-block aad text =
+    bit-or-u128 (u64-to-u128 (swap-bytes-u64 (wrapping-shl-u64 (length-word aad) 3)))
+      (wrapping-shl-u128 (u64-to-u128 (swap-bytes-u64 (wrapping-shl-u64 (length-word text) 3))) 64)
+
+  -- | A byte length as a U64; lengths are bounded far below 2^63 by the callers' limits.
+  length-word :: Nat -> U64
+  length-word n = if n <= 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 n) else max-bound-u64
+
+  -- | Increment the final 32 bits of a counter block as a big-endian integer, wrapping within those bits.
+  increment32 :: U128 -> U128
+  increment32 block =
+    let low = bit-and-u128 block (wrapping-sub-u128 (wrapping-shl-u128 1 96) 1) in
+    let word = wrapping-u128-to-u32 (wrapping-shr-u128 block 96) in
+    let next = swap-bytes-u32 (wrapping-add-u32 (swap-bytes-u32 word) 1) in
+    bit-or-u128 low (wrapping-shl-u128 (u32-to-u128 next) 96)
+
+  -- | Initial counter block J0 from the nonce.
+  initial-counter :: Bool -> U128 -> Bytes -> U128
+  initial-counter fast h nonce =
+    if bytes-len nonce == 12 then bit-or-u128 (partial-block nonce 0 12) (wrapping-shl-u128 1 120)
+    else hash-step fast h (bit-xor-u128 (ghash-bytes fast h 0 nonce 0) (length-block 0 (bytes-len nonce)))
+
+  -- | GCTR: XOR input with successive incremented counter blocks, starting at the given counter.
+  gctr :: BlockCipher -> U128 -> Bytes -> Bytes -> Nat -> Unit
+  gctr cipher counter input out pos =
+    if pos + 16 <= bytes-len input then
+      let written = put-block out pos (bit-xor-u128 (block-at input pos) (block-encrypt cipher counter)) in
+      gctr cipher (increment32 counter) input out (pos + 16)
+    else if pos < bytes-len input then xor-tail out input pos (bytes-len input - pos) (block-encrypt cipher counter)
+    else ()
+
+  -- | The full tag for ciphertext and additional data under counter block J0.
+  full-tag :: Gcm -> U128 -> Bytes -> Bytes -> U128
+  full-tag g counter text aad = case g of
+    GcmState cipher h nonce tag fast ->
+      let ya = ghash-bytes fast h 0 aad 0 in
+      let yc = ghash-bytes fast h ya text 0 in
+      let s = hash-step fast h (bit-xor-u128 yc (length-block (bytes-len aad) (bytes-len text))) in
+      bit-xor-u128 s (block-encrypt cipher counter)
+
+  -- | The plaintext limit, 2^36 - 32 bytes, imposed by the 32-bit block counter.
+  within-limit :: Bytes -> Bool
+  within-limit input = bytes-len input <= 68719476704
+
+  -- | Encrypt and authenticate: returns ciphertext followed by the tag in fresh storage.
+  -- Nonces must never repeat under one key; repetition destroys both confidentiality and authenticity.
+  gcm-seal :: Gcm -> Bytes -> Bytes -> Bytes -> Result CipherError Bytes
+  gcm-seal g nonce plaintext aad = case g of
+    GcmState cipher h size tag fast ->
+      if not (bytes-len nonce == size) then Err (InvalidNonceSize size (bytes-len nonce))
+      else if not (within-limit plaintext) then Err MessageTooLarge
+      else
+        let j0 = initial-counter fast h nonce in
+        let out = bytes-new (bytes-len plaintext + tag) in
+        let body = bytes-new (bytes-len plaintext) in
+        let encrypted = gctr cipher (increment32 j0) plaintext body 0 in
+        let copied = bytes-copy-range out body 0 0 (bytes-len body) in
+        let full = block-to-bytes (full-tag g j0 body aad) in
+        let tagged = if tag <= bytes-len full && bytes-len body + tag <= bytes-len out then bytes-copy-range out full (bytes-len body) 0 tag else () in
+        Ok out
+
+  -- | Verify and decrypt ciphertext followed by its tag. Verification is constant time, and
+  -- AuthenticationFailed is returned without any plaintext when the tag does not match.
+  gcm-open :: Gcm -> Bytes -> Bytes -> Bytes -> Result CipherError Bytes
+  gcm-open g nonce sealed aad = case g of
+    GcmState cipher h size tag fast ->
+      if not (bytes-len nonce == size) then Err (InvalidNonceSize size (bytes-len nonce))
+      else if bytes-len sealed < tag then Err AuthenticationFailed
+      else
+        let n = bytes-len sealed - tag in
+        let text = bytes-new n in
+        let copied = bytes-copy-range text sealed 0 0 n in
+        let j0 = initial-counter fast h nonce in
+        let expected = full-tag g j0 text aad in
+        let received = partial-block sealed n tag in
+        let difference = bit-and-u128 (bit-xor-u128 expected received) (prefix-mask tag) in
+        if eq-u128 difference 0 then
+          let out = bytes-new n in let decrypted = gctr cipher (increment32 j0) text out 0 in Ok out
+        else Err AuthenticationFailed
+
+  -- Generated GHASH multiplication: constant-time portable and carry-less-instruction bodies.
+  -- Regenerate with python3 tooling/generate_aes_kernels.py; do not edit this suffix.
+  -- | Multiply two GHASH field elements in canonical byte order without data-dependent branches or memory access.
+  prim ghash-multiply :: U128 -> U128 -> U128 where
+    llvm {
+      %g1 = call i128 @llvm.bswap.i128(i128 %0)
+      %g2 = call i128 @llvm.bswap.i128(i128 %1)
+      %g3 = trunc i128 %g1 to i64
+      %g4 = lshr i128 %g1, 64
+      %g5 = trunc i128 %g4 to i64
+      %g6 = trunc i128 %g2 to i64
+      %g7 = lshr i128 %g2, 64
+      %g8 = trunc i128 %g7 to i64
+      %r9 = call i64 @llvm.bitreverse.i64(i64 %g6)
+      %r10 = call i64 @llvm.bitreverse.i64(i64 %g8)
+      %g11 = xor i64 %g6, %g8
+      %g12 = xor i64 %r9, %r10
+      %r13 = call i64 @llvm.bitreverse.i64(i64 %g3)
+      %r14 = call i64 @llvm.bitreverse.i64(i64 %g5)
+      %g15 = xor i64 %g3, %g5
+      %g16 = xor i64 %r13, %r14
+      %a17 = and i64 %g3, 1229782938247303441
+      %a18 = and i64 %g3, 2459565876494606882
+      %a19 = and i64 %g3, 4919131752989213764
+      %a20 = and i64 %g3, 9838263505978427528
+      %b21 = and i64 %g6, 1229782938247303441
+      %b22 = and i64 %g6, 2459565876494606882
+      %b23 = and i64 %g6, 4919131752989213764
+      %b24 = and i64 %g6, 9838263505978427528
+      %c25 = mul i64 %a17, %b21
+      %c26 = mul i64 %a18, %b24
+      %c27 = xor i64 %c25, %c26
+      %c28 = mul i64 %a19, %b23
+      %c29 = xor i64 %c27, %c28
+      %c30 = mul i64 %a20, %b22
+      %c31 = xor i64 %c29, %c30
+      %d32 = and i64 %c31, 1229782938247303441
+      %c33 = mul i64 %a17, %b22
+      %c34 = mul i64 %a18, %b21
+      %c35 = xor i64 %c33, %c34
+      %c36 = mul i64 %a19, %b24
+      %c37 = xor i64 %c35, %c36
+      %c38 = mul i64 %a20, %b23
+      %c39 = xor i64 %c37, %c38
+      %d40 = and i64 %c39, 2459565876494606882
+      %c41 = mul i64 %a17, %b23
+      %c42 = mul i64 %a18, %b22
+      %c43 = xor i64 %c41, %c42
+      %c44 = mul i64 %a19, %b21
+      %c45 = xor i64 %c43, %c44
+      %c46 = mul i64 %a20, %b24
+      %c47 = xor i64 %c45, %c46
+      %d48 = and i64 %c47, 4919131752989213764
+      %c49 = mul i64 %a17, %b24
+      %c50 = mul i64 %a18, %b23
+      %c51 = xor i64 %c49, %c50
+      %c52 = mul i64 %a19, %b22
+      %c53 = xor i64 %c51, %c52
+      %c54 = mul i64 %a20, %b21
+      %c55 = xor i64 %c53, %c54
+      %d56 = and i64 %c55, 9838263505978427528
+      %e57 = or i64 %d32, %d40
+      %e58 = or i64 %d48, %d56
+      %e59 = or i64 %e57, %e58
+      %a60 = and i64 %g5, 1229782938247303441
+      %a61 = and i64 %g5, 2459565876494606882
+      %a62 = and i64 %g5, 4919131752989213764
+      %a63 = and i64 %g5, 9838263505978427528
+      %b64 = and i64 %g8, 1229782938247303441
+      %b65 = and i64 %g8, 2459565876494606882
+      %b66 = and i64 %g8, 4919131752989213764
+      %b67 = and i64 %g8, 9838263505978427528
+      %c68 = mul i64 %a60, %b64
+      %c69 = mul i64 %a61, %b67
+      %c70 = xor i64 %c68, %c69
+      %c71 = mul i64 %a62, %b66
+      %c72 = xor i64 %c70, %c71
+      %c73 = mul i64 %a63, %b65
+      %c74 = xor i64 %c72, %c73
+      %d75 = and i64 %c74, 1229782938247303441
+      %c76 = mul i64 %a60, %b65
+      %c77 = mul i64 %a61, %b64
+      %c78 = xor i64 %c76, %c77
+      %c79 = mul i64 %a62, %b67
+      %c80 = xor i64 %c78, %c79
+      %c81 = mul i64 %a63, %b66
+      %c82 = xor i64 %c80, %c81
+      %d83 = and i64 %c82, 2459565876494606882
+      %c84 = mul i64 %a60, %b66
+      %c85 = mul i64 %a61, %b65
+      %c86 = xor i64 %c84, %c85
+      %c87 = mul i64 %a62, %b64
+      %c88 = xor i64 %c86, %c87
+      %c89 = mul i64 %a63, %b67
+      %c90 = xor i64 %c88, %c89
+      %d91 = and i64 %c90, 4919131752989213764
+      %c92 = mul i64 %a60, %b67
+      %c93 = mul i64 %a61, %b66
+      %c94 = xor i64 %c92, %c93
+      %c95 = mul i64 %a62, %b65
+      %c96 = xor i64 %c94, %c95
+      %c97 = mul i64 %a63, %b64
+      %c98 = xor i64 %c96, %c97
+      %d99 = and i64 %c98, 9838263505978427528
+      %e100 = or i64 %d75, %d83
+      %e101 = or i64 %d91, %d99
+      %e102 = or i64 %e100, %e101
+      %a103 = and i64 %g15, 1229782938247303441
+      %a104 = and i64 %g15, 2459565876494606882
+      %a105 = and i64 %g15, 4919131752989213764
+      %a106 = and i64 %g15, 9838263505978427528
+      %b107 = and i64 %g11, 1229782938247303441
+      %b108 = and i64 %g11, 2459565876494606882
+      %b109 = and i64 %g11, 4919131752989213764
+      %b110 = and i64 %g11, 9838263505978427528
+      %c111 = mul i64 %a103, %b107
+      %c112 = mul i64 %a104, %b110
+      %c113 = xor i64 %c111, %c112
+      %c114 = mul i64 %a105, %b109
+      %c115 = xor i64 %c113, %c114
+      %c116 = mul i64 %a106, %b108
+      %c117 = xor i64 %c115, %c116
+      %d118 = and i64 %c117, 1229782938247303441
+      %c119 = mul i64 %a103, %b108
+      %c120 = mul i64 %a104, %b107
+      %c121 = xor i64 %c119, %c120
+      %c122 = mul i64 %a105, %b110
+      %c123 = xor i64 %c121, %c122
+      %c124 = mul i64 %a106, %b109
+      %c125 = xor i64 %c123, %c124
+      %d126 = and i64 %c125, 2459565876494606882
+      %c127 = mul i64 %a103, %b109
+      %c128 = mul i64 %a104, %b108
+      %c129 = xor i64 %c127, %c128
+      %c130 = mul i64 %a105, %b107
+      %c131 = xor i64 %c129, %c130
+      %c132 = mul i64 %a106, %b110
+      %c133 = xor i64 %c131, %c132
+      %d134 = and i64 %c133, 4919131752989213764
+      %c135 = mul i64 %a103, %b110
+      %c136 = mul i64 %a104, %b109
+      %c137 = xor i64 %c135, %c136
+      %c138 = mul i64 %a105, %b108
+      %c139 = xor i64 %c137, %c138
+      %c140 = mul i64 %a106, %b107
+      %c141 = xor i64 %c139, %c140
+      %d142 = and i64 %c141, 9838263505978427528
+      %e143 = or i64 %d118, %d126
+      %e144 = or i64 %d134, %d142
+      %e145 = or i64 %e143, %e144
+      %a146 = and i64 %r13, 1229782938247303441
+      %a147 = and i64 %r13, 2459565876494606882
+      %a148 = and i64 %r13, 4919131752989213764
+      %a149 = and i64 %r13, 9838263505978427528
+      %b150 = and i64 %r9, 1229782938247303441
+      %b151 = and i64 %r9, 2459565876494606882
+      %b152 = and i64 %r9, 4919131752989213764
+      %b153 = and i64 %r9, 9838263505978427528
+      %c154 = mul i64 %a146, %b150
+      %c155 = mul i64 %a147, %b153
+      %c156 = xor i64 %c154, %c155
+      %c157 = mul i64 %a148, %b152
+      %c158 = xor i64 %c156, %c157
+      %c159 = mul i64 %a149, %b151
+      %c160 = xor i64 %c158, %c159
+      %d161 = and i64 %c160, 1229782938247303441
+      %c162 = mul i64 %a146, %b151
+      %c163 = mul i64 %a147, %b150
+      %c164 = xor i64 %c162, %c163
+      %c165 = mul i64 %a148, %b153
+      %c166 = xor i64 %c164, %c165
+      %c167 = mul i64 %a149, %b152
+      %c168 = xor i64 %c166, %c167
+      %d169 = and i64 %c168, 2459565876494606882
+      %c170 = mul i64 %a146, %b152
+      %c171 = mul i64 %a147, %b151
+      %c172 = xor i64 %c170, %c171
+      %c173 = mul i64 %a148, %b150
+      %c174 = xor i64 %c172, %c173
+      %c175 = mul i64 %a149, %b153
+      %c176 = xor i64 %c174, %c175
+      %d177 = and i64 %c176, 4919131752989213764
+      %c178 = mul i64 %a146, %b153
+      %c179 = mul i64 %a147, %b152
+      %c180 = xor i64 %c178, %c179
+      %c181 = mul i64 %a148, %b151
+      %c182 = xor i64 %c180, %c181
+      %c183 = mul i64 %a149, %b150
+      %c184 = xor i64 %c182, %c183
+      %d185 = and i64 %c184, 9838263505978427528
+      %e186 = or i64 %d161, %d169
+      %e187 = or i64 %d177, %d185
+      %e188 = or i64 %e186, %e187
+      %a189 = and i64 %r14, 1229782938247303441
+      %a190 = and i64 %r14, 2459565876494606882
+      %a191 = and i64 %r14, 4919131752989213764
+      %a192 = and i64 %r14, 9838263505978427528
+      %b193 = and i64 %r10, 1229782938247303441
+      %b194 = and i64 %r10, 2459565876494606882
+      %b195 = and i64 %r10, 4919131752989213764
+      %b196 = and i64 %r10, 9838263505978427528
+      %c197 = mul i64 %a189, %b193
+      %c198 = mul i64 %a190, %b196
+      %c199 = xor i64 %c197, %c198
+      %c200 = mul i64 %a191, %b195
+      %c201 = xor i64 %c199, %c200
+      %c202 = mul i64 %a192, %b194
+      %c203 = xor i64 %c201, %c202
+      %d204 = and i64 %c203, 1229782938247303441
+      %c205 = mul i64 %a189, %b194
+      %c206 = mul i64 %a190, %b193
+      %c207 = xor i64 %c205, %c206
+      %c208 = mul i64 %a191, %b196
+      %c209 = xor i64 %c207, %c208
+      %c210 = mul i64 %a192, %b195
+      %c211 = xor i64 %c209, %c210
+      %d212 = and i64 %c211, 2459565876494606882
+      %c213 = mul i64 %a189, %b195
+      %c214 = mul i64 %a190, %b194
+      %c215 = xor i64 %c213, %c214
+      %c216 = mul i64 %a191, %b193
+      %c217 = xor i64 %c215, %c216
+      %c218 = mul i64 %a192, %b196
+      %c219 = xor i64 %c217, %c218
+      %d220 = and i64 %c219, 4919131752989213764
+      %c221 = mul i64 %a189, %b196
+      %c222 = mul i64 %a190, %b195
+      %c223 = xor i64 %c221, %c222
+      %c224 = mul i64 %a191, %b194
+      %c225 = xor i64 %c223, %c224
+      %c226 = mul i64 %a192, %b193
+      %c227 = xor i64 %c225, %c226
+      %d228 = and i64 %c227, 9838263505978427528
+      %e229 = or i64 %d204, %d212
+      %e230 = or i64 %d220, %d228
+      %e231 = or i64 %e229, %e230
+      %a232 = and i64 %g16, 1229782938247303441
+      %a233 = and i64 %g16, 2459565876494606882
+      %a234 = and i64 %g16, 4919131752989213764
+      %a235 = and i64 %g16, 9838263505978427528
+      %b236 = and i64 %g12, 1229782938247303441
+      %b237 = and i64 %g12, 2459565876494606882
+      %b238 = and i64 %g12, 4919131752989213764
+      %b239 = and i64 %g12, 9838263505978427528
+      %c240 = mul i64 %a232, %b236
+      %c241 = mul i64 %a233, %b239
+      %c242 = xor i64 %c240, %c241
+      %c243 = mul i64 %a234, %b238
+      %c244 = xor i64 %c242, %c243
+      %c245 = mul i64 %a235, %b237
+      %c246 = xor i64 %c244, %c245
+      %d247 = and i64 %c246, 1229782938247303441
+      %c248 = mul i64 %a232, %b237
+      %c249 = mul i64 %a233, %b236
+      %c250 = xor i64 %c248, %c249
+      %c251 = mul i64 %a234, %b239
+      %c252 = xor i64 %c250, %c251
+      %c253 = mul i64 %a235, %b238
+      %c254 = xor i64 %c252, %c253
+      %d255 = and i64 %c254, 2459565876494606882
+      %c256 = mul i64 %a232, %b238
+      %c257 = mul i64 %a233, %b237
+      %c258 = xor i64 %c256, %c257
+      %c259 = mul i64 %a234, %b236
+      %c260 = xor i64 %c258, %c259
+      %c261 = mul i64 %a235, %b239
+      %c262 = xor i64 %c260, %c261
+      %d263 = and i64 %c262, 4919131752989213764
+      %c264 = mul i64 %a232, %b239
+      %c265 = mul i64 %a233, %b238
+      %c266 = xor i64 %c264, %c265
+      %c267 = mul i64 %a234, %b237
+      %c268 = xor i64 %c266, %c267
+      %c269 = mul i64 %a235, %b236
+      %c270 = xor i64 %c268, %c269
+      %d271 = and i64 %c270, 9838263505978427528
+      %e272 = or i64 %d247, %d255
+      %e273 = or i64 %d263, %d271
+      %e274 = or i64 %e272, %e273
+      %g275 = xor i64 %e59, %e102
+      %g276 = xor i64 %e145, %g275
+      %g277 = xor i64 %e188, %e231
+      %g278 = xor i64 %e274, %g277
+      %r279 = call i64 @llvm.bitreverse.i64(i64 %e188)
+      %g280 = lshr i64 %r279, 1
+      %r281 = call i64 @llvm.bitreverse.i64(i64 %e231)
+      %g282 = lshr i64 %r281, 1
+      %r283 = call i64 @llvm.bitreverse.i64(i64 %g278)
+      %g284 = lshr i64 %r283, 1
+      %g285 = xor i64 %g280, %g276
+      %g286 = xor i64 %e102, %g284
+      %n287 = shl i64 %g282, 1
+      %n288 = lshr i64 %g286, 63
+      %n289 = or i64 %n287, %n288
+      %n290 = shl i64 %g286, 1
+      %n291 = lshr i64 %g285, 63
+      %n292 = or i64 %n290, %n291
+      %n293 = shl i64 %g285, 1
+      %n294 = lshr i64 %e59, 63
+      %n295 = or i64 %n293, %n294
+      %n296 = shl i64 %e59, 1
+      %n297 = lshr i64 %n296, 1
+      %n298 = xor i64 %n296, %n297
+      %n299 = lshr i64 %n296, 2
+      %n300 = lshr i64 %n296, 7
+      %n301 = xor i64 %n299, %n300
+      %n302 = xor i64 %n298, %n301
+      %n303 = xor i64 %n292, %n302
+      %n304 = shl i64 %n296, 63
+      %n305 = shl i64 %n296, 62
+      %n306 = xor i64 %n304, %n305
+      %n307 = shl i64 %n296, 57
+      %n308 = xor i64 %n306, %n307
+      %n309 = xor i64 %n295, %n308
+      %n310 = lshr i64 %n309, 1
+      %n311 = xor i64 %n309, %n310
+      %n312 = lshr i64 %n309, 2
+      %n313 = lshr i64 %n309, 7
+      %n314 = xor i64 %n312, %n313
+      %n315 = xor i64 %n311, %n314
+      %n316 = xor i64 %n289, %n315
+      %n317 = shl i64 %n309, 63
+      %n318 = shl i64 %n309, 62
+      %n319 = xor i64 %n317, %n318
+      %n320 = shl i64 %n309, 57
+      %n321 = xor i64 %n319, %n320
+      %n322 = xor i64 %n303, %n321
+      %n323 = zext i64 %n322 to i128
+      %n324 = zext i64 %n316 to i128
+      %n325 = shl i128 %n324, 64
+      %n326 = or i128 %n323, %n325
+      %n327 = call i128 @llvm.bswap.i128(i128 %n326)
+      ret i128 %n327
+    }
+
+  -- | Multiply two GHASH field elements with PCLMULQDQ. Callers select it only after detection succeeds; other targets keep the identity body, which is never selected.
+  prim ghash-multiply-clmul :: U128 -> U128 -> U128 where
+    unsafe llvm {
+      %g1 = call i128 @llvm.bswap.i128(i128 %0)
+      %g2 = call i128 @llvm.bswap.i128(i128 %1)
+      %g3 = bitcast i128 %g1 to <2 x i64>
+      %g4 = bitcast i128 %g2 to <2 x i64>
+      %q5 = call <2 x i64> asm "pclmulqdq $$0, $2, $0", "=x,0,x"(<2 x i64> %g3, <2 x i64> %g4)
+      %q6 = call <2 x i64> asm "pclmulqdq $$17, $2, $0", "=x,0,x"(<2 x i64> %g3, <2 x i64> %g4)
+      %q7 = call <2 x i64> asm "pclmulqdq $$1, $2, $0", "=x,0,x"(<2 x i64> %g3, <2 x i64> %g4)
+      %q8 = call <2 x i64> asm "pclmulqdq $$16, $2, $0", "=x,0,x"(<2 x i64> %g3, <2 x i64> %g4)
+      %g9 = xor <2 x i64> %q7, %q8
+      %l10 = extractelement <2 x i64> %q5, i64 0
+      %l11 = extractelement <2 x i64> %q5, i64 1
+      %l12 = extractelement <2 x i64> %g9, i64 0
+      %g13 = xor i64 %l11, %l12
+      %l14 = extractelement <2 x i64> %q6, i64 0
+      %l15 = extractelement <2 x i64> %g9, i64 1
+      %g16 = xor i64 %l14, %l15
+      %l17 = extractelement <2 x i64> %q6, i64 1
+      %n18 = shl i64 %l17, 1
+      %n19 = lshr i64 %g16, 63
+      %n20 = or i64 %n18, %n19
+      %n21 = shl i64 %g16, 1
+      %n22 = lshr i64 %g13, 63
+      %n23 = or i64 %n21, %n22
+      %n24 = shl i64 %g13, 1
+      %n25 = lshr i64 %l10, 63
+      %n26 = or i64 %n24, %n25
+      %n27 = shl i64 %l10, 1
+      %n28 = lshr i64 %n27, 1
+      %n29 = xor i64 %n27, %n28
+      %n30 = lshr i64 %n27, 2
+      %n31 = lshr i64 %n27, 7
+      %n32 = xor i64 %n30, %n31
+      %n33 = xor i64 %n29, %n32
+      %n34 = xor i64 %n23, %n33
+      %n35 = shl i64 %n27, 63
+      %n36 = shl i64 %n27, 62
+      %n37 = xor i64 %n35, %n36
+      %n38 = shl i64 %n27, 57
+      %n39 = xor i64 %n37, %n38
+      %n40 = xor i64 %n26, %n39
+      %n41 = lshr i64 %n40, 1
+      %n42 = xor i64 %n40, %n41
+      %n43 = lshr i64 %n40, 2
+      %n44 = lshr i64 %n40, 7
+      %n45 = xor i64 %n43, %n44
+      %n46 = xor i64 %n42, %n45
+      %n47 = xor i64 %n20, %n46
+      %n48 = shl i64 %n40, 63
+      %n49 = shl i64 %n40, 62
+      %n50 = xor i64 %n48, %n49
+      %n51 = shl i64 %n40, 57
+      %n52 = xor i64 %n50, %n51
+      %n53 = xor i64 %n34, %n52
+      %n54 = zext i64 %n53 to i128
+      %n55 = zext i64 %n47 to i128
+      %n56 = shl i128 %n55, 64
+      %n57 = or i128 %n54, %n56
+      %n58 = call i128 @llvm.bswap.i128(i128 %n57)
+      ret i128 %n58
+    } when arch x86_64
+    llvm {
+      ret i128 %0
+    }
+
+  -- | Report CPUID's PCLMULQDQ bit on x86-64 and zero elsewhere; detection never depends on key or message bytes.
+  prim clmul-available :: U32 -> U32 where
+    unsafe llvm {
+      %regs = call { i32, i32, i32, i32 } asm "cpuid", "={ax},={bx},={cx},={dx},{ax},{cx}"(i32 1, i32 0)
+      %ecx = extractvalue { i32, i32, i32, i32 } %regs, 2
+      %bit = and i32 %ecx, 2
+      ret i32 %bit
+    } when arch x86_64
+    llvm {
+      ret i32 0
+    }

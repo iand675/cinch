@@ -323,4 +323,4 @@ The diagnostic line for a named error.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Http.cinch`. Source SHA-256: `28ce800080f068afac0b699ae592bf9630a2d20f5ea2246d171a0cdea87e774c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Http.cinch`. Source SHA-256: `402d0270a2549a552be4c7f6e243724f9fe1f63eceb0f2597f0b588c4485035e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

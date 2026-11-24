@@ -248,7 +248,7 @@ Construct a present scalar string with independently owned UTF-8 bytes.
 
 Dynamic descriptor: absent-only omission, exact-number selection and iterative owned traversal.
 
-[Source](/reference-sources/Text.Json.Dynamic.cinch) · line 379
+[Source](/reference-sources/Text.Json.Dynamic.cinch) · line 384
 
 <a id="value-6a736f6e2d616e792d7479706564"></a>
 
@@ -275,4 +275,4 @@ Inspect an opaque typed payload's label without fabricating a decoded representa
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Dynamic.cinch`. Source SHA-256: `81d5911b9b49fcb34e1cf42b95189a13b332cfcaacea6bb0d28a6bfbe239ea93`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Dynamic.cinch`. Source SHA-256: `19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

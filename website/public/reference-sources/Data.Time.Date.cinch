@@ -1,0 +1,578 @@
+-- Data.Time.Date: a civil calendar date.
+--
+-- A `Date` is a day in the proleptic Gregorian calendar, attached to no
+-- place and no instant: a year in -9999..=9999 (astronomical numbering,
+-- so year 0 exists and is a leap year), a month in 1..=12 and a day in
+-- 1..=that month's length in that year. There are no leap seconds and
+-- no reform cutover (design/datetime.md T3).
+--
+-- Representation. One `I64` word behind a private constructor:
+--
+--     word = year * 512 + month * 32 + day
+--
+-- The year is NOT biased: for a negative year the word is negative,
+-- and because `month * 32 + day` is in 33..=415 (below 512) the year is
+-- exactly the arithmetic shift `word >> 9` (which floors) and the low
+-- nine bits are `month * 32 + day` in two's complement for either sign.
+-- The encoding is order preserving: the year is the most significant
+-- part, then the month, then the day, and each lower part is smaller
+-- than the weight of the part above it, so comparing two dates is
+-- comparing two words (`cmp`, `Eq`, `Ord` are one machine compare and
+-- never run the calendar). Field access is a shift and a mask, so a
+-- printer needs no division by 146097.
+--
+-- How the value is held (verified against the emitted LLVM, see NAMED
+-- REFUSALS): the declaration carries `#[repr(transparent)]`, which the
+-- compiler admits on a one-field `data` and records in the interface as
+-- size 8, align 8, but the code generator still holds a `Date` as a
+-- reference to a one-field heap object. The word is unboxed inside that
+-- object; the `Date` itself is not yet a bare scalar.
+--
+-- The constructor is not exported, so every `Date` came through `date`,
+-- `date-constrain`, `date-of`, `from-epoch-days` or arithmetic on a
+-- valid date, and an invalid date (a 30 February, a month 13, a year
+-- 10000) has no representation.
+--
+-- Design law shape. One predicate, `is-leap-year` (divisible by 4 and
+-- not by 100 unless by 400), fixes every month length
+-- (`days-in-month`) and every year length (`days-in-year`). On top of
+-- it:
+--   - `to-epoch-days` is strictly increasing in the word order and
+--     `from-epoch-days` inverts it on `min-epoch-day..=max-epoch-day`
+--     (1970-01-01 is day 0); outside that interval `from-epoch-days` is
+--     `None`.
+--   - `add-days n d` is `from-epoch-days (to-epoch-days d + n)`, so
+--     `diff-days d e` (finish minus start) is the `n` with
+--     `add-days n d == Some e`, and adding m then n days is adding
+--     m + n whenever every step stays in range.
+--   - `tomorrow`/`yesterday` are `add-days 1`/`add-days (-1)`.
+--   - `weekday` is the epoch day read modulo 7 with 1970-01-01 a
+--     Thursday, so consecutive days have consecutive weekdays.
+--   - `add-months-constrain` and `add-years-constrain` follow Temporal's
+--     "constrain" overflow: the year and month move exactly, and the day
+--     is clamped down to the target month's length
+--     (2024-05-31 + 1 month = 2024-06-30, 2024-02-29 + 1 year =
+--     2025-02-28). They are `None` only when the year leaves the range.
+--   - `day-of-year` is 1 on 1 January and `days-in-year` on 31 December.
+--   - `nth-weekday-of-month` and `nth-weekday` are Jiff's
+--     `nth_weekday_of_month` and `nth_weekday`.
+--   - `iso-week-year`/`iso-week` are ISO 8601 week dates (week 1 is the
+--     week holding the year's first Thursday).
+--
+-- No operation faults (T2): each is total over refined arguments
+-- (`date-of`, `date-constrain`, `days-in-month`), total by a named
+-- convention (`-constrain`), or answers `Option`.
+--
+-- NAMED REFUSALS:
+--   - an unboxed `Date`: `#[repr(transparent)]` is accepted and
+--     recorded, but the emitted code allocates a one-field object for
+--     the constructor and loads the word through it (`#[no-alloc]` on
+--     a function that builds a `Date` is refused with "the constructor
+--     `MkDate` is constructed here"). A `record` is held the same way
+--     and, unlike a `data`, lets any importer write
+--     `Date { word = ... }`, so a `data` with a private constructor is
+--     used. Nothing in the API depends on the box.
+--   - a total literal constructor for days 29..=31: the refinement
+--     vocabulary is comparisons over one value, so "day <= the length of
+--     this month in this year" cannot be a parameter's type. `date-of`
+--     is total for days 1..=28 (valid in every month); other days go
+--     through `date` (`Option`) or `date-constrain` (clamps). A staged
+--     date literal is design/datetime.md's open decision 4.
+--   - refined results by proof: machine integer arithmetic is opaque to
+--     the checker, so `year`, `month`, `day`, `day-of-year` and
+--     `iso-week` establish their declared ranges with a clamp. The
+--     clamp never changes a value (the representation invariant puts
+--     every field in range already); it is how the range reaches the
+--     type.
+--   - a total machine division: `Data.Machine` has only
+--     `checked-div-i64`/`checked-rem-i64`. The private `quot`/`rem`
+--     take the divisor at `InRange 2 9223372036854775807 I64`, which
+--     excludes both `None` cases (zero, and `min / -1`), and still must
+--     match the `None` arm.
+--   - text: no printer or parser lives here (Text.Time.Iso).
+--   - `Int`/`Nat`: every quantity is an `I64`.
+module Data.Time.Date where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Ordering
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Time.Weekday (Weekday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+  import Data.Time.Weekday as W
+
+  export Date, date, date-constrain, date-of
+  export year, month, day
+  export is-leap-year, days-in-month, days-in-year
+  export in-leap-year, days-in-month-of, days-in-year-of
+  export to-epoch-days, from-epoch-days, min-epoch-day, max-epoch-day
+  export add-days, diff-days, tomorrow, yesterday
+  export add-months-constrain, add-years-constrain
+  export weekday, day-of-year
+  export first-of-month, last-of-month, first-of-year, last-of-year
+  export nth-weekday-of-month, nth-weekday
+  export iso-week-year, iso-week
+  export min-date, max-date, cmp
+
+
+  -- The packed word (header). Not exported: the validity invariant.
+  #[repr(transparent)]
+  data Date where
+    MkDate :: I64 -> Date
+
+  -- -----------------------------------------------------------------
+  -- Construction.
+  -- -----------------------------------------------------------------
+
+  -- The checked constructor: year, month, day. `None` for a year
+  -- outside -9999..=9999, a month outside 1..=12, or a day outside
+  -- 1..=the month's length in that year.
+  date :: I64 -> I64 -> I64 -> Option Date
+  date y m d =
+    if y < -9999 || y > 9999 then None
+    else if m < 1 || m > 12 then None
+    else if d < 1 || d > month-len (is-leap-year y) m then None
+    else Some (pack y m d)
+
+  -- Temporal's "constrain" overflow for the day: the year and month are
+  -- taken as given (their ranges are in their types, so a literal
+  -- discharges at compile time) and the day is clamped into
+  -- 1..=the month's length. `date-constrain 2023 2 31` is 2023-02-28;
+  -- a day below 1 is the 1st.
+  date-constrain :: (y :: InRange (-9999) 9999 I64) -> (m :: InRange 1 12 I64) -> I64 -> Date
+  date-constrain y m d =
+    let len = month-len (is-leap-year y) m in
+    if d < 1 then pack y m 1
+    else if d > len then pack y m len
+    else pack y m d
+
+  -- The total constructor for the days every month has. All three
+  -- ranges are in the argument types, so `date-of 2024 2 15` checks
+  -- with nothing else written and a bad literal is refused at compile
+  -- time.
+  date-of :: (y :: InRange (-9999) 9999 I64) -> (m :: InRange 1 12 I64) -> (d :: InRange 1 28 I64) -> Date
+  date-of y m d = pack y m d
+
+  -- -9999-01-01 and 9999-12-31.
+  min-date :: Date
+  min-date = pack (-9999) 1 1
+
+  max-date :: Date
+  max-date = pack 9999 12 31
+
+  -- -----------------------------------------------------------------
+  -- Fields. Each is a shift or a mask of the word; the clamp states
+  -- the range in the type and never fires (see NAMED REFUSALS).
+  -- -----------------------------------------------------------------
+
+  year :: Date -> InRange (-9999) 9999 I64
+  year x =
+    let y = year-of x in
+    if y < -9999 then -9999 else if y > 9999 then 9999 else y
+
+  month :: Date -> InRange 1 12 I64
+  month x =
+    let m = month-of x in
+    if m < 1 then 1 else if m > 12 then 12 else m
+
+  day :: Date -> InRange 1 31 I64
+  day x =
+    let d = day-of x in
+    if d < 1 then 1 else if d > 31 then 31 else d
+
+  -- -----------------------------------------------------------------
+  -- The calendar's shape.
+  -- -----------------------------------------------------------------
+
+  -- The Gregorian leap rule, total over `I64` (the proleptic calendar
+  -- defines it for every year, including 0 and the negative ones).
+  -- Divisibility does not depend on the remainder's sign, so the
+  -- truncated remainder serves for negative years too.
+  is-leap-year :: I64 -> Bool
+  is-leap-year y =
+    if rem y 4 /= 0 then False
+    else if rem y 100 /= 0 then True
+    else rem y 400 == 0
+
+  -- The length of month `m` in year `y`: 28, 29, 30 or 31. The month's
+  -- range is in its type, so there is no out-of-calendar case.
+  days-in-month :: I64 -> (m :: InRange 1 12 I64) -> InRange 28 31 I64
+  days-in-month y m = month-len (is-leap-year y) m
+
+  days-in-year :: I64 -> InRange 365 366 I64
+  days-in-year y = if is-leap-year y then 366 else 365
+
+  in-leap-year :: Date -> Bool
+  in-leap-year x = is-leap-year (year-of x)
+
+  days-in-month-of :: Date -> InRange 28 31 I64
+  days-in-month-of x = month-len (is-leap-year (year-of x)) (month-of x)
+
+  days-in-year-of :: Date -> InRange 365 366 I64
+  days-in-year-of x = days-in-year (year-of x)
+
+  -- -----------------------------------------------------------------
+  -- The epoch-day line: 1970-01-01 is day 0.
+  -- -----------------------------------------------------------------
+
+  -- to-epoch-days min-date and to-epoch-days max-date.
+  min-epoch-day :: I64
+  min-epoch-day = -4371587
+
+  max-epoch-day :: I64
+  max-epoch-day = 2932896
+
+  -- The day number counted from 1970-01-01, negative before it; in
+  -- `min-epoch-day..=max-epoch-day`.
+  to-epoch-days :: Date -> I64
+  to-epoch-days x = days-from-civil (year-of x) (month-of x) (day-of x)
+
+  -- The inverse: `None` outside `min-epoch-day..=max-epoch-day`.
+  from-epoch-days :: I64 -> Option Date
+  from-epoch-days z =
+    if z < -4371587 || z > 2932896 then None
+    else Some (civil-from-days z)
+
+  -- `n` days later (earlier for a negative `n`). `None` when the result
+  -- leaves the range. The sum is a checked addition because `n` is any
+  -- `I64`; an overflowing sum is out of range a fortiori.
+  add-days :: I64 -> Date -> Option Date
+  add-days n x = case checked-add-i64 (to-epoch-days x) n of
+    None -> None
+    Some z -> from-epoch-days z
+
+  -- `diff-days start finish`: the days from `start` to `finish`,
+  -- finish minus start, negative when `finish` is earlier. Both epoch
+  -- days are within +-4371588, so the difference is within +-7304484
+  -- and the wrapping subtraction never wraps.
+  diff-days :: Date -> Date -> I64
+  diff-days start finish = minus (to-epoch-days finish) (to-epoch-days start)
+
+  -- The next day; `None` only after 9999-12-31. Within a month this is
+  -- the word plus one (the day is the word's lowest field).
+  tomorrow :: Date -> Option Date
+  tomorrow x =
+    let y = year-of x in
+    let m = month-of x in
+    let d = day-of x in
+    if d < month-len (is-leap-year y) m then Some (pack y m (plus d 1))
+    else if m < 12 then Some (pack y (plus m 1) 1)
+    else if y < 9999 then Some (pack (plus y 1) 1 1)
+    else None
+
+  -- The previous day; `None` only before -9999-01-01.
+  yesterday :: Date -> Option Date
+  yesterday x =
+    let y = year-of x in
+    let m = month-of x in
+    let d = day-of x in
+    if d > 1 then Some (pack y m (minus d 1))
+    else if m > 1 then Some (pack y (minus m 1) (month-len (is-leap-year y) (minus m 1)))
+    else if y > -9999 then Some (pack (minus y 1) 12 31)
+    else None
+
+  -- -----------------------------------------------------------------
+  -- Month and year arithmetic (Temporal's "constrain" overflow).
+  -- -----------------------------------------------------------------
+
+  -- `n` months later (earlier for a negative `n`): the year and month
+  -- move exactly, and the day is clamped down to the target month's
+  -- length. `None` only when the year leaves -9999..=9999.
+  --
+  -- Overflow argument: the date's month index `year * 12 + month - 1`
+  -- is within +-120000. `n` is any `I64`, so the sum is a checked
+  -- addition, and the sum is then tested against the range's own month
+  -- indexes (-119988..=119999) before anything else is computed from
+  -- it; after the test every intermediate is below 2^18.
+  add-months-constrain :: I64 -> Date -> Option Date
+  add-months-constrain n x =
+    let index = plus (times (year-of x) 12) (minus (month-of x) 1) in
+    case checked-add-i64 index n of
+      None -> None
+      Some t ->
+        if t < -119988 || t > 119999 then None
+        else
+          let y = floor-div t 12 in
+          let m = plus (minus t (times y 12)) 1 in
+          Some (pack-constrain y m (day-of x))
+
+  -- `n` years later (earlier for a negative `n`), same month; the day
+  -- is clamped down to that month's length in the target year, which
+  -- only ever turns 29 February into 28 February. `None` only when the
+  -- year leaves the range (a checked addition, because `n` is any
+  -- `I64`).
+  add-years-constrain :: I64 -> Date -> Option Date
+  add-years-constrain n x = case checked-add-i64 (year-of x) n of
+    None -> None
+    Some y ->
+      if y < -9999 || y > 9999 then None
+      else Some (pack-constrain y (month-of x) (day-of x))
+
+  -- -----------------------------------------------------------------
+  -- Positions within the week, the month and the year.
+  -- -----------------------------------------------------------------
+
+  -- 1970-01-01 (day 0) is a Thursday, three days after a Monday, so
+  -- the weekday is Monday moved by `epoch-day + 3` (within +-4371591;
+  -- `W.add-days` reduces modulo 7 for either sign).
+  weekday :: Date -> Weekday
+  weekday x = W.add-days (plus (to-epoch-days x) 3) Monday
+
+  -- 1 on 1 January, `days-in-year` on 31 December.
+  day-of-year :: Date -> InRange 1 366 I64
+  day-of-year x =
+    let n = ordinal (is-leap-year (year-of x)) (month-of x) (day-of x) in
+    if n < 1 then 1 else if n > 366 then 366 else n
+
+  first-of-month :: Date -> Date
+  first-of-month x = pack (year-of x) (month-of x) 1
+
+  last-of-month :: Date -> Date
+  last-of-month x =
+    let y = year-of x in
+    let m = month-of x in
+    pack y m (month-len (is-leap-year y) m)
+
+  first-of-year :: Date -> Date
+  first-of-year x = pack (year-of x) 1 1
+
+  last-of-year :: Date -> Date
+  last-of-year x = pack (year-of x) 12 31
+
+  -- The `n`th `wd` of the date's month (Jiff's `nth_weekday_of_month`).
+  -- `n` in 1..=5 counts from the start of the month (1 is the first
+  -- `wd`), `n` in -5..=-1 from its end (-1 is the last `wd`). `None`
+  -- when `n` is 0 or outside +-5, or when the month has no such
+  -- occurrence (a fifth Monday in a month with four).
+  nth-weekday-of-month :: I64 -> Weekday -> Date -> Option Date
+  nth-weekday-of-month n wd x =
+    let y = year-of x in
+    let m = month-of x in
+    let len = month-len (is-leap-year y) m in
+    if n >= 1 && n <= 5 then
+      let first = W.days-until (weekday (pack y m 1)) wd in
+      let d = plus (plus 1 first) (times (minus n 1) 7) in
+      if d > len then None else Some (pack y m d)
+    else if n <= -1 && n >= -5 then
+      let back = W.days-until wd (weekday (pack y m len)) in
+      let d = minus (minus len back) (times (minus (-1) n) 7) in
+      if d < 1 then None else Some (pack y m d)
+    else None
+
+  -- The `n`th `wd` strictly after the date for a positive `n`, strictly
+  -- before it for a negative `n` (Jiff's `nth_weekday`): from Wednesday
+  -- 2024-07-10, `nth-weekday 1 Wednesday` is 2024-07-17 and
+  -- `nth-weekday (-1) Wednesday` is 2024-07-03. `None` when `n` is 0 or
+  -- the answer leaves the range.
+  --
+  -- Overflow argument: the whole range holds 7304484 days, fewer than
+  -- 1043500 weeks, so an `n` beyond +-1043500 cannot land in range and
+  -- is refused before any multiplication; within that bound
+  -- `(|n| - 1) * 7 + 7` is below 2^23.
+  nth-weekday :: I64 -> Weekday -> Date -> Option Date
+  nth-weekday n wd x =
+    if n == 0 || n > 1043500 || n < -1043500 then None
+    else if n > 0 then
+      let step = W.days-until (weekday x) wd in
+      let first = if step /= 0 then step else 7 in
+      add-days (plus first (times (minus n 1) 7)) x
+    else
+      let step = W.days-until wd (weekday x) in
+      let first = if step /= 0 then step else 7 in
+      add-days (minus 0 (plus first (times (minus (-1) n) 7))) x
+
+  -- -----------------------------------------------------------------
+  -- ISO 8601 week dates. Week 1 is the week (Monday to Sunday) that
+  -- holds the year's first Thursday, so the first days of January can
+  -- belong to the previous ISO year's last week and the last days of
+  -- December to the next ISO year's week 1.
+  -- -----------------------------------------------------------------
+
+  -- The ISO week-numbering year. It differs from `year` only in the
+  -- first days of January and the last days of December. It stays in
+  -- -9999..=9999 because the range begins on a Monday (-9999-01-01
+  -- opens week 1 of -9999) and ends on a Friday (9999-12-31 is in week
+  -- 52 of 9999), so neither end borrows a week from a year outside the
+  -- range; the clamp states that in the type and never fires.
+  iso-week-year :: Date -> InRange (-9999) 9999 I64
+  iso-week-year x =
+    let y = raw-iso-week-year x in
+    if y < -9999 then -9999 else if y > 9999 then 9999 else y
+
+  -- The ISO week number, 1..=53.
+  iso-week :: Date -> InRange 1 53 I64
+  iso-week x =
+    let y = year-of x in
+    let w = raw-iso-week x in
+    if w < 1 then iso-weeks-in-year (minus y 1)
+    else if w >= 53 then (if iso-weeks-in-year y == 52 then 1 else 53)
+    else w
+
+  -- -----------------------------------------------------------------
+  -- Order: a word compare (see the header).
+  -- -----------------------------------------------------------------
+
+  cmp :: Date -> Date -> Ordering
+  cmp a b =
+    let x = word-of a in
+    let y = word-of b in
+    if x < y then LT else if x == y then EQ else GT
+
+  implicit instance Eq_Date :: Eq Date where
+    (==) a b = word-of a == word-of b
+    (/=) a b = word-of a /= word-of b
+
+  implicit instance Ord_Date :: Ord Date where
+    (<) a b = word-of a < word-of b
+    (<=) a b = word-of a <= word-of b
+    (>) a b = word-of a > word-of b
+    (>=) a b = word-of a >= word-of b
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  -- Machine arithmetic under short names. Every use in this module is
+  -- on calendar quantities bounded far inside `I64` (a year within
+  -- +-10001, an epoch day within +-4.4 million, a month index within
+  -- +-120000, and small multiples of those), so the wrapping operations
+  -- never wrap; the places where a caller's unbounded `I64` enters use
+  -- `checked-add-i64` or a range test first and say so.
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b
+
+  -- Truncated quotient and remainder. The divisor's type excludes zero
+  -- and -1, the only inputs for which the checked operations answer
+  -- `None`, so the `None` arms cannot be taken.
+  quot :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  quot a d = case checked-div-i64 a d of
+    Some q -> q
+    None -> 0
+
+  rem :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  rem a d = case checked-rem-i64 a d of
+    Some r -> r
+    None -> 0
+
+  -- Floored quotient (rounds toward negative infinity).
+  floor-div :: I64 -> (d :: InRange 2 9223372036854775807 I64) -> I64
+  floor-div a d =
+    let q = quot a d in
+    if rem a d < 0 then minus q 1 else q
+
+  word-of :: Date -> I64
+  word-of x = case x of
+    MkDate w -> w
+
+  -- The fields of the word, unclamped (the invariant has them in range).
+  year-of :: Date -> I64
+  year-of x = wrapping-shr-i64 (word-of x) 9
+
+  month-of :: Date -> I64
+  month-of x = mask-i64 (wrapping-shr-i64 (word-of x) 5) 15
+
+  day-of :: Date -> I64
+  day-of x = mask-i64 (word-of x) 31
+
+  -- Packs fields the caller has already put in range (year within
+  -- -9999..=9999, month 1..=12, day 1..=the month's length).
+  pack :: I64 -> I64 -> I64 -> Date
+  pack y m d = MkDate (plus (times y 512) (plus (times m 32) d))
+
+  -- Packs with the day clamped down to the month's length; the caller
+  -- has the year and month in range and the day at least 1.
+  pack-constrain :: I64 -> I64 -> I64 -> Date
+  pack-constrain y m d =
+    let len = month-len (is-leap-year y) m in
+    if d > len then pack y m len else pack y m d
+
+  -- The month's length given the year's leap flag. Total over `I64`
+  -- so the private callers need no refinement; the public
+  -- `days-in-month` restricts the month to 1..=12, where the last arm
+  -- is exactly January, March, May, July, August, October, December.
+  month-len :: Bool -> I64 -> InRange 28 31 I64
+  month-len leap m =
+    if m == 2 then (if leap then 29 else 28)
+    else if m == 4 || m == 6 || m == 9 || m == 11 then 30
+    else 31
+
+  -- The day of the year of month `m`, day `d`: `(367 m - 362) / 12` is
+  -- the days before month `m` in a year whose February has 30 days,
+  -- corrected by 1 (leap) or 2 after February.
+  ordinal :: Bool -> I64 -> I64 -> I64
+  ordinal leap m d =
+    let before = quot (minus (times 367 m) 362) 12 in
+    if m <= 2 then plus before d
+    else if leap then plus (minus before 1) d
+    else plus (minus before 2) d
+
+  -- Howard Hinnant's days-from-civil on machine integers. The year is
+  -- shifted so the year starts in March, split into 400-year eras with
+  -- a FLOORED division (so the year of the era is in 0..=399 for
+  -- negative years too), and the day of the era is the year term plus
+  -- the month term. For years within +-10001 every intermediate is
+  -- within +-3.7 million, so nothing wraps. Also used for years one
+  -- step outside the range by the ISO week helpers.
+  days-from-civil :: I64 -> I64 -> I64 -> I64
+  days-from-civil y m d =
+    let yy = if m <= 2 then minus y 1 else y in
+    let era = floor-div yy 400 in
+    let yoe = minus yy (times era 400) in
+    let mp = if m > 2 then minus m 3 else plus m 9 in
+    let doy = plus (quot (plus (times 153 mp) 2) 5) (minus d 1) in
+    let doe = plus (plus (times yoe 365) (minus (quot yoe 4) (quot yoe 100))) doy in
+    minus (plus (times era 146097) doe) 719468
+
+  -- The inverse (civil-from-days). The caller has tested `z` against
+  -- `min-epoch-day..=max-epoch-day`, so `z + 719468` is within +-3.7
+  -- million and nothing wraps; the era split floors, the day of the era
+  -- is in 0..=146096 and every later division is of a non-negative
+  -- value. The fields come out in range by Hinnant's derivation, and
+  -- the range test guarantees the year.
+  civil-from-days :: I64 -> Date
+  civil-from-days z =
+    let zp = plus z 719468 in
+    let era = floor-div zp 146097 in
+    let doe = minus zp (times era 146097) in
+    let yoe = quot (minus (plus (minus doe (quot doe 1460)) (quot doe 36524)) (quot doe 146096)) 365 in
+    let doy = minus doe (minus (plus (times 365 yoe) (quot yoe 4)) (quot yoe 100)) in
+    let mp = quot (plus (times 5 doy) 2) 153 in
+    let d = plus (minus doy (quot (plus (times 153 mp) 2) 5)) 1 in
+    let m = if mp < 10 then plus mp 3 else minus mp 9 in
+    let y = plus yoe (times era 400) in
+    if m <= 2 then pack (plus y 1) m d else pack y m d
+
+  -- `(day-of-year - iso-weekday + 10) / 7`: the ISO week number before
+  -- the year-boundary corrections (0 means the previous ISO year's last
+  -- week, 53 may mean the next ISO year's week 1). The numerator is in
+  -- 4..=375.
+  raw-iso-week :: Date -> I64
+  raw-iso-week x =
+    let doy = ordinal (is-leap-year (year-of x)) (month-of x) (day-of x) in
+    let wd = W.to-monday-one (weekday x) in
+    quot (plus (minus doy wd) 10) 7
+
+  raw-iso-week-year :: Date -> I64
+  raw-iso-week-year x =
+    let y = year-of x in
+    let w = raw-iso-week x in
+    if w < 1 then minus y 1
+    else if w == 53 && iso-weeks-in-year y == 52 then plus y 1
+    else y
+
+  -- 53 when 1 January is a Thursday, or a Wednesday in a leap year;
+  -- otherwise 52. Takes a raw year because a date in the first days
+  -- of January asks about the year before its own.
+  iso-weeks-in-year :: I64 -> InRange 52 53 I64
+  iso-weeks-in-year y =
+    let jan1 = W.to-monday-one (W.add-days (plus (days-from-civil y 1 1) 3) Monday) in
+    if jan1 == 4 then 53
+    else if jan1 == 3 && is-leap-year y then 53
+    else 52

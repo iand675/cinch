@@ -14,8 +14,7 @@
 -- the identity and its instance lives here with its class.
 module Effect.Sequencing where
 
-  import Data.Result
-  import Data.Option
+  import Data.Core (Option, Result)
   export DirectSequencing, ResultSequencing, OptionSequencing, pure, bind
 
 

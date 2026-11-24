@@ -119,4 +119,4 @@ ever needed the effect's `Applicative`.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Category/Traversable.cinch`. Source SHA-256: `f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Category/Traversable.cinch`. Source SHA-256: `ee1061fae41837e7548b47c4e259977b53131d9ecaa18b438594ccb7fe873326`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

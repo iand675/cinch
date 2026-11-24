@@ -1,0 +1,2238 @@
+-- | ML-KEM (FIPS 203), the module-lattice key-encapsulation mechanism, with the ML-KEM-768 and ML-KEM-1024 parameter sets.
+-- A decapsulation key is derived from a 64-byte seed and kept as that seed (its
+-- byte form here); the encapsulation key is its public half. Encapsulation
+-- turns 32 bytes of fresh randomness into a 32-byte shared key and a
+-- ciphertext; decapsulation recovers the key, and a ciphertext that does not
+-- re-encrypt to itself yields a pseudorandom rejection key instead, selected
+-- in constant time. Encapsulation keys from outside are checked for
+-- coefficients outside the field. Polynomials are immutable values of
+-- thirty-two 128-bit lanes of eight coefficients; transforms, products,
+-- compression and sampling run as generated branch-free lane kernels with
+-- exact arithmetic modulo q = 3329. Effect.Crypto draws seeds and randomness
+-- from the operating system.
+module Crypto.MlKem where
+
+  import Crypto.ConstantTime
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Sha3
+  import Text.Show (nat-to-string)
+
+  export MlKemParameters, MlKem768, MlKem1024, mlkem-shared-key-size, mlkem-seed-size, mlkem-encapsulation-key-size, mlkem-ciphertext-size
+  export MlKemError, MlKemInvalidSeedSize, MlKemInvalidEncapsulationKey, MlKemInvalidCiphertextSize, MlKemInvalidRandomnessSize, mlkem-error-message
+  export MlKemDecapsulationKey, mlkem-decapsulation-key, mlkem-decapsulation-key-bytes, mlkem-decapsulation-key-parameters, mlkem-encapsulation-key-of
+  export MlKemEncapsulationKey, mlkem-encapsulation-key, mlkem-encapsulation-key-bytes, mlkem-encapsulation-key-parameters
+  export mlkem-encapsulate-with, mlkem-decapsulate
+
+  -- ---------------------------------------------------------------------
+  -- Parameters and errors.
+  -- ---------------------------------------------------------------------
+
+  -- | An ML-KEM parameter set.
+  data MlKemParameters where
+    -- | k = 3, du = 10, dv = 4 (security category 3).
+    MlKem768 :: MlKemParameters
+    -- | k = 4, du = 11, dv = 5 (security category 5).
+    MlKem1024 :: MlKemParameters
+
+  -- | The module rank k.
+  rank :: MlKemParameters -> Nat
+  rank p = case p of MlKem768 -> 3; MlKem1024 -> 4
+
+  -- | Bits per compressed coefficient of u.
+  du :: MlKemParameters -> Nat
+  du p = case p of MlKem768 -> 10; MlKem1024 -> 11
+
+  -- | Bits per compressed coefficient of v.
+  dv :: MlKemParameters -> Nat
+  dv p = case p of MlKem768 -> 4; MlKem1024 -> 5
+
+  -- | Shared keys are 32 bytes.
+  mlkem-shared-key-size :: Nat
+  mlkem-shared-key-size = 32
+
+  -- | Decapsulation-key seeds are 64 bytes (d then z).
+  mlkem-seed-size :: Nat
+  mlkem-seed-size = 64
+
+  -- | Encapsulation-key bytes: 1184 for ML-KEM-768 and 1568 for ML-KEM-1024.
+  mlkem-encapsulation-key-size :: MlKemParameters -> Nat
+  mlkem-encapsulation-key-size p = 384 * rank p + 32
+
+  -- | Ciphertext bytes: 1088 for ML-KEM-768 and 1568 for ML-KEM-1024.
+  mlkem-ciphertext-size :: MlKemParameters -> Nat
+  mlkem-ciphertext-size p = 32 * (du p * rank p + dv p)
+
+  -- | A rejected input.
+  data MlKemError where
+    -- | Seeds are 64 bytes; the length given.
+    MlKemInvalidSeedSize :: Nat -> MlKemError
+    -- | An encapsulation key of the wrong length or with a coefficient of at least q.
+    MlKemInvalidEncapsulationKey :: MlKemError
+    -- | A ciphertext of the wrong length; the length given.
+    MlKemInvalidCiphertextSize :: Nat -> MlKemError
+    -- | Encapsulation randomness is 32 bytes; the length given.
+    MlKemInvalidRandomnessSize :: Nat -> MlKemError
+
+  -- | Render an error.
+  mlkem-error-message :: MlKemError -> String
+  mlkem-error-message error = case error of
+    MlKemInvalidSeedSize n -> string-concat "mlkem: invalid seed length " (nat-to-string n)
+    MlKemInvalidEncapsulationKey -> "mlkem: invalid encapsulation key"
+    MlKemInvalidCiphertextSize n -> string-concat "mlkem: invalid ciphertext length " (nat-to-string n)
+    MlKemInvalidRandomnessSize n -> string-concat "mlkem: invalid randomness length " (nat-to-string n)
+
+  -- ---------------------------------------------------------------------
+  -- Keys.
+  -- ---------------------------------------------------------------------
+
+  -- | An encapsulation key: parameters, its bytes, t-hat, the matrix A-hat (rows of k), and H of the bytes.
+  data MlKemEncapsulationKey where
+    -- | Fields in the order listed above.
+    MlKemEncapsulationKey :: MlKemParameters -> Bytes -> List Poly -> List (List Poly) -> Bytes -> MlKemEncapsulationKey
+
+  -- | A decapsulation key: its seed, s-hat, its encapsulation key and the rejection secret z.
+  data MlKemDecapsulationKey where
+    -- | Fields in the order listed above.
+    MlKemDecapsulationKey :: Bytes -> List Poly -> MlKemEncapsulationKey -> Bytes -> MlKemDecapsulationKey
+
+  -- | The encapsulation key's parameter set.
+  mlkem-encapsulation-key-parameters :: MlKemEncapsulationKey -> MlKemParameters
+  mlkem-encapsulation-key-parameters ek = case ek of MlKemEncapsulationKey p b t a h -> p
+
+  -- | The encapsulation key's bytes.
+  mlkem-encapsulation-key-bytes :: MlKemEncapsulationKey -> Bytes
+  mlkem-encapsulation-key-bytes ek = case ek of MlKemEncapsulationKey p b t a h -> copy b
+
+  -- | The decapsulation key's 64-byte seed, from which it can be rebuilt.
+  mlkem-decapsulation-key-bytes :: MlKemDecapsulationKey -> Bytes
+  mlkem-decapsulation-key-bytes dk = case dk of MlKemDecapsulationKey seed s ek z -> copy seed
+
+  -- | The decapsulation key's parameter set.
+  mlkem-decapsulation-key-parameters :: MlKemDecapsulationKey -> MlKemParameters
+  mlkem-decapsulation-key-parameters dk = case dk of MlKemDecapsulationKey seed s ek z -> mlkem-encapsulation-key-parameters ek
+
+  -- | The public encapsulation key of a decapsulation key.
+  mlkem-encapsulation-key-of :: MlKemDecapsulationKey -> MlKemEncapsulationKey
+  mlkem-encapsulation-key-of dk = case dk of MlKemDecapsulationKey seed s ek z -> ek
+
+  -- | Derive a decapsulation key from a 64-byte seed d || z (FIPS 203 Algorithms 13 and 16).
+  mlkem-decapsulation-key :: MlKemParameters -> Bytes -> Result MlKemError MlKemDecapsulationKey
+  mlkem-decapsulation-key p seed =
+    if not (bytes-len seed == 64) then Err (MlKemInvalidSeedSize (bytes-len seed))
+    else
+      let k = rank p in
+      let expanded = sha3-sum512 (bytes-concat [slice seed 0 32, one k]) in
+      let rho = slice expanded 0 32 in
+      let sigma = slice expanded 32 64 in
+      let a = matrix rho k in
+      let s = map poly-ntt (noise sigma 0 k) in
+      let e = map poly-ntt (noise sigma k k) in
+      let t = map2 (row-product s) a e in
+      let ek-bytes = bytes-concat [bytes-concat (map encode12 t), rho] in
+      Ok (MlKemDecapsulationKey (copy seed) s (MlKemEncapsulationKey p ek-bytes t a (sha3-sum256 ek-bytes)) (slice seed 32 64))
+
+  -- | Parse and check an encapsulation key: the right length, and every coefficient below q (FIPS 203 section 7.2).
+  mlkem-encapsulation-key :: MlKemParameters -> Bytes -> Result MlKemError MlKemEncapsulationKey
+  mlkem-encapsulation-key p b =
+    if not (bytes-len b == mlkem-encapsulation-key-size p) then Err MlKemInvalidEncapsulationKey
+    else
+      let k = rank p in
+      case decode12-all b 0 k Nil of
+        None -> Err MlKemInvalidEncapsulationKey
+        Some t ->
+          let rho = slice b (384 * k) (bytes-len b) in
+          Ok (MlKemEncapsulationKey p (copy b) t (matrix rho k) (sha3-sum256 b))
+
+  -- | t-hat polynomials from the key bytes, or None when a coefficient is at least q.
+  decode12-all :: Bytes -> Nat -> Nat -> List Poly -> Option (List Poly)
+  decode12-all b i k acc =
+    if i >= k then Some (reverse acc)
+    else case decode12 b (384 * i) of
+      None -> None
+      Some poly -> decode12-all b (i + 1) k (Cons poly acc)
+
+  -- | Row i of A-hat times s, plus e (all in the NTT domain).
+  row-product :: List Poly -> List Poly -> Poly -> Poly
+  row-product s row e = dot row s e
+
+  -- | Accumulate the NTT-domain inner product of two vectors onto acc.
+  dot :: List Poly -> List Poly -> Poly -> Poly
+  dot xs ys acc = case xs of
+    Nil -> acc
+    Cons x rest -> case ys of Nil -> acc; Cons y others -> dot rest others (poly-basemul-add acc x y)
+
+  -- | Pairwise application over two lists.
+  map2 :: (List Poly -> Poly -> Poly) -> List (List Poly) -> List Poly -> List Poly
+  map2 f rows es = case rows of
+    Nil -> Nil
+    Cons r rest -> case es of Nil -> Nil; Cons e more -> Cons (f r e) (map2 f rest more)
+
+  -- | The matrix A-hat: entry (i, j) sampled from SHAKE128(rho || j || i).
+  matrix :: Bytes -> Nat -> List (List Poly)
+  matrix rho k = matrix-rows rho k 0
+
+  -- | Rows from i.
+  matrix-rows :: Bytes -> Nat -> Nat -> List (List Poly)
+  matrix-rows rho k i = if i >= k then Nil else Cons (matrix-row rho k i 0) (matrix-rows rho k (i + 1))
+
+  -- | Entries of row i from column j.
+  matrix-row :: Bytes -> Nat -> Nat -> Nat -> List Poly
+  matrix-row rho k i j = if j >= k then Nil else Cons (sample-ntt (bytes-concat [rho, one j, one i])) (matrix-row rho k i (j + 1))
+
+  -- | The column vector A-hat-transpose row i: entries (j, i) for every j.
+  column :: List (List Poly) -> Nat -> List Poly
+  column a i = map (nth-poly i) a
+
+  -- | The i-th polynomial of a row.
+  nth-poly :: Nat -> List Poly -> Poly
+  nth-poly i row = case row of Nil -> zero-poly; Cons x rest -> if i == 0 then x else nth-poly (i - 1) rest
+
+  -- | Noise polynomials CBD_2(PRF(seed, n)) for n from start, count of them.
+  noise :: Bytes -> Nat -> Nat -> List Poly
+  noise seed start count = if count == 0 then Nil else Cons (cbd seed start) (noise seed (start + 1) (count - 1))
+
+  -- | One noise polynomial: SHAKE256(seed || n) gives 128 bytes, four per lane.
+  cbd :: Bytes -> Nat -> Poly
+  cbd seed n =
+    let stream = shake256-sum (bytes-concat [seed, one n]) 128 in
+    poly-of-lanes (cbd-lanes stream 0)
+
+  -- | Lanes from 32-bit words of the stream.
+  cbd-lanes :: Bytes -> Nat -> List U128
+  cbd-lanes stream v = if v >= 32 then Nil else Cons (cbd2 (word32 stream (4 * v))) (cbd-lanes stream (v + 1))
+
+  -- ---------------------------------------------------------------------
+  -- Encapsulation and decapsulation.
+  -- ---------------------------------------------------------------------
+
+  -- | Encapsulate with explicit 32-byte randomness m (FIPS 203 Algorithm 17): the shared key and the ciphertext.
+  -- The randomness must be fresh and secret for each call; Effect.Crypto supplies it from the operating system.
+  mlkem-encapsulate-with :: MlKemEncapsulationKey -> Bytes -> Result MlKemError (Bytes, Bytes)
+  mlkem-encapsulate-with ek m =
+    if not (bytes-len m == 32) then Err (MlKemInvalidRandomnessSize (bytes-len m))
+    else case ek of
+      MlKemEncapsulationKey p b t a h ->
+        let g = sha3-sum512 (bytes-concat [m, h]) in
+        Ok (slice g 0 32, encrypt ek m (slice g 32 64))
+
+  -- | K-PKE encryption (FIPS 203 Algorithm 14).
+  encrypt :: MlKemEncapsulationKey -> Bytes -> Bytes -> Bytes
+  encrypt ek m r = case ek of
+    MlKemEncapsulationKey p b t a h ->
+      let k = rank p in
+      let y = map poly-ntt (noise r 0 k) in
+      let e1 = noise r k k in
+      let e2 = cbd r (2 * k) in
+      let u = encrypt-u a y e1 0 k in
+      let mu = poly-of-lanes (message-lanes m 0) in
+      let v = poly-add (poly-add (poly-inv-ntt (dot t y zero-poly)) e2) mu in
+      bytes-concat [bytes-concat (map (compress-poly (du p)) u), compress-poly (dv p) v]
+
+  -- | u_i = NTT^-1(sum over j of A-hat(j, i) * y-hat_j) + e1_i.
+  encrypt-u :: List (List Poly) -> List Poly -> List Poly -> Nat -> Nat -> List Poly
+  encrypt-u a y e1 i k = case e1 of
+    Nil -> Nil
+    Cons e rest -> Cons (poly-add (poly-inv-ntt (dot (column a i) y zero-poly)) e) (encrypt-u a y rest (i + 1) k)
+
+  -- | Decapsulate (FIPS 203 Algorithm 18): the shared key, or the rejection key J(z || c) when the ciphertext
+  -- does not re-encrypt to itself. The choice is made in constant time.
+  mlkem-decapsulate :: MlKemDecapsulationKey -> Bytes -> Result MlKemError Bytes
+  mlkem-decapsulate dk c = case dk of
+    MlKemDecapsulationKey seed s ek z -> case ek of
+      MlKemEncapsulationKey p b t a h ->
+        if not (bytes-len c == mlkem-ciphertext-size p) then Err (MlKemInvalidCiphertextSize (bytes-len c))
+        else
+          let k = rank p in
+          let u = decompress-all c (du p) 0 k in
+          let v = decompress-poly (dv p) c (32 * du p * k) in
+          let w = poly-sub v (poly-inv-ntt (dot s (map poly-ntt u) zero-poly)) in
+          let m = compress-poly 1 w in
+          let g = sha3-sum512 (bytes-concat [m, h]) in
+          let key = slice g 0 32 in
+          let rejected = shake256-sum (bytes-concat [z, c]) 32 in
+          let same = constant-bytes-equal (encrypt ek m (slice g 32 64)) c in
+          let chosen = copy rejected in
+          case constant-copy same chosen key of Ok done -> Ok chosen; Err e -> Ok chosen
+
+  -- | The k compressed polynomials of u.
+  decompress-all :: Bytes -> Nat -> Nat -> Nat -> List Poly
+  decompress-all c d i k = if i >= k then Nil else Cons (decompress-poly d c (32 * d * i)) (decompress-all c d (i + 1) k)
+
+  -- ---------------------------------------------------------------------
+  -- Sampling and encoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Rejection-sample a polynomial in the NTT domain from SHAKE128(seed) (FIPS 203 Algorithm 7): 12-bit
+  -- candidates below q are kept in order.
+  sample-ntt :: Bytes -> Poly
+  sample-ntt seed = case shake-read (sha3-state-update shake128-state seed) 504 of
+    (stream, reader) ->
+      let out = bytes-new 512 in
+      let filled = sample-from stream reader out 0 0 in
+      poly-of-lanes (buffer-lanes out 0)
+
+  -- | Take candidates from the stream at offset i into out (count kept so far), reading more when needed.
+  sample-from :: Bytes -> ShakeReader -> Bytes -> Nat -> Nat -> Unit
+  sample-from stream reader out i count =
+    if count >= 256 then ()
+    else if i + 3 > bytes-len stream then
+      (case shake-reader-read reader 168 of (more, next) -> sample-from (bytes-concat [slice stream i (bytes-len stream), more]) next out 0 count)
+    else
+      let b0 = at stream i in
+      let b1 = at stream (i + 1) in
+      let b2 = at stream (i + 2) in
+      let d1 = b0 + 256 * nat-rem b1 16 in
+      let d2 = nat-div b1 16 + 16 * b2 in
+      let kept = if d1 < 3329 then let w = put16 out count d1 in count + 1 else count in
+      let both = if d2 < 3329 && kept < 256 then let w = put16 out kept d2 in kept + 1 else kept in
+      sample-from stream reader out (i + 3) both
+
+  -- | Store a 16-bit little-endian coefficient.
+  put16 :: Bytes -> Nat -> Nat -> Unit
+  put16 out i v = let a = put out (2 * i) (nat-rem v 256) in put out (2 * i + 1) (nat-div v 256)
+
+  -- | Lanes of a 512-byte coefficient buffer.
+  buffer-lanes :: Bytes -> Nat -> List U128
+  buffer-lanes b v = if v >= 32 then Nil else Cons (join64 (word64 b (16 * v)) (word64 b (16 * v + 8))) (buffer-lanes b (v + 1))
+
+  -- | ByteEncode_12 of a polynomial: 384 bytes.
+  encode12 :: Poly -> Bytes
+  encode12 p = bytes-concat (pack-lanes (poly-lanes p))
+
+  -- | Packed, encoded lanes.
+  pack-lanes :: List U128 -> List Bytes
+  pack-lanes lanes = case lanes of Nil -> Nil; Cons x rest -> Cons (field-bytes 12 (pack12 x)) (pack-lanes rest)
+
+  -- | ByteDecode_12 of 384 bytes at an offset, or None when a coefficient is at least q.
+  decode12 :: Bytes -> Nat -> Option Poly
+  decode12 b off =
+    let lanes = unpack-lanes (read-fields b off 12 0) in
+    if all-below lanes then Some (poly-of-lanes lanes) else None
+
+  -- | Unpacked lanes.
+  unpack-lanes :: List U128 -> List U128
+  unpack-lanes lanes = case lanes of Nil -> Nil; Cons x rest -> Cons (unpack12 x) (unpack-lanes rest)
+
+  -- | Whether every lane is below q.
+  all-below :: List U128 -> Bool
+  all-below lanes = case lanes of Nil -> True; Cons x rest -> below-q x == 1 && all-below rest
+
+  -- | Compress_d then ByteEncode_d of a polynomial: 32d bytes.
+  compress-poly :: Nat -> Poly -> Bytes
+  compress-poly d p = bytes-concat (compress-lanes d (poly-lanes p))
+
+  -- | Compressed, encoded lanes.
+  compress-lanes :: Nat -> List U128 -> List Bytes
+  compress-lanes d lanes = case lanes of Nil -> Nil; Cons x rest -> Cons (field-bytes d (compress-lane d x)) (compress-lanes d rest)
+
+  -- | The compression kernel for d bits applied to one lane.
+  compress-lane :: Nat -> U128 -> U128
+  compress-lane d x = if d == 1 then compress1 x else if d == 4 then compress4 x else if d == 5 then compress5 x else if d == 10 then compress10 x else compress11 x
+
+  -- | ByteDecode_d then Decompress_d of 32d bytes at an offset.
+  decompress-poly :: Nat -> Bytes -> Nat -> Poly
+  decompress-poly d b off = poly-of-lanes (decompress-lanes d (read-fields b off d 0))
+
+  -- | Decompressed lanes.
+  decompress-lanes :: Nat -> List U128 -> List U128
+  decompress-lanes d lanes = case lanes of Nil -> Nil; Cons x rest -> Cons (decompress-lane d x) (decompress-lanes d rest)
+
+  -- | The decompression kernel for d bits applied to one lane.
+  decompress-lane :: Nat -> U128 -> U128
+  decompress-lane d x = if d == 1 then decompress1 x else if d == 4 then decompress4 x else if d == 5 then decompress5 x else if d == 10 then decompress10 x else decompress11 x
+
+  -- | Decompress_1 lanes of a 32-byte message, one byte per lane.
+  message-lanes :: Bytes -> Nat -> List U128
+  message-lanes m v = if v >= 32 then Nil else Cons (message-lane (small (at m v))) (message-lanes m (v + 1))
+
+  -- | The low n bytes of a packed field, as bytes.
+  field-bytes :: Nat -> U128 -> Bytes
+  field-bytes n x =
+    let out = bytes-new n in
+    let lo = store-bytes out 0 (low64 x) (if n < 8 then n else 8) in
+    let hi = if n > 8 then store-bytes out 8 (high64 x) (n - 8) else () in
+    out
+
+  -- | Store the low n bytes of a word from an offset.
+  store-bytes :: Bytes -> Nat -> U64 -> Nat -> Unit
+  store-bytes out i w n =
+    if n == 0 then ()
+    else let s = put out i (u8-to-nat (wrapping-u64-to-u8 w)) in store-bytes out (i + 1) (wrapping-shr-u64 w 8) (n - 1)
+
+  -- | Thirty-two packed fields of n bytes each from an offset.
+  read-fields :: Bytes -> Nat -> Nat -> Nat -> List U128
+  read-fields b off n v =
+    if v >= 32 then Nil
+    else
+      let base = off + n * v in
+      let lo = load-bytes b base (if n < 8 then n else 8) 0 0 in
+      let hi = if n > 8 then load-bytes b (base + 8) (n - 8) 0 0 else 0 in
+      Cons (join64 lo hi) (read-fields b off n (v + 1))
+
+  -- | Load n bytes from an offset as a little-endian word.
+  load-bytes :: Bytes -> Nat -> Nat -> Nat -> U64 -> U64
+  load-bytes b i n k acc =
+    if k >= n then acc
+    else load-bytes b i n (k + 1) (bit-or-u64 acc (wrapping-shl-u64 (u8-to-u64 (byte (at b (i + k)))) (shift (8 * k))))
+
+  -- ---------------------------------------------------------------------
+  -- Bytes and words.
+  -- ---------------------------------------------------------------------
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Store a byte when it fits.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | One byte.
+  one :: Nat -> Bytes
+  one v = let out = bytes-new 1 in let w = put out 0 v in out
+
+  -- | A copy of b[x, y).
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b x y =
+    let n = if x <= y then y - x else 0 in
+    let out = bytes-new n in
+    if x + n <= bytes-len b then let c = bytes-copy-range out b 0 x n in out else out
+
+  -- | A fresh copy.
+  copy :: Bytes -> Bytes
+  copy b = slice b 0 (bytes-len b)
+
+  -- | A little-endian 32-bit word as a machine integer, zero when it does not fit.
+  word32 :: Bytes -> Nat -> I64
+  word32 b i = if i + 4 <= bytes-len b then u32-to-i64 (bytes-read-le32 b i) else 0
+
+  -- | A little-endian 64-bit word, zero when it does not fit.
+  word64 :: Bytes -> Nat -> U64
+  word64 b i = if i + 8 <= bytes-len b then bytes-read-le64 b i else 0
+
+  -- | A byte value as a machine byte.
+  byte :: Nat -> U8
+  byte n = wrapping-i64-to-u8 (nat-to-i64 (nat-rem n 256))
+
+  -- | A shift amount below 64.
+  shift :: Nat -> U32
+  shift n = if n < 64 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+
+  -- | A small value as a machine integer.
+  small :: Nat -> I64
+  small n = if n < 4294967296 then nat-to-i64 n else 0
+
+  -- Generated ML-KEM kernels: lane arithmetic, transforms and packing.
+
+  -- | A polynomial: 256 coefficients modulo q as thirty-two lanes of eight.
+  data Poly where
+    -- | Lanes in coefficient order.
+    Poly :: U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> U128 -> Poly
+
+  -- | The lanes of a polynomial in order.
+  poly-lanes :: Poly -> List U128
+  poly-lanes p = case p of Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 -> [x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x20, x21, x22, x23, x24, x25, x26, x27, x28, x29, x30, x31]
+
+  -- | A polynomial from its first thirty-two lanes (zero when fewer are given).
+  poly-of-lanes :: List U128 -> Poly
+  poly-of-lanes l =
+    case l of
+      Nil -> zero-poly
+      Cons x0 r0 ->
+        case r0 of
+          Nil -> zero-poly
+          Cons x1 r1 ->
+            case r1 of
+              Nil -> zero-poly
+              Cons x2 r2 ->
+                case r2 of
+                  Nil -> zero-poly
+                  Cons x3 r3 ->
+                    case r3 of
+                      Nil -> zero-poly
+                      Cons x4 r4 ->
+                        case r4 of
+                          Nil -> zero-poly
+                          Cons x5 r5 ->
+                            case r5 of
+                              Nil -> zero-poly
+                              Cons x6 r6 ->
+                                case r6 of
+                                  Nil -> zero-poly
+                                  Cons x7 r7 ->
+                                    case r7 of
+                                      Nil -> zero-poly
+                                      Cons x8 r8 ->
+                                        case r8 of
+                                          Nil -> zero-poly
+                                          Cons x9 r9 ->
+                                            case r9 of
+                                              Nil -> zero-poly
+                                              Cons x10 r10 ->
+                                                case r10 of
+                                                  Nil -> zero-poly
+                                                  Cons x11 r11 ->
+                                                    case r11 of
+                                                      Nil -> zero-poly
+                                                      Cons x12 r12 ->
+                                                        case r12 of
+                                                          Nil -> zero-poly
+                                                          Cons x13 r13 ->
+                                                            case r13 of
+                                                              Nil -> zero-poly
+                                                              Cons x14 r14 ->
+                                                                case r14 of
+                                                                  Nil -> zero-poly
+                                                                  Cons x15 r15 ->
+                                                                    case r15 of
+                                                                      Nil -> zero-poly
+                                                                      Cons x16 r16 ->
+                                                                        case r16 of
+                                                                          Nil -> zero-poly
+                                                                          Cons x17 r17 ->
+                                                                            case r17 of
+                                                                              Nil -> zero-poly
+                                                                              Cons x18 r18 ->
+                                                                                case r18 of
+                                                                                  Nil -> zero-poly
+                                                                                  Cons x19 r19 ->
+                                                                                    case r19 of
+                                                                                      Nil -> zero-poly
+                                                                                      Cons x20 r20 ->
+                                                                                        case r20 of
+                                                                                          Nil -> zero-poly
+                                                                                          Cons x21 r21 ->
+                                                                                            case r21 of
+                                                                                              Nil -> zero-poly
+                                                                                              Cons x22 r22 ->
+                                                                                                case r22 of
+                                                                                                  Nil -> zero-poly
+                                                                                                  Cons x23 r23 ->
+                                                                                                    case r23 of
+                                                                                                      Nil -> zero-poly
+                                                                                                      Cons x24 r24 ->
+                                                                                                        case r24 of
+                                                                                                          Nil -> zero-poly
+                                                                                                          Cons x25 r25 ->
+                                                                                                            case r25 of
+                                                                                                              Nil -> zero-poly
+                                                                                                              Cons x26 r26 ->
+                                                                                                                case r26 of
+                                                                                                                  Nil -> zero-poly
+                                                                                                                  Cons x27 r27 ->
+                                                                                                                    case r27 of
+                                                                                                                      Nil -> zero-poly
+                                                                                                                      Cons x28 r28 ->
+                                                                                                                        case r28 of
+                                                                                                                          Nil -> zero-poly
+                                                                                                                          Cons x29 r29 ->
+                                                                                                                            case r29 of
+                                                                                                                              Nil -> zero-poly
+                                                                                                                              Cons x30 r30 ->
+                                                                                                                                case r30 of
+                                                                                                                                  Nil -> zero-poly
+                                                                                                                                  Cons x31 r31 ->
+                                                                                                                                    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31
+
+  -- | The all-zero polynomial.
+  zero-poly :: Poly
+  zero-poly = Poly (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0) (join64 0 0)
+
+  -- | Layer 0 of poly-ntt.
+  poly-ntt-layer0 :: Poly -> Poly
+  poly-ntt-layer0 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (bf-sum x0 x16 1729) (bf-sum x1 x17 1729) (bf-sum x2 x18 1729) (bf-sum x3 x19 1729) (bf-sum x4 x20 1729) (bf-sum x5 x21 1729) (bf-sum x6 x22 1729) (bf-sum x7 x23 1729) (bf-sum x8 x24 1729) (bf-sum x9 x25 1729) (bf-sum x10 x26 1729) (bf-sum x11 x27 1729) (bf-sum x12 x28 1729) (bf-sum x13 x29 1729) (bf-sum x14 x30 1729) (bf-sum x15 x31 1729) (bf-diff x0 x16 1729) (bf-diff x1 x17 1729) (bf-diff x2 x18 1729) (bf-diff x3 x19 1729) (bf-diff x4 x20 1729) (bf-diff x5 x21 1729) (bf-diff x6 x22 1729) (bf-diff x7 x23 1729) (bf-diff x8 x24 1729) (bf-diff x9 x25 1729) (bf-diff x10 x26 1729) (bf-diff x11 x27 1729) (bf-diff x12 x28 1729) (bf-diff x13 x29 1729) (bf-diff x14 x30 1729) (bf-diff x15 x31 1729)
+
+  -- | Layer 1 of poly-ntt.
+  poly-ntt-layer1 :: Poly -> Poly
+  poly-ntt-layer1 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (bf-sum x0 x8 2580) (bf-sum x1 x9 2580) (bf-sum x2 x10 2580) (bf-sum x3 x11 2580) (bf-sum x4 x12 2580) (bf-sum x5 x13 2580) (bf-sum x6 x14 2580) (bf-sum x7 x15 2580) (bf-diff x0 x8 2580) (bf-diff x1 x9 2580) (bf-diff x2 x10 2580) (bf-diff x3 x11 2580) (bf-diff x4 x12 2580) (bf-diff x5 x13 2580) (bf-diff x6 x14 2580) (bf-diff x7 x15 2580) (bf-sum x16 x24 3289) (bf-sum x17 x25 3289) (bf-sum x18 x26 3289) (bf-sum x19 x27 3289) (bf-sum x20 x28 3289) (bf-sum x21 x29 3289) (bf-sum x22 x30 3289) (bf-sum x23 x31 3289) (bf-diff x16 x24 3289) (bf-diff x17 x25 3289) (bf-diff x18 x26 3289) (bf-diff x19 x27 3289) (bf-diff x20 x28 3289) (bf-diff x21 x29 3289) (bf-diff x22 x30 3289) (bf-diff x23 x31 3289)
+
+  -- | Layer 2 of poly-ntt.
+  poly-ntt-layer2 :: Poly -> Poly
+  poly-ntt-layer2 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (bf-sum x0 x4 2642) (bf-sum x1 x5 2642) (bf-sum x2 x6 2642) (bf-sum x3 x7 2642) (bf-diff x0 x4 2642) (bf-diff x1 x5 2642) (bf-diff x2 x6 2642) (bf-diff x3 x7 2642) (bf-sum x8 x12 630) (bf-sum x9 x13 630) (bf-sum x10 x14 630) (bf-sum x11 x15 630) (bf-diff x8 x12 630) (bf-diff x9 x13 630) (bf-diff x10 x14 630) (bf-diff x11 x15 630) (bf-sum x16 x20 1897) (bf-sum x17 x21 1897) (bf-sum x18 x22 1897) (bf-sum x19 x23 1897) (bf-diff x16 x20 1897) (bf-diff x17 x21 1897) (bf-diff x18 x22 1897) (bf-diff x19 x23 1897) (bf-sum x24 x28 848) (bf-sum x25 x29 848) (bf-sum x26 x30 848) (bf-sum x27 x31 848) (bf-diff x24 x28 848) (bf-diff x25 x29 848) (bf-diff x26 x30 848) (bf-diff x27 x31 848)
+
+  -- | Layer 3 of poly-ntt.
+  poly-ntt-layer3 :: Poly -> Poly
+  poly-ntt-layer3 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (bf-sum x0 x2 1062) (bf-sum x1 x3 1062) (bf-diff x0 x2 1062) (bf-diff x1 x3 1062) (bf-sum x4 x6 1919) (bf-sum x5 x7 1919) (bf-diff x4 x6 1919) (bf-diff x5 x7 1919) (bf-sum x8 x10 193) (bf-sum x9 x11 193) (bf-diff x8 x10 193) (bf-diff x9 x11 193) (bf-sum x12 x14 797) (bf-sum x13 x15 797) (bf-diff x12 x14 797) (bf-diff x13 x15 797) (bf-sum x16 x18 2786) (bf-sum x17 x19 2786) (bf-diff x16 x18 2786) (bf-diff x17 x19 2786) (bf-sum x20 x22 3260) (bf-sum x21 x23 3260) (bf-diff x20 x22 3260) (bf-diff x21 x23 3260) (bf-sum x24 x26 569) (bf-sum x25 x27 569) (bf-diff x24 x26 569) (bf-diff x25 x27 569) (bf-sum x28 x30 1746) (bf-sum x29 x31 1746) (bf-diff x28 x30 1746) (bf-diff x29 x31 1746)
+
+  -- | Layer 4 of poly-ntt.
+  poly-ntt-layer4 :: Poly -> Poly
+  poly-ntt-layer4 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (bf-sum x0 x1 296) (bf-diff x0 x1 296) (bf-sum x2 x3 2447) (bf-diff x2 x3 2447) (bf-sum x4 x5 1339) (bf-diff x4 x5 1339) (bf-sum x6 x7 1476) (bf-diff x6 x7 1476) (bf-sum x8 x9 3046) (bf-diff x8 x9 3046) (bf-sum x10 x11 56) (bf-diff x10 x11 56) (bf-sum x12 x13 2240) (bf-diff x12 x13 2240) (bf-sum x14 x15 1333) (bf-diff x14 x15 1333) (bf-sum x16 x17 1426) (bf-diff x16 x17 1426) (bf-sum x18 x19 2094) (bf-diff x18 x19 2094) (bf-sum x20 x21 535) (bf-diff x20 x21 535) (bf-sum x22 x23 2882) (bf-diff x22 x23 2882) (bf-sum x24 x25 2393) (bf-diff x24 x25 2393) (bf-sum x26 x27 2879) (bf-diff x26 x27 2879) (bf-sum x28 x29 1974) (bf-diff x28 x29 1974) (bf-sum x30 x31 821) (bf-diff x30 x31 821)
+
+  -- | Layer 5 of poly-ntt.
+  poly-ntt-layer5 :: Poly -> Poly
+  poly-ntt-layer5 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (ntt4 x0 289) (ntt4 x1 331) (ntt4 x2 3253) (ntt4 x3 1756) (ntt4 x4 1197) (ntt4 x5 2304) (ntt4 x6 2277) (ntt4 x7 2055) (ntt4 x8 650) (ntt4 x9 1977) (ntt4 x10 2513) (ntt4 x11 632) (ntt4 x12 2865) (ntt4 x13 33) (ntt4 x14 1320) (ntt4 x15 1915) (ntt4 x16 2319) (ntt4 x17 1435) (ntt4 x18 807) (ntt4 x19 452) (ntt4 x20 1438) (ntt4 x21 2868) (ntt4 x22 1534) (ntt4 x23 2402) (ntt4 x24 2647) (ntt4 x25 2617) (ntt4 x26 1481) (ntt4 x27 648) (ntt4 x28 2474) (ntt4 x29 3110) (ntt4 x30 1227) (ntt4 x31 910)
+
+  -- | Layer 6 of poly-ntt.
+  poly-ntt-layer6 :: Poly -> Poly
+  poly-ntt-layer6 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (ntt2 x0 17 2761) (ntt2 x1 583 2649) (ntt2 x2 1637 723) (ntt2 x3 2288 1100) (ntt2 x4 1409 2662) (ntt2 x5 3281 233) (ntt2 x6 756 2156) (ntt2 x7 3015 3050) (ntt2 x8 1703 1651) (ntt2 x9 2789 1789) (ntt2 x10 1847 952) (ntt2 x11 1461 2687) (ntt2 x12 939 2308) (ntt2 x13 2437 2388) (ntt2 x14 733 2337) (ntt2 x15 268 641) (ntt2 x16 1584 2298) (ntt2 x17 2037 3220) (ntt2 x18 375 2549) (ntt2 x19 2090 1645) (ntt2 x20 1063 319) (ntt2 x21 2773 757) (ntt2 x22 2099 561) (ntt2 x23 2466 2594) (ntt2 x24 2804 1092) (ntt2 x25 403 1026) (ntt2 x26 1143 2150) (ntt2 x27 2775 886) (ntt2 x28 1722 1212) (ntt2 x29 1874 1029) (ntt2 x30 2110 2935) (ntt2 x31 885 2154)
+
+  -- | The number-theoretic transform (FIPS 203 Algorithm 9).
+  poly-ntt :: Poly -> Poly
+  poly-ntt p = poly-ntt-layer6 (poly-ntt-layer5 (poly-ntt-layer4 (poly-ntt-layer3 (poly-ntt-layer2 (poly-ntt-layer1 (poly-ntt-layer0 p))))))
+
+  -- | Layer 0 of poly-inv-ntt.
+  poly-inv-ntt-layer0 :: Poly -> Poly
+  poly-inv-ntt-layer0 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (inv2 x0 2154 885) (inv2 x1 2935 2110) (inv2 x2 1029 1874) (inv2 x3 1212 1722) (inv2 x4 886 2775) (inv2 x5 2150 1143) (inv2 x6 1026 403) (inv2 x7 1092 2804) (inv2 x8 2594 2466) (inv2 x9 561 2099) (inv2 x10 757 2773) (inv2 x11 319 1063) (inv2 x12 1645 2090) (inv2 x13 2549 375) (inv2 x14 3220 2037) (inv2 x15 2298 1584) (inv2 x16 641 268) (inv2 x17 2337 733) (inv2 x18 2388 2437) (inv2 x19 2308 939) (inv2 x20 2687 1461) (inv2 x21 952 1847) (inv2 x22 1789 2789) (inv2 x23 1651 1703) (inv2 x24 3050 3015) (inv2 x25 2156 756) (inv2 x26 233 3281) (inv2 x27 2662 1409) (inv2 x28 1100 2288) (inv2 x29 723 1637) (inv2 x30 2649 583) (inv2 x31 2761 17)
+
+  -- | Layer 1 of poly-inv-ntt.
+  poly-inv-ntt-layer1 :: Poly -> Poly
+  poly-inv-ntt-layer1 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (inv4 x0 910) (inv4 x1 1227) (inv4 x2 3110) (inv4 x3 2474) (inv4 x4 648) (inv4 x5 1481) (inv4 x6 2617) (inv4 x7 2647) (inv4 x8 2402) (inv4 x9 1534) (inv4 x10 2868) (inv4 x11 1438) (inv4 x12 452) (inv4 x13 807) (inv4 x14 1435) (inv4 x15 2319) (inv4 x16 1915) (inv4 x17 1320) (inv4 x18 33) (inv4 x19 2865) (inv4 x20 632) (inv4 x21 2513) (inv4 x22 1977) (inv4 x23 650) (inv4 x24 2055) (inv4 x25 2277) (inv4 x26 2304) (inv4 x27 1197) (inv4 x28 1756) (inv4 x29 3253) (inv4 x30 331) (inv4 x31 289)
+
+  -- | Layer 2 of poly-inv-ntt.
+  poly-inv-ntt-layer2 :: Poly -> Poly
+  poly-inv-ntt-layer2 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (ib-sum x0 x1) (ib-diff x0 x1 821) (ib-sum x2 x3) (ib-diff x2 x3 1974) (ib-sum x4 x5) (ib-diff x4 x5 2879) (ib-sum x6 x7) (ib-diff x6 x7 2393) (ib-sum x8 x9) (ib-diff x8 x9 2882) (ib-sum x10 x11) (ib-diff x10 x11 535) (ib-sum x12 x13) (ib-diff x12 x13 2094) (ib-sum x14 x15) (ib-diff x14 x15 1426) (ib-sum x16 x17) (ib-diff x16 x17 1333) (ib-sum x18 x19) (ib-diff x18 x19 2240) (ib-sum x20 x21) (ib-diff x20 x21 56) (ib-sum x22 x23) (ib-diff x22 x23 3046) (ib-sum x24 x25) (ib-diff x24 x25 1476) (ib-sum x26 x27) (ib-diff x26 x27 1339) (ib-sum x28 x29) (ib-diff x28 x29 2447) (ib-sum x30 x31) (ib-diff x30 x31 296)
+
+  -- | Layer 3 of poly-inv-ntt.
+  poly-inv-ntt-layer3 :: Poly -> Poly
+  poly-inv-ntt-layer3 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (ib-sum x0 x2) (ib-sum x1 x3) (ib-diff x0 x2 1746) (ib-diff x1 x3 1746) (ib-sum x4 x6) (ib-sum x5 x7) (ib-diff x4 x6 569) (ib-diff x5 x7 569) (ib-sum x8 x10) (ib-sum x9 x11) (ib-diff x8 x10 3260) (ib-diff x9 x11 3260) (ib-sum x12 x14) (ib-sum x13 x15) (ib-diff x12 x14 2786) (ib-diff x13 x15 2786) (ib-sum x16 x18) (ib-sum x17 x19) (ib-diff x16 x18 797) (ib-diff x17 x19 797) (ib-sum x20 x22) (ib-sum x21 x23) (ib-diff x20 x22 193) (ib-diff x21 x23 193) (ib-sum x24 x26) (ib-sum x25 x27) (ib-diff x24 x26 1919) (ib-diff x25 x27 1919) (ib-sum x28 x30) (ib-sum x29 x31) (ib-diff x28 x30 1062) (ib-diff x29 x31 1062)
+
+  -- | Layer 4 of poly-inv-ntt.
+  poly-inv-ntt-layer4 :: Poly -> Poly
+  poly-inv-ntt-layer4 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (ib-sum x0 x4) (ib-sum x1 x5) (ib-sum x2 x6) (ib-sum x3 x7) (ib-diff x0 x4 848) (ib-diff x1 x5 848) (ib-diff x2 x6 848) (ib-diff x3 x7 848) (ib-sum x8 x12) (ib-sum x9 x13) (ib-sum x10 x14) (ib-sum x11 x15) (ib-diff x8 x12 1897) (ib-diff x9 x13 1897) (ib-diff x10 x14 1897) (ib-diff x11 x15 1897) (ib-sum x16 x20) (ib-sum x17 x21) (ib-sum x18 x22) (ib-sum x19 x23) (ib-diff x16 x20 630) (ib-diff x17 x21 630) (ib-diff x18 x22 630) (ib-diff x19 x23 630) (ib-sum x24 x28) (ib-sum x25 x29) (ib-sum x26 x30) (ib-sum x27 x31) (ib-diff x24 x28 2642) (ib-diff x25 x29 2642) (ib-diff x26 x30 2642) (ib-diff x27 x31 2642)
+
+  -- | Layer 5 of poly-inv-ntt.
+  poly-inv-ntt-layer5 :: Poly -> Poly
+  poly-inv-ntt-layer5 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (ib-sum x0 x8) (ib-sum x1 x9) (ib-sum x2 x10) (ib-sum x3 x11) (ib-sum x4 x12) (ib-sum x5 x13) (ib-sum x6 x14) (ib-sum x7 x15) (ib-diff x0 x8 3289) (ib-diff x1 x9 3289) (ib-diff x2 x10 3289) (ib-diff x3 x11 3289) (ib-diff x4 x12 3289) (ib-diff x5 x13 3289) (ib-diff x6 x14 3289) (ib-diff x7 x15 3289) (ib-sum x16 x24) (ib-sum x17 x25) (ib-sum x18 x26) (ib-sum x19 x27) (ib-sum x20 x28) (ib-sum x21 x29) (ib-sum x22 x30) (ib-sum x23 x31) (ib-diff x16 x24 2580) (ib-diff x17 x25 2580) (ib-diff x18 x26 2580) (ib-diff x19 x27 2580) (ib-diff x20 x28 2580) (ib-diff x21 x29 2580) (ib-diff x22 x30 2580) (ib-diff x23 x31 2580)
+
+  -- | Layer 6 of poly-inv-ntt.
+  poly-inv-ntt-layer6 :: Poly -> Poly
+  poly-inv-ntt-layer6 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (ib-sum x0 x16) (ib-sum x1 x17) (ib-sum x2 x18) (ib-sum x3 x19) (ib-sum x4 x20) (ib-sum x5 x21) (ib-sum x6 x22) (ib-sum x7 x23) (ib-sum x8 x24) (ib-sum x9 x25) (ib-sum x10 x26) (ib-sum x11 x27) (ib-sum x12 x28) (ib-sum x13 x29) (ib-sum x14 x30) (ib-sum x15 x31) (ib-diff x0 x16 1729) (ib-diff x1 x17 1729) (ib-diff x2 x18 1729) (ib-diff x3 x19 1729) (ib-diff x4 x20 1729) (ib-diff x5 x21 1729) (ib-diff x6 x22 1729) (ib-diff x7 x23 1729) (ib-diff x8 x24 1729) (ib-diff x9 x25 1729) (ib-diff x10 x26 1729) (ib-diff x11 x27 1729) (ib-diff x12 x28 1729) (ib-diff x13 x29 1729) (ib-diff x14 x30 1729) (ib-diff x15 x31 1729)
+
+  -- | Layer 7 of poly-inv-ntt.
+  poly-inv-ntt-layer7 :: Poly -> Poly
+  poly-inv-ntt-layer7 p = case p of
+    Poly x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20 x21 x22 x23 x24 x25 x26 x27 x28 x29 x30 x31 ->
+      Poly (scale x0 3303) (scale x1 3303) (scale x2 3303) (scale x3 3303) (scale x4 3303) (scale x5 3303) (scale x6 3303) (scale x7 3303) (scale x8 3303) (scale x9 3303) (scale x10 3303) (scale x11 3303) (scale x12 3303) (scale x13 3303) (scale x14 3303) (scale x15 3303) (scale x16 3303) (scale x17 3303) (scale x18 3303) (scale x19 3303) (scale x20 3303) (scale x21 3303) (scale x22 3303) (scale x23 3303) (scale x24 3303) (scale x25 3303) (scale x26 3303) (scale x27 3303) (scale x28 3303) (scale x29 3303) (scale x30 3303) (scale x31 3303)
+
+  -- | The inverse transform, including the final scaling by 128^-1 (FIPS 203 Algorithm 10).
+  poly-inv-ntt :: Poly -> Poly
+  poly-inv-ntt p = poly-inv-ntt-layer7 (poly-inv-ntt-layer6 (poly-inv-ntt-layer5 (poly-inv-ntt-layer4 (poly-inv-ntt-layer3 (poly-inv-ntt-layer2 (poly-inv-ntt-layer1 (poly-inv-ntt-layer0 p)))))))
+
+  -- | Coefficient-wise sum modulo q.
+  poly-add :: Poly -> Poly -> Poly
+  poly-add p q =
+    case p of
+      Poly a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20 a21 a22 a23 a24 a25 a26 a27 a28 a29 a30 a31 ->
+        case q of
+          Poly b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22 b23 b24 b25 b26 b27 b28 b29 b30 b31 ->
+            Poly (ib-sum a0 b0) (ib-sum a1 b1) (ib-sum a2 b2) (ib-sum a3 b3) (ib-sum a4 b4) (ib-sum a5 b5) (ib-sum a6 b6) (ib-sum a7 b7) (ib-sum a8 b8) (ib-sum a9 b9) (ib-sum a10 b10) (ib-sum a11 b11) (ib-sum a12 b12) (ib-sum a13 b13) (ib-sum a14 b14) (ib-sum a15 b15) (ib-sum a16 b16) (ib-sum a17 b17) (ib-sum a18 b18) (ib-sum a19 b19) (ib-sum a20 b20) (ib-sum a21 b21) (ib-sum a22 b22) (ib-sum a23 b23) (ib-sum a24 b24) (ib-sum a25 b25) (ib-sum a26 b26) (ib-sum a27 b27) (ib-sum a28 b28) (ib-sum a29 b29) (ib-sum a30 b30) (ib-sum a31 b31)
+
+  -- | Coefficient-wise difference modulo q.
+  poly-sub :: Poly -> Poly -> Poly
+  poly-sub p q =
+    case p of
+      Poly a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20 a21 a22 a23 a24 a25 a26 a27 a28 a29 a30 a31 ->
+        case q of
+          Poly b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22 b23 b24 b25 b26 b27 b28 b29 b30 b31 ->
+            Poly (sub-q a0 b0) (sub-q a1 b1) (sub-q a2 b2) (sub-q a3 b3) (sub-q a4 b4) (sub-q a5 b5) (sub-q a6 b6) (sub-q a7 b7) (sub-q a8 b8) (sub-q a9 b9) (sub-q a10 b10) (sub-q a11 b11) (sub-q a12 b12) (sub-q a13 b13) (sub-q a14 b14) (sub-q a15 b15) (sub-q a16 b16) (sub-q a17 b17) (sub-q a18 b18) (sub-q a19 b19) (sub-q a20 b20) (sub-q a21 b21) (sub-q a22 b22) (sub-q a23 b23) (sub-q a24 b24) (sub-q a25 b25) (sub-q a26 b26) (sub-q a27 b27) (sub-q a28 b28) (sub-q a29 b29) (sub-q a30 b30) (sub-q a31 b31)
+
+  -- | Accumulate the NTT-domain product of two polynomials (FIPS 203 Algorithm 11) into acc.
+  poly-basemul-add :: Poly -> Poly -> Poly -> Poly
+  poly-basemul-add acc p r =
+    case acc of
+      Poly c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 c15 c16 c17 c18 c19 c20 c21 c22 c23 c24 c25 c26 c27 c28 c29 c30 c31 ->
+        case p of
+          Poly a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20 a21 a22 a23 a24 a25 a26 a27 a28 a29 a30 a31 ->
+            case r of
+              Poly b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b20 b21 b22 b23 b24 b25 b26 b27 b28 b29 b30 b31 ->
+                Poly (basemul-add c0 a0 b0 17 3312 2761 568) (basemul-add c1 a1 b1 583 2746 2649 680) (basemul-add c2 a2 b2 1637 1692 723 2606) (basemul-add c3 a3 b3 2288 1041 1100 2229) (basemul-add c4 a4 b4 1409 1920 2662 667) (basemul-add c5 a5 b5 3281 48 233 3096) (basemul-add c6 a6 b6 756 2573 2156 1173) (basemul-add c7 a7 b7 3015 314 3050 279) (basemul-add c8 a8 b8 1703 1626 1651 1678) (basemul-add c9 a9 b9 2789 540 1789 1540) (basemul-add c10 a10 b10 1847 1482 952 2377) (basemul-add c11 a11 b11 1461 1868 2687 642) (basemul-add c12 a12 b12 939 2390 2308 1021) (basemul-add c13 a13 b13 2437 892 2388 941) (basemul-add c14 a14 b14 733 2596 2337 992) (basemul-add c15 a15 b15 268 3061 641 2688) (basemul-add c16 a16 b16 1584 1745 2298 1031) (basemul-add c17 a17 b17 2037 1292 3220 109) (basemul-add c18 a18 b18 375 2954 2549 780) (basemul-add c19 a19 b19 2090 1239 1645 1684) (basemul-add c20 a20 b20 1063 2266 319 3010) (basemul-add c21 a21 b21 2773 556 757 2572) (basemul-add c22 a22 b22 2099 1230 561 2768) (basemul-add c23 a23 b23 2466 863 2594 735) (basemul-add c24 a24 b24 2804 525 1092 2237) (basemul-add c25 a25 b25 403 2926 1026 2303) (basemul-add c26 a26 b26 1143 2186 2150 1179) (basemul-add c27 a27 b27 2775 554 886 2443) (basemul-add c28 a28 b28 1722 1607 1212 2117) (basemul-add c29 a29 b29 1874 1455 1029 2300) (basemul-add c30 a30 b30 2110 1219 2935 394) (basemul-add c31 a31 b31 885 2444 2154 1175)
+
+  -- | Forward butterfly sum: a + zeta * b modulo q in every lane.
+  prim bf-sum :: U128 -> U128 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = bitcast i128 %1 to <8 x i16>
+      %v4 = zext <8 x i16> %v3 to <8 x i32>
+      %v5 = trunc i64 %2 to i32
+      %v6 = insertelement <8 x i32> poison, i32 %v5, i64 0
+      %v7 = shufflevector <8 x i32> %v6, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v8 = mul <8 x i32> %v4, %v7
+      %v9 = urem <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v10 = add <8 x i32> %v2, %v9
+      %v11 = icmp uge <8 x i32> %v10, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v12 = sub <8 x i32> %v10, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v13 = select <8 x i1> %v11, <8 x i32> %v12, <8 x i32> %v10
+      %v14 = trunc <8 x i32> %v13 to <8 x i16>
+      %v15 = bitcast <8 x i16> %v14 to i128
+      ret i128 %v15
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = bitcast i128 %1 to <8 x i16>
+      %v5 = shufflevector <8 x i16> %v4, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v6 = zext <8 x i16> %v5 to <8 x i32>
+      %v7 = trunc i64 %2 to i32
+      %v8 = insertelement <8 x i32> poison, i32 %v7, i64 0
+      %v9 = shufflevector <8 x i32> %v8, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v10 = mul <8 x i32> %v6, %v9
+      %v11 = urem <8 x i32> %v10, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v12 = add <8 x i32> %v3, %v11
+      %v13 = icmp uge <8 x i32> %v12, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v14 = sub <8 x i32> %v12, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v15 = select <8 x i1> %v13, <8 x i32> %v14, <8 x i32> %v12
+      %v16 = trunc <8 x i32> %v15 to <8 x i16>
+      %v17 = shufflevector <8 x i16> %v16, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v18 = bitcast <8 x i16> %v17 to i128
+      ret i128 %v18
+    } when endian big
+
+  -- | Forward butterfly difference: a - zeta * b modulo q in every lane.
+  prim bf-diff :: U128 -> U128 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = bitcast i128 %1 to <8 x i16>
+      %v4 = zext <8 x i16> %v3 to <8 x i32>
+      %v5 = trunc i64 %2 to i32
+      %v6 = insertelement <8 x i32> poison, i32 %v5, i64 0
+      %v7 = shufflevector <8 x i32> %v6, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v8 = mul <8 x i32> %v4, %v7
+      %v9 = urem <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v10 = add <8 x i32> %v2, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v11 = sub <8 x i32> %v10, %v9
+      %v12 = icmp uge <8 x i32> %v11, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v13 = sub <8 x i32> %v11, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v14 = select <8 x i1> %v12, <8 x i32> %v13, <8 x i32> %v11
+      %v15 = trunc <8 x i32> %v14 to <8 x i16>
+      %v16 = bitcast <8 x i16> %v15 to i128
+      ret i128 %v16
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = bitcast i128 %1 to <8 x i16>
+      %v5 = shufflevector <8 x i16> %v4, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v6 = zext <8 x i16> %v5 to <8 x i32>
+      %v7 = trunc i64 %2 to i32
+      %v8 = insertelement <8 x i32> poison, i32 %v7, i64 0
+      %v9 = shufflevector <8 x i32> %v8, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v10 = mul <8 x i32> %v6, %v9
+      %v11 = urem <8 x i32> %v10, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v12 = add <8 x i32> %v3, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v13 = sub <8 x i32> %v12, %v11
+      %v14 = icmp uge <8 x i32> %v13, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v15 = sub <8 x i32> %v13, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v16 = select <8 x i1> %v14, <8 x i32> %v15, <8 x i32> %v13
+      %v17 = trunc <8 x i32> %v16 to <8 x i16>
+      %v18 = shufflevector <8 x i16> %v17, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v19 = bitcast <8 x i16> %v18 to i128
+      ret i128 %v19
+    } when endian big
+
+  -- | Lane-wise a + b modulo q (also the inverse butterfly sum).
+  prim ib-sum :: U128 -> U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = bitcast i128 %1 to <8 x i16>
+      %v4 = zext <8 x i16> %v3 to <8 x i32>
+      %v5 = add <8 x i32> %v2, %v4
+      %v6 = icmp uge <8 x i32> %v5, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v7 = sub <8 x i32> %v5, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v8 = select <8 x i1> %v6, <8 x i32> %v7, <8 x i32> %v5
+      %v9 = trunc <8 x i32> %v8 to <8 x i16>
+      %v10 = bitcast <8 x i16> %v9 to i128
+      ret i128 %v10
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = bitcast i128 %1 to <8 x i16>
+      %v5 = shufflevector <8 x i16> %v4, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v6 = zext <8 x i16> %v5 to <8 x i32>
+      %v7 = add <8 x i32> %v3, %v6
+      %v8 = icmp uge <8 x i32> %v7, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v9 = sub <8 x i32> %v7, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v10 = select <8 x i1> %v8, <8 x i32> %v9, <8 x i32> %v7
+      %v11 = trunc <8 x i32> %v10 to <8 x i16>
+      %v12 = shufflevector <8 x i16> %v11, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v13 = bitcast <8 x i16> %v12 to i128
+      ret i128 %v13
+    } when endian big
+
+  -- | Inverse butterfly difference: zeta * (b - a) modulo q in every lane.
+  prim ib-diff :: U128 -> U128 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %1 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = bitcast i128 %0 to <8 x i16>
+      %v4 = zext <8 x i16> %v3 to <8 x i32>
+      %v5 = add <8 x i32> %v2, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v6 = sub <8 x i32> %v5, %v4
+      %v7 = icmp uge <8 x i32> %v6, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v8 = sub <8 x i32> %v6, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v9 = select <8 x i1> %v7, <8 x i32> %v8, <8 x i32> %v6
+      %v10 = trunc i64 %2 to i32
+      %v11 = insertelement <8 x i32> poison, i32 %v10, i64 0
+      %v12 = shufflevector <8 x i32> %v11, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v13 = mul <8 x i32> %v9, %v12
+      %v14 = urem <8 x i32> %v13, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v15 = trunc <8 x i32> %v14 to <8 x i16>
+      %v16 = bitcast <8 x i16> %v15 to i128
+      ret i128 %v16
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %1 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = bitcast i128 %0 to <8 x i16>
+      %v5 = shufflevector <8 x i16> %v4, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v6 = zext <8 x i16> %v5 to <8 x i32>
+      %v7 = add <8 x i32> %v3, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v8 = sub <8 x i32> %v7, %v6
+      %v9 = icmp uge <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v10 = sub <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v11 = select <8 x i1> %v9, <8 x i32> %v10, <8 x i32> %v8
+      %v12 = trunc i64 %2 to i32
+      %v13 = insertelement <8 x i32> poison, i32 %v12, i64 0
+      %v14 = shufflevector <8 x i32> %v13, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v15 = mul <8 x i32> %v11, %v14
+      %v16 = urem <8 x i32> %v15, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v17 = trunc <8 x i32> %v16 to <8 x i16>
+      %v18 = shufflevector <8 x i16> %v17, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v19 = bitcast <8 x i16> %v18 to i128
+      ret i128 %v19
+    } when endian big
+
+  -- | Lane-wise a - b modulo q.
+  prim sub-q :: U128 -> U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = bitcast i128 %1 to <8 x i16>
+      %v4 = zext <8 x i16> %v3 to <8 x i32>
+      %v5 = add <8 x i32> %v2, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v6 = sub <8 x i32> %v5, %v4
+      %v7 = icmp uge <8 x i32> %v6, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v8 = sub <8 x i32> %v6, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v9 = select <8 x i1> %v7, <8 x i32> %v8, <8 x i32> %v6
+      %v10 = trunc <8 x i32> %v9 to <8 x i16>
+      %v11 = bitcast <8 x i16> %v10 to i128
+      ret i128 %v11
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = bitcast i128 %1 to <8 x i16>
+      %v5 = shufflevector <8 x i16> %v4, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v6 = zext <8 x i16> %v5 to <8 x i32>
+      %v7 = add <8 x i32> %v3, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v8 = sub <8 x i32> %v7, %v6
+      %v9 = icmp uge <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v10 = sub <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v11 = select <8 x i1> %v9, <8 x i32> %v10, <8 x i32> %v8
+      %v12 = trunc <8 x i32> %v11 to <8 x i16>
+      %v13 = shufflevector <8 x i16> %v12, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v14 = bitcast <8 x i16> %v13 to i128
+      ret i128 %v14
+    } when endian big
+
+  -- | Lane-wise multiplication by a constant modulo q.
+  prim scale :: U128 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = trunc i64 %1 to i32
+      %v4 = insertelement <8 x i32> poison, i32 %v3, i64 0
+      %v5 = shufflevector <8 x i32> %v4, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v6 = mul <8 x i32> %v2, %v5
+      %v7 = urem <8 x i32> %v6, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v8 = trunc <8 x i32> %v7 to <8 x i16>
+      %v9 = bitcast <8 x i16> %v8 to i128
+      ret i128 %v9
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = trunc i64 %1 to i32
+      %v5 = insertelement <8 x i32> poison, i32 %v4, i64 0
+      %v6 = shufflevector <8 x i32> %v5, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v7 = mul <8 x i32> %v3, %v6
+      %v8 = urem <8 x i32> %v7, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v9 = trunc <8 x i32> %v8 to <8 x i16>
+      %v10 = shufflevector <8 x i16> %v9, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v11 = bitcast <8 x i16> %v10 to i128
+      ret i128 %v11
+    } when endian big
+
+  -- | The forward layer of length four inside a lane: coefficients 0-3 against 4-7.
+  prim ntt4 :: U128 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = trunc i64 %1 to i32
+      %v4 = insertelement <8 x i32> poison, i32 %v3, i64 0
+      %v5 = shufflevector <8 x i32> %v4, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v6 = shufflevector <8 x i32> %v2, <8 x i32> %v2, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3>
+      %v7 = shufflevector <8 x i32> %v2, <8 x i32> %v2, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 4, i32 5, i32 6, i32 7>
+      %v8 = mul <8 x i32> %v7, %v5
+      %v9 = urem <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v10 = add <8 x i32> %v6, %v9
+      %v11 = icmp uge <8 x i32> %v10, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v12 = sub <8 x i32> %v10, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v13 = select <8 x i1> %v11, <8 x i32> %v12, <8 x i32> %v10
+      %v14 = add <8 x i32> %v6, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v15 = sub <8 x i32> %v14, %v9
+      %v16 = icmp uge <8 x i32> %v15, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v17 = sub <8 x i32> %v15, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v18 = select <8 x i1> %v16, <8 x i32> %v17, <8 x i32> %v15
+      %v19 = shufflevector <8 x i32> %v13, <8 x i32> %v18, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 12, i32 13, i32 14, i32 15>
+      %v20 = trunc <8 x i32> %v19 to <8 x i16>
+      %v21 = bitcast <8 x i16> %v20 to i128
+      ret i128 %v21
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = trunc i64 %1 to i32
+      %v5 = insertelement <8 x i32> poison, i32 %v4, i64 0
+      %v6 = shufflevector <8 x i32> %v5, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v7 = shufflevector <8 x i32> %v3, <8 x i32> %v3, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3>
+      %v8 = shufflevector <8 x i32> %v3, <8 x i32> %v3, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 4, i32 5, i32 6, i32 7>
+      %v9 = mul <8 x i32> %v8, %v6
+      %v10 = urem <8 x i32> %v9, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v11 = add <8 x i32> %v7, %v10
+      %v12 = icmp uge <8 x i32> %v11, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v13 = sub <8 x i32> %v11, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v14 = select <8 x i1> %v12, <8 x i32> %v13, <8 x i32> %v11
+      %v15 = add <8 x i32> %v7, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v16 = sub <8 x i32> %v15, %v10
+      %v17 = icmp uge <8 x i32> %v16, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v18 = sub <8 x i32> %v16, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v19 = select <8 x i1> %v17, <8 x i32> %v18, <8 x i32> %v16
+      %v20 = shufflevector <8 x i32> %v14, <8 x i32> %v19, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 12, i32 13, i32 14, i32 15>
+      %v21 = trunc <8 x i32> %v20 to <8 x i16>
+      %v22 = shufflevector <8 x i16> %v21, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v23 = bitcast <8 x i16> %v22 to i128
+      ret i128 %v23
+    } when endian big
+
+  -- | The forward layer of length two inside a lane, with one twiddle per half.
+  prim ntt2 :: U128 -> I64 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = trunc i64 %1 to i32
+      %v4 = insertelement <8 x i32> poison, i32 %v3, i64 0
+      %v5 = trunc i64 %1 to i32
+      %v6 = insertelement <8 x i32> %v4, i32 %v5, i64 1
+      %v7 = trunc i64 %1 to i32
+      %v8 = insertelement <8 x i32> %v6, i32 %v7, i64 2
+      %v9 = trunc i64 %1 to i32
+      %v10 = insertelement <8 x i32> %v8, i32 %v9, i64 3
+      %v11 = trunc i64 %2 to i32
+      %v12 = insertelement <8 x i32> %v10, i32 %v11, i64 4
+      %v13 = trunc i64 %2 to i32
+      %v14 = insertelement <8 x i32> %v12, i32 %v13, i64 5
+      %v15 = trunc i64 %2 to i32
+      %v16 = insertelement <8 x i32> %v14, i32 %v15, i64 6
+      %v17 = trunc i64 %2 to i32
+      %v18 = insertelement <8 x i32> %v16, i32 %v17, i64 7
+      %v19 = shufflevector <8 x i32> %v2, <8 x i32> %v2, <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 4, i32 5, i32 4, i32 5>
+      %v20 = shufflevector <8 x i32> %v2, <8 x i32> %v2, <8 x i32> <i32 2, i32 3, i32 2, i32 3, i32 6, i32 7, i32 6, i32 7>
+      %v21 = mul <8 x i32> %v20, %v18
+      %v22 = urem <8 x i32> %v21, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v23 = add <8 x i32> %v19, %v22
+      %v24 = icmp uge <8 x i32> %v23, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v25 = sub <8 x i32> %v23, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v26 = select <8 x i1> %v24, <8 x i32> %v25, <8 x i32> %v23
+      %v27 = add <8 x i32> %v19, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v28 = sub <8 x i32> %v27, %v22
+      %v29 = icmp uge <8 x i32> %v28, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v30 = sub <8 x i32> %v28, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v31 = select <8 x i1> %v29, <8 x i32> %v30, <8 x i32> %v28
+      %v32 = shufflevector <8 x i32> %v26, <8 x i32> %v31, <8 x i32> <i32 0, i32 1, i32 10, i32 11, i32 4, i32 5, i32 14, i32 15>
+      %v33 = trunc <8 x i32> %v32 to <8 x i16>
+      %v34 = bitcast <8 x i16> %v33 to i128
+      ret i128 %v34
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = trunc i64 %1 to i32
+      %v5 = insertelement <8 x i32> poison, i32 %v4, i64 0
+      %v6 = trunc i64 %1 to i32
+      %v7 = insertelement <8 x i32> %v5, i32 %v6, i64 1
+      %v8 = trunc i64 %1 to i32
+      %v9 = insertelement <8 x i32> %v7, i32 %v8, i64 2
+      %v10 = trunc i64 %1 to i32
+      %v11 = insertelement <8 x i32> %v9, i32 %v10, i64 3
+      %v12 = trunc i64 %2 to i32
+      %v13 = insertelement <8 x i32> %v11, i32 %v12, i64 4
+      %v14 = trunc i64 %2 to i32
+      %v15 = insertelement <8 x i32> %v13, i32 %v14, i64 5
+      %v16 = trunc i64 %2 to i32
+      %v17 = insertelement <8 x i32> %v15, i32 %v16, i64 6
+      %v18 = trunc i64 %2 to i32
+      %v19 = insertelement <8 x i32> %v17, i32 %v18, i64 7
+      %v20 = shufflevector <8 x i32> %v3, <8 x i32> %v3, <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 4, i32 5, i32 4, i32 5>
+      %v21 = shufflevector <8 x i32> %v3, <8 x i32> %v3, <8 x i32> <i32 2, i32 3, i32 2, i32 3, i32 6, i32 7, i32 6, i32 7>
+      %v22 = mul <8 x i32> %v21, %v19
+      %v23 = urem <8 x i32> %v22, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v24 = add <8 x i32> %v20, %v23
+      %v25 = icmp uge <8 x i32> %v24, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v26 = sub <8 x i32> %v24, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v27 = select <8 x i1> %v25, <8 x i32> %v26, <8 x i32> %v24
+      %v28 = add <8 x i32> %v20, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v29 = sub <8 x i32> %v28, %v23
+      %v30 = icmp uge <8 x i32> %v29, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v31 = sub <8 x i32> %v29, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v32 = select <8 x i1> %v30, <8 x i32> %v31, <8 x i32> %v29
+      %v33 = shufflevector <8 x i32> %v27, <8 x i32> %v32, <8 x i32> <i32 0, i32 1, i32 10, i32 11, i32 4, i32 5, i32 14, i32 15>
+      %v34 = trunc <8 x i32> %v33 to <8 x i16>
+      %v35 = shufflevector <8 x i16> %v34, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v36 = bitcast <8 x i16> %v35 to i128
+      ret i128 %v36
+    } when endian big
+
+  -- | The inverse layer of length four inside a lane.
+  prim inv4 :: U128 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = trunc i64 %1 to i32
+      %v4 = insertelement <8 x i32> poison, i32 %v3, i64 0
+      %v5 = shufflevector <8 x i32> %v4, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v6 = shufflevector <8 x i32> %v2, <8 x i32> %v2, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3>
+      %v7 = shufflevector <8 x i32> %v2, <8 x i32> %v2, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 4, i32 5, i32 6, i32 7>
+      %v8 = add <8 x i32> %v6, %v7
+      %v9 = icmp uge <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v10 = sub <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v11 = select <8 x i1> %v9, <8 x i32> %v10, <8 x i32> %v8
+      %v12 = add <8 x i32> %v7, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v13 = sub <8 x i32> %v12, %v6
+      %v14 = icmp uge <8 x i32> %v13, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v15 = sub <8 x i32> %v13, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v16 = select <8 x i1> %v14, <8 x i32> %v15, <8 x i32> %v13
+      %v17 = mul <8 x i32> %v16, %v5
+      %v18 = urem <8 x i32> %v17, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v19 = shufflevector <8 x i32> %v11, <8 x i32> %v18, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 12, i32 13, i32 14, i32 15>
+      %v20 = trunc <8 x i32> %v19 to <8 x i16>
+      %v21 = bitcast <8 x i16> %v20 to i128
+      ret i128 %v21
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = trunc i64 %1 to i32
+      %v5 = insertelement <8 x i32> poison, i32 %v4, i64 0
+      %v6 = shufflevector <8 x i32> %v5, <8 x i32> poison, <8 x i32> zeroinitializer
+      %v7 = shufflevector <8 x i32> %v3, <8 x i32> %v3, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3>
+      %v8 = shufflevector <8 x i32> %v3, <8 x i32> %v3, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 4, i32 5, i32 6, i32 7>
+      %v9 = add <8 x i32> %v7, %v8
+      %v10 = icmp uge <8 x i32> %v9, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v11 = sub <8 x i32> %v9, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v12 = select <8 x i1> %v10, <8 x i32> %v11, <8 x i32> %v9
+      %v13 = add <8 x i32> %v8, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v14 = sub <8 x i32> %v13, %v7
+      %v15 = icmp uge <8 x i32> %v14, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v16 = sub <8 x i32> %v14, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v17 = select <8 x i1> %v15, <8 x i32> %v16, <8 x i32> %v14
+      %v18 = mul <8 x i32> %v17, %v6
+      %v19 = urem <8 x i32> %v18, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v20 = shufflevector <8 x i32> %v12, <8 x i32> %v19, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 12, i32 13, i32 14, i32 15>
+      %v21 = trunc <8 x i32> %v20 to <8 x i16>
+      %v22 = shufflevector <8 x i16> %v21, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v23 = bitcast <8 x i16> %v22 to i128
+      ret i128 %v23
+    } when endian big
+
+  -- | The inverse layer of length two inside a lane, with one twiddle per half.
+  prim inv2 :: U128 -> I64 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = trunc i64 %1 to i32
+      %v4 = insertelement <8 x i32> poison, i32 %v3, i64 0
+      %v5 = trunc i64 %1 to i32
+      %v6 = insertelement <8 x i32> %v4, i32 %v5, i64 1
+      %v7 = trunc i64 %1 to i32
+      %v8 = insertelement <8 x i32> %v6, i32 %v7, i64 2
+      %v9 = trunc i64 %1 to i32
+      %v10 = insertelement <8 x i32> %v8, i32 %v9, i64 3
+      %v11 = trunc i64 %2 to i32
+      %v12 = insertelement <8 x i32> %v10, i32 %v11, i64 4
+      %v13 = trunc i64 %2 to i32
+      %v14 = insertelement <8 x i32> %v12, i32 %v13, i64 5
+      %v15 = trunc i64 %2 to i32
+      %v16 = insertelement <8 x i32> %v14, i32 %v15, i64 6
+      %v17 = trunc i64 %2 to i32
+      %v18 = insertelement <8 x i32> %v16, i32 %v17, i64 7
+      %v19 = shufflevector <8 x i32> %v2, <8 x i32> %v2, <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 4, i32 5, i32 4, i32 5>
+      %v20 = shufflevector <8 x i32> %v2, <8 x i32> %v2, <8 x i32> <i32 2, i32 3, i32 2, i32 3, i32 6, i32 7, i32 6, i32 7>
+      %v21 = add <8 x i32> %v19, %v20
+      %v22 = icmp uge <8 x i32> %v21, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v23 = sub <8 x i32> %v21, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v24 = select <8 x i1> %v22, <8 x i32> %v23, <8 x i32> %v21
+      %v25 = add <8 x i32> %v20, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v26 = sub <8 x i32> %v25, %v19
+      %v27 = icmp uge <8 x i32> %v26, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v28 = sub <8 x i32> %v26, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v29 = select <8 x i1> %v27, <8 x i32> %v28, <8 x i32> %v26
+      %v30 = mul <8 x i32> %v29, %v18
+      %v31 = urem <8 x i32> %v30, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v32 = shufflevector <8 x i32> %v24, <8 x i32> %v31, <8 x i32> <i32 0, i32 1, i32 10, i32 11, i32 4, i32 5, i32 14, i32 15>
+      %v33 = trunc <8 x i32> %v32 to <8 x i16>
+      %v34 = bitcast <8 x i16> %v33 to i128
+      ret i128 %v34
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = trunc i64 %1 to i32
+      %v5 = insertelement <8 x i32> poison, i32 %v4, i64 0
+      %v6 = trunc i64 %1 to i32
+      %v7 = insertelement <8 x i32> %v5, i32 %v6, i64 1
+      %v8 = trunc i64 %1 to i32
+      %v9 = insertelement <8 x i32> %v7, i32 %v8, i64 2
+      %v10 = trunc i64 %1 to i32
+      %v11 = insertelement <8 x i32> %v9, i32 %v10, i64 3
+      %v12 = trunc i64 %2 to i32
+      %v13 = insertelement <8 x i32> %v11, i32 %v12, i64 4
+      %v14 = trunc i64 %2 to i32
+      %v15 = insertelement <8 x i32> %v13, i32 %v14, i64 5
+      %v16 = trunc i64 %2 to i32
+      %v17 = insertelement <8 x i32> %v15, i32 %v16, i64 6
+      %v18 = trunc i64 %2 to i32
+      %v19 = insertelement <8 x i32> %v17, i32 %v18, i64 7
+      %v20 = shufflevector <8 x i32> %v3, <8 x i32> %v3, <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 4, i32 5, i32 4, i32 5>
+      %v21 = shufflevector <8 x i32> %v3, <8 x i32> %v3, <8 x i32> <i32 2, i32 3, i32 2, i32 3, i32 6, i32 7, i32 6, i32 7>
+      %v22 = add <8 x i32> %v20, %v21
+      %v23 = icmp uge <8 x i32> %v22, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v24 = sub <8 x i32> %v22, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v25 = select <8 x i1> %v23, <8 x i32> %v24, <8 x i32> %v22
+      %v26 = add <8 x i32> %v21, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v27 = sub <8 x i32> %v26, %v20
+      %v28 = icmp uge <8 x i32> %v27, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v29 = sub <8 x i32> %v27, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v30 = select <8 x i1> %v28, <8 x i32> %v29, <8 x i32> %v27
+      %v31 = mul <8 x i32> %v30, %v19
+      %v32 = urem <8 x i32> %v31, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v33 = shufflevector <8 x i32> %v25, <8 x i32> %v32, <8 x i32> <i32 0, i32 1, i32 10, i32 11, i32 4, i32 5, i32 14, i32 15>
+      %v34 = trunc <8 x i32> %v33 to <8 x i16>
+      %v35 = shufflevector <8 x i16> %v34, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v36 = bitcast <8 x i16> %v35 to i128
+      ret i128 %v36
+    } when endian big
+
+  -- | acc + a * b for four degree-one products modulo X^2 - gamma (FIPS 203 Algorithm 12).
+  prim basemul-add :: U128 -> U128 -> U128 -> I64 -> I64 -> I64 -> I64 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = bitcast i128 %1 to <8 x i16>
+      %v4 = zext <8 x i16> %v3 to <8 x i32>
+      %v5 = bitcast i128 %2 to <8 x i16>
+      %v6 = zext <8 x i16> %v5 to <8 x i32>
+      %v7 = mul <8 x i32> %v4, %v6
+      %v8 = shufflevector <8 x i32> %v6, <8 x i32> %v6, <8 x i32> <i32 1, i32 0, i32 3, i32 2, i32 5, i32 4, i32 7, i32 6>
+      %v9 = mul <8 x i32> %v4, %v8
+      %v10 = shufflevector <8 x i32> %v7, <8 x i32> %v7, <8 x i32> <i32 1, i32 1, i32 3, i32 3, i32 5, i32 5, i32 7, i32 7>
+      %v11 = urem <8 x i32> %v10, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v12 = trunc i64 %3 to i32
+      %v13 = insertelement <8 x i32> poison, i32 %v12, i64 0
+      %v14 = trunc i64 %3 to i32
+      %v15 = insertelement <8 x i32> %v13, i32 %v14, i64 1
+      %v16 = trunc i64 %4 to i32
+      %v17 = insertelement <8 x i32> %v15, i32 %v16, i64 2
+      %v18 = trunc i64 %4 to i32
+      %v19 = insertelement <8 x i32> %v17, i32 %v18, i64 3
+      %v20 = trunc i64 %5 to i32
+      %v21 = insertelement <8 x i32> %v19, i32 %v20, i64 4
+      %v22 = trunc i64 %5 to i32
+      %v23 = insertelement <8 x i32> %v21, i32 %v22, i64 5
+      %v24 = trunc i64 %6 to i32
+      %v25 = insertelement <8 x i32> %v23, i32 %v24, i64 6
+      %v26 = trunc i64 %6 to i32
+      %v27 = insertelement <8 x i32> %v25, i32 %v26, i64 7
+      %v28 = mul <8 x i32> %v11, %v27
+      %v29 = add <8 x i32> %v7, %v28
+      %v30 = shufflevector <8 x i32> %v9, <8 x i32> %v9, <8 x i32> <i32 1, i32 0, i32 3, i32 2, i32 5, i32 4, i32 7, i32 6>
+      %v31 = add <8 x i32> %v9, %v30
+      %v32 = select <8 x i1> <i1 true, i1 false, i1 true, i1 false, i1 true, i1 false, i1 true, i1 false>, <8 x i32> %v29, <8 x i32> %v31
+      %v33 = urem <8 x i32> %v32, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v34 = add <8 x i32> %v2, %v33
+      %v35 = icmp uge <8 x i32> %v34, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v36 = sub <8 x i32> %v34, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v37 = select <8 x i1> %v35, <8 x i32> %v36, <8 x i32> %v34
+      %v38 = trunc <8 x i32> %v37 to <8 x i16>
+      %v39 = bitcast <8 x i16> %v38 to i128
+      ret i128 %v39
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = bitcast i128 %1 to <8 x i16>
+      %v5 = shufflevector <8 x i16> %v4, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v6 = zext <8 x i16> %v5 to <8 x i32>
+      %v7 = bitcast i128 %2 to <8 x i16>
+      %v8 = shufflevector <8 x i16> %v7, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v9 = zext <8 x i16> %v8 to <8 x i32>
+      %v10 = mul <8 x i32> %v6, %v9
+      %v11 = shufflevector <8 x i32> %v9, <8 x i32> %v9, <8 x i32> <i32 1, i32 0, i32 3, i32 2, i32 5, i32 4, i32 7, i32 6>
+      %v12 = mul <8 x i32> %v6, %v11
+      %v13 = shufflevector <8 x i32> %v10, <8 x i32> %v10, <8 x i32> <i32 1, i32 1, i32 3, i32 3, i32 5, i32 5, i32 7, i32 7>
+      %v14 = urem <8 x i32> %v13, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v15 = trunc i64 %3 to i32
+      %v16 = insertelement <8 x i32> poison, i32 %v15, i64 0
+      %v17 = trunc i64 %3 to i32
+      %v18 = insertelement <8 x i32> %v16, i32 %v17, i64 1
+      %v19 = trunc i64 %4 to i32
+      %v20 = insertelement <8 x i32> %v18, i32 %v19, i64 2
+      %v21 = trunc i64 %4 to i32
+      %v22 = insertelement <8 x i32> %v20, i32 %v21, i64 3
+      %v23 = trunc i64 %5 to i32
+      %v24 = insertelement <8 x i32> %v22, i32 %v23, i64 4
+      %v25 = trunc i64 %5 to i32
+      %v26 = insertelement <8 x i32> %v24, i32 %v25, i64 5
+      %v27 = trunc i64 %6 to i32
+      %v28 = insertelement <8 x i32> %v26, i32 %v27, i64 6
+      %v29 = trunc i64 %6 to i32
+      %v30 = insertelement <8 x i32> %v28, i32 %v29, i64 7
+      %v31 = mul <8 x i32> %v14, %v30
+      %v32 = add <8 x i32> %v10, %v31
+      %v33 = shufflevector <8 x i32> %v12, <8 x i32> %v12, <8 x i32> <i32 1, i32 0, i32 3, i32 2, i32 5, i32 4, i32 7, i32 6>
+      %v34 = add <8 x i32> %v12, %v33
+      %v35 = select <8 x i1> <i1 true, i1 false, i1 true, i1 false, i1 true, i1 false, i1 true, i1 false>, <8 x i32> %v32, <8 x i32> %v34
+      %v36 = urem <8 x i32> %v35, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v37 = add <8 x i32> %v3, %v36
+      %v38 = icmp uge <8 x i32> %v37, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v39 = sub <8 x i32> %v37, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v40 = select <8 x i1> %v38, <8 x i32> %v39, <8 x i32> %v37
+      %v41 = trunc <8 x i32> %v40 to <8 x i16>
+      %v42 = shufflevector <8 x i16> %v41, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v43 = bitcast <8 x i16> %v42 to i128
+      ret i128 %v43
+    } when endian big
+
+  -- | One when every lane is below q, else zero.
+  prim below-q :: U128 -> I64 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = icmp ult <8 x i32> %v2, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v4 = call i1 @llvm.vector.reduce.and.v8i1(<8 x i1> %v3)
+      %v5 = zext i1 %v4 to i64
+      ret i64 %v5
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = icmp ult <8 x i32> %v3, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v5 = call i1 @llvm.vector.reduce.and.v8i1(<8 x i1> %v4)
+      %v6 = zext i1 %v5 to i64
+      ret i64 %v6
+    } when endian big
+
+  -- | Reduce lanes below 2q into [0, q).
+  prim reduce-q :: U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = icmp uge <8 x i32> %v2, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v4 = sub <8 x i32> %v2, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v5 = select <8 x i1> %v3, <8 x i32> %v4, <8 x i32> %v2
+      %v6 = trunc <8 x i32> %v5 to <8 x i16>
+      %v7 = bitcast <8 x i16> %v6 to i128
+      ret i128 %v7
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = icmp uge <8 x i32> %v3, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v5 = sub <8 x i32> %v3, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v6 = select <8 x i1> %v4, <8 x i32> %v5, <8 x i32> %v3
+      %v7 = trunc <8 x i32> %v6 to <8 x i16>
+      %v8 = shufflevector <8 x i16> %v7, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v9 = bitcast <8 x i16> %v8 to i128
+      ret i128 %v9
+    } when endian big
+
+  -- | Pack eight 12-bit lanes into 96 bits (ByteEncode_12 of one lane).
+  prim pack12 :: U128 -> U128 where
+    llvm {
+      %v1 = and i128 %0, 4095
+      %v2 = lshr i128 %0, 16
+      %v3 = and i128 %v2, 4095
+      %v4 = lshr i128 %0, 32
+      %v5 = and i128 %v4, 4095
+      %v6 = lshr i128 %0, 48
+      %v7 = and i128 %v6, 4095
+      %v8 = lshr i128 %0, 64
+      %v9 = and i128 %v8, 4095
+      %v10 = lshr i128 %0, 80
+      %v11 = and i128 %v10, 4095
+      %v12 = lshr i128 %0, 96
+      %v13 = and i128 %v12, 4095
+      %v14 = lshr i128 %0, 112
+      %v15 = and i128 %v14, 4095
+      %v16 = shl i128 %v3, 12
+      %v17 = or i128 %v1, %v16
+      %v18 = shl i128 %v5, 24
+      %v19 = or i128 %v17, %v18
+      %v20 = shl i128 %v7, 36
+      %v21 = or i128 %v19, %v20
+      %v22 = shl i128 %v9, 48
+      %v23 = or i128 %v21, %v22
+      %v24 = shl i128 %v11, 60
+      %v25 = or i128 %v23, %v24
+      %v26 = shl i128 %v13, 72
+      %v27 = or i128 %v25, %v26
+      %v28 = shl i128 %v15, 84
+      %v29 = or i128 %v27, %v28
+      ret i128 %v29
+    }
+
+  -- | Unpack 96 bits into eight 12-bit lanes (ByteDecode_12 before reduction).
+  prim unpack12 :: U128 -> U128 where
+    llvm {
+      %v1 = and i128 %0, 4095
+      %v2 = lshr i128 %0, 12
+      %v3 = and i128 %v2, 4095
+      %v4 = lshr i128 %0, 24
+      %v5 = and i128 %v4, 4095
+      %v6 = lshr i128 %0, 36
+      %v7 = and i128 %v6, 4095
+      %v8 = lshr i128 %0, 48
+      %v9 = and i128 %v8, 4095
+      %v10 = lshr i128 %0, 60
+      %v11 = and i128 %v10, 4095
+      %v12 = lshr i128 %0, 72
+      %v13 = and i128 %v12, 4095
+      %v14 = lshr i128 %0, 84
+      %v15 = and i128 %v14, 4095
+      %v16 = shl i128 %v3, 16
+      %v17 = or i128 %v1, %v16
+      %v18 = shl i128 %v5, 32
+      %v19 = or i128 %v17, %v18
+      %v20 = shl i128 %v7, 48
+      %v21 = or i128 %v19, %v20
+      %v22 = shl i128 %v9, 64
+      %v23 = or i128 %v21, %v22
+      %v24 = shl i128 %v11, 80
+      %v25 = or i128 %v23, %v24
+      %v26 = shl i128 %v13, 96
+      %v27 = or i128 %v25, %v26
+      %v28 = shl i128 %v15, 112
+      %v29 = or i128 %v27, %v28
+      ret i128 %v29
+    }
+
+  -- | Decompress_1 of eight message bits: each bit becomes 0 or 1665.
+  prim message-lane :: I64 -> U128 where
+    llvm {
+      %v1 = zext i64 %0 to i128
+      %v2 = and i128 %v1, 1
+      %v3 = mul i128 %v2, 1665
+      %v4 = lshr i128 %v1, 1
+      %v5 = and i128 %v4, 1
+      %v6 = mul i128 %v5, 1665
+      %v7 = lshr i128 %v1, 2
+      %v8 = and i128 %v7, 1
+      %v9 = mul i128 %v8, 1665
+      %v10 = lshr i128 %v1, 3
+      %v11 = and i128 %v10, 1
+      %v12 = mul i128 %v11, 1665
+      %v13 = lshr i128 %v1, 4
+      %v14 = and i128 %v13, 1
+      %v15 = mul i128 %v14, 1665
+      %v16 = lshr i128 %v1, 5
+      %v17 = and i128 %v16, 1
+      %v18 = mul i128 %v17, 1665
+      %v19 = lshr i128 %v1, 6
+      %v20 = and i128 %v19, 1
+      %v21 = mul i128 %v20, 1665
+      %v22 = lshr i128 %v1, 7
+      %v23 = and i128 %v22, 1
+      %v24 = mul i128 %v23, 1665
+      %v25 = shl i128 %v6, 16
+      %v26 = or i128 %v3, %v25
+      %v27 = shl i128 %v9, 32
+      %v28 = or i128 %v26, %v27
+      %v29 = shl i128 %v12, 48
+      %v30 = or i128 %v28, %v29
+      %v31 = shl i128 %v15, 64
+      %v32 = or i128 %v30, %v31
+      %v33 = shl i128 %v18, 80
+      %v34 = or i128 %v32, %v33
+      %v35 = shl i128 %v21, 96
+      %v36 = or i128 %v34, %v35
+      %v37 = shl i128 %v24, 112
+      %v38 = or i128 %v36, %v37
+      ret i128 %v38
+    }
+
+  -- | Eight centered binomial coefficients (eta = 2) from 32 bits, modulo q.
+  prim cbd2 :: I64 -> U128 where
+    llvm {
+      %v1 = zext i64 %0 to i128
+      %v2 = and i128 %v1, 1431655765
+      %v3 = lshr i128 %v1, 1
+      %v4 = and i128 %v3, 1431655765
+      %v5 = add i128 %v2, %v4
+      %v6 = and i128 %v5, 3
+      %v7 = lshr i128 %v5, 2
+      %v8 = and i128 %v7, 3
+      %v9 = add i128 %v6, 3329
+      %v10 = sub i128 %v9, %v8
+      %v11 = icmp uge i128 %v10, 3329
+      %v12 = sub i128 %v10, 3329
+      %v13 = select i1 %v11, i128 %v12, i128 %v10
+      %v14 = lshr i128 %v5, 4
+      %v15 = and i128 %v14, 3
+      %v16 = lshr i128 %v5, 6
+      %v17 = and i128 %v16, 3
+      %v18 = add i128 %v15, 3329
+      %v19 = sub i128 %v18, %v17
+      %v20 = icmp uge i128 %v19, 3329
+      %v21 = sub i128 %v19, 3329
+      %v22 = select i1 %v20, i128 %v21, i128 %v19
+      %v23 = lshr i128 %v5, 8
+      %v24 = and i128 %v23, 3
+      %v25 = lshr i128 %v5, 10
+      %v26 = and i128 %v25, 3
+      %v27 = add i128 %v24, 3329
+      %v28 = sub i128 %v27, %v26
+      %v29 = icmp uge i128 %v28, 3329
+      %v30 = sub i128 %v28, 3329
+      %v31 = select i1 %v29, i128 %v30, i128 %v28
+      %v32 = lshr i128 %v5, 12
+      %v33 = and i128 %v32, 3
+      %v34 = lshr i128 %v5, 14
+      %v35 = and i128 %v34, 3
+      %v36 = add i128 %v33, 3329
+      %v37 = sub i128 %v36, %v35
+      %v38 = icmp uge i128 %v37, 3329
+      %v39 = sub i128 %v37, 3329
+      %v40 = select i1 %v38, i128 %v39, i128 %v37
+      %v41 = lshr i128 %v5, 16
+      %v42 = and i128 %v41, 3
+      %v43 = lshr i128 %v5, 18
+      %v44 = and i128 %v43, 3
+      %v45 = add i128 %v42, 3329
+      %v46 = sub i128 %v45, %v44
+      %v47 = icmp uge i128 %v46, 3329
+      %v48 = sub i128 %v46, 3329
+      %v49 = select i1 %v47, i128 %v48, i128 %v46
+      %v50 = lshr i128 %v5, 20
+      %v51 = and i128 %v50, 3
+      %v52 = lshr i128 %v5, 22
+      %v53 = and i128 %v52, 3
+      %v54 = add i128 %v51, 3329
+      %v55 = sub i128 %v54, %v53
+      %v56 = icmp uge i128 %v55, 3329
+      %v57 = sub i128 %v55, 3329
+      %v58 = select i1 %v56, i128 %v57, i128 %v55
+      %v59 = lshr i128 %v5, 24
+      %v60 = and i128 %v59, 3
+      %v61 = lshr i128 %v5, 26
+      %v62 = and i128 %v61, 3
+      %v63 = add i128 %v60, 3329
+      %v64 = sub i128 %v63, %v62
+      %v65 = icmp uge i128 %v64, 3329
+      %v66 = sub i128 %v64, 3329
+      %v67 = select i1 %v65, i128 %v66, i128 %v64
+      %v68 = lshr i128 %v5, 28
+      %v69 = and i128 %v68, 3
+      %v70 = lshr i128 %v5, 30
+      %v71 = and i128 %v70, 3
+      %v72 = add i128 %v69, 3329
+      %v73 = sub i128 %v72, %v71
+      %v74 = icmp uge i128 %v73, 3329
+      %v75 = sub i128 %v73, 3329
+      %v76 = select i1 %v74, i128 %v75, i128 %v73
+      %v77 = shl i128 %v22, 16
+      %v78 = or i128 %v13, %v77
+      %v79 = shl i128 %v31, 32
+      %v80 = or i128 %v78, %v79
+      %v81 = shl i128 %v40, 48
+      %v82 = or i128 %v80, %v81
+      %v83 = shl i128 %v49, 64
+      %v84 = or i128 %v82, %v83
+      %v85 = shl i128 %v58, 80
+      %v86 = or i128 %v84, %v85
+      %v87 = shl i128 %v67, 96
+      %v88 = or i128 %v86, %v87
+      %v89 = shl i128 %v76, 112
+      %v90 = or i128 %v88, %v89
+      ret i128 %v90
+    }
+
+  -- | A U128 from its low and high halves.
+  prim join64 :: U64 -> U64 -> U128 where
+    llvm {
+      %v1 = zext i64 %0 to i128
+      %v2 = zext i64 %1 to i128
+      %v3 = shl i128 %v2, 64
+      %v4 = or i128 %v1, %v3
+      ret i128 %v4
+    }
+
+  -- | The low half of a U128.
+  prim low64 :: U128 -> U64 where
+    llvm {
+      %v1 = trunc i128 %0 to i64
+      ret i64 %v1
+    }
+
+  -- | The high half of a U128.
+  prim high64 :: U128 -> U64 where
+    llvm {
+      %v1 = lshr i128 %0, 64
+      %v2 = trunc i128 %v1 to i64
+      ret i64 %v2
+    }
+
+  -- | Compress_1 of eight lanes, packed at 1 bits per coefficient.
+  prim compress1 :: U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = shl <8 x i32> %v2, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
+      %v4 = add <8 x i32> %v3, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v5 = udiv <8 x i32> %v4, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v6 = and <8 x i32> %v5, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
+      %v7 = extractelement <8 x i32> %v6, i64 0
+      %v8 = zext i32 %v7 to i128
+      %v9 = extractelement <8 x i32> %v6, i64 1
+      %v10 = zext i32 %v9 to i128
+      %v11 = extractelement <8 x i32> %v6, i64 2
+      %v12 = zext i32 %v11 to i128
+      %v13 = extractelement <8 x i32> %v6, i64 3
+      %v14 = zext i32 %v13 to i128
+      %v15 = extractelement <8 x i32> %v6, i64 4
+      %v16 = zext i32 %v15 to i128
+      %v17 = extractelement <8 x i32> %v6, i64 5
+      %v18 = zext i32 %v17 to i128
+      %v19 = extractelement <8 x i32> %v6, i64 6
+      %v20 = zext i32 %v19 to i128
+      %v21 = extractelement <8 x i32> %v6, i64 7
+      %v22 = zext i32 %v21 to i128
+      %v23 = shl i128 %v10, 1
+      %v24 = or i128 %v8, %v23
+      %v25 = shl i128 %v12, 2
+      %v26 = or i128 %v24, %v25
+      %v27 = shl i128 %v14, 3
+      %v28 = or i128 %v26, %v27
+      %v29 = shl i128 %v16, 4
+      %v30 = or i128 %v28, %v29
+      %v31 = shl i128 %v18, 5
+      %v32 = or i128 %v30, %v31
+      %v33 = shl i128 %v20, 6
+      %v34 = or i128 %v32, %v33
+      %v35 = shl i128 %v22, 7
+      %v36 = or i128 %v34, %v35
+      ret i128 %v36
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = shl <8 x i32> %v3, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
+      %v5 = add <8 x i32> %v4, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v6 = udiv <8 x i32> %v5, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v7 = and <8 x i32> %v6, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
+      %v8 = extractelement <8 x i32> %v7, i64 0
+      %v9 = zext i32 %v8 to i128
+      %v10 = extractelement <8 x i32> %v7, i64 1
+      %v11 = zext i32 %v10 to i128
+      %v12 = extractelement <8 x i32> %v7, i64 2
+      %v13 = zext i32 %v12 to i128
+      %v14 = extractelement <8 x i32> %v7, i64 3
+      %v15 = zext i32 %v14 to i128
+      %v16 = extractelement <8 x i32> %v7, i64 4
+      %v17 = zext i32 %v16 to i128
+      %v18 = extractelement <8 x i32> %v7, i64 5
+      %v19 = zext i32 %v18 to i128
+      %v20 = extractelement <8 x i32> %v7, i64 6
+      %v21 = zext i32 %v20 to i128
+      %v22 = extractelement <8 x i32> %v7, i64 7
+      %v23 = zext i32 %v22 to i128
+      %v24 = shl i128 %v11, 1
+      %v25 = or i128 %v9, %v24
+      %v26 = shl i128 %v13, 2
+      %v27 = or i128 %v25, %v26
+      %v28 = shl i128 %v15, 3
+      %v29 = or i128 %v27, %v28
+      %v30 = shl i128 %v17, 4
+      %v31 = or i128 %v29, %v30
+      %v32 = shl i128 %v19, 5
+      %v33 = or i128 %v31, %v32
+      %v34 = shl i128 %v21, 6
+      %v35 = or i128 %v33, %v34
+      %v36 = shl i128 %v23, 7
+      %v37 = or i128 %v35, %v36
+      ret i128 %v37
+    } when endian big
+
+  -- | Decompress_1 of eight packed 1-bit fields into lanes.
+  prim decompress1 :: U128 -> U128 where
+    llvm {
+      %v1 = and i128 %0, 1
+      %v2 = lshr i128 %0, 1
+      %v3 = and i128 %v2, 1
+      %v4 = lshr i128 %0, 2
+      %v5 = and i128 %v4, 1
+      %v6 = lshr i128 %0, 3
+      %v7 = and i128 %v6, 1
+      %v8 = lshr i128 %0, 4
+      %v9 = and i128 %v8, 1
+      %v10 = lshr i128 %0, 5
+      %v11 = and i128 %v10, 1
+      %v12 = lshr i128 %0, 6
+      %v13 = and i128 %v12, 1
+      %v14 = lshr i128 %0, 7
+      %v15 = and i128 %v14, 1
+      %v16 = mul i128 %v1, 3329
+      %v17 = add i128 %v16, 1
+      %v18 = lshr i128 %v17, 1
+      %v19 = mul i128 %v3, 3329
+      %v20 = add i128 %v19, 1
+      %v21 = lshr i128 %v20, 1
+      %v22 = mul i128 %v5, 3329
+      %v23 = add i128 %v22, 1
+      %v24 = lshr i128 %v23, 1
+      %v25 = mul i128 %v7, 3329
+      %v26 = add i128 %v25, 1
+      %v27 = lshr i128 %v26, 1
+      %v28 = mul i128 %v9, 3329
+      %v29 = add i128 %v28, 1
+      %v30 = lshr i128 %v29, 1
+      %v31 = mul i128 %v11, 3329
+      %v32 = add i128 %v31, 1
+      %v33 = lshr i128 %v32, 1
+      %v34 = mul i128 %v13, 3329
+      %v35 = add i128 %v34, 1
+      %v36 = lshr i128 %v35, 1
+      %v37 = mul i128 %v15, 3329
+      %v38 = add i128 %v37, 1
+      %v39 = lshr i128 %v38, 1
+      %v40 = shl i128 %v21, 16
+      %v41 = or i128 %v18, %v40
+      %v42 = shl i128 %v24, 32
+      %v43 = or i128 %v41, %v42
+      %v44 = shl i128 %v27, 48
+      %v45 = or i128 %v43, %v44
+      %v46 = shl i128 %v30, 64
+      %v47 = or i128 %v45, %v46
+      %v48 = shl i128 %v33, 80
+      %v49 = or i128 %v47, %v48
+      %v50 = shl i128 %v36, 96
+      %v51 = or i128 %v49, %v50
+      %v52 = shl i128 %v39, 112
+      %v53 = or i128 %v51, %v52
+      ret i128 %v53
+    }
+
+  -- | Compress_4 of eight lanes, packed at 4 bits per coefficient.
+  prim compress4 :: U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = shl <8 x i32> %v2, <i32 4, i32 4, i32 4, i32 4, i32 4, i32 4, i32 4, i32 4>
+      %v4 = add <8 x i32> %v3, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v5 = udiv <8 x i32> %v4, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v6 = and <8 x i32> %v5, <i32 15, i32 15, i32 15, i32 15, i32 15, i32 15, i32 15, i32 15>
+      %v7 = extractelement <8 x i32> %v6, i64 0
+      %v8 = zext i32 %v7 to i128
+      %v9 = extractelement <8 x i32> %v6, i64 1
+      %v10 = zext i32 %v9 to i128
+      %v11 = extractelement <8 x i32> %v6, i64 2
+      %v12 = zext i32 %v11 to i128
+      %v13 = extractelement <8 x i32> %v6, i64 3
+      %v14 = zext i32 %v13 to i128
+      %v15 = extractelement <8 x i32> %v6, i64 4
+      %v16 = zext i32 %v15 to i128
+      %v17 = extractelement <8 x i32> %v6, i64 5
+      %v18 = zext i32 %v17 to i128
+      %v19 = extractelement <8 x i32> %v6, i64 6
+      %v20 = zext i32 %v19 to i128
+      %v21 = extractelement <8 x i32> %v6, i64 7
+      %v22 = zext i32 %v21 to i128
+      %v23 = shl i128 %v10, 4
+      %v24 = or i128 %v8, %v23
+      %v25 = shl i128 %v12, 8
+      %v26 = or i128 %v24, %v25
+      %v27 = shl i128 %v14, 12
+      %v28 = or i128 %v26, %v27
+      %v29 = shl i128 %v16, 16
+      %v30 = or i128 %v28, %v29
+      %v31 = shl i128 %v18, 20
+      %v32 = or i128 %v30, %v31
+      %v33 = shl i128 %v20, 24
+      %v34 = or i128 %v32, %v33
+      %v35 = shl i128 %v22, 28
+      %v36 = or i128 %v34, %v35
+      ret i128 %v36
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = shl <8 x i32> %v3, <i32 4, i32 4, i32 4, i32 4, i32 4, i32 4, i32 4, i32 4>
+      %v5 = add <8 x i32> %v4, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v6 = udiv <8 x i32> %v5, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v7 = and <8 x i32> %v6, <i32 15, i32 15, i32 15, i32 15, i32 15, i32 15, i32 15, i32 15>
+      %v8 = extractelement <8 x i32> %v7, i64 0
+      %v9 = zext i32 %v8 to i128
+      %v10 = extractelement <8 x i32> %v7, i64 1
+      %v11 = zext i32 %v10 to i128
+      %v12 = extractelement <8 x i32> %v7, i64 2
+      %v13 = zext i32 %v12 to i128
+      %v14 = extractelement <8 x i32> %v7, i64 3
+      %v15 = zext i32 %v14 to i128
+      %v16 = extractelement <8 x i32> %v7, i64 4
+      %v17 = zext i32 %v16 to i128
+      %v18 = extractelement <8 x i32> %v7, i64 5
+      %v19 = zext i32 %v18 to i128
+      %v20 = extractelement <8 x i32> %v7, i64 6
+      %v21 = zext i32 %v20 to i128
+      %v22 = extractelement <8 x i32> %v7, i64 7
+      %v23 = zext i32 %v22 to i128
+      %v24 = shl i128 %v11, 4
+      %v25 = or i128 %v9, %v24
+      %v26 = shl i128 %v13, 8
+      %v27 = or i128 %v25, %v26
+      %v28 = shl i128 %v15, 12
+      %v29 = or i128 %v27, %v28
+      %v30 = shl i128 %v17, 16
+      %v31 = or i128 %v29, %v30
+      %v32 = shl i128 %v19, 20
+      %v33 = or i128 %v31, %v32
+      %v34 = shl i128 %v21, 24
+      %v35 = or i128 %v33, %v34
+      %v36 = shl i128 %v23, 28
+      %v37 = or i128 %v35, %v36
+      ret i128 %v37
+    } when endian big
+
+  -- | Decompress_4 of eight packed 4-bit fields into lanes.
+  prim decompress4 :: U128 -> U128 where
+    llvm {
+      %v1 = and i128 %0, 15
+      %v2 = lshr i128 %0, 4
+      %v3 = and i128 %v2, 15
+      %v4 = lshr i128 %0, 8
+      %v5 = and i128 %v4, 15
+      %v6 = lshr i128 %0, 12
+      %v7 = and i128 %v6, 15
+      %v8 = lshr i128 %0, 16
+      %v9 = and i128 %v8, 15
+      %v10 = lshr i128 %0, 20
+      %v11 = and i128 %v10, 15
+      %v12 = lshr i128 %0, 24
+      %v13 = and i128 %v12, 15
+      %v14 = lshr i128 %0, 28
+      %v15 = and i128 %v14, 15
+      %v16 = mul i128 %v1, 3329
+      %v17 = add i128 %v16, 8
+      %v18 = lshr i128 %v17, 4
+      %v19 = mul i128 %v3, 3329
+      %v20 = add i128 %v19, 8
+      %v21 = lshr i128 %v20, 4
+      %v22 = mul i128 %v5, 3329
+      %v23 = add i128 %v22, 8
+      %v24 = lshr i128 %v23, 4
+      %v25 = mul i128 %v7, 3329
+      %v26 = add i128 %v25, 8
+      %v27 = lshr i128 %v26, 4
+      %v28 = mul i128 %v9, 3329
+      %v29 = add i128 %v28, 8
+      %v30 = lshr i128 %v29, 4
+      %v31 = mul i128 %v11, 3329
+      %v32 = add i128 %v31, 8
+      %v33 = lshr i128 %v32, 4
+      %v34 = mul i128 %v13, 3329
+      %v35 = add i128 %v34, 8
+      %v36 = lshr i128 %v35, 4
+      %v37 = mul i128 %v15, 3329
+      %v38 = add i128 %v37, 8
+      %v39 = lshr i128 %v38, 4
+      %v40 = shl i128 %v21, 16
+      %v41 = or i128 %v18, %v40
+      %v42 = shl i128 %v24, 32
+      %v43 = or i128 %v41, %v42
+      %v44 = shl i128 %v27, 48
+      %v45 = or i128 %v43, %v44
+      %v46 = shl i128 %v30, 64
+      %v47 = or i128 %v45, %v46
+      %v48 = shl i128 %v33, 80
+      %v49 = or i128 %v47, %v48
+      %v50 = shl i128 %v36, 96
+      %v51 = or i128 %v49, %v50
+      %v52 = shl i128 %v39, 112
+      %v53 = or i128 %v51, %v52
+      ret i128 %v53
+    }
+
+  -- | Compress_5 of eight lanes, packed at 5 bits per coefficient.
+  prim compress5 :: U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = shl <8 x i32> %v2, <i32 5, i32 5, i32 5, i32 5, i32 5, i32 5, i32 5, i32 5>
+      %v4 = add <8 x i32> %v3, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v5 = udiv <8 x i32> %v4, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v6 = and <8 x i32> %v5, <i32 31, i32 31, i32 31, i32 31, i32 31, i32 31, i32 31, i32 31>
+      %v7 = extractelement <8 x i32> %v6, i64 0
+      %v8 = zext i32 %v7 to i128
+      %v9 = extractelement <8 x i32> %v6, i64 1
+      %v10 = zext i32 %v9 to i128
+      %v11 = extractelement <8 x i32> %v6, i64 2
+      %v12 = zext i32 %v11 to i128
+      %v13 = extractelement <8 x i32> %v6, i64 3
+      %v14 = zext i32 %v13 to i128
+      %v15 = extractelement <8 x i32> %v6, i64 4
+      %v16 = zext i32 %v15 to i128
+      %v17 = extractelement <8 x i32> %v6, i64 5
+      %v18 = zext i32 %v17 to i128
+      %v19 = extractelement <8 x i32> %v6, i64 6
+      %v20 = zext i32 %v19 to i128
+      %v21 = extractelement <8 x i32> %v6, i64 7
+      %v22 = zext i32 %v21 to i128
+      %v23 = shl i128 %v10, 5
+      %v24 = or i128 %v8, %v23
+      %v25 = shl i128 %v12, 10
+      %v26 = or i128 %v24, %v25
+      %v27 = shl i128 %v14, 15
+      %v28 = or i128 %v26, %v27
+      %v29 = shl i128 %v16, 20
+      %v30 = or i128 %v28, %v29
+      %v31 = shl i128 %v18, 25
+      %v32 = or i128 %v30, %v31
+      %v33 = shl i128 %v20, 30
+      %v34 = or i128 %v32, %v33
+      %v35 = shl i128 %v22, 35
+      %v36 = or i128 %v34, %v35
+      ret i128 %v36
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = shl <8 x i32> %v3, <i32 5, i32 5, i32 5, i32 5, i32 5, i32 5, i32 5, i32 5>
+      %v5 = add <8 x i32> %v4, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v6 = udiv <8 x i32> %v5, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v7 = and <8 x i32> %v6, <i32 31, i32 31, i32 31, i32 31, i32 31, i32 31, i32 31, i32 31>
+      %v8 = extractelement <8 x i32> %v7, i64 0
+      %v9 = zext i32 %v8 to i128
+      %v10 = extractelement <8 x i32> %v7, i64 1
+      %v11 = zext i32 %v10 to i128
+      %v12 = extractelement <8 x i32> %v7, i64 2
+      %v13 = zext i32 %v12 to i128
+      %v14 = extractelement <8 x i32> %v7, i64 3
+      %v15 = zext i32 %v14 to i128
+      %v16 = extractelement <8 x i32> %v7, i64 4
+      %v17 = zext i32 %v16 to i128
+      %v18 = extractelement <8 x i32> %v7, i64 5
+      %v19 = zext i32 %v18 to i128
+      %v20 = extractelement <8 x i32> %v7, i64 6
+      %v21 = zext i32 %v20 to i128
+      %v22 = extractelement <8 x i32> %v7, i64 7
+      %v23 = zext i32 %v22 to i128
+      %v24 = shl i128 %v11, 5
+      %v25 = or i128 %v9, %v24
+      %v26 = shl i128 %v13, 10
+      %v27 = or i128 %v25, %v26
+      %v28 = shl i128 %v15, 15
+      %v29 = or i128 %v27, %v28
+      %v30 = shl i128 %v17, 20
+      %v31 = or i128 %v29, %v30
+      %v32 = shl i128 %v19, 25
+      %v33 = or i128 %v31, %v32
+      %v34 = shl i128 %v21, 30
+      %v35 = or i128 %v33, %v34
+      %v36 = shl i128 %v23, 35
+      %v37 = or i128 %v35, %v36
+      ret i128 %v37
+    } when endian big
+
+  -- | Decompress_5 of eight packed 5-bit fields into lanes.
+  prim decompress5 :: U128 -> U128 where
+    llvm {
+      %v1 = and i128 %0, 31
+      %v2 = lshr i128 %0, 5
+      %v3 = and i128 %v2, 31
+      %v4 = lshr i128 %0, 10
+      %v5 = and i128 %v4, 31
+      %v6 = lshr i128 %0, 15
+      %v7 = and i128 %v6, 31
+      %v8 = lshr i128 %0, 20
+      %v9 = and i128 %v8, 31
+      %v10 = lshr i128 %0, 25
+      %v11 = and i128 %v10, 31
+      %v12 = lshr i128 %0, 30
+      %v13 = and i128 %v12, 31
+      %v14 = lshr i128 %0, 35
+      %v15 = and i128 %v14, 31
+      %v16 = mul i128 %v1, 3329
+      %v17 = add i128 %v16, 16
+      %v18 = lshr i128 %v17, 5
+      %v19 = mul i128 %v3, 3329
+      %v20 = add i128 %v19, 16
+      %v21 = lshr i128 %v20, 5
+      %v22 = mul i128 %v5, 3329
+      %v23 = add i128 %v22, 16
+      %v24 = lshr i128 %v23, 5
+      %v25 = mul i128 %v7, 3329
+      %v26 = add i128 %v25, 16
+      %v27 = lshr i128 %v26, 5
+      %v28 = mul i128 %v9, 3329
+      %v29 = add i128 %v28, 16
+      %v30 = lshr i128 %v29, 5
+      %v31 = mul i128 %v11, 3329
+      %v32 = add i128 %v31, 16
+      %v33 = lshr i128 %v32, 5
+      %v34 = mul i128 %v13, 3329
+      %v35 = add i128 %v34, 16
+      %v36 = lshr i128 %v35, 5
+      %v37 = mul i128 %v15, 3329
+      %v38 = add i128 %v37, 16
+      %v39 = lshr i128 %v38, 5
+      %v40 = shl i128 %v21, 16
+      %v41 = or i128 %v18, %v40
+      %v42 = shl i128 %v24, 32
+      %v43 = or i128 %v41, %v42
+      %v44 = shl i128 %v27, 48
+      %v45 = or i128 %v43, %v44
+      %v46 = shl i128 %v30, 64
+      %v47 = or i128 %v45, %v46
+      %v48 = shl i128 %v33, 80
+      %v49 = or i128 %v47, %v48
+      %v50 = shl i128 %v36, 96
+      %v51 = or i128 %v49, %v50
+      %v52 = shl i128 %v39, 112
+      %v53 = or i128 %v51, %v52
+      ret i128 %v53
+    }
+
+  -- | Compress_10 of eight lanes, packed at 10 bits per coefficient.
+  prim compress10 :: U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = shl <8 x i32> %v2, <i32 10, i32 10, i32 10, i32 10, i32 10, i32 10, i32 10, i32 10>
+      %v4 = add <8 x i32> %v3, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v5 = udiv <8 x i32> %v4, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v6 = and <8 x i32> %v5, <i32 1023, i32 1023, i32 1023, i32 1023, i32 1023, i32 1023, i32 1023, i32 1023>
+      %v7 = extractelement <8 x i32> %v6, i64 0
+      %v8 = zext i32 %v7 to i128
+      %v9 = extractelement <8 x i32> %v6, i64 1
+      %v10 = zext i32 %v9 to i128
+      %v11 = extractelement <8 x i32> %v6, i64 2
+      %v12 = zext i32 %v11 to i128
+      %v13 = extractelement <8 x i32> %v6, i64 3
+      %v14 = zext i32 %v13 to i128
+      %v15 = extractelement <8 x i32> %v6, i64 4
+      %v16 = zext i32 %v15 to i128
+      %v17 = extractelement <8 x i32> %v6, i64 5
+      %v18 = zext i32 %v17 to i128
+      %v19 = extractelement <8 x i32> %v6, i64 6
+      %v20 = zext i32 %v19 to i128
+      %v21 = extractelement <8 x i32> %v6, i64 7
+      %v22 = zext i32 %v21 to i128
+      %v23 = shl i128 %v10, 10
+      %v24 = or i128 %v8, %v23
+      %v25 = shl i128 %v12, 20
+      %v26 = or i128 %v24, %v25
+      %v27 = shl i128 %v14, 30
+      %v28 = or i128 %v26, %v27
+      %v29 = shl i128 %v16, 40
+      %v30 = or i128 %v28, %v29
+      %v31 = shl i128 %v18, 50
+      %v32 = or i128 %v30, %v31
+      %v33 = shl i128 %v20, 60
+      %v34 = or i128 %v32, %v33
+      %v35 = shl i128 %v22, 70
+      %v36 = or i128 %v34, %v35
+      ret i128 %v36
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = shl <8 x i32> %v3, <i32 10, i32 10, i32 10, i32 10, i32 10, i32 10, i32 10, i32 10>
+      %v5 = add <8 x i32> %v4, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v6 = udiv <8 x i32> %v5, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v7 = and <8 x i32> %v6, <i32 1023, i32 1023, i32 1023, i32 1023, i32 1023, i32 1023, i32 1023, i32 1023>
+      %v8 = extractelement <8 x i32> %v7, i64 0
+      %v9 = zext i32 %v8 to i128
+      %v10 = extractelement <8 x i32> %v7, i64 1
+      %v11 = zext i32 %v10 to i128
+      %v12 = extractelement <8 x i32> %v7, i64 2
+      %v13 = zext i32 %v12 to i128
+      %v14 = extractelement <8 x i32> %v7, i64 3
+      %v15 = zext i32 %v14 to i128
+      %v16 = extractelement <8 x i32> %v7, i64 4
+      %v17 = zext i32 %v16 to i128
+      %v18 = extractelement <8 x i32> %v7, i64 5
+      %v19 = zext i32 %v18 to i128
+      %v20 = extractelement <8 x i32> %v7, i64 6
+      %v21 = zext i32 %v20 to i128
+      %v22 = extractelement <8 x i32> %v7, i64 7
+      %v23 = zext i32 %v22 to i128
+      %v24 = shl i128 %v11, 10
+      %v25 = or i128 %v9, %v24
+      %v26 = shl i128 %v13, 20
+      %v27 = or i128 %v25, %v26
+      %v28 = shl i128 %v15, 30
+      %v29 = or i128 %v27, %v28
+      %v30 = shl i128 %v17, 40
+      %v31 = or i128 %v29, %v30
+      %v32 = shl i128 %v19, 50
+      %v33 = or i128 %v31, %v32
+      %v34 = shl i128 %v21, 60
+      %v35 = or i128 %v33, %v34
+      %v36 = shl i128 %v23, 70
+      %v37 = or i128 %v35, %v36
+      ret i128 %v37
+    } when endian big
+
+  -- | Decompress_10 of eight packed 10-bit fields into lanes.
+  prim decompress10 :: U128 -> U128 where
+    llvm {
+      %v1 = and i128 %0, 1023
+      %v2 = lshr i128 %0, 10
+      %v3 = and i128 %v2, 1023
+      %v4 = lshr i128 %0, 20
+      %v5 = and i128 %v4, 1023
+      %v6 = lshr i128 %0, 30
+      %v7 = and i128 %v6, 1023
+      %v8 = lshr i128 %0, 40
+      %v9 = and i128 %v8, 1023
+      %v10 = lshr i128 %0, 50
+      %v11 = and i128 %v10, 1023
+      %v12 = lshr i128 %0, 60
+      %v13 = and i128 %v12, 1023
+      %v14 = lshr i128 %0, 70
+      %v15 = and i128 %v14, 1023
+      %v16 = mul i128 %v1, 3329
+      %v17 = add i128 %v16, 512
+      %v18 = lshr i128 %v17, 10
+      %v19 = mul i128 %v3, 3329
+      %v20 = add i128 %v19, 512
+      %v21 = lshr i128 %v20, 10
+      %v22 = mul i128 %v5, 3329
+      %v23 = add i128 %v22, 512
+      %v24 = lshr i128 %v23, 10
+      %v25 = mul i128 %v7, 3329
+      %v26 = add i128 %v25, 512
+      %v27 = lshr i128 %v26, 10
+      %v28 = mul i128 %v9, 3329
+      %v29 = add i128 %v28, 512
+      %v30 = lshr i128 %v29, 10
+      %v31 = mul i128 %v11, 3329
+      %v32 = add i128 %v31, 512
+      %v33 = lshr i128 %v32, 10
+      %v34 = mul i128 %v13, 3329
+      %v35 = add i128 %v34, 512
+      %v36 = lshr i128 %v35, 10
+      %v37 = mul i128 %v15, 3329
+      %v38 = add i128 %v37, 512
+      %v39 = lshr i128 %v38, 10
+      %v40 = shl i128 %v21, 16
+      %v41 = or i128 %v18, %v40
+      %v42 = shl i128 %v24, 32
+      %v43 = or i128 %v41, %v42
+      %v44 = shl i128 %v27, 48
+      %v45 = or i128 %v43, %v44
+      %v46 = shl i128 %v30, 64
+      %v47 = or i128 %v45, %v46
+      %v48 = shl i128 %v33, 80
+      %v49 = or i128 %v47, %v48
+      %v50 = shl i128 %v36, 96
+      %v51 = or i128 %v49, %v50
+      %v52 = shl i128 %v39, 112
+      %v53 = or i128 %v51, %v52
+      ret i128 %v53
+    }
+
+  -- | Compress_11 of eight lanes, packed at 11 bits per coefficient.
+  prim compress11 :: U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = zext <8 x i16> %v1 to <8 x i32>
+      %v3 = shl <8 x i32> %v2, <i32 11, i32 11, i32 11, i32 11, i32 11, i32 11, i32 11, i32 11>
+      %v4 = add <8 x i32> %v3, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v5 = udiv <8 x i32> %v4, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v6 = and <8 x i32> %v5, <i32 2047, i32 2047, i32 2047, i32 2047, i32 2047, i32 2047, i32 2047, i32 2047>
+      %v7 = extractelement <8 x i32> %v6, i64 0
+      %v8 = zext i32 %v7 to i128
+      %v9 = extractelement <8 x i32> %v6, i64 1
+      %v10 = zext i32 %v9 to i128
+      %v11 = extractelement <8 x i32> %v6, i64 2
+      %v12 = zext i32 %v11 to i128
+      %v13 = extractelement <8 x i32> %v6, i64 3
+      %v14 = zext i32 %v13 to i128
+      %v15 = extractelement <8 x i32> %v6, i64 4
+      %v16 = zext i32 %v15 to i128
+      %v17 = extractelement <8 x i32> %v6, i64 5
+      %v18 = zext i32 %v17 to i128
+      %v19 = extractelement <8 x i32> %v6, i64 6
+      %v20 = zext i32 %v19 to i128
+      %v21 = extractelement <8 x i32> %v6, i64 7
+      %v22 = zext i32 %v21 to i128
+      %v23 = shl i128 %v10, 11
+      %v24 = or i128 %v8, %v23
+      %v25 = shl i128 %v12, 22
+      %v26 = or i128 %v24, %v25
+      %v27 = shl i128 %v14, 33
+      %v28 = or i128 %v26, %v27
+      %v29 = shl i128 %v16, 44
+      %v30 = or i128 %v28, %v29
+      %v31 = shl i128 %v18, 55
+      %v32 = or i128 %v30, %v31
+      %v33 = shl i128 %v20, 66
+      %v34 = or i128 %v32, %v33
+      %v35 = shl i128 %v22, 77
+      %v36 = or i128 %v34, %v35
+      ret i128 %v36
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <8 x i16>
+      %v2 = shufflevector <8 x i16> %v1, <8 x i16> poison, <8 x i32> <i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <8 x i16> %v2 to <8 x i32>
+      %v4 = shl <8 x i32> %v3, <i32 11, i32 11, i32 11, i32 11, i32 11, i32 11, i32 11, i32 11>
+      %v5 = add <8 x i32> %v4, <i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664, i32 1664>
+      %v6 = udiv <8 x i32> %v5, <i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329, i32 3329>
+      %v7 = and <8 x i32> %v6, <i32 2047, i32 2047, i32 2047, i32 2047, i32 2047, i32 2047, i32 2047, i32 2047>
+      %v8 = extractelement <8 x i32> %v7, i64 0
+      %v9 = zext i32 %v8 to i128
+      %v10 = extractelement <8 x i32> %v7, i64 1
+      %v11 = zext i32 %v10 to i128
+      %v12 = extractelement <8 x i32> %v7, i64 2
+      %v13 = zext i32 %v12 to i128
+      %v14 = extractelement <8 x i32> %v7, i64 3
+      %v15 = zext i32 %v14 to i128
+      %v16 = extractelement <8 x i32> %v7, i64 4
+      %v17 = zext i32 %v16 to i128
+      %v18 = extractelement <8 x i32> %v7, i64 5
+      %v19 = zext i32 %v18 to i128
+      %v20 = extractelement <8 x i32> %v7, i64 6
+      %v21 = zext i32 %v20 to i128
+      %v22 = extractelement <8 x i32> %v7, i64 7
+      %v23 = zext i32 %v22 to i128
+      %v24 = shl i128 %v11, 11
+      %v25 = or i128 %v9, %v24
+      %v26 = shl i128 %v13, 22
+      %v27 = or i128 %v25, %v26
+      %v28 = shl i128 %v15, 33
+      %v29 = or i128 %v27, %v28
+      %v30 = shl i128 %v17, 44
+      %v31 = or i128 %v29, %v30
+      %v32 = shl i128 %v19, 55
+      %v33 = or i128 %v31, %v32
+      %v34 = shl i128 %v21, 66
+      %v35 = or i128 %v33, %v34
+      %v36 = shl i128 %v23, 77
+      %v37 = or i128 %v35, %v36
+      ret i128 %v37
+    } when endian big
+
+  -- | Decompress_11 of eight packed 11-bit fields into lanes.
+  prim decompress11 :: U128 -> U128 where
+    llvm {
+      %v1 = and i128 %0, 2047
+      %v2 = lshr i128 %0, 11
+      %v3 = and i128 %v2, 2047
+      %v4 = lshr i128 %0, 22
+      %v5 = and i128 %v4, 2047
+      %v6 = lshr i128 %0, 33
+      %v7 = and i128 %v6, 2047
+      %v8 = lshr i128 %0, 44
+      %v9 = and i128 %v8, 2047
+      %v10 = lshr i128 %0, 55
+      %v11 = and i128 %v10, 2047
+      %v12 = lshr i128 %0, 66
+      %v13 = and i128 %v12, 2047
+      %v14 = lshr i128 %0, 77
+      %v15 = and i128 %v14, 2047
+      %v16 = mul i128 %v1, 3329
+      %v17 = add i128 %v16, 1024
+      %v18 = lshr i128 %v17, 11
+      %v19 = mul i128 %v3, 3329
+      %v20 = add i128 %v19, 1024
+      %v21 = lshr i128 %v20, 11
+      %v22 = mul i128 %v5, 3329
+      %v23 = add i128 %v22, 1024
+      %v24 = lshr i128 %v23, 11
+      %v25 = mul i128 %v7, 3329
+      %v26 = add i128 %v25, 1024
+      %v27 = lshr i128 %v26, 11
+      %v28 = mul i128 %v9, 3329
+      %v29 = add i128 %v28, 1024
+      %v30 = lshr i128 %v29, 11
+      %v31 = mul i128 %v11, 3329
+      %v32 = add i128 %v31, 1024
+      %v33 = lshr i128 %v32, 11
+      %v34 = mul i128 %v13, 3329
+      %v35 = add i128 %v34, 1024
+      %v36 = lshr i128 %v35, 11
+      %v37 = mul i128 %v15, 3329
+      %v38 = add i128 %v37, 1024
+      %v39 = lshr i128 %v38, 11
+      %v40 = shl i128 %v21, 16
+      %v41 = or i128 %v18, %v40
+      %v42 = shl i128 %v24, 32
+      %v43 = or i128 %v41, %v42
+      %v44 = shl i128 %v27, 48
+      %v45 = or i128 %v43, %v44
+      %v46 = shl i128 %v30, 64
+      %v47 = or i128 %v45, %v46
+      %v48 = shl i128 %v33, 80
+      %v49 = or i128 %v47, %v48
+      %v50 = shl i128 %v36, 96
+      %v51 = or i128 %v49, %v50
+      %v52 = shl i128 %v39, 112
+      %v53 = or i128 %v51, %v52
+      ret i128 %v53
+    }

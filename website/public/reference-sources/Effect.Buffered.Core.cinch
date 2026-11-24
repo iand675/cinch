@@ -22,6 +22,7 @@ module Effect.Buffered.Core where
   export BufferSource, BufferSink, buffer-source, buffer-sink
   export buffer-source-with-transfer, buffer-sink-with-transfer
   export buffer-sink-with-text, buffer-sink-has-text, buffer-sink-write-text
+  export buffer-sink-with-flush, buffer-sink-has-flush, buffer-sink-flush
   export buffer-source-has-transfer, buffer-sink-has-transfer
   export buffer-source-read, buffer-sink-write, buffer-source-transfer, buffer-sink-transfer
   export buffer-source-from-stream, buffer-sink-from-stream
@@ -102,9 +103,11 @@ module Effect.Buffered.Core where
     -- | Direct callbacks; the transfer reads through a supplied effectful operation.
     SinkTransferStep :: (Bytes ->{IO r} (WriteEvent, BufferSink r)) -> ((Nat ->{IO r} ReadEvent) ->{IO r} (TransferEvent, BufferSink r)) -> BufferSink r
     -- | Private forwarding operations preserve retained callbacks without exposing mutable cell storage.
-    SinkProxyStep :: (Bytes ->{IO r} (WriteEvent, BufferSink r)) -> (Unit ->{IO r} Bool) -> ((Nat ->{IO r} ReadEvent) ->{IO r} (Option TransferEvent, BufferSink r)) -> (Unit ->{IO r} Bool) -> (Bytes ->{IO r} (Option WriteEvent, BufferSink r)) -> BufferSink r
+    SinkProxyStep :: (Bytes ->{IO r} (WriteEvent, BufferSink r)) -> (Unit ->{IO r} Bool) -> ((Nat ->{IO r} ReadEvent) ->{IO r} (Option TransferEvent, BufferSink r)) -> (Unit ->{IO r} Bool) -> (Bytes ->{IO r} (Option WriteEvent, BufferSink r)) -> (Unit ->{IO r} Bool) -> (Unit ->{IO r} (Option (Option BufferError), BufferSink r)) -> BufferSink r
     -- | An optional raw-text write operation; its returned sink determines all subsequent capabilities.
     SinkTextStep :: BufferSink r -> (Bytes ->{IO r} (WriteEvent, BufferSink r)) -> BufferSink r
+    -- | An optional flush operation retains its advanced sink, including after a failure.
+    SinkFlushStep :: BufferSink r -> (Unit ->{IO r} (Option BufferError, BufferSink r)) -> BufferSink r
 
   -- | Construct a source whose raw events are validated by each buffered consumer before copying.
   buffer-source :: forall r. (Nat ->{IO r} (ReadEvent, BufferSource r)) -> BufferSource r
@@ -126,8 +129,9 @@ module Effect.Buffered.Core where
   buffer-sink-with-transfer sink transfer = case sink of
     SinkStep step -> SinkTransferStep step transfer
     SinkTransferStep step ignored -> SinkTransferStep step transfer
-    SinkProxyStep step query ignored text-query text -> SinkTransferStep step transfer
+    SinkProxyStep step query ignored text-query text flush-query flush -> SinkProxyStep step (\unit -> True) (\read -> attached-sink-transfer transfer read) text-query text flush-query flush
     SinkTextStep sink text -> SinkTextStep (buffer-sink-with-transfer sink transfer) text
+    SinkFlushStep sink flush -> SinkFlushStep (buffer-sink-with-transfer sink transfer) flush
 
   -- | Observe the current direct-transfer capability, including after a retained callback advances a proxy.
   buffer-source-has-transfer :: forall r. using (io :: Io r) => BufferSource r ->{IO r} Bool
@@ -141,8 +145,9 @@ module Effect.Buffered.Core where
   buffer-sink-has-transfer sink = case sink of
     SinkStep step -> False
     SinkTransferStep step transfer -> True
-    SinkProxyStep step query transfer text-query text -> query ()
+    SinkProxyStep step query transfer text-query text flush-query flush -> query ()
     SinkTextStep sink text -> buffer-sink-has-transfer sink
+    SinkFlushStep sink flush -> buffer-sink-has-transfer sink
 
   -- | Invoke one raw source callback, retaining its event and advanced handle even for malformed counts.
   buffer-source-read :: forall r. using (io :: Io r) => BufferSource r -> Nat ->{IO r} (ReadEvent, BufferSource r)
@@ -156,8 +161,9 @@ module Effect.Buffered.Core where
   buffer-sink-write sink input = case sink of
     SinkStep step -> step input
     SinkTransferStep step transfer -> step input
-    SinkProxyStep step query transfer text-query text -> step input
+    SinkProxyStep step query transfer text-query text flush-query flush -> step input
     SinkTextStep sink text -> buffer-sink-write sink input
+    SinkFlushStep sink flush -> buffer-sink-write sink input
 
   -- | Build a source proxy over a managed continuation cell without storing the proxy inside that cell.
   source-proxy :: forall r. using (io :: Io r) => Cell.IoCell r (BufferSource r) -> BufferSource r
@@ -181,7 +187,7 @@ module Effect.Buffered.Core where
 
   -- | Build a sink proxy whose callbacks keep the authoritative continuation in managed private storage.
   sink-proxy :: forall r. using (io :: Io r) => Cell.IoCell r (BufferSink r) -> BufferSink r
-  sink-proxy cell = SinkProxyStep (\input -> sink-proxy-write cell input) (\unit -> sink-proxy-query cell) (\read -> sink-proxy-transfer cell read) (\unit -> sink-proxy-text-query cell) (\input -> sink-proxy-text cell input)
+  sink-proxy cell = SinkProxyStep (\input -> sink-proxy-write cell input) (\unit -> sink-proxy-query cell) (\read -> sink-proxy-transfer cell read) (\unit -> sink-proxy-text-query cell) (\input -> sink-proxy-text cell input) (\unit -> sink-proxy-flush-query cell) (\unit -> sink-proxy-flush cell)
 
   -- | Advance the underlying sink without retaining a stale pre-callback continuation.
   sink-proxy-write :: forall r. using (io :: Io r) => Cell.IoCell r (BufferSink r) -> Bytes ->{IO r} (WriteEvent, BufferSink r)
@@ -211,8 +217,9 @@ module Effect.Buffered.Core where
   run-sink-transfer sink read = case sink of
     SinkStep step -> (None, sink)
     SinkTransferStep step capability -> case capability read of (event, next) -> (Some event, next)
-    SinkProxyStep step query capability text-query text -> capability read
+    SinkProxyStep step query capability text-query text flush-query flush -> capability read
     SinkTextStep sink text -> run-sink-transfer sink read
+    SinkFlushStep sink flush -> run-sink-transfer sink read
 
   -- | Offer through a forwarding sink whose private cell already retains the advanced continuation.
   sink-event :: forall r. using (io :: Io r) => BufferSink r -> Bytes ->{IO r} WriteEvent
@@ -286,14 +293,16 @@ module Effect.Buffered.Core where
   buffer-sink-has-text :: forall r. using (io :: Io r) => BufferSink r ->{IO r} Bool
   buffer-sink-has-text sink = case sink of
     SinkTextStep plain text -> True
-    SinkProxyStep step query transfer text-query text -> text-query ()
+    SinkProxyStep step query transfer text-query text flush-query flush -> text-query ()
+    SinkFlushStep plain flush -> buffer-sink-has-text plain
     other -> False
 
   -- | Invoke only an explicitly advertised raw-text operation; absence performs no transport I/O.
   buffer-sink-write-text :: forall r. using (io :: Io r) => BufferSink r -> Bytes ->{IO r} (Option WriteEvent, BufferSink r)
   buffer-sink-write-text sink input = case sink of
     SinkTextStep plain text -> case text input of (event, next) -> (Some event, next)
-    SinkProxyStep step query transfer text-query text -> text input
+    SinkProxyStep step query transfer text-query text flush-query flush -> text input
+    SinkFlushStep plain flush -> buffer-sink-write-text plain input
     other -> (None, sink)
 
   -- | Query the current underlying text capability through an advanced transfer proxy.
@@ -305,3 +314,43 @@ module Effect.Buffered.Core where
   sink-proxy-text cell input = let current = Cell.cell-read cell in
     case buffer-sink-write-text current input of
       (event, next) -> let stored = Cell.cell-write cell next in (event, sink-proxy cell)
+
+  -- | Attach an optional flush operation whose advanced sink remains authoritative on both success and failure.
+  -- A callback flushes buffered output owned by that sink; custom transports define
+  -- whether their own subordinate layers require additional explicit finalization.
+  buffer-sink-with-flush :: forall r. BufferSink r -> (Unit ->{IO r} (Option BufferError, BufferSink r)) -> BufferSink r
+  buffer-sink-with-flush sink flush = case sink of
+    SinkFlushStep plain old -> SinkFlushStep plain flush
+    other -> SinkFlushStep sink flush
+
+  -- | Observe the current sink's flush capability without invoking a flush or transport write.
+  buffer-sink-has-flush :: forall r. using (io :: Io r) => BufferSink r ->{IO r} Bool
+  buffer-sink-has-flush sink = case sink of
+    SinkFlushStep plain flush -> True
+    SinkTextStep plain text -> buffer-sink-has-flush plain
+    SinkProxyStep step query transfer text-query text flush-query flush -> flush-query ()
+    other -> False
+
+  -- | Invoke an advertised flush and return its advanced handle, preserving absence separately from successful flushing.
+  -- None performs no transport I/O. Some None reports a successful flush;
+  -- Some (Some failure) retains its original structured failure and continuation.
+  buffer-sink-flush :: forall r. using (io :: Io r) => BufferSink r ->{IO r} (Option (Option BufferError), BufferSink r)
+  buffer-sink-flush sink = case sink of
+    SinkFlushStep plain flush -> case flush () of (status, next) -> (Some status, next)
+    SinkTextStep plain text -> buffer-sink-flush plain
+    SinkProxyStep step query transfer text-query text flush-query flush -> flush ()
+    other -> (None, sink)
+
+  -- | Query a transfer proxy's actual current flush capability, including later retained-callback advances.
+  sink-proxy-flush-query :: forall r. using (io :: Io r) => Cell.IoCell r (BufferSink r) ->{IO r} Bool
+  sink-proxy-flush-query cell = let current = Cell.cell-read cell in buffer-sink-has-flush current
+
+  -- | Update a proxy's authoritative continuation before returning the flush result and another coherent proxy view.
+  sink-proxy-flush :: forall r. using (io :: Io r) => Cell.IoCell r (BufferSink r) ->{IO r} (Option (Option BufferError), BufferSink r)
+  sink-proxy-flush cell = let current = Cell.cell-read cell in
+    case buffer-sink-flush current of
+      (status, next) -> let stored = Cell.cell-write cell next in (status, sink-proxy cell)
+
+  -- | Attach a current direct-transfer operation without dropping a proxy's independent text and flush queries.
+  attached-sink-transfer :: forall r. ((Nat ->{IO r} ReadEvent) ->{IO r} (TransferEvent, BufferSink r)) -> (Nat ->{IO r} ReadEvent) ->{IO r} (Option TransferEvent, BufferSink r)
+  attached-sink-transfer callback read = case callback read of (event, next) -> (Some event, next)

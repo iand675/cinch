@@ -74,9 +74,21 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 | Module | Distribution | Purpose |
 | --- | --- | --- |
+| [Crypto.Aes](Crypto.Aes.md) | Ship source | AES-128/192/256 with AES-NI or ARMv8 instructions after detection and a constant-time, table-free SIMD fallback. |
+| [Crypto.ChaCha20Poly1305](Crypto.ChaCha20Poly1305.md) | Ship source | ChaCha20 and XChaCha20 streams, Poly1305 and the ChaCha20-Poly1305 and XChaCha20-Poly1305 AEADs with vector row kernels. |
+| [Crypto.Cipher](Crypto.Cipher.md) | Ship source | CTR, OFB, CFB, CBC and GCM over any 128-bit block cipher, with constant-time or carry-less-instruction GHASH and constant-time tag checks. |
 | [Crypto.ConstantTime](Crypto.ConstantTime.md) | Ship source | Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors. |
+| [Crypto.Des](Crypto.Des.md) | Ship source | DES and Triple DES block ciphers with ECB, CBC and CTR for legacy interoperation, from a generated straight-line round kernel. |
+| [Crypto.Ecdsa](Crypto.Ecdsa.md) | Ship source | Deterministic (RFC 6979) and hedged P-256 ECDSA signatures in raw and DER form with strict verification. |
+| [Crypto.Ed25519](Crypto.Ed25519.md) | Ship source | Deterministic Ed25519 signatures with constant-time signing and strict verification. |
+| [Crypto.Field25519](Crypto.Field25519.md) | Ship source | Constant-time arithmetic modulo 2^255 - 19 with 128-bit column products, shared by X25519 and Ed25519. |
 | [Crypto.Hmac](Crypto.Hmac.md) | Ship source | Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification. |
+| [Crypto.Hpke](Crypto.Hpke.md) | Ship source | Hybrid public key encryption (RFC 9180) over DHKEM X25519 and P-256, HKDF and AES-GCM or ChaCha20-Poly1305, in all four modes. |
 | [Crypto.Kdf](Crypto.Kdf.md) | Ship source | HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256. |
+| [Crypto.MlKem](Crypto.MlKem.md) | Ship source | ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels. |
+| [Crypto.P256](Crypto.P256.md) | Ship source | Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels. |
+| [Crypto.Rc4](Crypto.Rc4.md) | Ship source | The RC4 stream cipher as a persistent keystream state, for legacy data only. |
+| [Crypto.X25519](Crypto.X25519.md) | Ship source | Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection. |
 
 ## Data
 
@@ -97,15 +109,18 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Bytes.View](Data.Bytes.View.md) | Ship source | Owner-retaining checked byte views, relative UTF-8 observations, stable compiled substring patterns and bounded search, cut and comparison operations. |
 | [Data.Bytes.Word](Data.Bytes.Word.md) | Ship source | Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing. |
 | [Data.Bytes](Data.Bytes.md) | Embedded | Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations. |
+| [Data.ChaCha8](Data.ChaCha8.md) | Ship source | The ChaCha8 pseudorandom generator: four interleaved eight-round blocks per vector kernel call, byte reads and state encoding. |
 | [Data.Char](Data.Char.md) | Embedded | Unicode scalar values and checked character/code conversions, with range information for safe use. |
 | [Data.Columnar](Data.Columnar.md) | Ship source | Columnar leaves over typed arrays, zipped into nested pairs that share their buffers. A length mismatch is None. |
 | [Data.Compare](Data.Compare.md) | Ship source | Explicit scalar comparison policies, NaN-aware floating orders, and first non-default selection. |
 | [Data.Complex](Data.Complex.md) | Ship source | Complex values and numeric operations using the module's current floating representation. |
 | [Data.Compose](Data.Compose.md) | Embedded | Composition of higher-kinded containers with the admitted generic instances. |
 | [Data.Const](Data.Const.md) | Embedded | A constant container that retains its first parameter while ignoring the mapped value parameter. |
+| [Data.CookieJar](Data.CookieJar.md) | Ship source | An RFC 6265 cookie jar as an immutable value: store the cookies responses set and choose the cookies a request sends. |
 | [Data.Core](Data.Core.md) | Embedded | Shared declarations for List, Option, and Result. Their public homes add operations and instances; this module breaks declaration-order cycles. |
 | [Data.Date](Data.Date.md) | Ship source | Civil date values, validation, parsing/formatting, and calendar calculations. |
 | [Data.Enum](Data.Enum.md) | Embedded | Finite enumeration and the class behind inclusive range literals, including an explicit next element for a step. |
+| [Data.Float](Data.Float.md) | Ship source | Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target. |
 | [Data.FromList](Data.FromList.md) | Embedded | The opt-in collection-literal vocabulary used to interpret [elements] at the expected container type. |
 | [Data.FromMap](Data.FromMap.md) | Embedded | The opt-in map-literal vocabulary used to interpret {key => value} at the expected container type. |
 | [Data.Hash](Data.Hash.md) | Embedded | Hashing vocabulary and admitted hash implementations for keys. |
@@ -130,6 +145,9 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md) | Ship source | An insertion-ordered hash map: dense entries with a tagged chunk index over them, positional access, O(1) swap-remove and order-keeping shift-remove. |
 | [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md) | Ship source | Stable typed list elements, checked membership and movement, detached value access and bounded self-copy. |
 | [Data.Mutable.LruCache](Data.Mutable.LruCache.md) | Ship source | A bounded least-recently-used cache: a hash table to nodes threaded on a recency list, with O(1) get, put and eviction. |
+| [Data.Mutable.Map.Float](Data.Mutable.Map.Float.md) | Ship source | Explicit IEEE floating key policies without global equality or hashing instances. |
+| [Data.Mutable.Map.Optional](Data.Mutable.Map.Optional.md) | Ship source | Explicit absent-map adapters without hidden null handles. |
+| [Data.Mutable.Map](Data.Mutable.Map.md) | Ship source | A mutable map with captured key policies and deletion-aware live traversal. |
 | [Data.Mutable.Ring](Data.Mutable.Ring.md) | Ship source | Mutable circular sequences with stable cursors, alias-preserving joins and splits, explicit value ownership and bounded arena growth. |
 | [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md) | Ship source | Disjoint sets with union by size and path halving: near-constant find, union and same-set queries, and appendable elements. |
 | [Data.Mutable.Var](Data.Mutable.Var.md) | Ship source | A single mutable cell, written in place; not synchronized (TVar is the shared cell). |
@@ -142,6 +160,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Ordering](Data.Ordering.md) | Embedded | The LT, EQ, and GT comparison result vocabulary and its instances. |
 | [Data.Path](Data.Path.md) | Embedded | Platform path values and composition/conversion operations used by filesystem and process APIs. |
 | [Data.Producer](Data.Producer.md) | Embedded | Partial producer vocabulary, distinct from codata whose next observation is guaranteed productive. |
+| [Data.Rand](Data.Rand.md) | Ship source | Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf. |
 | [Data.Rational](Data.Rational.md) | Ship source | Rational numbers with explicit denominator/error policy and arithmetic operations. |
 | [Data.Result](Data.Result.md) | Embedded | Success and named failure values, error-aware transformations, partitioning, and sequencing instances. |
 | [Data.Search](Data.Search.md) | Ship source | Indexed binary search with monotone predicates, insertion positions and effectful three-way comparisons. |
@@ -152,12 +171,30 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Sym](Data.Sym.md) | Embedded | Interned symbols with identity equality, deterministic spelling order, and String conversions. |
 | [Data.Target](Data.Target.md) | Embedded | Target/platform and worker vocabulary used by the compiler-supported runtime and target examples. |
 | [Data.Tensor](Data.Tensor.md) | Ship source | Immutable row-major tensors with checked runtime shapes of any rank. |
+| [Data.Time.Arithmetic](Data.Time.Arithmetic.md) | Ship source | Calendar-aware spans applied to dates, wall-clock times, date-times and instants, with explicit overflow results. |
+| [Data.Time.Date](Data.Time.Date.md) | Ship source | Civil calendar dates with validated construction, weekday and ordinal queries, and day arithmetic. |
+| [Data.Time.DateTime](Data.Time.DateTime.md) | Ship source | Civil date and wall-clock time pairs without a time zone. |
+| [Data.Time.Duration](Data.Time.Duration.md) | Ship source | Exact signed elapsed-time durations with nanosecond precision and checked arithmetic. |
+| [Data.Time.Monotonic](Data.Time.Monotonic.md) | Ship source | Monotonic clock readings for measuring elapsed time; never related to the civil calendar. |
+| [Data.Time.Offset](Data.Time.Offset.md) | Ship source | Fixed offsets from UTC with validated ranges. |
+| [Data.Time.Span](Data.Time.Span.md) | Ship source | Calendar-aware spans that keep each unit (years through nanoseconds), with balancing and rounding. |
+| [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md) | Ship source | Civil wall-clock times of day with nanosecond precision. |
+| [Data.Time.Timestamp](Data.Time.Timestamp.md) | Ship source | Instants on the Unix time line with nanosecond precision and checked arithmetic. |
+| [Data.Time.Unit](Data.Time.Unit.md) | Ship source | Span units, rounding modes and the shared rounding kernel. |
+| [Data.Time.Weekday](Data.Time.Weekday.md) | Ship source | The seven days of the week with ordering and offset arithmetic. |
+| [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md) | Ship source | POSIX TZ rule strings: parsing and evaluating standard/daylight transition rules. |
+| [Data.Time.Zone.Types](Data.Time.Zone.Types.md) | Ship source | Shared vocabulary for time zones: transitions, ambiguity and disambiguation policies. |
+| [Data.Time.Zone.Tzif](Data.Time.Zone.Tzif.md) | Ship source | Reading TZif time zone files (RFC 9636) into checked transition tables. |
+| [Data.Time.Zone](Data.Time.Zone.md) | Ship source | Time zones: offsets for instants, resolution of civil times, and fixed or rule-based zones. |
+| [Data.Time.Zoned.Arithmetic](Data.Time.Zoned.Arithmetic.md) | Ship source | Arithmetic, differences and rounding on zoned date-times. |
+| [Data.Time.Zoned](Data.Time.Zoned.md) | Ship source | Instants paired with a time zone, with civil field access. |
 | [Data.Time](Data.Time.md) | Ship source | Time values, durations, and conversions with explicit units and admitted ranges. |
 | [Data.Unicode.Kernel](Data.Unicode.Kernel.md) | Ship source | Unicode scalar and numeric classification, simple case mappings, fold cycles and checked locale overrides. |
 | [Data.Unicode.Names](Data.Unicode.Names.md) | Ship source | Named Unicode category, script and property tables with deterministic catalog observations. |
 | [Data.Unicode.Range](Data.Unicode.Range.md) | Ship source | Immutable Unicode range tables with checked construction, exact membership and copied observations. |
 | [Data.Unicode.Tables](Data.Unicode.Tables.md) | Ship source | Generated Unicode property, case and folding data with a pinned version and source provenance. |
 | [Data.Unicode](Data.Unicode.md) | Ship source | Versioned Unicode classification, simple case mappings, fold cycles, named tables and checked custom ranges. |
+| [Data.Uuid](Data.Uuid.md) | Ship source | Immutable 128-bit identifiers with RFC 9562 text, ordering and explicit version 7 state. |
 | [Data.Wide](Data.Wide.md) | Embedded | Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies. |
 | [Data.Word](Data.Word.md) | Ship source | Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words. |
 
@@ -168,21 +205,24 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Adler32](Text.Adler32.md) | Ship source | Portable SIMD Adler-32 with bounded machine-word segments, persistent states, network-order digests and checked versioned checkpoints. |
 | [Text.Args](Text.Args.md) | Ship source | Command-line argument processing and its named value/error vocabulary. |
 | [Text.Ascii85](Text.Ascii85.md) | Ship source | ASCII85 text, caller-buffer and incremental codecs with consumed-input progress, checked source offsets, SIMD groups and control-run scanning. |
+| [Text.Asn1](Text.Asn1.md) | Ship source | ASN.1 value trees with a strict DER decoder and canonical DER encoder, including explicit and implicit tags and times. |
 | [Text.Base32](Text.Base32.md) | Ship source | Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffer operations and persistent incremental states. |
 | [Text.Base64.Encoding](Text.Base64.Encoding.md) | Ship source | Configurable Base64 byte alphabets, padding and strict trailing bits, SIMD codecs, persistent states and checked caller buffers. |
 | [Text.Base64](Text.Base64.md) | Ship source | Base64 encoding/decoding over bytes with explicit invalid-input results. |
 | [Text.Binary.Layout](Text.Binary.Layout.md) | Ship source | Typed scalar, floating-point, complex and aggregate binary layouts with checked buffers, exact sizes and packed array kernels. |
 | [Text.Binary](Text.Binary.md) | Ship source | Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints. |
 | [Text.Builder](Text.Builder.md) | Ship source | An efficient text-construction vocabulary for assembling many fragments before rendering. |
+| [Text.Bzip2](Text.Bzip2.md) | Ship source | Decompress concatenated bzip2 streams with table-driven Huffman decoding and verified block and stream CRCs. |
 | [Text.Checksum](Text.Checksum.md) | Ship source | Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials. |
 | [Text.Codec](Text.Codec.md) | Embedded | Encoding/decoding signatures and codec helpers with explicit failure results. |
+| [Text.Cookie](Text.Cookie.md) | Ship source | HTTP cookies: parse Set-Cookie and Cookie header lines, serialize cookies as Set-Cookie values and validate them. |
 | [Text.Crc32](Text.Crc32.md) | Ship source | Prepared reflected polynomial tables, persistent CRC-32 states and table-checked binary checkpoints. |
 | [Text.Crc64](Text.Crc64.md) | Ship source | Immutable SIMD-built polynomial tables, slicing-by-eight CRC-64, persistent states, network-order digests and table-checked checkpoints. |
 | [Text.Csv.Record](Text.Csv.Record.md) | Ship source | Configurable Unicode-delimited and lossless byte CSV records, checked partial results, positions and incremental parser state. |
 | [Text.Csv](Text.Csv.md) | Ship source | CSV parsing/rendering with explicit field, record, and malformed-input handling. |
 | [Text.Digest](Text.Digest.md) | Ship source | Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol. |
-| [Text.Fnv.State](Text.Fnv.State.md) | Ship source | Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints. |
 | [Text.FilePath](Text.FilePath.md) | Ship source | POSIX lexical relative paths, locality tests, filesystem-name conversion and search-list splitting. |
+| [Text.Fnv.State](Text.Fnv.State.md) | Ship source | Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints. |
 | [Text.Fnv](Text.Fnv.md) | Ship source | Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
 | [Text.Gzip](Text.Gzip.md) | Ship source | Whole-buffer gzip member encoding, checked decompression and concatenated members. |
 | [Text.Hex](Text.Hex.md) | Ship source | SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps. |
@@ -194,18 +234,38 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Json.Value](Text.Json.Value.md) | Ship source | Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | Ship source | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
 | [Text.Lex](Text.Lex.md) | Ship source | A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients. |
+| [Text.Lzw](Text.Lzw.md) | Ship source | Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF. |
+| [Text.Mail](Text.Mail.md) | Ship source | Parse and format RFC 5322 mail addresses, read message header blocks and parse header dates, with SIMD atom scanning. |
+| [Text.Md5](Text.Md5.md) | Ship source | MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints. |
 | [Text.Mime](Text.Mime.md) | Ship source | Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries. |
+| [Text.Multipart](Text.Multipart.md) | Ship source | Multipart wire primitives over arbitrary bytes, exact multi-value headers and explicit delimiter observations. |
 | [Text.OptionParser](Text.OptionParser.md) | Ship source | Declarative option specifications, short/long forms, conversion, positionals, usage, and named parse errors. |
 | [Text.Otlp](Text.Otlp.md) | Ship source | OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers. |
 | [Text.Parse](Text.Parse.md) | Ship source | A source-distributed parser toolkit over the lexer/scanner vocabulary. |
 | [Text.Path](Text.Path.md) | Ship source | Portable slash-path lexical operations and checked shell patterns with reusable compiled matchers and exact SIMD scans. |
 | [Text.Pem](Text.Pem.md) | Ship source | Owned byte-preserving envelope blocks, persistent headers, exact malformed-input recovery and bounded payload encoding. |
+| [Text.Punycode](Text.Punycode.md) | Ship source | Punycode (RFC 3492) encoding and decoding, and ASCII-compatible host names with xn-- labels. |
 | [Text.QuotedPrintable](Text.QuotedPrintable.md) | Ship source | Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies. |
 | [Text.Regex](Text.Regex.md) | Ship source | Regular-expression parsing/matching and replacement under the module's admitted regex language. |
 | [Text.Scan](Text.Scan.md) | Ship source | Scanning primitives over input text and the shared position/error vocabulary. |
+| [Text.Sha1](Text.Sha1.md) | Ship source | SHA-1 for legacy interoperability, with a four-lane SIMD schedule, persistent states and checked binary checkpoints. |
 | [Text.Sha256](Text.Sha256.md) | Ship source | Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints. |
+| [Text.Sha3](Text.Sha3.md) | Ship source | SHA3-224/256/384/512, SHAKE128/256 and cSHAKE128/256 over a register-resident Keccak permutation, with persistent sponges, output readers and checkpoints. |
+| [Text.Sha512](Text.Sha512.md) | Ship source | Portable SHA-384, SHA-512, SHA-512/224 and SHA-512/256 with two-lane SIMD schedules, native rotates, persistent states and checked binary checkpoints. |
 | [Text.Shellwords](Text.Shellwords.md) | Ship source | Shell-style word splitting/joining; this is data parsing, not execution of a shell command. |
 | [Text.Show](Text.Show.md) | Embedded | Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself. |
+| [Text.Smtp](Text.Smtp.md) | Ship source | SMTP without a connection: reply state machine, command validation, extensions, dot-stuffing and PLAIN/CRAM-MD5 exchanges. |
+| [Text.TabWriter](Text.TabWriter.md) | Ship source | Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing. |
+| [Text.Tar](Text.Tar.md) | Ship source | Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums. |
+| [Text.Template](Text.Template.md) | Ship source | Data-driven text templates: pipelines, control actions, definitions, builtins and printf over dynamic values. |
+| [Text.TextProto](Text.TextProto.md) | Ship source | Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail. |
+| [Text.Time.Duration](Text.Time.Duration.md) | Ship source | ISO 8601 and friendly duration text for spans and exact durations, printing and parsing. |
+| [Text.Time.Iso](Text.Time.Iso.md) | Ship source | ISO 8601 extended format and RFC 3339 printing and parsing for dates, times, date-times and timestamps. |
+| [Text.Time.Rfc2822](Text.Time.Rfc2822.md) | Ship source | RFC 2822/5322 internet-message date-time printing and parsing. |
+| [Text.Time.Rfc9557](Text.Time.Rfc9557.md) | Ship source | RFC 9557 date-time text with bracketed time zone annotations for zoned values. |
+| [Text.Time.Scan](Text.Time.Scan.md) | Ship source | Shared byte cursor, digit readers and digit writers for the time text modules. |
+| [Text.Time.Strtime](Text.Time.Strtime.md) | Ship source | POSIX strftime/strptime-style formatting and parsing over broken-down time fields. |
+| [Text.Time.Zoned](Text.Time.Zoned.md) | Ship source | Offset and zoned-value text functions. |
 | [Text.Toml](Text.Toml.md) | Ship source | The module's supported TOML parsing/rendering surface and explicit unsupported/malformed cases. |
 | [Text.Uri](Text.Uri.md) | Ship source | URI parsing, rendering, components, and validation/error vocabulary. |
 | [Text.Url.Codec](Text.Url.Codec.md) | Ship source | Checked percent codecs for URL components, exact escaped sizing and optional UTF-8 text views. |
@@ -220,7 +280,9 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Url](Text.Url.md) | Ship source | Immutable byte-preserving URLs, percent escaping, query multimaps, parsing and reference resolution. |
 | [Text.Utf16](Text.Utf16.md) | Ship source | UTF-16 scalar and surrogate operations, code-unit sequences and explicit-order byte codecs with SWAR ASCII blocks. |
 | [Text.Utf8](Text.Utf8.md) | Ship source | Raw UTF-8 and immutable-text decoding, validation, scalar counts, replacement encoding and checked atomic buffer writes. |
+| [Text.Xml](Text.Xml.md) | Ship source | Decode XML into namespace-aware tokens or element trees and encode tokens with escaping and indentation. |
 | [Text.Yaml](Text.Yaml.md) | Ship source | The module's supported YAML subset, structured values, and named parse errors; not an assertion of every YAML feature. |
+| [Text.Zip](Text.Zip.md) | Ship source | Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or deflated archives. |
 | [Text.Zlib](Text.Zlib.md) | Ship source | Compression/decompression operations and named malformed/unsupported-stream results. |
 
 ## Effect
@@ -235,12 +297,17 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Binary](Effect.Binary.md) | Ship source | Explicit fixed and variable binary stream codecs preserving progress and advanced handles after failures. |
 | [Effect.Buffered.Core](Effect.Buffered.Core.md) | Ship source | Byte-stream events with signed progress, simultaneous failures, shared advanced continuations and explicit transfer capabilities. |
 | [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md) | Ship source | Initialized opaque continuation cells whose allocation, observation and replacement require their I/O region. |
+| [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md) | Ship source | Exact bounded byte scans shared by buffered input and token splitters. |
+| [Effect.Buffered.Reader](Effect.Buffered.Reader.md) | Ship source | Buffered byte reading with explicit advanced handles and independently owned observations. |
+| [Effect.Buffered.Writer](Effect.Buffered.Writer.md) | Ship source | Buffered byte output with sticky failures, exact partial progress and independently owned reservations. |
+| [Effect.Buffered](Effect.Buffered.md) | Ship source | Buffered input and output components with explicit independent advanced handles. |
 | [Effect.Clock](Effect.Clock.md) | Embedded | Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs. |
 | [Effect.Concurrent.MVar](Effect.Concurrent.MVar.md) | Embedded | Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler. |
 | [Effect.Concurrent](Effect.Concurrent.md) | Embedded | Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations. |
 | [Effect.Coverage](Effect.Coverage.md) | Ship source | Coverage collection/reporting utilities with explicit runtime and source metadata. |
 | [Effect.Crc32](Effect.Crc32.md) | Ship source | CRC-32 stream writers and bounded copying into an inspectable checksum state. |
 | [Effect.Crc64](Effect.Crc64.md) | Ship source | Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations. |
+| [Effect.Crypto](Effect.Crypto.md) | Ship source | Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source. |
 | [Effect.Csv](Effect.Csv.md) | Ship source | Bounded CSV readers and writers with explicit continuation, record counts, position tracking and advanced handles after failures. |
 | [Effect.FileUtils](Effect.FileUtils.md) | Ship source | Convenience filesystem operations built on the lower-level filesystem API. |
 | [Effect.Find](Effect.Find.md) | Ship source | Filesystem walking/search utilities with the module's traversal and error policy. |
@@ -250,27 +317,39 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Http](Effect.Http.md) | Ship source | A bounded plaintext HTTP client with response framing and named errors. HTTPS is explicitly refused; this module has no TLS implementation. |
 | [Effect.Io](Effect.Io.md) | Embedded | A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration. |
 | [Effect.Log](Effect.Log.md) | Ship source | Structured log operations and records with runtime capability/effect accounting. |
+| [Effect.Md5](Effect.Md5.md) | Ship source | Inspectable MD5 states, generic digest sinks and bounded reader-to-hash copying for legacy formats. |
 | [Effect.Mime](Effect.Mime.md) | Ship source | Encoded-word and header decoding with explicit charset reader capabilities, typed errors and advanced writer continuations. |
+| [Effect.Multipart](Effect.Multipart.md) | Ship source | Explicit shared multipart sessions with borrowed byte I/O capabilities. |
 | [Effect.Net](Effect.Net.md) | Ship source | Socket operations with explicit handles, address values, errors, and runtime effects. |
 | [Effect.Pem](Effect.Pem.md) | Ship source | Validated envelope output through explicit advanced writer continuations, bounded chunks and linear short-write draining. |
 | [Effect.Process](Effect.Process.md) | Embedded | One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments. |
 | [Effect.Pty](Effect.Pty.md) | Ship source | Pseudo-terminal-backed child processes, terminal I/O, and lifecycle operations. |
 | [Effect.QuotedPrintable](Effect.QuotedPrintable.md) | Ship source | Incremental quoted-printable readers and writers with explicit binary policy, partial progress and sticky errors. |
+| [Effect.Rand](Effect.Rand.md) | Ship source | Pseudorandom sources seeded from operating-system entropy. |
 | [Effect.Random](Effect.Random.md) | Ship source | Runtime entropy/random utilities with explicit effectful access. |
 | [Effect.Resolv](Effect.Resolv.md) | Ship source | Hostname/address resolution through the runtime, with named failure results. |
+| [Effect.Scanner.Split](Effect.Scanner.Split.md) | Ship source | Byte-preserving token splitters with explicit absent, empty and final token states. |
+| [Effect.Scanner](Effect.Scanner.md) | Ship source | Advanced byte-stream tokenization with bounded buffers, fresh tokens and explicit checked protocol failures. |
 | [Effect.Sequencing](Effect.Sequencing.md) | Embedded | The direct, Result, and Option do providers. One lexical provider/container is selected per definition. |
+| [Effect.Sha1](Effect.Sha1.md) | Ship source | Inspectable SHA-1 states, generic digest sinks and bounded reader-to-hash copying for legacy formats. |
 | [Effect.Sha256](Effect.Sha256.md) | Ship source | Inspectable SHA-224/SHA-256 states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations. |
+| [Effect.Sha3](Effect.Sha3.md) | Ship source | Inspectable SHA-3/SHAKE states, generic digest sinks, bounded reader-to-hash copying and SHAKE output as a generic reader. |
+| [Effect.Sha512](Effect.Sha512.md) | Ship source | Inspectable SHA-384/SHA-512/SHA-512/t states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations. |
 | [Effect.Signal](Effect.Signal.md) | Ship source | Operating-system signal vocabulary and runtime operations with explicit error/effect handling. |
+| [Effect.Smtp](Effect.Smtp.md) | Ship source | An SMTP client over sockets with explicit client state: greeting with HELO fallback, authentication, envelope, data, quit and send-mail. |
 | [Effect.Stm.TBQueue](Effect.Stm.TBQueue.md) | Embedded | A bounded first-in first-out queue for transactions: a write waits while the queue is at capacity, a read waits while it is empty. |
 | [Effect.Stm.TMVar](Effect.Stm.TMVar.md) | Embedded | A transactional variable that is either empty or full: take waits while empty, put waits while full. The building block for handoff and mutual exclusion inside transactions. |
 | [Effect.Stm.TQueue](Effect.Stm.TQueue.md) | Embedded | An unbounded first-in first-out queue for transactions, as two lists so that writers and readers touch different variables. |
 | [Effect.Stm.TSem](Effect.Stm.TSem.md) | Embedded | A counting semaphore for transactions: wait takes a permit or retries, signal returns one. |
 | [Effect.Stm](Effect.Stm.md) | Embedded | Software transactional memory: TVar cells, composable STM transactions run by atomically, retry and or-else for blocking and choice, and the STM do provider. The transaction algorithm is Cinch source over inline target IR. |
-| [Effect.Stream](Effect.Stream.md) | Ship source | Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers. |
 | [Effect.Stream.Offset](Effect.Stream.Offset.md) | Ship source | Positional byte writers, signed cursor movement and streaming at a base offset. |
 | [Effect.Stream.Section](Effect.Stream.Section.md) | Ship source | Positional byte sources, immutable bounded sections, signed seeks and sequential reader adapters. |
+| [Effect.Stream](Effect.Stream.md) | Ship source | Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers. |
 | [Effect.Test](Effect.Test.md) | Ship source | A subprocess-based test runner and named test-result/report vocabulary. |
+| [Effect.Time.Zone](Effect.Time.Zone.md) | Ship source | The system time zone database and the current system zone. |
+| [Effect.Time](Effect.Time.md) | Ship source | Typed readers for the system and monotonic clocks. |
 | [Effect.Trace](Effect.Trace.md) | Ship source | Scoped tracing/span vocabulary and context propagation tied to the runtime identity. |
+| [Effect.Uuid](Effect.Uuid.md) | Ship source | Secure UUID generation with explicit serialized version 7 ownership. |
 
 ## Image
 
@@ -278,10 +357,15 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | --- | --- | --- |
 | [Image.Color.Palette](Image.Color.Palette.md) | Ship source | Immutable factories for the ordered 256-color Plan 9 and 216-color WebSafe palettes. |
 | [Image.Color](Image.Color.md) | Ship source | Color representations, conversion models and immutable palettes with first-nearest lookup. |
+| [Image.Draw](Image.Draw.md) | Ship source | Composite rasters with Src and Over, masks and uniform colors, and dither onto palettes, with a vector Over kernel. |
+| [Image.Gif](Image.Gif.md) | Ship source | Decode and encode GIF images and animations: palettes, transparency, delays, disposal, looping and interlace. |
+| [Image.Jpeg](Image.Jpeg.md) | Ship source | Baseline and progressive JPEG decoding to YCbCr, gray, RGB or CMYK planes, and baseline encoding, with vector IDCT, FDCT, Huffman and colour kernels. |
+| [Image.Png](Image.Png.md) | Ship source | PNG decoding of every color type, depth and interlace method with SIMD scanline reconstruction, and PNG encoding. |
+| [Image.Raster](Image.Raster.md) | Ship source | Gray, gray-alpha, RGB, RGBA and paletted rasters at eight and sixteen bits with pixel access and RGBA conversion. |
 
 # Scope and verification
 
-This generation covers **204 source modules**: **66 embedded** and **138 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **288 source modules**: **66 embedded** and **222 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

@@ -241,4 +241,4 @@ class default, eta-expanded by the checker to this carrier's arity.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Monoid.cinch`. Source SHA-256: `8a15b8039e09d73d763eb25e8102bc1759af6fe867125f3e482bbfe08afa8591`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Monoid.cinch`. Source SHA-256: `65ad6baacef678beae82ef249f304e9efe7f24487278d91b053f2986bde3e1ac`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

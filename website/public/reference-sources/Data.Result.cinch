@@ -12,6 +12,7 @@ module Data.Result where
   -- homes are not imported: a name imported from two homes is an
   -- ambiguity error.
   import Data.Core
+  import Effect.Sequencing (ResultSequencing)
   import Category.Functor
   import Category.Applicative
   import Category.Monad

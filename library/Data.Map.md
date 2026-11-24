@@ -10,7 +10,7 @@ Import with `import Data.Map`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.List](Data.List.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
+[Data.FromMap](Data.FromMap.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -39,7 +39,7 @@ The ordered map: an unbalanced binary search tree over `Ord k`
 smaller and the right strictly greater, so a repeated key replaces
 the stored value in place.
 
-[Source](/reference-sources/Data.Map.cinch) · line 24
+[Source](/reference-sources/Data.Map.cinch) · line 25
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span></code></pre>
 
@@ -58,7 +58,7 @@ node's subtrees rejoin through `map-glue`. An absent key rebuilds
 the same tree, so no view can tell a delete of an absent key from
 the identity.
 
-[Source](/reference-sources/Data.Map.cinch) · line 60
+[Source](/reference-sources/Data.Map.cinch) · line 61
 
 <a id="value-6d61702d656d707479"></a>
 
@@ -70,7 +70,7 @@ The empty map, as a name (the family's other homes already spell
 theirs `set-empty`/`hash-map-empty`; the bootstrap exposed `Tip`
 only through the data declaration).
 
-[Source](/reference-sources/Data.Map.cinch) · line 53
+[Source](/reference-sources/Data.Map.cinch) · line 54
 
 <a id="value-6d61702d66696c746572"></a>
 
@@ -83,7 +83,7 @@ rejoin with `map-glue`, so no `Ord` is needed either (Data.Map's
 `filterWithKey`). The predicate sees the KEY as well as the value:
 the entry, not the bare value, is what this module lists.
 
-[Source](/reference-sources/Data.Map.cinch) · line 165
+[Source](/reference-sources/Data.Map.cinch) · line 166
 
 <a id="value-6d61702d666f6c64"></a>
 
@@ -96,7 +96,7 @@ The right direction is the one that agrees with the view: folding
 with `Cons` rebuilds `map-to-list` exactly, and the empty map is
 the identity. The accumulator's role is the right (second) value.
 
-[Source](/reference-sources/Data.Map.cinch) · line 176
+[Source](/reference-sources/Data.Map.cinch) · line 177
 
 <a id="value-6d61702d66726f6d2d7061697273"></a>
 
@@ -126,7 +126,7 @@ one spelling across carriers; the module prefix is how the family
 disambiguates. (`map-null` was the alternative; `null` is the
 `Foldable` class method's name and would suggest that class.)
 
-[Source](/reference-sources/Data.Map.cinch) · line 149
+[Source](/reference-sources/Data.Map.cinch) · line 150
 
 <a id="value-6d61702d6b657973"></a>
 
@@ -136,7 +136,7 @@ disambiguates. (`map-null` was the alternative; `null` is the
 
 The keys in ascending order.
 
-[Source](/reference-sources/Data.Map.cinch) · line 119
+[Source](/reference-sources/Data.Map.cinch) · line 120
 
 <a id="value-6d61702d6c6f6f6b7570"></a>
 
@@ -155,7 +155,7 @@ The keys in ascending order.
 Rewrite the values, leave the keys where they are. The shape is
 preserved, so no `Ord` is needed (Data.Map's `map`).
 
-[Source](/reference-sources/Data.Map.cinch) · line 156
+[Source](/reference-sources/Data.Map.cinch) · line 157
 
 <a id="value-6d61702d73697a65"></a>
 
@@ -166,7 +166,7 @@ preserved, so no `Ord` is needed (Data.Map's `map`).
 The entry count: the O(n) walk (the node carries no size, only the
 key/value pair).
 
-[Source](/reference-sources/Data.Map.cinch) · line 139
+[Source](/reference-sources/Data.Map.cinch) · line 140
 
 <a id="value-6d61702d746f2d6c697374"></a>
 
@@ -178,7 +178,7 @@ The entries in ascending key order. The tree IS an ordered search
 tree, so this order is observable and stable: the tests pin it
 against a known construction, and a caller may rely on it.
 
-[Source](/reference-sources/Data.Map.cinch) · line 110
+[Source](/reference-sources/Data.Map.cinch) · line 111
 
 <a id="value-6d61702d756e696f6e"></a>
 
@@ -191,7 +191,7 @@ left map's entries are inserted into the right, and `map-insert`
 replaces the stored value in place. Two n-entry maps cost
 O(n log n).
 
-[Source](/reference-sources/Data.Map.cinch) · line 84
+[Source](/reference-sources/Data.Map.cinch) · line 85
 
 <a id="value-6d61702d756e696f6e2d77697468"></a>
 
@@ -203,7 +203,7 @@ The union of `map-union` with a shared key combined instead of
 chosen: `f` sees the LEFT value first and the right value second
 (Data.Map's `unionWith`).
 
-[Source](/reference-sources/Data.Map.cinch) · line 90
+[Source](/reference-sources/Data.Map.cinch) · line 91
 
 <a id="value-6d61702d76616c756573"></a>
 
@@ -214,7 +214,7 @@ chosen: `f` sees the LEFT value first and the right value second
 The values in ascending KEY order (Data.Map's `elems`), never in
 insertion order.
 
-[Source](/reference-sources/Data.Map.cinch) · line 129
+[Source](/reference-sources/Data.Map.cinch) · line 130
 
 # Instances
 
@@ -222,8 +222,8 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 | Instance | Target | Resolution |
 | --- | --- | --- |
-| `Data.Map.FromMap_Map` | `Data.FromMap.FromMap (Data.Map.Map k v) k v` | Implicit |
+| `Data.Map.FromMap_Map` | `Data.FromMap.FromMap ((Data.Map.Map k) v) k v` | Implicit |
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Map.cinch`. Source SHA-256: `0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Map.cinch`. Source SHA-256: `b7688dd045304cd4a46530683c40f9e15335159ec9a016845d794294e81e538d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

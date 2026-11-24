@@ -73,7 +73,7 @@ module Text.Lex where
   export Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TAttr, TPrimFrag, TTickName, TTickType, TEOF
   export LToken, lt-span, lt-virtual, lt-token
   export LexErrorKind, TabInIndentation, UnterminatedComment, UnterminatedString,
-    UnterminatedChar, BadEscape, MalformedNumber, UnexpectedChar, MalformedTick,
+    UnterminatedChar, BadEscape, MalformedUnicodeEscape, NonScalarEscape, MalformedNumber, UnexpectedChar, MalformedTick,
     LayoutTooShallow, MismatchedDelimiter, UnclosedDelimiter, InWithoutLet,
     InCrossesDelimiter, RefusedAttr, RefusedPrim, RefusedTickName
   export LexError, lex-error-span, lex-error-kind, lex-error-message
@@ -339,6 +339,8 @@ module Text.Lex where
     UnterminatedString :: LexErrorKind
     UnterminatedChar :: LexErrorKind
     BadEscape :: LexErrorKind
+    MalformedUnicodeEscape :: LexErrorKind
+    NonScalarEscape :: LexErrorKind
     MalformedNumber :: LexErrorKind
     UnexpectedChar :: LexErrorKind
     MalformedTick :: LexErrorKind
@@ -369,6 +371,8 @@ module Text.Lex where
     UnterminatedString -> "unterminated string literal"
     UnterminatedChar -> "unterminated character literal"
     BadEscape -> "unknown escape sequence"
+    MalformedUnicodeEscape -> "malformed \\u escape"
+    NonScalarEscape -> "\\u escape is not a Unicode scalar value"
     MalformedNumber -> "malformed number literal"
     UnexpectedChar -> "unexpected character"
     MalformedTick -> "malformed tick literal"
@@ -908,21 +912,25 @@ module Text.Lex where
       else if eq-char c 't' then CROk s2 '\t'
       else if eq-char c 'u' then
         case peek-char s2 of
-          Some d | eq-char d '{' -> lex-escape-hex (skip-char s2) 0
+          Some d | eq-char d '{' -> let digits = skip-char s2 in case peek-char digits of
+            Some first -> case hex-digit-value first of
+              Some value -> lex-escape-hex (skip-char digits) value
+              None -> CRErr (scan-span digits) MalformedUnicodeEscape
+            None -> CRErr (scan-span digits) MalformedUnicodeEscape
           _ -> CRErr (scan-span s) BadEscape
       else CRErr (scan-span s) BadEscape
 
   lex-escape-hex :: Scan -> Nat -> ResultChar
   lex-escape-hex s acc = case peek-char s of
-    None -> CRErr (scan-span s) BadEscape
+    None -> CRErr (scan-span s) MalformedUnicodeEscape
     Some c ->
       if eq-char c '}' then
         case char-from-code acc of
-          None -> CRErr (scan-span s) BadEscape
+          None -> CRErr (scan-span s) NonScalarEscape
           Some ch -> CROk (skip-char s) ch
       else case hex-digit-value c of
-        Some n -> lex-escape-hex (skip-char s) (acc * 16 + n)
-        None -> CRErr (scan-span s) BadEscape
+        Some n -> if acc <= 268435455 then lex-escape-hex (skip-char s) (acc * 16 + n) else CRErr (scan-span s) MalformedUnicodeEscape
+        None -> CRErr (scan-span s) MalformedUnicodeEscape
 
   -- String literals: decoded UTF-8 content, no raw newline inside.
   data ResultStr where

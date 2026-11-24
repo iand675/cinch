@@ -289,4 +289,4 @@ type per design/base-library.md).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time.cinch`. Source SHA-256: `6847730c2f3ac9f9200a4eef90a5ab7797facdc3555fb3e2f337f8b07569bc3a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time.cinch`. Source SHA-256: `eaebe31539cf831410efab83a69447edab72cad03b00a27d4b515ddd4d54761c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

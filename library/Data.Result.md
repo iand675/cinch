@@ -10,7 +10,7 @@ Import with `import Data.Result`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Data.Core](Data.Core.md).
+[Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Data.Core](Data.Core.md), [Effect.Sequencing](Effect.Sequencing.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -55,7 +55,7 @@ branch leads, matching Haskell's `either` and this type's
 constructor order (the error is the first argument everywhere,
 including `Result e a` itself).
 
-[Source](/reference-sources/Data.Result.cinch) · line 40
+[Source](/reference-sources/Data.Result.cinch) · line 41
 
 <a id="value-6572726f7273"></a>
 
@@ -65,7 +65,7 @@ including `Result e a` itself).
 
 The error projection, the values dropped (`Data.Either.lefts`).
 
-[Source](/reference-sources/Data.Result.cinch) · line 103
+[Source](/reference-sources/Data.Result.cinch) · line 104
 
 <a id="value-66726f6d2d726573756c74"></a>
 
@@ -76,7 +76,7 @@ The error projection, the values dropped (`Data.Either.lefts`).
 The value, or the default when there is an error
 (`Data.Either.fromRight`); the default leads, like `from-option`'s.
 
-[Source](/reference-sources/Data.Result.cinch) · line 74
+[Source](/reference-sources/Data.Result.cinch) · line 75
 
 <a id="value-69732d657272"></a>
 
@@ -94,7 +94,7 @@ The value, or the default when there is an error
 
 The branch tests: the tag read, no payload work, no constraint.
 
-[Source](/reference-sources/Data.Result.cinch) · line 46
+[Source](/reference-sources/Data.Result.cinch) · line 47
 
 <a id="value-6d61702d657272"></a>
 
@@ -105,7 +105,7 @@ The branch tests: the tag read, no payload work, no constraint.
 The error's map (`Data.Either`'s `first`, `mapLeft` in ML-family
 spellings: it maps the LEFT type). The value side is untouched.
 
-[Source](/reference-sources/Data.Result.cinch) · line 67
+[Source](/reference-sources/Data.Result.cinch) · line 68
 
 <a id="value-6d61702d726573756c74"></a>
 
@@ -118,7 +118,7 @@ The value's own map, for a caller who has only the prelude: the
 reached through its constraint or with `import Category.Functor`.
 The error side is untouched.
 
-[Source](/reference-sources/Data.Result.cinch) · line 60
+[Source](/reference-sources/Data.Result.cinch) · line 61
 
 <a id="value-6f7074696f6e2d746f2d726573756c74"></a>
 
@@ -129,7 +129,7 @@ The error side is untouched.
 The option as a result, with the error value supplied for `None`
 (`Data.Either.note`); the error leads, as everywhere in this module.
 
-[Source](/reference-sources/Data.Result.cinch) · line 122
+[Source](/reference-sources/Data.Result.cinch) · line 123
 
 <a id="value-706172746974696f6e2d726573756c7473"></a>
 
@@ -142,7 +142,7 @@ side in the input order with its relative order preserved. One pass,
 and the recursion happens once per element (the returned tuple is
 taken apart by pattern, so neither side is walked twice).
 
-[Source](/reference-sources/Data.Result.cinch) · line 83
+[Source](/reference-sources/Data.Result.cinch) · line 84
 
 <a id="value-726573756c742d746f2d6f7074696f6e"></a>
 
@@ -156,7 +156,7 @@ error-side twin is `Data.Either`'s `hush` and is deliberately not
 added (its name would have to be spelled for the error side, and no
 caller has asked for it).
 
-[Source](/reference-sources/Data.Result.cinch) · line 115
+[Source](/reference-sources/Data.Result.cinch) · line 116
 
 <a id="value-726573756c7473"></a>
 
@@ -168,7 +168,7 @@ The value projection, the errors dropped (`Data.Either.rights`).
 `partition-results` is the pair form; these two are the single-side
 walks a caller reaches for when it wants one side only.
 
-[Source](/reference-sources/Data.Result.cinch) · line 95
+[Source](/reference-sources/Data.Result.cinch) · line 96
 
 # Instances
 
@@ -192,4 +192,4 @@ from Category.Monad).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Result.cinch`. Source SHA-256: `b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Result.cinch`. Source SHA-256: `0bec72d2b58142da875a16016816e53cbd2d0c2a4be88906893cac93b89e1470`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

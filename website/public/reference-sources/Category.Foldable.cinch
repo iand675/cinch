@@ -66,8 +66,8 @@ module Category.Foldable where
   -- `fold-right1`/`fold-left1`: the fold with an element of the
   -- container as its seed, so an empty container has nothing to return.
   -- The right form seeds with the first element and folds the tail into
-  -- it; the left form is the class `foldl` from the first element over
-  -- the tail. Both names are `base`'s `foldr1`/`foldl1` spelled the way
+  -- it. The left form folds the original container once, using its
+  -- first element as the accumulator. Both names are `base`'s `foldr1`/`foldl1` spelled the way
   -- a name may be spelled here (a digit cannot follow the dash).
   fold-right1 :: forall t a. using (fold :: Foldable t) => (a -> a -> a) -> t a -> Option a
   fold-right1 f xs = case to-list xs of
@@ -75,9 +75,7 @@ module Category.Foldable where
     Cons y ys -> Some (fold-right1-into f y ys)
 
   fold-left1 :: forall t a. using (fold :: Foldable t) => (a -> a -> a) -> t a -> Option a
-  fold-left1 f xs = case to-list xs of
-    Nil -> None
-    Cons y ys -> Some (foldl f y ys)
+  fold-left1 f xs = foldl (\acc y -> case acc of { None -> Some y; Some value -> Some (f value y) }) None xs
 
   -- Private: the `foldr1` walk over the tail, seeded with the first
   -- element.
@@ -104,7 +102,7 @@ module Category.Foldable where
   elem x xs = any (\y -> y == x) xs
 
   not-elem :: forall t a. using (fold :: Foldable t, ea :: Eq a) => a -> t a -> Bool
-  not-elem x xs = not (elem x xs)
+  not-elem x xs = if elem x xs then False else True
 
   -- `find`: the first element the predicate accepts, or `None`. The
   -- predicate does the deciding, so no `Eq` constraint is stated (the

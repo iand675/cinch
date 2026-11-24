@@ -1,0 +1,674 @@
+-- | GIF images and animations (GIF87a and GIF89a): decoding and encoding of palette-indexed frames.
+-- A file is a logical screen (width, height, an optional global palette and a
+-- background index) holding frames. Each frame is an indexed raster placed at
+-- an offset, with its own or the global palette, a delay in hundredths of a
+-- second and a disposal method. A palette's transparent entry (from the
+-- graphic control extension) decodes with alpha zero, and encoding marks the
+-- first entry with alpha zero as transparent. Pixel data is LZW-compressed
+-- (Text.Lzw, least significant bit first) in sub-blocks of up to 255 bytes;
+-- interlaced frames are reordered on decoding, and encoding writes them
+-- progressively. Decoding validates palette indices sixteen bytes at a time.
+-- The encoder writes GIF89a with a global palette when one is given, reusing
+-- it for frames whose palettes match it apart from the transparent entry.
+module Image.Gif where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Image.Raster
+  import Text.Lzw
+  import Text.Show (nat-to-string)
+
+  export Gif, gif, gif-width, gif-height, gif-frames, gif-loop, gif-background-index, gif-palette
+  export GifFrame, gif-frame, gif-frame-raster, gif-frame-left, gif-frame-top, gif-frame-delay, gif-frame-disposal
+  export GifLoop, GifLoopForever, GifPlayOnce, GifLoopTimes
+  export GifDisposal, GifDisposalUnspecified, GifDisposalNone, GifDisposalBackground, GifDisposalPrevious, GifDisposalReserved
+  export GifError, GifBadHeader, GifTruncated, GifUnknownBlock, GifUnknownExtension, GifBadGraphicControl, GifFrameOutOfBounds
+  export GifNoColorTable, GifBadLiteralWidth, GifNotEnoughData, GifTooMuchData, GifBadPixel, GifBadImageData, GifMissingImage
+  export GifNoFrames, GifEmptyPalette, GifPaletteTooLarge, GifNotIndexed, GifTooLarge, GifLoopTooLarge, gif-error-message
+  export gif-decode, gif-decode-all, gif-config, gif-encode, gif-encode-all
+
+  -- ---------------------------------------------------------------------
+  -- Vocabulary.
+  -- ---------------------------------------------------------------------
+
+  -- | How many times an animation plays.
+  data GifLoop where
+    -- | Repeat forever.
+    GifLoopForever :: GifLoop
+    -- | Show the frames once (no looping extension).
+    GifPlayOnce :: GifLoop
+    -- | Restart this many times (1 to 65535) after the first showing.
+    GifLoopTimes :: Nat -> GifLoop
+
+  -- | What happens to a frame's area before the next frame is drawn.
+  data GifDisposal where
+    -- | No disposal specified (0).
+    GifDisposalUnspecified :: GifDisposal
+    -- | Leave the frame in place (1).
+    GifDisposalNone :: GifDisposal
+    -- | Restore the area to the background (2).
+    GifDisposalBackground :: GifDisposal
+    -- | Restore the area to what was there before (3).
+    GifDisposalPrevious :: GifDisposal
+    -- | A reserved method number (4 to 7).
+    GifDisposalReserved :: Nat -> GifDisposal
+
+  -- | One frame: an indexed raster, its left and top offsets on the screen, its delay and its disposal.
+  data GifFrame where
+    -- | Fields in the order listed above.
+    GifFrame :: Raster -> Nat -> Nat -> Nat -> GifDisposal -> GifFrame
+
+  -- | A GIF: screen width and height, frames, looping, background index and global palette (RGBA quadruples, possibly empty).
+  data Gif where
+    -- | Fields in the order listed above.
+    Gif :: Nat -> Nat -> List GifFrame -> GifLoop -> Nat -> Bytes -> Gif
+
+  -- | Make a GIF from its parts.
+  gif :: Nat -> Nat -> List GifFrame -> GifLoop -> Nat -> Bytes -> Gif
+  gif width height frames loop background palette = Gif width height frames loop background palette
+
+  -- | Make a frame from an indexed raster, its offsets, delay (hundredths of a second) and disposal.
+  gif-frame :: Raster -> Nat -> Nat -> Nat -> GifDisposal -> GifFrame
+  gif-frame r left top delay disposal = GifFrame r left top delay disposal
+
+  -- | Screen width.
+  gif-width :: Gif -> Nat
+  gif-width g = case g of Gif w h fs l b p -> w
+
+  -- | Screen height.
+  gif-height :: Gif -> Nat
+  gif-height g = case g of Gif w h fs l b p -> h
+
+  -- | Frames in order.
+  gif-frames :: Gif -> List GifFrame
+  gif-frames g = case g of Gif w h fs l b p -> fs
+
+  -- | Looping.
+  gif-loop :: Gif -> GifLoop
+  gif-loop g = case g of Gif w h fs l b p -> l
+
+  -- | Background palette index.
+  gif-background-index :: Gif -> Nat
+  gif-background-index g = case g of Gif w h fs l b p -> b
+
+  -- | Global palette as RGBA quadruples, empty when there is none.
+  gif-palette :: Gif -> Bytes
+  gif-palette g = case g of Gif w h fs l b p -> p
+
+  -- | A frame's indexed raster (its palette is the frame's effective palette).
+  gif-frame-raster :: GifFrame -> Raster
+  gif-frame-raster f = case f of GifFrame r x y d m -> r
+
+  -- | A frame's left offset.
+  gif-frame-left :: GifFrame -> Nat
+  gif-frame-left f = case f of GifFrame r x y d m -> x
+
+  -- | A frame's top offset.
+  gif-frame-top :: GifFrame -> Nat
+  gif-frame-top f = case f of GifFrame r x y d m -> y
+
+  -- | A frame's delay in hundredths of a second.
+  gif-frame-delay :: GifFrame -> Nat
+  gif-frame-delay f = case f of GifFrame r x y d m -> d
+
+  -- | A frame's disposal method.
+  gif-frame-disposal :: GifFrame -> GifDisposal
+  gif-frame-disposal f = case f of GifFrame r x y d m -> m
+
+  -- | Why decoding or encoding failed.
+  data GifError where
+    -- | The signature is neither GIF87a nor GIF89a.
+    GifBadHeader :: GifError
+    -- | The input ends inside a structure.
+    GifTruncated :: GifError
+    -- | A block introducer other than an extension, image or trailer; its byte.
+    GifUnknownBlock :: Nat -> GifError
+    -- | An unknown extension label; its byte.
+    GifUnknownExtension :: Nat -> GifError
+    -- | A graphic control extension with the wrong size or terminator.
+    GifBadGraphicControl :: GifError
+    -- | A frame extends beyond the screen.
+    GifFrameOutOfBounds :: GifError
+    -- | A frame has no local palette and the file no global one.
+    GifNoColorTable :: GifError
+    -- | The LZW minimum code size is outside 2 to 8; its value.
+    GifBadLiteralWidth :: Nat -> GifError
+    -- | The pixel data ends before the frame is filled.
+    GifNotEnoughData :: GifError
+    -- | Pixel data continues past the end of the frame.
+    GifTooMuchData :: GifError
+    -- | A pixel indexes beyond the palette.
+    GifBadPixel :: GifError
+    -- | The compressed pixel data is malformed.
+    GifBadImageData :: LzwError -> GifError
+    -- | The file ends without any frame.
+    GifMissingImage :: GifError
+    -- | Encoding needs at least one frame.
+    GifNoFrames :: GifError
+    -- | A frame to encode has an empty palette.
+    GifEmptyPalette :: GifError
+    -- | A palette holds more than 256 entries.
+    GifPaletteTooLarge :: GifError
+    -- | Encoding takes indexed rasters only.
+    GifNotIndexed :: GifError
+    -- | A dimension, offset or delay does not fit in sixteen bits.
+    GifTooLarge :: GifError
+    -- | A loop count does not fit in sixteen bits.
+    GifLoopTooLarge :: GifError
+
+  -- | Render an error.
+  gif-error-message :: GifError -> String
+  gif-error-message error = case error of
+    GifBadHeader -> "gif: can't recognize format"
+    GifTruncated -> "gif: unexpected end of data"
+    GifUnknownBlock b -> string-concat "gif: unknown block type " (nat-to-string b)
+    GifUnknownExtension b -> string-concat "gif: unknown extension " (nat-to-string b)
+    GifBadGraphicControl -> "gif: invalid graphic control extension"
+    GifFrameOutOfBounds -> "gif: frame bounds larger than image bounds"
+    GifNoColorTable -> "gif: no color table"
+    GifBadLiteralWidth n -> string-concat "gif: pixel size in decode out of range: " (nat-to-string n)
+    GifNotEnoughData -> "gif: not enough image data"
+    GifTooMuchData -> "gif: too much image data"
+    GifBadPixel -> "gif: invalid pixel value"
+    GifBadImageData cause -> string-concat "gif: reading image data: " (lzw-error-message cause)
+    GifMissingImage -> "gif: missing image data"
+    GifNoFrames -> "gif: must provide at least one image"
+    GifEmptyPalette -> "gif: cannot encode image block with empty palette"
+    GifPaletteTooLarge -> "gif: cannot encode color table with more than 256 entries"
+    GifNotIndexed -> "gif: frames must be indexed rasters"
+    GifTooLarge -> "gif: image block is too large to encode"
+    GifLoopTooLarge -> "gif: loop count is too large to encode"
+
+  -- ---------------------------------------------------------------------
+  -- Decoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Graphic-control state carried to the next frame: delay, disposal and transparent index.
+  -- Delay and transparency reset after each frame; the disposal method carries over.
+  data Control where
+    -- | Fields in the order listed above.
+    Control :: Nat -> Nat -> Option Nat -> Control
+
+  -- | The screen read from the header: width, height, background index and global palette (empty when absent).
+  data Screen where
+    -- | Fields in the order listed above.
+    Screen :: Nat -> Nat -> Nat -> Bytes -> Screen
+
+  -- | Decode every frame of a file.
+  gif-decode-all :: Bytes -> Result GifError Gif
+  gif-decode-all input = decode input True
+
+  -- | Decode the first frame's raster, ignoring the rest of the file.
+  gif-decode :: Bytes -> Result GifError Raster
+  gif-decode input = case decode input False of
+    Err error -> Err error
+    Ok g -> case gif-frames g of Cons f rest -> Ok (gif-frame-raster f); Nil -> Err GifMissingImage
+
+  -- | The screen width, height and global palette, from the header alone.
+  gif-config :: Bytes -> Result GifError (Nat, Nat, Bytes)
+  gif-config input = case screen input of
+    Err error -> Err error
+    Ok (s, next) -> case s of Screen w h b p -> Ok (w, h, p)
+
+  -- | Read the header and screen descriptor (and the global palette); the offset after them.
+  screen :: Bytes -> Result GifError (Screen, Nat)
+  screen input =
+    if bytes-len input < 13 then Err GifTruncated
+    else if not (has-signature input) then Err GifBadHeader
+    else
+      let fields = at input 10 in
+      if fields >= 128 then
+        (case color-table input 13 fields of
+          None -> Err GifTruncated
+          Some (p, next) -> Ok (Screen (le16 input 6) (le16 input 8) (at input 11) p, next))
+      else Ok (Screen (le16 input 6) (le16 input 8) 0 (bytes-new 0), 13)
+
+  -- | "GIF87a" or "GIF89a".
+  has-signature :: Bytes -> Bool
+  has-signature input = at input 0 == 71 && at input 1 == 73 && at input 2 == 70 && at input 3 == 56 && (at input 4 == 55 || at input 4 == 57) && at input 5 == 97
+
+  -- | A color table of 2^(1 + size bits) RGB entries as opaque RGBA quadruples.
+  color-table :: Bytes -> Nat -> Nat -> Option (Bytes, Nat)
+  color-table input at-offset fields =
+    let n = power2 (1 + nat-rem fields 8) in
+    if at-offset + 3 * n > bytes-len input then None
+    else let out = bytes-new (4 * n) in let filled = rgba input at-offset out 0 n in Some (out, at-offset + 3 * n)
+
+  -- | Expand RGB triples into opaque RGBA quadruples.
+  rgba :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Unit
+  rgba input from out i n =
+    if i >= n then ()
+    else
+      let a = put out (4 * i) (at input (from + 3 * i)) in
+      let b = put out (4 * i + 1) (at input (from + 3 * i + 1)) in
+      let c = put out (4 * i + 2) (at input (from + 3 * i + 2)) in
+      let d = put out (4 * i + 3) 255 in
+      rgba input from out (i + 1) n
+
+  -- | Decode the header then the block sequence; keep says whether frames after the first are wanted.
+  decode :: Bytes -> Bool -> Result GifError Gif
+  decode input keep = case screen input of
+    Err error -> Err error
+    Ok (s, next) -> blocks input keep s next GifPlayOnce (Control 0 0 None) Nil
+
+  -- | Read blocks until the trailer. frames are in reverse.
+  blocks :: Bytes -> Bool -> Screen -> Nat -> GifLoop -> Control -> List GifFrame -> Result GifError Gif
+  blocks input keep s i loop control frames =
+    if i >= bytes-len input then Err GifTruncated
+    else
+      let c = at input i in
+      if c == 33 then (case extension input (i + 1) loop control of
+        Err error -> Err error
+        Ok (next, l, k) -> blocks input keep s next l k frames)
+      else if c == 44 then (case image input s (i + 1) control of
+        Err error -> Err error
+        Ok (f, next) -> case control of
+          Control delay disposal t ->
+            let kept = if keep || is-empty frames then Cons f frames else frames in
+            if not keep then finish s loop kept
+            else blocks input keep s next loop (Control 0 disposal None) kept)
+      else if c == 59 then (if is-empty frames then Err GifMissingImage else finish s loop frames)
+      else Err (GifUnknownBlock c)
+
+  -- | Assemble the decoded GIF.
+  finish :: Screen -> GifLoop -> List GifFrame -> Result GifError Gif
+  finish s loop frames = case s of Screen w h b p -> Ok (Gif w h (reverse frames) loop b p)
+
+  -- | Whether no frames are held.
+  is-empty :: List GifFrame -> Bool
+  is-empty frames = case frames of Nil -> True; Cons f rest -> False
+
+  -- | An extension after its introducer: graphic control, comment, plain text or application (the looping
+  -- extension sets the loop count); other labels are errors. Returns the offset after it.
+  extension :: Bytes -> Nat -> GifLoop -> Control -> Result GifError (Nat, GifLoop, Control)
+  extension input i loop control =
+    if i >= bytes-len input then Err GifTruncated
+    else
+      let label = at input i in
+      if label == 249 then graphic-control input (i + 1) loop control
+      else if label == 254 then skip-blocks input (i + 1) loop control
+      else if label == 1 then (if i + 14 > bytes-len input then Err GifTruncated else skip-blocks input (i + 14) loop control)
+      else if label == 255 then application input (i + 1) loop control
+      else Err (GifUnknownExtension label)
+
+  -- | The graphic control extension: size 4, flags, delay, transparent index and a zero terminator.
+  graphic-control :: Bytes -> Nat -> GifLoop -> Control -> Result GifError (Nat, GifLoop, Control)
+  graphic-control input i loop control =
+    if i + 6 > bytes-len input then Err GifTruncated
+    else if not (at input i == 4) || not (at input (i + 5) == 0) then Err GifBadGraphicControl
+    else
+      let flags = at input (i + 1) in
+      let transparent = if nat-rem flags 2 == 1 then Some (at input (i + 4)) else None in
+      Ok (i + 6, loop, Control (le16 input (i + 2)) (nat-rem (nat-div flags 4) 8) transparent)
+
+  -- | An application extension: its identifier block, the looping sub-block when the identifier is NETSCAPE2.0,
+  -- then sub-blocks to the terminator.
+  application :: Bytes -> Nat -> GifLoop -> Control -> Result GifError (Nat, GifLoop, Control)
+  application input i loop control =
+    if i >= bytes-len input then Err GifTruncated
+    else
+      let size = at input i in
+      if i + 1 + size > bytes-len input then Err GifTruncated
+      else if size == 11 && is-netscape input (i + 1) then
+        (let j = i + 12 in
+        if j >= bytes-len input then Err GifTruncated
+        else
+          let n = at input j in
+          if j + 1 + n > bytes-len input then Err GifTruncated
+          else if n == 0 then Ok (j + 1, loop, control)
+          else skip-blocks input (j + 1 + n) (if n == 3 && at input (j + 1) == 1 then looping (le16 input (j + 2)) else loop) control)
+      else skip-blocks input (i + 1 + size) loop control
+
+  -- | The loop setting for a looping-extension count.
+  looping :: Nat -> GifLoop
+  looping n = if n == 0 then GifLoopForever else GifLoopTimes n
+
+  -- | Whether the eleven bytes at i spell NETSCAPE2.0.
+  is-netscape :: Bytes -> Nat -> Bool
+  is-netscape input i = same-bytes input i (string-to-bytes "NETSCAPE2.0") 0
+
+  -- | Whether input at i starts with the given bytes.
+  same-bytes :: Bytes -> Nat -> Bytes -> Nat -> Bool
+  same-bytes input i want k = if k >= bytes-len want then True else if at input (i + k) == at want k then same-bytes input i want (k + 1) else False
+
+  -- | Skip sub-blocks through the zero-length terminator.
+  skip-blocks :: Bytes -> Nat -> GifLoop -> Control -> Result GifError (Nat, GifLoop, Control)
+  skip-blocks input i loop control =
+    if i >= bytes-len input then Err GifTruncated
+    else
+      let n = at input i in
+      if n == 0 then Ok (i + 1, loop, control)
+      else if i + 1 + n > bytes-len input then Err GifTruncated
+      else skip-blocks input (i + 1 + n) loop control
+
+  -- | An image after its separator: descriptor, palette, transparency, LZW data, index validation and interlace.
+  image :: Bytes -> Screen -> Nat -> Control -> Result GifError (GifFrame, Nat)
+  image input s i control = case s of
+    Screen sw sh bg global ->
+      if i + 9 > bytes-len input then Err GifTruncated
+      else
+        let left = le16 input i in
+        let top = le16 input (i + 2) in
+        let w = le16 input (i + 4) in
+        let h = le16 input (i + 6) in
+        let fields = at input (i + 8) in
+        if left + w > sw || top + h > sh then Err GifFrameOutOfBounds
+        else case frame-palette input (i + 9) fields global of
+          Err error -> Err error
+          Ok (palette, next) -> case control of
+            Control delay disposal transparent -> pixels input next w h fields (transparent-palette palette transparent) left top delay disposal
+
+  -- | The local palette when the flag is set, else the global one.
+  frame-palette :: Bytes -> Nat -> Nat -> Bytes -> Result GifError (Bytes, Nat)
+  frame-palette input i fields global =
+    if fields >= 128 then (case color-table input i fields of None -> Err GifTruncated; Some found -> Ok found)
+    else if bytes-len global == 0 then Err GifNoColorTable
+    else Ok (global, i)
+
+  -- | A copy of the palette whose transparent entry (extended when beyond it) is zero in all four channels.
+  transparent-palette :: Bytes -> Option Nat -> Bytes
+  transparent-palette palette transparent = case transparent of
+    None -> palette
+    Some t ->
+      let n = if 4 * t + 4 > bytes-len palette then 4 * t + 4 else bytes-len palette in
+      let out = bytes-new n in
+      let copied = if bytes-len palette <= n then bytes-copy-range out palette 0 0 (bytes-len palette) else () in
+      let cleared = clear4 out (4 * t) in
+      out
+
+  -- | Zero four bytes.
+  clear4 :: Bytes -> Nat -> Unit
+  clear4 out o = let a = put out o 0 in let b = put out (o + 1) 0 in let c = put out (o + 2) 0 in put out (o + 3) 0
+
+  -- | Read the code size and sub-blocks, decompress exactly w * h indices, validate and de-interlace them.
+  pixels :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> Nat -> Result GifError (GifFrame, Nat)
+  pixels input i w h fields palette left top delay disposal =
+    if i >= bytes-len input then Err GifTruncated
+    else
+      let width = at input i in
+      if width < 2 || width > 8 then Err (GifBadLiteralWidth width)
+      else
+        let gathered = sub-blocks input (i + 1) Nil in
+        case gathered of
+          (stream, next) -> case lzw-decompress-bounded LzwLsb width stream (w * h) of
+            Err error -> (case error of UnexpectedLzwEnd -> Err GifNotEnoughData; other -> Err (GifBadImageData error))
+            Ok (indices, ending) -> case ending of
+              LzwOverflow -> Err GifTooMuchData
+              other ->
+                if bytes-len indices < w * h then Err GifNotEnoughData
+                else if bytes-len palette < 1024 && not (indices-below indices (nat-div (bytes-len palette) 4)) then Err GifBadPixel
+                else
+                  let ordered = if nat-rem (nat-div fields 64) 2 == 1 then deinterlace indices w h else indices in
+                  case raster Indexed w h ordered palette of
+                    None -> Err GifNotEnoughData
+                    Some r -> Ok (GifFrame r left top delay (disposal-of disposal), next)
+
+  -- | Concatenate sub-blocks through the terminator; the offset after it (the input length when it is missing).
+  sub-blocks :: Bytes -> Nat -> List Bytes -> (Bytes, Nat)
+  sub-blocks input i acc =
+    if i >= bytes-len input then (bytes-concat (reverse acc), i)
+    else
+      let n = at input i in
+      if n == 0 then (bytes-concat (reverse acc), i + 1)
+      else
+        let end = if i + 1 + n <= bytes-len input then i + 1 + n else bytes-len input in
+        sub-blocks input end (Cons (slice input (i + 1) end) acc)
+
+  -- | The disposal method for its number.
+  disposal-of :: Nat -> GifDisposal
+  disposal-of n = if n == 0 then GifDisposalUnspecified else if n == 1 then GifDisposalNone else if n == 2 then GifDisposalBackground else if n == 3 then GifDisposalPrevious else GifDisposalReserved n
+
+  -- | Whether every index is below the palette size: sixteen bytes per step, then single bytes.
+  indices-below :: Bytes -> Nat -> Bool
+  indices-below indices n = below-from indices n 0
+
+  -- | Check from an offset.
+  below-from :: Bytes -> Nat -> Nat -> Bool
+  below-from indices n i =
+    if i + 16 <= bytes-len indices then
+      (if n <= 256 && hold indices (max16 (bytes-data indices) (nat-to-i64 i)) < nat-to-i64 n then below-from indices n (i + 16) else n > 256)
+    else if i < bytes-len indices then (if bytes-get indices i < n then below-from indices n (i + 1) else False)
+    else True
+
+  -- | Reorder interlaced rows: passes start at rows 0, 4, 2 and 1 and step by 8, 8, 4 and 2.
+  deinterlace :: Bytes -> Nat -> Nat -> Bytes
+  deinterlace indices w h =
+    let out = bytes-new (w * h) in
+    let a = pass indices out w h 0 8 0 in
+    let b = pass indices out w h 4 8 (rows-in h 0 8) in
+    let c = pass indices out w h 2 4 (rows-in h 0 8 + rows-in h 4 8) in
+    let d = pass indices out w h 1 2 (rows-in h 0 8 + rows-in h 4 8 + rows-in h 2 4) in
+    out
+
+  -- | Rows y = start, start + step, ... below h.
+  rows-in :: Nat -> Nat -> Nat -> Nat
+  rows-in h start step = if start >= h then 0 else 1 + rows-in h (start + step) step
+
+  -- | Copy one pass's rows, read sequentially from source row src, into their places.
+  pass :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Unit
+  pass indices out w h y step src =
+    if y >= h then ()
+    else
+      let copied = if src * w + w <= bytes-len indices && y * w + w <= bytes-len out then bytes-copy-range out indices (y * w) (src * w) w else () in
+      pass indices out w h (y + step) step (src + 1)
+
+  -- ---------------------------------------------------------------------
+  -- Encoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Encode one indexed raster as a single-frame GIF whose global palette is the raster's.
+  gif-encode :: Raster -> Result GifError Bytes
+  gif-encode r = gif-encode-all (Gif (raster-width r) (raster-height r) (Cons (GifFrame r 0 0 0 GifDisposalUnspecified) Nil) GifPlayOnce 0 (raster-palette r))
+
+  -- | Encode an animation.
+  gif-encode-all :: Gif -> Result GifError Bytes
+  gif-encode-all g = case g of
+    Gif w h frames loop bg global ->
+      if is-empty frames then Err GifNoFrames
+      else if w >= 65536 || h >= 65536 || bg >= 256 then Err GifTooLarge
+      else if bytes-len global > 1024 then Err GifPaletteTooLarge
+      else case loop-block frames loop of
+        Err error -> Err error
+        Ok looped ->
+          let table = if bytes-len global > 0 then color-table-bytes global else bytes-new 0 in
+          let flags = if bytes-len global > 0 then 128 + padded (entries global) else 0 in
+          let header = bytes-concat [string-to-bytes "GIF89a", le16-bytes w, le16-bytes h, one flags, one (if bytes-len global > 0 then bg else 0), one 0, table, looped] in
+          case encode-frames w h table frames Nil of
+            Err error -> Err error
+            Ok parts -> Ok (bytes-concat [header, bytes-concat parts, one 59])
+
+  -- | The looping extension for animations that loop.
+  loop-block :: List GifFrame -> GifLoop -> Result GifError Bytes
+  loop-block frames loop =
+    if list-length frames <= 1 then Ok (bytes-new 0)
+    else case loop of
+      GifPlayOnce -> Ok (bytes-new 0)
+      GifLoopForever -> Ok (netscape 0)
+      GifLoopTimes n -> if n >= 65536 then Err GifLoopTooLarge else Ok (netscape n)
+
+  -- | The NETSCAPE2.0 application extension with a loop count.
+  netscape :: Nat -> Bytes
+  netscape n = bytes-concat [bytes-from-u8s [33, 255, 11], string-to-bytes "NETSCAPE2.0", bytes-from-u8s [3, 1], le16-bytes n, one 0]
+
+  -- | Encode frames in order; parts are gathered in reverse.
+  encode-frames :: Nat -> Nat -> Bytes -> List GifFrame -> List Bytes -> Result GifError (List Bytes)
+  encode-frames w h table frames acc = case frames of
+    Nil -> Ok (reverse acc)
+    Cons f rest -> case encode-frame w h table f of
+      Err error -> Err error
+      Ok part -> encode-frames w h table rest (Cons part acc)
+
+  -- | One frame: optional graphic control, descriptor, local table unless the global one matches, code size and data.
+  encode-frame :: Nat -> Nat -> Bytes -> GifFrame -> Result GifError Bytes
+  encode-frame sw sh global f = case f of
+    GifFrame r left top delay disposal ->
+      let palette = raster-palette r in
+      let fw = raster-width r in
+      let fh = raster-height r in
+      if not (is-indexed (raster-format r)) then Err GifNotIndexed
+      else if bytes-len palette == 0 then Err GifEmptyPalette
+      else if bytes-len palette > 1024 then Err GifPaletteTooLarge
+      else if left + fw >= 65536 || top + fh >= 65536 || delay >= 65536 then Err GifTooLarge
+      else if left + fw > sw || top + fh > sh then Err GifTooLarge
+      else
+        let n = entries palette in
+        let transparent = first-transparent palette 0 n in
+        let code = disposal-number disposal in
+        let control = if delay > 0 || code > 0 || is-some transparent then graphic-control-bytes delay code transparent else bytes-new 0 in
+        let local = color-table-bytes palette in
+        let use-global = bytes-len local <= bytes-len global && tables-match global local n transparent in
+        let table-part = if use-global then one 0 else bytes-concat [one (128 + padded n), local] in
+        let literal = if padded n + 1 < 2 then (2 :: Nat) else padded n + 1 in
+        case lzw-compress LzwLsb literal (tight r) of
+          Err error -> Err GifBadPixel
+          Ok packed -> Ok (bytes-concat [control, one 44, le16-bytes left, le16-bytes top, le16-bytes fw, le16-bytes fh, table-part, one literal, chunks packed 0 Nil])
+
+  -- | Whether a pixel format is indexed.
+  is-indexed :: PixelFormat -> Bool
+  is-indexed f = case f of Indexed -> True; other -> False
+
+  -- | The raster's indices without row padding.
+  tight :: Raster -> Bytes
+  tight r =
+    if raster-stride r == raster-width r then slice (raster-pixels r) 0 (raster-width r * raster-height r)
+    else let out = bytes-new (raster-width r * raster-height r) in let copied = tight-rows r out 0 in out
+
+  -- | Copy rows into a tight buffer.
+  tight-rows :: Raster -> Bytes -> Nat -> Unit
+  tight-rows r out y =
+    if y >= raster-height r then ()
+    else
+      let w = raster-width r in
+      let from = y * raster-stride r in
+      let c = if from + w <= bytes-len (raster-pixels r) && y * w + w <= bytes-len out then bytes-copy-range out (raster-pixels r) (y * w) from w else () in
+      tight-rows r out (y + 1)
+
+  -- | The disposal method's number.
+  disposal-number :: GifDisposal -> Nat
+  disposal-number d = case d of
+    GifDisposalUnspecified -> 0
+    GifDisposalNone -> 1
+    GifDisposalBackground -> 2
+    GifDisposalPrevious -> 3
+    GifDisposalReserved n -> nat-rem n 8
+
+  -- | Whether an option holds a value.
+  is-some :: Option Nat -> Bool
+  is-some o = case o of Some v -> True; None -> False
+
+  -- | The graphic control extension.
+  graphic-control-bytes :: Nat -> Nat -> Option Nat -> Bytes
+  graphic-control-bytes delay code transparent = case transparent of
+    Some t -> bytes-concat [bytes-from-u8s [33, 249, 4], one (1 + 4 * code), le16-bytes delay, one t, one 0]
+    None -> bytes-concat [bytes-from-u8s [33, 249, 4], one (4 * code), le16-bytes delay, one 0, one 0]
+
+  -- | The first palette entry with alpha zero.
+  first-transparent :: Bytes -> Nat -> Nat -> Option Nat
+  first-transparent palette i n = if i >= n then None else if at palette (4 * i + 3) == 0 then Some i else first-transparent palette (i + 1) n
+
+  -- | Whether the local table's entries equal the global table's, ignoring the transparent entry.
+  tables-match :: Bytes -> Bytes -> Nat -> Option Nat -> Bool
+  tables-match global local n transparent = match-from global local 0 (3 * n) (case transparent of Some t -> 3 * t; None -> 3 * n + 3)
+
+  -- | Compare bytes below end, skipping the three at skip.
+  match-from :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Bool
+  match-from global local i end skip =
+    if i >= end then True
+    else if i >= skip && i < skip + 3 then match-from global local (i + 1) end skip
+    else if at global i == at local i then match-from global local (i + 1) end skip
+    else False
+
+  -- | Palette entries.
+  entries :: Bytes -> Nat
+  entries palette = nat-div (bytes-len palette + 3) 4
+
+  -- | The table size code: the smallest k with 2^(k+1) >= n.
+  padded :: Nat -> Nat
+  padded n = padded-from n 0
+
+  -- | Search upwards.
+  padded-from :: Nat -> Nat -> Nat
+  padded-from n k = if k >= 7 || power2 (k + 1) >= n then k else padded-from n (k + 1)
+
+  -- | An RGB color table padded with black to 2^(1 + padded) entries.
+  color-table-bytes :: Bytes -> Bytes
+  color-table-bytes palette =
+    let n = entries palette in
+    let size = power2 (padded n + 1) in
+    let out = bytes-new (3 * size) in
+    let filled = rgb palette out 0 n in
+    out
+
+  -- | Drop the alpha channel.
+  rgb :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  rgb palette out i n =
+    if i >= n then ()
+    else
+      let a = put out (3 * i) (at palette (4 * i)) in
+      let b = put out (3 * i + 1) (at palette (4 * i + 1)) in
+      let c = put out (3 * i + 2) (at palette (4 * i + 2)) in
+      rgb palette out (i + 1) n
+
+  -- | Split compressed bytes into sub-blocks of up to 255 bytes and the terminator; pieces gather in reverse.
+  chunks :: Bytes -> Nat -> List Bytes -> Bytes
+  chunks stream i acc =
+    if i >= bytes-len stream then bytes-concat (reverse (Cons (one 0) acc))
+    else
+      let n = if i + 255 <= bytes-len stream then (255 :: Nat) else bytes-len stream - i in
+      chunks stream (i + n) (Cons (slice stream i (i + n)) (Cons (one n) acc))
+
+  -- ---------------------------------------------------------------------
+  -- Bytes.
+  -- ---------------------------------------------------------------------
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | A little-endian 16-bit field.
+  le16 :: Bytes -> Nat -> Nat
+  le16 b i = at b i + 256 * at b (i + 1)
+
+  -- | Two little-endian bytes.
+  le16-bytes :: Nat -> Bytes
+  le16-bytes n = let out = bytes-new 2 in let a = put out 0 (nat-rem n 256) in let b = put out 1 (nat-rem (nat-div n 256) 256) in out
+
+  -- | One byte.
+  one :: Nat -> Bytes
+  one v = let out = bytes-new 1 in let a = put out 0 v in out
+
+  -- | Store a byte when it fits.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | A copy of b[x, y).
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b x y =
+    let n = if x <= y then y - x else 0 in
+    let out = bytes-new n in
+    if x + n <= bytes-len b then let c = bytes-copy-range out b 0 x n in out else out
+
+  -- | 2^n for n below 9.
+  power2 :: Nat -> Nat
+  power2 n = if n == 0 then 1 else 2 * power2 (n - 1)
+
+  -- | Keep a buffer alive until a raw load has completed.
+  hold :: forall a. Bytes -> a -> a
+  hold b value = case bytes-len b of
+    _ -> value
+
+  -- | The largest of the sixteen bytes at base + offset.
+  prim max16 :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %v = load <16 x i8>, ptr %at, align 1
+      %m = call i8 @llvm.vector.reduce.umax.v16i8(<16 x i8> %v)
+      %r = zext i8 %m to i64
+      ret i64 %r
+    }

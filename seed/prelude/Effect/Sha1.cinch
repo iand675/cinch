@@ -1,0 +1,37 @@
+-- | Inspectable SHA-1 hashing sinks and bounded reader-to-digest copying.
+-- The immutable digest state is the sink handle. Writes accept every byte and
+-- never retain input buffers. Copying returns the advanced reader and the last
+-- valid digest on failure, and never closes a borrowed source.
+module Effect.Sha1 where
+
+  import Effect.Stream
+  import Text.Sha1
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+
+  export sha1-write, sha1-hashing-writer, sha1-copy
+
+  -- | Hash a whole chunk, returning its accepted count and the advanced immutable state.
+  sha1-write :: forall r. using (io :: Io r) => Sha1State -> Bytes ->{IO r} (Nat, Sha1State)
+  sha1-write state input = (bytes-len input, sha1-state-update state input)
+
+  -- | Adapt a digest state to the generic byte-writer protocol.
+  -- Use the explicit state or sha1-copy when the advanced digest must be inspected.
+  sha1-hashing-writer :: forall r. using (io :: Io r) => Sha1State -> ByteWriter r
+  sha1-hashing-writer state = stream-writer (\input -> case sha1-write state input of
+    (count, next) -> (Ok count, sha1-hashing-writer next))
+
+  -- | Hash successful reader chunks through EOF, preserving both advanced handles on errors.
+  -- A zero chunk size is rejected before reading. Invalid source counts do not enter the digest.
+  sha1-copy :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Sha1State ->{IO r} (Result StreamError Nat, (ByteReader r, Sha1State))
+  sha1-copy chunk source state =
+    if chunk == 0 then (Err StreamInvalidChunkSize, (source, state))
+    else copy-from chunk source state 0
+
+  -- | Carry only the opaque digest state and accepted byte count through the bounded copying loop.
+  copy-from :: forall r. using (io :: Io r) => Nat -> ByteReader r -> Sha1State -> Nat ->{IO r} (Result StreamError Nat, (ByteReader r, Sha1State))
+  copy-from chunk source state count = case stream-read source chunk of
+    (Err error, next) -> (Err error, (next, state))
+    (Ok input, next) -> if bytes-len input == 0 then (Ok count, (next, state))
+      else copy-from chunk next (sha1-state-update state input) (count + bytes-len input)

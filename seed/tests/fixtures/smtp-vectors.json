@@ -1,0 +1,396 @@
+[
+ {
+  "name": "send",
+  "replies": [
+   "220 mail.example.org ESMTP ready\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "250 2.1.0 Ok\r\n",
+   "250 2.1.5 Ok\r\n",
+   "251 forwarding\r\n",
+   "354 End data with \u003cCR\u003e\u003cLF\u003e.\u003cCR\u003e\u003cLF\u003e\r\n",
+   "250 2.0.0 queued as 42\r\n",
+   "221 2.0.0 Bye\r\n"
+  ],
+  "client": "EHLO client.example.net\r\nMAIL FROM:\u003calice@example.org\u003e BODY=8BITMIME\r\nRCPT TO:\u003cbob@example.net\u003e\r\nRCPT TO:\u003ccarol@example.net\u003e\r\nDATA\r\nSubject: hi\r\n\r\n..leading dot\r\nbare newline\r\n...two dots\r\nend\r\n.\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  "steps": [
+   "hello client.example.net",
+   "mail alice@example.org",
+   "rcpt bob@example.net",
+   "rcpt carol@example.net",
+   "data Subject: hi\\r\\n\\r\\n.leading dot\\nbare newline\\r\\n..two dots\\r\\nend",
+   "quit"
+  ]
+ },
+ {
+  "name": "helo-fallback",
+  "replies": [
+   "220 old.example ready\r\n",
+   "502 command not implemented\r\n",
+   "250 old.example\r\n",
+   "250 ok\r\n",
+   "250 ok\r\n",
+   "354 go\r\n",
+   "250 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nHELO localhost\r\nMAIL FROM:\u003ca@b\u003e\r\nRCPT TO:\u003cc@d\u003e\r\nDATA\r\nno trailing newline\r\n.\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  "steps": [
+   "mail a@b",
+   "rcpt c@d",
+   "data no trailing newline",
+   "quit"
+  ]
+ },
+ {
+  "name": "plain-auth",
+  "replies": [
+   "220 localhost ESMTP\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "235 2.7.0 Authentication successful\r\n",
+   "250 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nAUTH PLAIN AHVzZXIAc2VjcmV0\r\nMAIL FROM:\u003cme@localhost\u003e BODY=8BITMIME\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   "",
+   ""
+  ],
+  "steps": [
+   "plain user secret 127.0.0.1",
+   "mail me@localhost",
+   "quit"
+  ]
+ },
+ {
+  "name": "plain-wrong-host",
+  "replies": [
+   "220 mail.example.org ESMTP\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nQUIT\r\n",
+  "results": [
+   "",
+   "wrong host name"
+  ],
+  "steps": [
+   "plain user secret mail.example.org"
+  ]
+ },
+ {
+  "name": "cram-md5",
+  "replies": [
+   "220 localhost ESMTP\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "334 PDQxOTI5NDIzNDEuMTI4Mjg0NzJAc291cmNlZm91ci5hbmRyZXcuY211LmVkdT4=\r\n",
+   "235 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nAUTH CRAM-MD5\r\ndGltIGI0MTAzMDNjNjE4YTAxZDNlMTUxMDJlMzA4YmI4YTMz\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   ""
+  ],
+  "steps": [
+   "cram tim tanstaaftanstaaf",
+   "quit"
+  ]
+ },
+ {
+  "name": "auth-failure",
+  "replies": [
+   "220 localhost ESMTP\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "535 5.7.8 Authentication credentials invalid\r\n",
+   "501 aborted\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nAUTH PLAIN AHVzZXIAd3Jvbmc=\r\n*\r\nQUIT\r\n",
+  "results": [
+   "",
+   "535 5.7.8 Authentication credentials invalid"
+  ],
+  "steps": [
+   "plain user wrong 127.0.0.1"
+  ]
+ },
+ {
+  "name": "cram-unexpected-success",
+  "replies": [
+   "220 localhost ESMTP\r\n",
+   "250-localhost\r\n250 AUTH CRAM-MD5\r\n",
+   "235 already\r\n",
+   "250 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nAUTH CRAM-MD5\r\nNOOP\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   "",
+   ""
+  ],
+  "steps": [
+   "cram tim secret",
+   "noop",
+   "quit"
+  ]
+ },
+ {
+  "name": "plain-challenged",
+  "replies": [
+   "220 localhost ESMTP\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "334 bW9yZQ==\r\n",
+   "501 aborted\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nAUTH PLAIN AHUAcA==\r\n*\r\nQUIT\r\n",
+  "results": [
+   "",
+   "unexpected server challenge"
+  ],
+  "steps": [
+   "plain u p 127.0.0.1"
+  ]
+ },
+ {
+  "name": "hello-after-mail",
+  "replies": [
+   "220 mx\r\n",
+   "250 mx\r\n",
+   "250 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nNOOP\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   "smtp: Hello called after other methods",
+   ""
+  ],
+  "steps": [
+   "noop",
+   "hello late",
+   "quit"
+  ]
+ },
+ {
+  "name": "expect-mismatch-multiline",
+  "replies": [
+   "220 mx\r\n",
+   "250 mx\r\n",
+   "451-temporary\r\n452 different code\r\n451 last\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nNOOP\r\nQUIT\r\n",
+  "results": [
+   "",
+   "451 temporary\n452 different code\nlast",
+   ""
+  ],
+  "steps": [
+   "noop",
+   "quit"
+  ]
+ },
+ {
+  "name": "rcpt-rejected",
+  "replies": [
+   "220 mx ESMTP\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "250 ok\r\n",
+   "550-5.1.1 The email account that you tried to reach\r\n550 5.1.1 does not exist\r\n",
+   "250 reset\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nMAIL FROM:\u003ca@b\u003e BODY=8BITMIME\r\nRCPT TO:\u003cnobody@b\u003e\r\nRSET\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   "550 5.1.1 The email account that you tried to reach\n5.1.1 does not exist",
+   "",
+   ""
+  ],
+  "steps": [
+   "mail a@b",
+   "rcpt nobody@b",
+   "reset",
+   "quit"
+  ]
+ },
+ {
+  "name": "verify-and-extensions",
+  "replies": [
+   "220 mx ESMTP\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "252 cannot verify\r\n",
+   "550 no such user\r\n",
+   "250 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nVRFY alice\r\nVRFY nobody\r\nNOOP\r\nQUIT\r\n",
+  "results": [
+   "",
+   "ext 35882577",
+   "ext PLAIN CRAM-MD5",
+   "no ext",
+   "252 cannot verify",
+   "550 no such user",
+   "",
+   ""
+  ],
+  "steps": [
+   "extension size",
+   "extension auth",
+   "extension pipelining",
+   "verify alice",
+   "verify nobody",
+   "noop",
+   "quit"
+  ]
+ },
+ {
+  "name": "bad-lines",
+  "replies": [
+   "220 mx ESMTP\r\n",
+   "250-mail.example.org greets you\r\n250-8BITMIME\r\n250-SIZE 35882577\r\n250-AUTH PLAIN CRAM-MD5\r\n250 HELP\r\n",
+   "250 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nNOOP\r\nQUIT\r\n",
+  "results": [
+   "",
+   "smtp: A line must not contain CR or LF",
+   "smtp: A line must not contain CR or LF",
+   "smtp: A line must not contain CR or LF",
+   "",
+   ""
+  ],
+  "steps": [
+   "mail a\r\nRCPT TO:\u003cx\u003e",
+   "rcpt b\nc",
+   "verify x\ry",
+   "noop",
+   "quit"
+  ]
+ },
+ {
+  "name": "greeting-rejected",
+  "replies": [
+   "554 no service\r\n"
+  ],
+  "client": "",
+  "results": [
+   "554 no service"
+  ],
+  "steps": []
+ },
+ {
+  "name": "malformed-reply",
+  "replies": [
+   "220 mx ESMTP\r\n",
+   "25\r\n"
+  ],
+  "client": "EHLO x\r\nHELO x\r\n",
+  "results": [
+   "",
+   "EOF",
+   "EOF"
+  ],
+  "steps": [
+   "hello x",
+   "noop"
+  ]
+ },
+ {
+  "name": "data-rejected",
+  "replies": [
+   "220 mx ESMTP\r\n",
+   "250 mx\r\n",
+   "250 ok\r\n",
+   "250 ok\r\n",
+   "354 go\r\n",
+   "552 too big\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nMAIL FROM:\u003ca@b\u003e\r\nRCPT TO:\u003cc@d\u003e\r\nDATA\r\nline one\r\n..\r\n.\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   "",
+   "552 too big",
+   ""
+  ],
+  "steps": [
+   "mail a@b",
+   "rcpt c@d",
+   "data line one\\r\\n.\\r\\n",
+   "quit"
+  ]
+ },
+ {
+  "name": "multiline-mixed",
+  "replies": [
+   "220-mx first\r\n220-second line\r\n220 third\r\n",
+   "250-mx\r\n250 SMTPUTF8\r\n",
+   "250 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nMAIL FROM:\u003cutf@example\u003e SMTPUTF8\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   ""
+  ],
+  "steps": [
+   "mail utf@example",
+   "quit"
+  ]
+ },
+ {
+  "name": "empty-data",
+  "replies": [
+   "220 mx\r\n",
+   "250 mx\r\n",
+   "250 ok\r\n",
+   "250 ok\r\n",
+   "354 go\r\n",
+   "250 ok\r\n",
+   "221 bye\r\n"
+  ],
+  "client": "EHLO localhost\r\nMAIL FROM:\u003ca@b\u003e\r\nRCPT TO:\u003cc@d\u003e\r\nDATA\r\n\r\n.\r\nQUIT\r\n",
+  "results": [
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  "steps": [
+   "mail a@b",
+   "rcpt c@d",
+   "data ",
+   "quit"
+  ]
+ }
+]

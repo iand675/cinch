@@ -179,4 +179,4 @@ copies of one algorithm.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes.cinch`. Source SHA-256: `1e1eba93c135f07ba6eb9245a75faf3d22312110677cf1b180e795a33c88a146`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes.cinch`. Source SHA-256: `24bb9f3ca7c5420b3abde122e05762f25adaa72df41d27557d22fc69370585da`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

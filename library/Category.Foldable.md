@@ -123,7 +123,7 @@ container. The walk is the class `foldr`, which this language
 evaluates strictly in its recursive position, so every element is
 visited; the answer is the same, the short-circuit is not there.
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 95
+[Source](/reference-sources/Category.Foldable.cinch) · line 93
 
 <a id="value-626574746572"></a>
 
@@ -145,7 +145,7 @@ identity keeps the empty container meaningful; the combination is
 `mconcat` (see `fold-map`), whose `Semigroup` is stated separately
 (a `Monoid` entails nothing).
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 139
+[Source](/reference-sources/Category.Foldable.cinch) · line 137
 
 <a id="value-656c656d"></a>
 
@@ -156,7 +156,7 @@ identity keeps the empty container meaningful; the combination is
 `elem`: membership under `Eq`, in `base`'s argument order (the
 element, then the container).
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 103
+[Source](/reference-sources/Category.Foldable.cinch) · line 101
 
 <a id="value-66696e64"></a>
 
@@ -168,7 +168,7 @@ element, then the container).
 predicate does the deciding, so no `Eq` constraint is stated (the
 same reason `base`'s `find` takes a predicate).
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 112
+[Source](/reference-sources/Category.Foldable.cinch) · line 110
 
 <a id="value-66696e642d6c697374"></a>
 
@@ -179,7 +179,7 @@ same reason `base`'s `find` takes a predicate).
 Private: the list-level search the container search materializes
 into.
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 117
+[Source](/reference-sources/Category.Foldable.cinch) · line 115
 
 <a id="value-666f6c642d6c65667431"></a>
 
@@ -218,8 +218,8 @@ accumulated suffix at every element for a `<>` that copies.
 `fold-right1`/`fold-left1`: the fold with an element of the
 container as its seed, so an empty container has nothing to return.
 The right form seeds with the first element and folds the tail into
-it; the left form is the class `foldl` from the first element over
-the tail. Both names are `base`'s `foldr1`/`foldl1` spelled the way
+it. The left form folds the original container once, using its
+first element as the accumulator. Both names are `base`'s `foldr1`/`foldl1` spelled the way
 a name may be spelled here (a digit cannot follow the dash).
 
 [Source](/reference-sources/Category.Foldable.cinch) · line 72
@@ -233,7 +233,7 @@ a name may be spelled here (a digit cannot follow the dash).
 Private: the `foldr1` walk over the tail, seeded with the first
 element.
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 84
+[Source](/reference-sources/Category.Foldable.cinch) · line 82
 
 <a id="value-6c6172676572"></a>
 
@@ -245,7 +245,7 @@ Private: the four comparisons the `Ord` walks and the comparator
 walks share. Each keeps the element the comparison favours and, on
 a tie, the one `base`'s `min`/`max`/`minBy`/`maxBy` keep.
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 163
+[Source](/reference-sources/Category.Foldable.cinch) · line 161
 
 <a id="value-6d6178696d756d"></a>
 
@@ -260,7 +260,7 @@ tie keeps the first element for `minimum` and the last one for
 `maximum`, exactly as `base`'s `min`/`max` do. The `-by` forms take
 the comparator, so non-`Ord` shapes and keys compare too.
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 148
+[Source](/reference-sources/Category.Foldable.cinch) · line 146
 
 <a id="value-6d6178696d756d2d6279"></a>
 
@@ -323,7 +323,7 @@ container needs an identity to return and `Add` carries none, while
 (Algebra.Semiring). `sum-list` (Data.List) is the seeded list twin
 of `sum`: the same walk with an explicit starting value.
 
-[Source](/reference-sources/Category.Foldable.cinch) · line 128
+[Source](/reference-sources/Category.Foldable.cinch) · line 126
 
 <a id="value-776f727365"></a>
 
@@ -335,4 +335,4 @@ of `sum`: the same walk with an explicit starting value.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Category/Foldable.cinch`. Source SHA-256: `f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Category/Foldable.cinch`. Source SHA-256: `6ca66ed68587a97bcf1e3e69c64f47942be1743f898fad08d9020f6bc9f39e33`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

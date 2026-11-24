@@ -124,6 +124,10 @@ the named unproductions of the module header.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadEscape</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
 
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedUnicodeEscape</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NonScalarEscape</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
+
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedNumber</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedChar</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
@@ -363,4 +367,4 @@ decoded UTF-8 content, `TChar` the decoded scalar.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Lex.cinch`. Source SHA-256: `bce5acadcde6ac5967b29c6eed2933e31df83451561d3ee9165e5d3beb2a2032`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Lex.cinch`. Source SHA-256: `508d75917d6276c6436a6954e66353680a66b0af9653b6fd8cc6b0e1662147f3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

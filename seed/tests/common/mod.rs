@@ -461,3 +461,23 @@ pub fn read_output(dir: &Path, name: &str) -> String {
 pub fn cleanup(dir: &Path) {
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Assert that a library module and every declaration it contains carry
+/// canonical (non-legacy) documentation, with no parser diagnostics or orphaned
+/// comments, and that the documentation stands on its own without naming
+/// another language's standard library.
+#[allow(dead_code)]
+pub fn assert_documented(name: &str, source: &str) {
+    let parsed = cinch::cinchdoc::parse_source(source, Some(name), name, None, false).unwrap();
+    assert!(parsed.doc.is_some(), "{name}: missing module documentation");
+    assert!(parsed.diagnostics.is_empty(), "{name}: {:?}", parsed.diagnostics);
+    assert!(parsed.orphans.is_empty(), "{name}: orphaned documentation");
+    let mut declarations = Vec::new();
+    cinch::cinchdoc::flatten(&parsed.declarations, &mut declarations);
+    for declaration in declarations {
+        let doc = declaration.doc.as_ref().unwrap_or_else(|| panic!("{name}: {} has no documentation", declaration.id));
+        assert!(!doc.legacy, "{name}: {} uses legacy documentation", declaration.id);
+        let text = doc.markdown.to_lowercase();
+        assert!(!text.contains("golang") && !text.contains("go's") && !text.contains(" go "), "{name}: {} names another standard library", declaration.id);
+    }
+}

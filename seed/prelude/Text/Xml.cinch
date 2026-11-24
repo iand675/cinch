@@ -1,0 +1,2183 @@
+-- | XML 1.0 tokenizing, namespace-aware decoding, encoding and element trees.
+-- The decoder is an explicit state machine over the input bytes: each step
+-- yields one token (start and end elements, character data, comments,
+-- processing instructions and directives) and the advanced decoder. Element
+-- and attribute prefixes are translated to their namespace URLs, end tags must
+-- match their start tags, self-closing elements yield a start and an end, and
+-- CDATA sections become character data. Character and the five predefined
+-- entity references are expanded, line endings are normalized to line feeds,
+-- and text is checked for valid UTF-8 and the XML character range; names
+-- follow XML 1.0's name-character classes. Errors carry the line where they
+-- were detected. Plain runs of text are scanned sixteen bytes at a time.
+-- The encoder writes tokens with escaping, optional indentation and generated
+-- namespace prefixes for qualified attributes, and checks that tags balance.
+-- An element tree (a sibling spine of nodes) can be built from a document.
+module Text.Xml where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Show (nat-to-string)
+
+  export XmlName, xml-name, xml-name-space, xml-name-local, XmlAttr, xml-attr, xml-attr-name, xml-attr-value
+  export XmlToken, XmlStartElement, XmlEndElement, XmlCharData, XmlComment, XmlProcInst, XmlDirective
+  export XmlError, XmlSyntaxError, XmlUnsupportedVersion, XmlUnsupportedEncoding, XmlDepthLimit, XmlEncodeError, xml-error-message
+  export XmlDecoder, xml-decoder, xml-decoder-with-depth-limit, xml-next, xml-next-raw, xml-decoder-offset, xml-tokens
+  export XmlEncoder, xml-encoder, xml-encoder-indent, xml-encode-token, xml-encoder-close, xml-encode, xml-escape-text, xml-escape-attribute
+  export XmlNode, XmlElementNode, XmlTextNode, XmlCommentNode, XmlProcInstNode, XmlDirectiveNode, XmlNodesEnd
+  export xml-document, xml-nodes, xml-child-elements, xml-attribute, xml-text, xml-render
+
+  -- ---------------------------------------------------------------------
+  -- Names, attributes, tokens and errors.
+  -- ---------------------------------------------------------------------
+
+  -- | A qualified name: its namespace (a URL after decoding, a prefix in raw tokens, or empty) and local part.
+  data XmlName where
+    -- | Namespace, then local part.
+    XmlName :: String -> String -> XmlName
+
+  -- | Make a name from a namespace and a local part.
+  xml-name :: String -> String -> XmlName
+  xml-name space local = XmlName space local
+
+  -- | The namespace part.
+  xml-name-space :: XmlName -> String
+  xml-name-space n = case n of XmlName s l -> s
+
+  -- | The local part.
+  xml-name-local :: XmlName -> String
+  xml-name-local n = case n of XmlName s l -> l
+
+  -- | An attribute: its name and its value with references expanded.
+  data XmlAttr where
+    -- | Name, then value.
+    XmlAttr :: XmlName -> String -> XmlAttr
+
+  -- | Make an attribute.
+  xml-attr :: XmlName -> String -> XmlAttr
+  xml-attr name value = XmlAttr name value
+
+  -- | An attribute's name.
+  xml-attr-name :: XmlAttr -> XmlName
+  xml-attr-name a = case a of XmlAttr n v -> n
+
+  -- | An attribute's value.
+  xml-attr-value :: XmlAttr -> String
+  xml-attr-value a = case a of XmlAttr n v -> v
+
+  -- | One unit of an XML document.
+  data XmlToken where
+    -- | A start tag: name and attributes in document order.
+    XmlStartElement :: XmlName -> List XmlAttr -> XmlToken
+    -- | An end tag (also produced after a self-closing start tag).
+    XmlEndElement :: XmlName -> XmlToken
+    -- | Character data with references expanded (CDATA sections included verbatim).
+    XmlCharData :: Bytes -> XmlToken
+    -- | A comment's text between "<!--" and "-->".
+    XmlComment :: Bytes -> XmlToken
+    -- | A processing instruction: its target and its instruction text.
+    XmlProcInst :: String -> Bytes -> XmlToken
+    -- | A directive such as a document type declaration, between "<!" and ">", with inner comments replaced by spaces.
+    XmlDirective :: Bytes -> XmlToken
+
+  -- | Why decoding or encoding failed.
+  data XmlError where
+    -- | Malformed input: the problem and the line where it was detected.
+    XmlSyntaxError :: String -> Nat -> XmlError
+    -- | The XML declaration names a version other than 1.0.
+    XmlUnsupportedVersion :: String -> XmlError
+    -- | The XML declaration names an encoding other than UTF-8.
+    XmlUnsupportedEncoding :: String -> XmlError
+    -- | Elements nest deeper than the decoder's limit; the limit.
+    XmlDepthLimit :: Nat -> XmlError
+    -- | A token sequence that cannot be encoded, with the reason.
+    XmlEncodeError :: String -> XmlError
+
+  -- | Render an error.
+  xml-error-message :: XmlError -> String
+  xml-error-message error = case error of
+    XmlSyntaxError message line -> string-concat-all ["XML syntax error on line ", nat-to-string line, ": ", message]
+    XmlUnsupportedVersion v -> string-concat-all ["xml: unsupported version \"", v, "\"; only version 1.0 is supported"]
+    XmlUnsupportedEncoding e -> string-concat-all ["xml: encoding \"", e, "\" declared but no charset conversion is available"]
+    XmlDepthLimit n -> string-concat "xml: elements nest deeper than " (nat-to-string n)
+    XmlEncodeError message -> message
+
+  -- ---------------------------------------------------------------------
+  -- Decoder state.
+  -- ---------------------------------------------------------------------
+
+  -- | An open element: its raw (untranslated) name and the bindings its namespace declarations replaced.
+  data Frame where
+    -- | Name, then the replaced bindings.
+    Frame :: XmlName -> List Saved -> Frame
+
+  -- | A prefix binding replaced by a declaration: the prefix and its previous URL, if any.
+  data Saved where
+    -- | Prefix, then the previous URL.
+    Saved :: String -> Option String -> Saved
+
+  -- | Decoder state: input, offset, open elements (innermost first), prefix bindings, the end tag owed by a
+  -- self-closing element, and the depth limit (zero for none).
+  data XmlDecoder where
+    -- | Fields in the order listed above.
+    XmlDecoder :: Bytes -> Nat -> List Frame -> List (String, String) -> Option XmlName -> Nat -> XmlDecoder
+
+  -- | A decoder at the start of a document, without a depth limit.
+  xml-decoder :: Bytes -> XmlDecoder
+  xml-decoder input = XmlDecoder input 0 Nil Nil None 0
+
+  -- | A decoder that rejects elements nested deeper than the limit.
+  xml-decoder-with-depth-limit :: Bytes -> Nat -> XmlDecoder
+  xml-decoder-with-depth-limit input limit = XmlDecoder input 0 Nil Nil None limit
+
+  -- | The byte offset of the next unread input.
+  xml-decoder-offset :: XmlDecoder -> Nat
+  xml-decoder-offset d = case d of XmlDecoder s i frames ns owed limit -> i
+
+  -- | Decode every token of a document.
+  xml-tokens :: Bytes -> Result XmlError (List XmlToken)
+  xml-tokens input = all-tokens (xml-decoder input) Nil
+
+  -- | Tokens until the end, gathered in reverse.
+  all-tokens :: XmlDecoder -> List XmlToken -> Result XmlError (List XmlToken)
+  all-tokens d acc = case xml-next d of
+    Err error -> Err error
+    Ok step -> case step of
+      None -> Ok (reverse acc)
+      Some (t, next) -> all-tokens next (Cons t acc)
+
+  -- | The next raw token: names keep their prefixes and end tags are not matched against start tags.
+  xml-next-raw :: XmlDecoder -> Result XmlError (Option (XmlToken, XmlDecoder))
+  xml-next-raw d = case d of
+    XmlDecoder s i frames ns owed limit -> case owed of
+      Some name -> Ok (Some (XmlEndElement name, XmlDecoder s i frames ns None limit))
+      None -> case raw-token s i of
+        Err error -> Err error
+        Ok found -> case found of
+          None -> Ok None
+          Some (t, next, closing) -> Ok (Some (t, XmlDecoder s next frames ns (closing-name t closing) limit))
+
+  -- | The end tag owed after a self-closing start tag.
+  closing-name :: XmlToken -> Bool -> Option XmlName
+  closing-name t closing = if closing then (case t of XmlStartElement name attrs -> Some name; other -> None) else None
+
+  -- | The next token with namespaces translated and end tags matched; None at the end of the document.
+  xml-next :: XmlDecoder -> Result XmlError (Option (XmlToken, XmlDecoder))
+  xml-next d = case d of
+    XmlDecoder s i frames ns owed limit -> case xml-next-raw d of
+      Err error -> Err error
+      Ok step -> case step of
+        None -> (case frames of Nil -> Ok None; Cons f rest -> syntax s (bytes-len s) "unexpected EOF")
+        Some (t, next) -> case next of
+          XmlDecoder s2 i2 frames2 ns2 owed2 limit2 -> case t of
+            XmlStartElement name attrs -> start s2 i2 frames ns owed2 limit name attrs
+            XmlEndElement name -> finish-end s2 i2 frames ns owed2 limit name
+            other -> Ok (Some (t, next))
+
+  -- | Enter an element: bind its declared prefixes, push it, and translate its names.
+  start :: Bytes -> Nat -> List Frame -> List (String, String) -> Option XmlName -> Nat -> XmlName -> List XmlAttr -> Result XmlError (Option (XmlToken, XmlDecoder))
+  start s i frames ns owed limit name attrs =
+    if limit > 0 && list-length frames >= limit then Err (XmlDepthLimit limit)
+    else case declare attrs ns Nil of
+      (bound, saved) ->
+        let token = XmlStartElement (translate bound name True) (map-attrs bound attrs) in
+        Ok (Some (token, XmlDecoder s i (Cons (Frame name saved) frames) bound owed limit))
+
+  -- | Apply namespace declarations in attribute order, recording the bindings they replace (most recent first).
+  declare :: List XmlAttr -> List (String, String) -> List Saved -> (List (String, String), List Saved)
+  declare attrs ns saved = case attrs of
+    Nil -> (ns, saved)
+    Cons a rest -> case a of
+      XmlAttr name value -> case name of
+        XmlName space local ->
+          if space == "xmlns" then declare rest (bind ns local value) (Cons (Saved local (lookup ns local)) saved)
+          else if space == "" && local == "xmlns" then declare rest (bind ns "" value) (Cons (Saved "" (lookup ns "")) saved)
+          else declare rest ns saved
+
+  -- | Translate each attribute name.
+  map-attrs :: List (String, String) -> List XmlAttr -> List XmlAttr
+  map-attrs ns attrs = case attrs of Nil -> Nil; Cons a rest -> case a of XmlAttr n v -> Cons (XmlAttr (translate ns n False) v) (map-attrs ns rest)
+
+  -- | Translate a prefix to its URL. Declarations and unprefixed attributes stay as they are; "xml" names its
+  -- fixed namespace; an unbound prefix is kept.
+  translate :: List (String, String) -> XmlName -> Bool -> XmlName
+  translate ns name element = case name of
+    XmlName space local ->
+      if space == "xmlns" then name
+      else if space == "" && not element then name
+      else if space == "xml" then XmlName "http://www.w3.org/XML/1998/namespace" local
+      else if space == "" && local == "xmlns" then name
+      else case lookup ns space of Some url -> XmlName url local; None -> name
+
+  -- | The URL bound to a prefix.
+  lookup :: List (String, String) -> String -> Option String
+  lookup ns margin = case ns of Nil -> None; Cons b rest -> case b of (p, url) -> if p == margin then Some url else lookup rest margin
+
+  -- | Bind a prefix, replacing any binding.
+  bind :: List (String, String) -> String -> String -> List (String, String)
+  bind ns margin url = Cons (margin, url) (unbind ns margin)
+
+  -- | Remove a prefix's binding.
+  unbind :: List (String, String) -> String -> List (String, String)
+  unbind ns margin = case ns of Nil -> Nil; Cons b rest -> case b of (p, url) -> if p == margin then unbind rest margin else Cons b (unbind rest margin)
+
+  -- | Leave an element: the end tag must match the innermost start tag; its declarations are undone.
+  finish-end :: Bytes -> Nat -> List Frame -> List (String, String) -> Option XmlName -> Nat -> XmlName -> Result XmlError (Option (XmlToken, XmlDecoder))
+  finish-end s i frames ns owed limit name = case frames of
+    Nil -> syntax s i (string-concat-all ["unexpected end element </", xml-name-local name, ">"])
+    Cons f rest -> case f of
+      Frame open saved ->
+        if not (xml-name-local open == xml-name-local name) then syntax s i (string-concat-all ["element <", xml-name-local open, "> closed by </", xml-name-local name, ">"])
+        else if not (xml-name-space open == xml-name-space name) then
+          syntax s i (string-concat-all ["element <", xml-name-local open, "> in space ", xml-name-space open, " closed by </", xml-name-local name, "> in space ", quoted-space (xml-name-space name)])
+        else Ok (Some (XmlEndElement (translate ns name True), XmlDecoder s i rest (restore ns saved) owed limit))
+
+  -- | A namespace for an error message, with the empty one shown as two quotes.
+  quoted-space :: String -> String
+  quoted-space space = if space == "" then "\"\"" else space
+
+  -- | Undo declarations, most recent first.
+  restore :: List (String, String) -> List Saved -> List (String, String)
+  restore ns saved = case saved of
+    Nil -> ns
+    Cons v rest -> case v of
+      Saved margin previous -> case previous of
+        Some url -> restore (bind ns margin url) rest
+        None -> restore (unbind ns margin) rest
+
+  -- | A syntax error at the line holding the given offset.
+  syntax :: forall a. Bytes -> Nat -> String -> Result XmlError a
+  syntax s i message = Err (XmlSyntaxError message (line-of s i 0 1))
+
+  -- | One plus the number of line feeds before an offset.
+  line-of :: Bytes -> Nat -> Nat -> Nat -> Nat
+  line-of s i j line = if j >= i || j >= bytes-len s then line else line-of s i (j + 1) (if bytes-get s j == 10 then line + 1 else line)
+
+  -- ---------------------------------------------------------------------
+  -- Raw tokens.
+  -- ---------------------------------------------------------------------
+
+  -- | The raw token at an offset: the token, the offset after it, and whether it was a self-closing start tag.
+  raw-token :: Bytes -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  raw-token s i =
+    if i >= bytes-len s then Ok None
+    else if not (at s i == 60) then (case text s i 256 False Nil None of
+      Err error -> Err error
+      Ok (data-bytes, next) -> Ok (Some (XmlCharData data-bytes, next, False)))
+    else if i + 1 >= bytes-len s then syntax s (bytes-len s) "unexpected EOF"
+    else
+      let b = at s (i + 1) in
+      if b == 47 then end-tag s (i + 2)
+      else if b == 63 then proc-inst s (i + 2)
+      else if b == 33 then bang s (i + 2)
+      else start-tag s (i + 1)
+
+  -- | An end tag after "</": a name, optional white space and ">".
+  end-tag :: Bytes -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  end-tag s i = case ns-name s i of
+    Err error -> Err error
+    Ok found -> case found of
+      None -> syntax s (name-stop s i) "expected element name after </"
+      Some (name, next) ->
+        let j = space s next in
+        if j >= bytes-len s then syntax s j "unexpected EOF"
+        else if at s j == 62 then Ok (Some (XmlEndElement name, j + 1, False))
+        else syntax s (j + 1) (string-concat-all ["invalid characters between </", xml-name-local name, " and >"])
+
+  -- | Where a failed name read stopped: after a run of name bytes, or at the offset.
+  name-stop :: Bytes -> Nat -> Nat
+  name-stop s i = if i < bytes-len s && (at s i >= 128 || name-byte (at s i)) then name-run s (i + 1) else i
+
+  -- | A processing instruction after "<?": a target name, white space, then text through "?>".
+  proc-inst :: Bytes -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  proc-inst s i = case name s i of
+    Err error -> Err error
+    Ok found -> case found of
+      None -> syntax s i "expected target name after <?"
+      Some (goal, next) ->
+        let j = space s next in
+        case find-pair s j 63 62 of
+          None -> syntax s (bytes-len s) "unexpected EOF"
+          Some end ->
+            let inst = slice s j end in
+            if goal == "xml" then declaration inst goal (end + 2)
+            else Ok (Some (XmlProcInst goal inst, end + 2, False))
+
+  -- | Check the XML declaration's version and encoding.
+  declaration :: Bytes -> String -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  declaration inst goal next =
+    let version = pseudo-attribute inst (string-to-bytes "version=") in
+    let encoding = pseudo-attribute inst (string-to-bytes "encoding=") in
+    if bytes-len version > 0 && not (text-of version == "1.0") then Err (XmlUnsupportedVersion (text-of version))
+    else if bytes-len encoding > 0 && not (is-utf8-label encoding) then Err (XmlUnsupportedEncoding (text-of encoding))
+    else Ok (Some (XmlProcInst goal inst, next, False))
+
+  -- | Whether a label is "utf-8" in any letter case.
+  is-utf8-label :: Bytes -> Bool
+  is-utf8-label label = bytes-len label == 5 && lower (at label 0) == 117 && lower (at label 1) == 116 && lower (at label 2) == 102 && at label 3 == 45 && at label 4 == 56
+
+  -- | ASCII lower case.
+  lower :: Nat -> Nat
+  lower b = if b >= 65 && b <= 90 then b + 32 else b
+
+  -- | A pseudo-attribute's quoted value: the first occurrence of param followed by a quote, up to the matching quote.
+  pseudo-attribute :: Bytes -> Bytes -> Bytes
+  pseudo-attribute content param = pseudo-from content param 0
+
+  -- | Search for the parameter from an offset.
+  pseudo-from :: Bytes -> Bytes -> Nat -> Bytes
+  pseudo-from content param i =
+    if i >= bytes-len content then bytes-new 0
+    else case find-bytes content param i of
+      None -> bytes-new 0
+      Some k ->
+        if k + bytes-len param >= bytes-len content then bytes-new 0
+        else
+          let q = at content (k + bytes-len param) in
+          let after = k + bytes-len param + 1 in
+          if q == 39 || q == 34 then (case find-byte content q after of Some e -> slice content after e; None -> bytes-new 0)
+          else pseudo-from content param after
+
+  -- | After "<!": a comment, a CDATA section or a directive.
+  bang :: Bytes -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  bang s i =
+    if i >= bytes-len s then syntax s i "unexpected EOF"
+    else
+      let b = at s i in
+      if b == 45 then comment s (i + 1)
+      else if b == 91 then cdata s (i + 1) 0
+      else directive s (i + 1) (Cons b Nil) 0 0
+
+  -- | A comment after "<!-": the second dash, then text through "-->", which may not contain "--".
+  comment :: Bytes -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  comment s i =
+    if i >= bytes-len s then syntax s i "unexpected EOF"
+    else if not (at s i == 45) then syntax s (i + 1) "invalid sequence <!- not part of <!--"
+    else comment-body s (i + 1) (i + 1)
+
+  -- | Scan a comment body from start: the first "--" must be followed by ">".
+  comment-body :: Bytes -> Nat -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  comment-body s start i = case find-pair s i 45 45 of
+    None -> syntax s (bytes-len s) "unexpected EOF"
+    Some k ->
+      if k + 2 >= bytes-len s then syntax s (bytes-len s) "unexpected EOF"
+      else if at s (k + 2) == 62 then Ok (Some (XmlComment (slice s start k), k + 3, False))
+      else syntax s (k + 3) "invalid sequence \"--\" not allowed in comments"
+
+  -- | "CDATA[" after "<![", then raw text through "]]>".
+  cdata :: Bytes -> Nat -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  cdata s i k =
+    if k >= 6 then (case text s i 256 True Nil None of
+      Err error -> Err error
+      Ok (data-bytes, next) -> Ok (Some (XmlCharData data-bytes, next, False)))
+    else if i >= bytes-len s then syntax s i "unexpected EOF"
+    else if at s i == at (string-to-bytes "CDATA[") k then cdata s (i + 1) (k + 1)
+    else syntax s (i + 1) "invalid <![ sequence"
+
+  -- | Directive bytes (reversed) through the ">" at depth zero outside quotes; inner comments become a space.
+  directive :: Bytes -> Nat -> List Nat -> Nat -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  directive s i kept quote depth =
+    if i >= bytes-len s then syntax s i "unexpected EOF"
+    else
+      let b = at s i in
+      if quote == 0 && b == 62 && depth == 0 then Ok (Some (XmlDirective (from-list (reverse kept)), i + 1, False))
+      else directive-byte s (i + 1) b kept quote depth
+
+  -- | Account for one directive byte (already read) and continue.
+  directive-byte :: Bytes -> Nat -> Nat -> List Nat -> Nat -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  directive-byte s next b kept quote depth =
+    let more = Cons b kept in
+    if quote > 0 && b == quote then directive s next more 0 depth
+    else if quote > 0 then directive s next more quote depth
+    else if b == 39 || b == 34 then directive s next more b depth
+    else if b == 62 then directive s next more quote (minus depth 1)
+    else if b == 60 then inner s next more quote depth 0
+    else directive s next more quote depth
+
+  -- | After "<" inside a directive: match "!--" (a comment, replaced by a space) or count a nested bracket.
+  inner :: Bytes -> Nat -> List Nat -> Nat -> Nat -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  inner s i kept quote depth k =
+    if k >= 3 then (case skip-comment s i 0 0 of
+      None -> syntax s (bytes-len s) "unexpected EOF"
+      Some next -> case kept of Nil -> directive s next (Cons 32 Nil) quote depth; Cons lt rest -> directive s next (Cons 32 rest) quote depth)
+    else if i >= bytes-len s then syntax s i "unexpected EOF"
+    else
+      let c = at s i in
+      if c == at (string-to-bytes "!--") k then inner s (i + 1) kept quote depth (k + 1)
+      else directive-byte s (i + 1) c (prefix-of k kept) quote (depth + 1)
+
+  -- | Push the first k bytes of "!--" back onto the kept bytes.
+  prefix-of :: Nat -> List Nat -> List Nat
+  prefix-of k kept = if k == 0 then kept else if k == 1 then Cons 33 kept else Cons 45 (Cons 33 kept)
+
+  -- | Skip a comment's body through "-->"; the offset after it.
+  skip-comment :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  skip-comment s i b0 b1 =
+    if i >= bytes-len s then None
+    else
+      let b = at s i in
+      if b0 == 45 && b1 == 45 && b == 62 then Some (i + 1) else skip-comment s (i + 1) b1 b
+
+  -- | A start tag after "<": a name, then attributes until ">" or "/>".
+  start-tag :: Bytes -> Nat -> Result XmlError (Option (XmlToken, Nat, Bool))
+  start-tag s i = case ns-name s i of
+    Err error -> Err error
+    Ok found -> case found of
+      None -> syntax s (name-stop s i) "expected element name after <"
+      Some (name, next) -> attributes s next name Nil
+
+  -- | Attributes (reversed so far) until the tag closes.
+  attributes :: Bytes -> Nat -> XmlName -> List XmlAttr -> Result XmlError (Option (XmlToken, Nat, Bool))
+  attributes s i name attrs =
+    let j = space s i in
+    if j >= bytes-len s then syntax s j "unexpected EOF"
+    else
+      let b = at s j in
+      if b == 47 then
+        (if j + 1 >= bytes-len s then syntax s (j + 1) "unexpected EOF"
+        else if at s (j + 1) == 62 then Ok (Some (XmlStartElement name (reverse attrs), j + 2, True))
+        else syntax s (j + 2) "expected /> in element")
+      else if b == 62 then Ok (Some (XmlStartElement name (reverse attrs), j + 1, False))
+      else case ns-name s j of
+        Err error -> Err error
+        Ok found -> case found of
+          None -> syntax s (name-stop s j) "expected attribute name in element"
+          Some (attr, next) ->
+            let k = space s next in
+            if k >= bytes-len s then syntax s k "unexpected EOF"
+            else if not (at s k == 61) then syntax s (k + 1) "attribute name without = in element"
+            else
+              let v = space s (k + 1) in
+              if v >= bytes-len s then syntax s v "unexpected EOF"
+              else
+                let q = at s v in
+                if not (q == 34 || q == 39) then syntax s (v + 1) "unquoted or missing attribute value in element"
+                else case text s (v + 1) q False Nil None of
+                  Err error -> Err error
+                  Ok (value, after) -> attributes s after name (Cons (XmlAttr attr (text-of value)) attrs)
+
+  -- | Skip spaces, tabs, carriage returns and line feeds.
+  space :: Bytes -> Nat -> Nat
+  space s i = if i < bytes-len s && (at s i == 32 || at s i == 9 || at s i == 13 || at s i == 10) then space s (i + 1) else i
+
+  -- ---------------------------------------------------------------------
+  -- Names.
+  -- ---------------------------------------------------------------------
+
+  -- | A name split at its colon into prefix and local part; None when it is not a name or has several colons.
+  ns-name :: Bytes -> Nat -> Result XmlError (Option (XmlName, Nat))
+  ns-name s i = case name s i of
+    Err error -> Err error
+    Ok found -> case found of
+      None -> Ok None
+      Some (whole, next) ->
+        let b = string-to-bytes whole in
+        let colons = count-byte b 58 0 0 in
+        if colons > 1 then Ok None
+        else if colons == 0 then Ok (Some (XmlName "" whole, next))
+        else
+          let c = find-byte-from b 58 0 in
+          if c == 0 || c + 1 >= bytes-len b then Ok (Some (XmlName "" whole, next))
+          else Ok (Some (XmlName (text-of (slice b 0 c)) (text-of (slice b (c + 1) (bytes-len b))), next))
+
+  -- | A name: a run of name bytes (any non-ASCII byte included) that must spell an XML name.
+  name :: Bytes -> Nat -> Result XmlError (Option (String, Nat))
+  name s i =
+    if i >= bytes-len s then syntax s i "unexpected EOF"
+    else if at s i < 128 && not (name-byte (at s i)) then Ok None
+    else
+      let j = name-run s (i + 1) in
+      if j >= bytes-len s then syntax s j "unexpected EOF"
+      else
+        let raw = slice s i j in
+        if is-name raw then Ok (Some (text-of raw, j)) else syntax s j (string-concat "invalid XML name: " (lossy raw))
+
+  -- | The end of a run of name bytes.
+  name-run :: Bytes -> Nat -> Nat
+  name-run s i = if i < bytes-len s && (at s i >= 128 || name-byte (at s i)) then name-run s (i + 1) else i
+
+  -- | ASCII bytes that may appear in names.
+  name-byte :: Nat -> Bool
+  name-byte c = (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c == 95 || c == 58 || c == 46 || c == 45
+
+  -- | Whether bytes spell an XML name: valid UTF-8, a name-start character, then name characters.
+  is-name :: Bytes -> Bool
+  is-name b = if bytes-len b == 0 then False else name-chars b 0 True
+
+  -- | Check each code point from an offset.
+  name-chars :: Bytes -> Nat -> Bool -> Bool
+  name-chars b i leading =
+    if i >= bytes-len b then True
+    else
+      let n = rune-size b i in
+      if n == 0 then False
+      else
+        let c = rune-value b i n in
+        if leading then (if name-first c then name-chars b (i + n) False else False)
+        else if name-first c || name-second c then name-chars b (i + n) False else False
+
+  -- ---------------------------------------------------------------------
+  -- Text.
+  -- ---------------------------------------------------------------------
+
+  -- | The first problem found in decoded text, reported when the text ends: invalid UTF-8 or an illegal code point.
+  data Bad where
+    -- | A byte sequence that is not UTF-8.
+    BadUtf8 :: Bad
+    -- | A code point outside the XML character range.
+    BadCode :: Nat -> Bad
+
+  -- | Character data or an attribute value from i. quote is the closing quote (256 for character data);
+  -- cdata reads a CDATA section through "]]>". pieces gather in reverse.
+  text :: Bytes -> Nat -> Nat -> Bool -> List Bytes -> Option Bad -> Result XmlError (Bytes, Nat)
+  text s i quote cdata pieces bad =
+    if i + 16 <= bytes-len s then
+      (let k = i64-to-nat (hold s (text-span (bytes-data s) (nat-to-i64 i) (if quote < 256 then nat-to-i64 quote else 0))) in
+      if k > 0 then text s (i + k) quote cdata (Cons (slice s i (i + k)) pieces) bad
+      else text-byte s i quote cdata pieces bad)
+    else text-byte s i quote cdata pieces bad
+
+  -- | One byte (or sequence) of text that the span scanner stopped at.
+  text-byte :: Bytes -> Nat -> Nat -> Bool -> List Bytes -> Option Bad -> Result XmlError (Bytes, Nat)
+  text-byte s i quote cdata pieces bad =
+    if i >= bytes-len s then (if cdata then syntax s i "unexpected EOF in CDATA section" else done s i pieces bad)
+    else
+      let b = at s i in
+      if b == 93 && quote == 256 then brackets s i (bracket-run s i) cdata pieces bad
+      else if b == 60 && not cdata then (if quote < 256 then syntax s (i + 1) "unescaped < inside quoted string" else done s i pieces bad)
+      else if quote < 256 && b == quote then done s (i + 1) pieces bad
+      else if b == 38 && not cdata then (case entity s i of
+        Err error -> Err error
+        Ok (value, code, next) -> text s next quote cdata (Cons value pieces) (note bad (if in-range code then None else Some (BadCode code))))
+      else if b == 13 then text s (if at s (i + 1) == 10 && i + 1 < bytes-len s then i + 2 else i + 1) quote cdata (Cons (bytes-from-u8s [10]) pieces) bad
+      else if b < 128 then text s (i + 1) quote cdata (Cons (slice s i (i + 1)) pieces) (note bad (if b < 32 && not (b == 9 || b == 10) then Some (BadCode b) else None))
+      else
+        let n = rune-size s i in
+        if n == 0 then text s (i + 1) quote cdata (Cons (slice s i (i + 1)) pieces) (note bad (Some BadUtf8))
+        else
+          let c = rune-value s i n in
+          text s (i + n) quote cdata (Cons (slice s i (i + n)) pieces) (note bad (if in-range c then None else Some (BadCode c)))
+
+  -- | Keep the first problem.
+  note :: Option Bad -> Option Bad -> Option Bad
+  note old new = case old of Some b -> old; None -> new
+
+  -- | A run of r closing brackets at i: "]]>" ends a CDATA section (dropping two brackets) and is an error elsewhere.
+  brackets :: Bytes -> Nat -> Nat -> Bool -> List Bytes -> Option Bad -> Result XmlError (Bytes, Nat)
+  brackets s i r cdata pieces bad =
+    let j = i + r in
+    if r >= 2 && j < bytes-len s && at s j == 62 then
+      (if cdata then done s (j + 1) (Cons (slice s i (j - 2)) pieces) bad else syntax s (j + 1) "unescaped ]]> not in CDATA section")
+    else text s j 256 cdata (Cons (slice s i j) pieces) bad
+
+  -- | The number of consecutive "]" bytes at i.
+  bracket-run :: Bytes -> Nat -> Nat
+  bracket-run s i = if i < bytes-len s && at s i == 93 then 1 + bracket-run s (i + 1) else 0
+
+  -- | Finish text: report the first problem at the end of the text, or return the bytes and the offset.
+  done :: Bytes -> Nat -> List Bytes -> Option Bad -> Result XmlError (Bytes, Nat)
+  done s i pieces bad = case bad of
+    None -> Ok (bytes-concat (reverse pieces), i)
+    Some problem -> case problem of
+      BadUtf8 -> syntax s i "invalid UTF-8"
+      BadCode c -> syntax s i (string-concat "illegal character code U+" (hex4 c))
+
+  -- | A code point in at least four upper-case hexadecimal digits.
+  hex4 :: Nat -> String
+  hex4 c = text-of (pad-hex (hex-digits c Nil) 4)
+
+  -- | Hexadecimal digits of a value, most significant first.
+  hex-digits :: Nat -> List Nat -> List Nat
+  hex-digits c acc = let d = nat-rem c 16 in let digit = if d < 10 then 48 + d else 55 + d in if c < 16 then Cons digit acc else hex-digits (nat-div c 16) (Cons digit acc)
+
+  -- | Left-pad digits with zeros to a width.
+  pad-hex :: List Nat -> Nat -> Bytes
+  pad-hex digits width = if list-length digits >= width then from-list digits else pad-hex (Cons 48 digits) width
+
+  -- | Whether a code point is an XML character.
+  in-range :: Nat -> Bool
+  in-range c = c == 9 || c == 10 || c == 13 || (c >= 32 && c <= 55295) || (c >= 57344 && c <= 65533) || (c >= 65536 && c <= 1114111)
+
+  -- | A reference at i ("&"): the expansion's UTF-8 bytes, its code point (for validation) and the offset after it.
+  entity :: Bytes -> Nat -> Result XmlError (Bytes, Nat, Nat)
+  entity s i =
+    let j = i + 1 in
+    if j >= bytes-len s then syntax s j "unexpected EOF"
+    else if at s j == 35 then numeric s i (j + 1)
+    else named s i j
+
+  -- | A character reference after "&#": decimal digits, or "x" and hexadecimal digits, then ";".
+  numeric :: Bytes -> Nat -> Nat -> Result XmlError (Bytes, Nat, Nat)
+  numeric s i k =
+    if k >= bytes-len s then syntax s k "unexpected EOF"
+    else
+      let hexadecimal = at s k == 120 in
+      let start = if hexadecimal then k + 1 else k in
+      if start >= bytes-len s then syntax s start "unexpected EOF"
+      else
+        let m = digits-end s start hexadecimal in
+        if m >= bytes-len s then syntax s m "unexpected EOF"
+        else if not (at s m == 59) then syntax s m (string-concat-all ["invalid character entity ", lossy (slice s i m), " (no semicolon)"])
+        else
+          let value = digits-value s start m hexadecimal 0 in
+          if m > start && value <= 1114111 then
+            (let c = if value >= 55296 && value <= 57343 then (65533 :: Nat) else value in Ok (encode-rune c, c, m + 1))
+          else syntax s (m + 1) (string-concat "invalid character entity " (lossy (slice s i (m + 1))))
+
+  -- | The end of a run of digits in the base.
+  digits-end :: Bytes -> Nat -> Bool -> Nat
+  digits-end s i hexadecimal = if i < bytes-len s && is-digit (at s i) hexadecimal then digits-end s (i + 1) hexadecimal else i
+
+  -- | Whether a byte is a digit in the base.
+  is-digit :: Nat -> Bool -> Bool
+  is-digit b hexadecimal = (b >= 48 && b <= 57) || (hexadecimal && ((b >= 97 && b <= 102) || (b >= 65 && b <= 70)))
+
+  -- | The value of digits, saturating above the code-point range.
+  digits-value :: Bytes -> Nat -> Nat -> Bool -> Nat -> Nat
+  digits-value s i end hexadecimal acc =
+    if i >= end then acc
+    else if acc > 1114111 then acc
+    else
+      let b = at s i in
+      let d = if b <= 57 then minus b 48 else if b >= 97 then minus b 87 else minus b 55 in
+      digits-value s (i + 1) end hexadecimal (acc * (if hexadecimal then 16 else 10) + d)
+
+  -- | A named reference after "&": one of lt, gt, amp, apos and quot, then ";".
+  named :: Bytes -> Nat -> Nat -> Result XmlError (Bytes, Nat, Nat)
+  named s i j =
+    if at s j < 128 && not (name-byte (at s j)) then
+      (if at s j == 59 then syntax s (j + 1) "invalid character entity &;" else syntax s j "invalid character entity & (no semicolon)")
+    else
+      let e = name-run s (j + 1) in
+      if e >= bytes-len s then syntax s e "unexpected EOF"
+      else if not (at s e == 59) then syntax s e (string-concat-all ["invalid character entity ", lossy (slice s i e), " (no semicolon)"])
+      else
+        let n = text-of (slice s j e) in
+        let code = predefined n in
+        if code > 0 then Ok (encode-rune code, code, e + 1)
+        else syntax s (e + 1) (string-concat "invalid character entity " (lossy (slice s i (e + 1))))
+
+  -- | The code point of a predefined entity, or zero.
+  predefined :: String -> Nat
+  predefined n = if n == "lt" then 60 else if n == "gt" then 62 else if n == "amp" then 38 else if n == "apos" then 39 else if n == "quot" then 34 else 0
+
+  -- ---------------------------------------------------------------------
+  -- Encoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Encoder state: output pieces (reversed), open tags (innermost first), prefix scopes (an empty entry marks
+  -- an element), attribute prefixes by URL, the last generated prefix number, the indentation prefix and unit,
+  -- depth, whether the last write opened a level, whether a newline is due, and whether anything was written.
+  data XmlEncoder where
+    -- | Fields in the order listed above.
+    XmlEncoder :: List Bytes -> List XmlName -> List String -> List (String, String) -> Nat -> Bytes -> Bytes -> Nat -> Bool -> Bool -> Bool -> XmlEncoder
+
+  -- | An encoder that writes tokens without added white space.
+  xml-encoder :: XmlEncoder
+  xml-encoder = XmlEncoder Nil Nil Nil Nil 0 (bytes-new 0) (bytes-new 0) 0 False False False
+
+  -- | An encoder that starts each element on a new line with the prefix and one indent per level.
+  xml-encoder-indent :: String -> String -> XmlEncoder
+  xml-encoder-indent margin indent = XmlEncoder Nil Nil Nil Nil 0 (string-to-bytes margin) (string-to-bytes indent) 0 False False False
+
+  -- | Encode a token sequence and check that every element is closed.
+  xml-encode :: XmlEncoder -> List XmlToken -> Result XmlError Bytes
+  xml-encode e tokens = case tokens of
+    Nil -> xml-encoder-close e
+    Cons t rest -> case xml-encode-token e t of Err error -> Err error; Ok next -> xml-encode next rest
+
+  -- | Finish: the bytes written, or an error naming the innermost unclosed tag.
+  xml-encoder-close :: XmlEncoder -> Result XmlError Bytes
+  xml-encoder-close e = case e of
+    XmlEncoder out tags scopes prefixes seq margin indent depth opened newline written -> case tags of
+      Nil -> Ok (bytes-concat (reverse out))
+      Cons top rest -> Err (XmlEncodeError (string-concat-all ["unclosed tag <", xml-name-local top, ">"]))
+
+  -- | Write one token.
+  xml-encode-token :: XmlEncoder -> XmlToken -> Result XmlError XmlEncoder
+  xml-encode-token e t = case t of
+    XmlStartElement name attrs -> write-start e name attrs
+    XmlEndElement name -> write-end e name
+    XmlCharData b -> Ok (emit e (escape b False))
+    XmlComment b ->
+      if contains b (string-to-bytes "-->") then Err (XmlEncodeError "xml: EncodeToken of Comment containing --> marker")
+      else Ok (emit e (bytes-concat [string-to-bytes "<!--", b, string-to-bytes "-->"]))
+    XmlProcInst goal inst ->
+      if goal == "xml" && has-written e then Err (XmlEncodeError "xml: EncodeToken of ProcInst xml target only valid for xml declaration, first token encoded")
+      else if not (is-name (string-to-bytes goal)) then Err (XmlEncodeError "xml: EncodeToken of ProcInst with invalid Target")
+      else if contains inst (string-to-bytes "?>") then Err (XmlEncodeError "xml: EncodeToken of ProcInst containing ?> marker")
+      else Ok (emit e (bytes-concat [string-to-bytes "<?", string-to-bytes goal, if bytes-len inst > 0 then bytes-from-u8s [32] else bytes-new 0, inst, string-to-bytes "?>"]))
+    XmlDirective b ->
+      if not (valid-directive b 0 0 0 False) then Err (XmlEncodeError "xml: EncodeToken of Directive containing wrong < or > markers")
+      else Ok (emit e (bytes-concat [string-to-bytes "<!", b, string-to-bytes ">"]))
+
+  -- | Whether anything has been written.
+  has-written :: XmlEncoder -> Bool
+  has-written e = case e of XmlEncoder out tags scopes prefixes seq margin indent depth opened newline written -> written
+
+  -- | Append bytes.
+  emit :: XmlEncoder -> Bytes -> XmlEncoder
+  emit e b = case e of
+    XmlEncoder out tags scopes prefixes seq margin indent depth opened newline written ->
+      if bytes-len b == 0 then e else XmlEncoder (Cons b out) tags scopes prefixes seq margin indent depth opened newline True
+
+  -- | Write a start tag: indentation, the name, a default-namespace declaration for its namespace, then attributes
+  -- with generated prefixes for qualified names.
+  write-start :: XmlEncoder -> XmlName -> List XmlAttr -> Result XmlError XmlEncoder
+  write-start e name attrs = case name of
+    XmlName space local ->
+      if local == "" then Err (XmlEncodeError "xml: start tag with no name")
+      else
+        let pushed = push-tag e name in
+        let indented = indent-step pushed True in
+        let opened = emit indented (string-to-bytes (string-concat "<" local)) in
+        let spaced = if space == "" then opened else emit opened (bytes-concat [string-to-bytes " xmlns=\"", escape (string-to-bytes space) True, bytes-from-u8s [34]]) in
+        Ok (emit (write-attrs spaced attrs) (bytes-from-u8s [62]))
+
+  -- | Push a tag and mark a new prefix scope.
+  push-tag :: XmlEncoder -> XmlName -> XmlEncoder
+  push-tag e name = case e of
+    XmlEncoder out tags scopes prefixes seq margin indent depth opened newline written ->
+      XmlEncoder out (Cons name tags) (Cons "" scopes) prefixes seq margin indent depth opened newline written
+
+  -- | Write attributes in order, skipping those without a local name.
+  write-attrs :: XmlEncoder -> List XmlAttr -> XmlEncoder
+  write-attrs e attrs = case attrs of
+    Nil -> e
+    Cons a rest -> case a of
+      XmlAttr name value -> case name of
+        XmlName space local ->
+          if local == "" then write-attrs e rest
+          else
+            let lead = emit e (bytes-from-u8s [32]) in
+            let prefixed = if space == "" then lead else attr-prefix lead space in
+            let body = emit prefixed (bytes-concat [string-to-bytes local, string-to-bytes "=\"", escape (string-to-bytes value) True, bytes-from-u8s [34]]) in
+            write-attrs body rest
+
+  -- | Write "prefix:" for an attribute namespace, first declaring a prefix when the URL has none in scope.
+  -- A new prefix is the URL's last path segment (or "_"), with "_" before names starting with "xml" in any case,
+  -- and a numeric suffix when taken.
+  attr-prefix :: XmlEncoder -> String -> XmlEncoder
+  attr-prefix e url = case e of
+    XmlEncoder out tags scopes prefixes seq margin indent depth opened newline written -> case prefix-for prefixes url of
+      Some p -> emit e (string-to-bytes (string-concat p ":"))
+      None ->
+        if url == "http://www.w3.org/XML/1998/namespace" then emit e (string-to-bytes "xml:")
+        else
+          let base = prefix-base (string-to-bytes url) in
+          let taken = is-some-text (url-for prefixes base) in
+          let chosen = if taken then fresh prefixes base (seq + 1) else (base, seq) in
+          case chosen of
+            (p, next-seq) ->
+              let declared = XmlEncoder out tags (Cons p scopes) (Cons (url, p) prefixes) next-seq margin indent depth opened newline written in
+              emit declared (bytes-concat [string-to-bytes "xmlns:", string-to-bytes p, string-to-bytes "=\"", escape (string-to-bytes url) True, string-to-bytes "\" ", string-to-bytes p, bytes-from-u8s [58]])
+
+  -- | Whether an option holds text.
+  is-some-text :: Option String -> Bool
+  is-some-text o = case o of Some t -> True; None -> False
+
+  -- | The prefix bound to a URL.
+  prefix-for :: List (String, String) -> String -> Option String
+  prefix-for prefixes url = case prefixes of Nil -> None; Cons b rest -> case b of (u, p) -> if u == url then Some p else prefix-for rest url
+
+  -- | The URL bound to a prefix.
+  url-for :: List (String, String) -> String -> Option String
+  url-for prefixes p = case prefixes of Nil -> None; Cons b rest -> case b of (u, q) -> if q == p then Some u else url-for rest p
+
+  -- | The first free numbered prefix from n, and the number used.
+  fresh :: List (String, String) -> String -> Nat -> (String, Nat)
+  fresh prefixes base n =
+    let candidate = string-concat-all [base, "_", nat-to-string n] in
+    if is-some-text (url-for prefixes candidate) then fresh prefixes base (n + 1) else (candidate, n)
+
+  -- | The prefix derived from a URL: its last path segment after trailing slashes, or "_" when that is not a plain name.
+  prefix-base :: Bytes -> String
+  prefix-base url =
+    let trimmed = slice url 0 (trailing-slashes url (bytes-len url)) in
+    let segment = slice trimmed (after-last-slash trimmed (bytes-len trimmed)) (bytes-len trimmed) in
+    let plain = if bytes-len segment == 0 || not (is-name segment) || count-byte segment 58 0 0 > 0 then string-to-bytes "_" else segment in
+    if bytes-len plain >= 3 && lower (at plain 0) == 120 && lower (at plain 1) == 109 && lower (at plain 2) == 108 then string-concat "_" (text-of plain) else text-of plain
+
+  -- | The length after dropping trailing slashes.
+  trailing-slashes :: Bytes -> Nat -> Nat
+  trailing-slashes b n = if n > 0 && at b (n - 1) == 47 then trailing-slashes b (n - 1) else n
+
+  -- | The offset after the last slash, or zero.
+  after-last-slash :: Bytes -> Nat -> Nat
+  after-last-slash b n = if n == 0 then 0 else if at b (n - 1) == 47 then n else after-last-slash b (n - 1)
+
+  -- | Write an end tag, which must match the innermost open tag, and drop its prefix scope.
+  write-end :: XmlEncoder -> XmlName -> Result XmlError XmlEncoder
+  write-end e name = case e of
+    XmlEncoder out tags scopes prefixes seq margin indent depth opened newline written ->
+      if xml-name-local name == "" then Err (XmlEncodeError "xml: end tag with no name")
+      else case tags of
+        Nil -> Err (XmlEncodeError (string-concat-all ["xml: end tag </", xml-name-local name, "> without start tag"]))
+        Cons top rest ->
+          if not (xml-name-local top == xml-name-local name) then
+            Err (XmlEncodeError (string-concat-all ["xml: end tag </", xml-name-local name, "> does not match start tag <", xml-name-local top, ">"]))
+          else if not (xml-name-space top == xml-name-space name) then
+            Err (XmlEncodeError (string-concat-all ["xml: end tag </", xml-name-local name, "> in namespace ", xml-name-space name, " does not match start tag <", xml-name-local top, "> in namespace ", xml-name-space top]))
+          else
+            let popped = XmlEncoder out rest scopes prefixes seq margin indent depth opened newline written in
+            let indented = indent-step popped False in
+            Ok (pop-scope (emit indented (string-to-bytes (string-concat-all ["</", xml-name-local name, ">"]))))
+
+  -- | Drop the prefixes declared in the innermost element's scope.
+  pop-scope :: XmlEncoder -> XmlEncoder
+  pop-scope e = case e of
+    XmlEncoder out tags scopes prefixes seq margin indent depth opened newline written -> case scopes of
+      Nil -> e
+      Cons p rest ->
+        if p == "" then XmlEncoder out tags rest prefixes seq margin indent depth opened newline written
+        else pop-scope (XmlEncoder out tags rest (drop-prefix prefixes p) seq margin indent depth opened newline written)
+
+  -- | Remove a prefix's binding.
+  drop-prefix :: List (String, String) -> String -> List (String, String)
+  drop-prefix prefixes p = case prefixes of Nil -> Nil; Cons b rest -> case b of (u, q) -> if q == p then drop-prefix rest p else Cons b (drop-prefix rest p)
+
+  -- | Indentation before a start tag (opening) or an end tag: an end tag right after its start tag stays on its line.
+  indent-step :: XmlEncoder -> Bool -> XmlEncoder
+  indent-step e opening = case e of
+    XmlEncoder out tags scopes prefixes seq margin indent depth opened newline written ->
+      if bytes-len margin == 0 && bytes-len indent == 0 then e
+      else if not opening && opened then XmlEncoder out tags scopes prefixes seq margin indent (minus depth 1) False newline written
+      else
+        let level = if opening then depth else minus depth 1 in
+        let lead = if newline then bytes-from-u8s [10] else bytes-new 0 in
+        let text = bytes-concat [lead, margin, bytes-repeat level indent] in
+        let out2 = if bytes-len text > 0 then Cons text out else out in
+        XmlEncoder out2 tags scopes prefixes seq margin indent (if opening then depth + 1 else level) opening True (written || bytes-len text > 0)
+
+  -- | A directive's markers balance outside quotes and comments.
+  valid-directive :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool
+  valid-directive b i depth quote incomment =
+    if i >= bytes-len b then depth == 0 && quote == 0 && not incomment
+    else
+      let c = at b i in
+      if incomment then valid-directive b (i + 1) depth quote (not (c == 62 && i >= 2 && at b (i - 1) == 45 && at b (i - 2) == 45))
+      else if quote > 0 then valid-directive b (i + 1) depth (if c == quote then 0 else quote) False
+      else if c == 39 || c == 34 then valid-directive b (i + 1) depth c False
+      else if c == 60 then (if i + 4 < bytes-len b && at b (i + 1) == 33 && at b (i + 2) == 45 && at b (i + 3) == 45 then valid-directive b (i + 1) depth 0 True else valid-directive b (i + 1) (depth + 1) 0 False)
+      else if c == 62 then (if depth == 0 then False else valid-directive b (i + 1) (depth - 1) 0 False)
+      else valid-directive b (i + 1) depth 0 False
+
+  -- | Escape character data (line feeds stay as they are).
+  xml-escape-text :: Bytes -> Bytes
+  xml-escape-text b = escape b False
+
+  -- | Escape an attribute value or other quoted text (line feeds become references).
+  xml-escape-attribute :: Bytes -> Bytes
+  xml-escape-attribute b = escape b True
+
+  -- | Escape quotes, "&", "<", ">", tab, carriage return and (when asked) line feed as references, and replace
+  -- invalid UTF-8 and code points outside the XML character range with U+FFFD. Plain runs are found sixteen bytes at a time.
+  escape :: Bytes -> Bool -> Bytes
+  escape b newlines = bytes-concat (reverse (escape-from b newlines 0 Nil))
+
+  -- | Escape from an offset; pieces gather in reverse.
+  escape-from :: Bytes -> Bool -> Nat -> List Bytes -> List Bytes
+  escape-from b newlines i acc =
+    if i >= bytes-len b then acc
+    else
+      let k = if i + 16 <= bytes-len b then i64-to-nat (hold b (escape-span (bytes-data b) (nat-to-i64 i) 0)) else plain-run b i in
+      if k > 0 then escape-from b newlines (i + k) (Cons (slice b i (i + k)) acc)
+      else
+        let c = at b i in
+        if c == 34 then escape-from b newlines (i + 1) (Cons (string-to-bytes "&#34;") acc)
+        else if c == 39 then escape-from b newlines (i + 1) (Cons (string-to-bytes "&#39;") acc)
+        else if c == 38 then escape-from b newlines (i + 1) (Cons (string-to-bytes "&amp;") acc)
+        else if c == 60 then escape-from b newlines (i + 1) (Cons (string-to-bytes "&lt;") acc)
+        else if c == 62 then escape-from b newlines (i + 1) (Cons (string-to-bytes "&gt;") acc)
+        else if c == 9 then escape-from b newlines (i + 1) (Cons (string-to-bytes "&#x9;") acc)
+        else if c == 13 then escape-from b newlines (i + 1) (Cons (string-to-bytes "&#xD;") acc)
+        else if c == 10 then escape-from b newlines (i + 1) (Cons (if newlines then string-to-bytes "&#xA;" else bytes-from-u8s [10]) acc)
+        else if c < 128 then escape-from b newlines (i + 1) (Cons (replacement ()) acc)
+        else
+          let n = rune-size b i in
+          if n == 0 then escape-from b newlines (i + 1) (Cons (replacement ()) acc)
+          else if in-range (rune-value b i n) then escape-from b newlines (i + n) (Cons (slice b i (i + n)) acc)
+          else escape-from b newlines (i + n) (Cons (replacement ()) acc)
+
+  -- | The replacement character's UTF-8 bytes.
+  replacement :: Unit -> Bytes
+  replacement unit = bytes-from-u8s [239, 191, 189]
+
+  -- | Plain bytes at the end of the input, one at a time.
+  plain-run :: Bytes -> Nat -> Nat
+  plain-run b i = if i < bytes-len b && plain (at b i) then 1 + plain-run b (i + 1) else 0
+
+  -- | A byte that escaping leaves as it is on its own.
+  plain :: Nat -> Bool
+  plain c = c >= 32 && c < 128 && not (c == 34 || c == 39 || c == 38 || c == 60 || c == 62)
+
+  -- ---------------------------------------------------------------------
+  -- Element trees.
+  -- ---------------------------------------------------------------------
+
+  -- | A node in a sibling spine: each node holds the rest of its spine, and an element also holds the spine of
+  -- its children.
+  data XmlNode where
+    -- | An element: name, attributes, first child (or the end), next sibling.
+    XmlElementNode :: XmlName -> List XmlAttr -> XmlNode -> XmlNode -> XmlNode
+    -- | Character data, then the next sibling.
+    XmlTextNode :: Bytes -> XmlNode -> XmlNode
+    -- | A comment, then the next sibling.
+    XmlCommentNode :: Bytes -> XmlNode -> XmlNode
+    -- | A processing instruction, then the next sibling.
+    XmlProcInstNode :: String -> Bytes -> XmlNode -> XmlNode
+    -- | A directive, then the next sibling.
+    XmlDirectiveNode :: Bytes -> XmlNode -> XmlNode
+    -- | The end of a spine.
+    XmlNodesEnd :: XmlNode
+
+  -- | An element being built: name, attributes and children so far (reversed).
+  data Open where
+    -- | Fields in the order listed above.
+    Open :: XmlName -> List XmlAttr -> List XmlNode -> Open
+
+  -- | Parse a document into its top-level spine (the declaration, comments, the root element and any other nodes).
+  xml-document :: Bytes -> Result XmlError XmlNode
+  xml-document input = build-tree (xml-decoder input) Nil Nil
+
+  -- | Build state: the decoder, open elements (innermost first) and the completed top-level nodes (reversed).
+  build-tree :: XmlDecoder -> List Open -> List XmlNode -> Result XmlError XmlNode
+  build-tree d stack top = case xml-next d of
+    Err error -> Err error
+    Ok step -> case step of
+      None -> Ok (spine top XmlNodesEnd)
+      Some (t, next) -> case t of
+        XmlStartElement name attrs -> build-tree next (Cons (Open name attrs Nil) stack) top
+        XmlEndElement name -> (case stack of
+          Nil -> build-tree next stack top
+          Cons o rest -> case o of
+            Open n attrs children -> case add rest top (XmlElementNode n attrs (spine children XmlNodesEnd) XmlNodesEnd) of
+              (stack2, top2) -> build-tree next stack2 top2)
+        XmlCharData b -> (case add stack top (XmlTextNode b XmlNodesEnd) of (s2, t2) -> build-tree next s2 t2)
+        XmlComment b -> (case add stack top (XmlCommentNode b XmlNodesEnd) of (s2, t2) -> build-tree next s2 t2)
+        XmlProcInst goal inst -> (case add stack top (XmlProcInstNode goal inst XmlNodesEnd) of (s2, t2) -> build-tree next s2 t2)
+        XmlDirective b -> (case add stack top (XmlDirectiveNode b XmlNodesEnd) of (s2, t2) -> build-tree next s2 t2)
+
+  -- | Add a completed node to the innermost open element, or to the top level.
+  add :: List Open -> List XmlNode -> XmlNode -> (List Open, List XmlNode)
+  add stack top node = case stack of
+    Nil -> (stack, Cons node top)
+    Cons o rest -> case o of Open n attrs children -> (Cons (Open n attrs (Cons node children)) rest, top)
+
+  -- | Link reversed nodes into a spine ending in tail.
+  spine :: List XmlNode -> XmlNode -> XmlNode
+  spine reversed tail = case reversed of Nil -> tail; Cons n rest -> spine rest (relink n tail)
+
+  -- | The same node followed by a different next sibling.
+  relink :: XmlNode -> XmlNode -> XmlNode
+  relink node tail = case node of
+    XmlElementNode n attrs children next -> XmlElementNode n attrs children tail
+    XmlTextNode b next -> XmlTextNode b tail
+    XmlCommentNode b next -> XmlCommentNode b tail
+    XmlProcInstNode t b next -> XmlProcInstNode t b tail
+    XmlDirectiveNode b next -> XmlDirectiveNode b tail
+    XmlNodesEnd -> tail
+
+  -- | The nodes of a spine as a list, in order.
+  xml-nodes :: XmlNode -> List XmlNode
+  xml-nodes node = reverse (nodes-from node Nil)
+
+  -- | Gather spine nodes in reverse.
+  nodes-from :: XmlNode -> List XmlNode -> List XmlNode
+  nodes-from node acc = case node of
+    XmlElementNode n attrs children next -> nodes-from next (Cons node acc)
+    XmlTextNode b next -> nodes-from next (Cons node acc)
+    XmlCommentNode b next -> nodes-from next (Cons node acc)
+    XmlProcInstNode t b next -> nodes-from next (Cons node acc)
+    XmlDirectiveNode b next -> nodes-from next (Cons node acc)
+    XmlNodesEnd -> acc
+
+  -- | The child elements of an element with a local name (any namespace), in order.
+  xml-child-elements :: XmlNode -> String -> List XmlNode
+  xml-child-elements node local = case node of
+    XmlElementNode n attrs children next -> filter-named (xml-nodes children) local
+    other -> Nil
+
+  -- | Keep elements with a local name.
+  filter-named :: List XmlNode -> String -> List XmlNode
+  filter-named nodes local = case nodes of
+    Nil -> Nil
+    Cons n rest -> case n of
+      XmlElementNode name attrs children next -> if xml-name-local name == local then Cons n (filter-named rest local) else filter-named rest local
+      other -> filter-named rest local
+
+  -- | The value of an element's attribute with a local name and no namespace.
+  xml-attribute :: XmlNode -> String -> Option String
+  xml-attribute node local = case node of
+    XmlElementNode n attrs children next -> find-attr attrs local
+    other -> None
+
+  -- | Search attributes.
+  find-attr :: List XmlAttr -> String -> Option String
+  find-attr attrs local = case attrs of
+    Nil -> None
+    Cons a rest -> case a of XmlAttr n v -> if xml-name-local n == local && xml-name-space n == "" then Some v else find-attr rest local
+
+  -- | The character data of a node and its descendants, in document order.
+  xml-text :: XmlNode -> Bytes
+  xml-text node = case node of
+    XmlElementNode n attrs children next -> bytes-concat (map xml-text (xml-nodes children))
+    XmlTextNode b next -> b
+    other -> bytes-new 0
+
+  -- | Encode a spine back to XML with an encoder. Names carry decoded namespace URLs, so qualified attributes
+  -- (including namespace declarations, whose namespace is "xmlns") are written with generated prefixes.
+  xml-render :: XmlEncoder -> XmlNode -> Result XmlError Bytes
+  xml-render e node = xml-encode e (reverse (node-tokens node Nil))
+
+  -- | Tokens of a spine, prepended in reverse order to acc.
+  node-tokens :: XmlNode -> List XmlToken -> List XmlToken
+  node-tokens node acc = case node of
+    XmlElementNode n attrs children next -> node-tokens next (Cons (XmlEndElement n) (node-tokens children (Cons (XmlStartElement n attrs) acc)))
+    XmlTextNode b next -> node-tokens next (Cons (XmlCharData b) acc)
+    XmlCommentNode b next -> node-tokens next (Cons (XmlComment b) acc)
+    XmlProcInstNode t b next -> node-tokens next (Cons (XmlProcInst t b) acc)
+    XmlDirectiveNode b next -> node-tokens next (Cons (XmlDirective b) acc)
+    XmlNodesEnd -> acc
+
+  -- ---------------------------------------------------------------------
+  -- Bytes and code points.
+  -- ---------------------------------------------------------------------
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at s i = if i < bytes-len s then bytes-get s i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | A copy of s[a, b).
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice s a b =
+    let n = minus b a in
+    let out = bytes-new n in
+    if a + n <= bytes-len s then let copied = bytes-copy-range out s 0 a n in out else out
+
+  -- | Bytes from byte values in order.
+  from-list :: List Nat -> Bytes
+  from-list values = let out = bytes-new (list-length values) in let filled = fill out 0 values in out
+
+  -- | Store values from an offset.
+  fill :: Bytes -> Nat -> List Nat -> Unit
+  fill out i values = case values of Nil -> (); Cons v rest -> let w = if i < bytes-len out && v < 256 then bytes-set out i v else () in fill out (i + 1) rest
+
+  -- | Bytes as a string; invalid UTF-8 (never produced for names and values) becomes empty.
+  text-of :: Bytes -> String
+  text-of b = case string-from-bytes b of Some t -> t; None -> empty-string
+
+  -- | Bytes as a string for a message, with invalid UTF-8 replaced byte by byte.
+  lossy :: Bytes -> String
+  lossy b = text-of (escape-invalid b 0 Nil)
+
+  -- | Replace bytes of invalid sequences with U+FFFD.
+  escape-invalid :: Bytes -> Nat -> List Bytes -> Bytes
+  escape-invalid b i acc =
+    if i >= bytes-len b then bytes-concat (reverse acc)
+    else
+      let n = rune-size b i in
+      if n == 0 then escape-invalid b (i + 1) (Cons (replacement ()) acc) else escape-invalid b (i + n) (Cons (slice b i (i + n)) acc)
+
+  -- | The first offset of a byte at or after i, or the length.
+  find-byte-from :: Bytes -> Nat -> Nat -> Nat
+  find-byte-from b v i = if i >= bytes-len b || at b i == v then i else find-byte-from b v (i + 1)
+
+  -- | The offset of a byte at or after i.
+  find-byte :: Bytes -> Nat -> Nat -> Option Nat
+  find-byte b v i = let k = find-byte-from b v i in if k < bytes-len b then Some k else None
+
+  -- | The offset of two consecutive bytes at or after i.
+  find-pair :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  find-pair b i x y = if i + 1 >= bytes-len b then None else if at b i == x && at b (i + 1) == y then Some i else find-pair b (i + 1) x y
+
+  -- | The offset of a byte string at or after i.
+  find-bytes :: Bytes -> Bytes -> Nat -> Option Nat
+  find-bytes b needle i =
+    if i + bytes-len needle > bytes-len b then None
+    else if matches b needle i 0 then Some i
+    else find-bytes b needle (i + 1)
+
+  -- | Whether needle occurs at i.
+  matches :: Bytes -> Bytes -> Nat -> Nat -> Bool
+  matches b needle i k = if k >= bytes-len needle then True else if at b (i + k) == at needle k then matches b needle i (k + 1) else False
+
+  -- | Whether a byte string occurs anywhere.
+  contains :: Bytes -> Bytes -> Bool
+  contains b needle = case find-bytes b needle 0 of Some k -> True; None -> False
+
+  -- | Occurrences of a byte.
+  count-byte :: Bytes -> Nat -> Nat -> Nat -> Nat
+  count-byte b v i n = if i >= bytes-len b then n else count-byte b v (i + 1) (if at b i == v then n + 1 else n)
+
+  -- | The length of the valid UTF-8 sequence at i (1 to 4), or 0: overlong forms, surrogates and values above
+  -- U+10FFFF are invalid.
+  rune-size :: Bytes -> Nat -> Nat
+  rune-size s i =
+    let b = at s i in
+    if i >= bytes-len s then 0
+    else if b < 128 then 1
+    else if b >= 194 && b <= 223 then (if i + 1 < bytes-len s && cont (at s (i + 1)) then 2 else 0)
+    else if b >= 224 && b <= 239 then
+      (let c = at s (i + 1) in if i + 2 < bytes-len s && c >= (if b == 224 then (160 :: Nat) else 128) && c <= (if b == 237 then (159 :: Nat) else 191) && cont (at s (i + 2)) then 3 else 0)
+    else if b >= 240 && b <= 244 then
+      (let c = at s (i + 1) in if i + 3 < bytes-len s && c >= (if b == 240 then (144 :: Nat) else 128) && c <= (if b == 244 then (143 :: Nat) else 191) && cont (at s (i + 2)) && cont (at s (i + 3)) then 4 else 0)
+    else 0
+
+  -- | A UTF-8 continuation byte.
+  cont :: Nat -> Bool
+  cont b = b >= 128 && b <= 191
+
+  -- | The code point of a valid sequence of n bytes at i.
+  rune-value :: Bytes -> Nat -> Nat -> Nat
+  rune-value s i n =
+    if n == 1 then at s i
+    else if n == 2 then minus (at s i) 192 * 64 + low6 s (i + 1)
+    else if n == 3 then (minus (at s i) 224 * 64 + low6 s (i + 1)) * 64 + low6 s (i + 2)
+    else ((minus (at s i) 240 * 64 + low6 s (i + 1)) * 64 + low6 s (i + 2)) * 64 + low6 s (i + 3)
+
+  -- | The payload of a continuation byte.
+  low6 :: Bytes -> Nat -> Nat
+  low6 s i = minus (at s i) 128
+
+  -- | The UTF-8 bytes of a code point.
+  encode-rune :: Nat -> Bytes
+  encode-rune c =
+    if c < 128 then from-list [c]
+    else if c < 2048 then from-list [192 + nat-div c 64, 128 + nat-rem c 64]
+    else if c < 65536 then from-list [224 + nat-div c 4096, 128 + nat-rem (nat-div c 64) 64, 128 + nat-rem c 64]
+    else from-list [240 + nat-div c 262144, 128 + nat-rem (nat-div c 4096) 64, 128 + nat-rem (nat-div c 64) 64, 128 + nat-rem c 64]
+
+  -- | Keep a buffer alive until a raw load has completed.
+  hold :: forall a. Bytes -> a -> a
+  hold b value = case bytes-len b of
+    _ -> value
+
+  -- | A non-negative machine count as a natural number.
+  i64-to-nat :: I64 -> Nat
+  i64-to-nat k = if 0 <= k then nat-from-i64 k else 0
+
+  -- Generated XML kernels: name-character classes and sixteen-byte span scanners.
+
+  -- | Whether a code point may start an XML name.
+  name-first :: Nat -> Bool
+  name-first c =
+    if c < 3114 then
+      if c < 2365 then
+        if c < 992 then
+          if c < 500 then
+            if c < 248 then
+              if c < 97 then
+                if c < 65 then
+                  c == 58
+                else
+                  if c < 95 then
+                    c >= 65 && c <= 90
+                  else
+                    c == 95
+              else
+                if c < 192 then
+                  c >= 97 && c <= 122
+                else
+                  if c < 216 then
+                    c >= 192 && c <= 214
+                  else
+                    c >= 216 && c <= 246
+            else
+              if c < 330 then
+                if c < 308 then
+                  c >= 248 && c <= 305
+                else
+                  if c < 321 then
+                    c >= 308 && c <= 318
+                  else
+                    c >= 321 && c <= 328
+              else
+                if c < 384 then
+                  c >= 330 && c <= 382
+                else
+                  if c < 461 then
+                    c >= 384 && c <= 451
+                  else
+                    c >= 461 && c <= 496
+          else
+            if c < 908 then
+              if c < 699 then
+                if c < 506 then
+                  c >= 500 && c <= 501
+                else
+                  if c < 592 then
+                    c >= 506 && c <= 535
+                  else
+                    c >= 592 && c <= 680
+              else
+                if c < 902 then
+                  c >= 699 && c <= 705
+                else
+                  if c < 904 then
+                    c == 902
+                  else
+                    c >= 904 && c <= 906
+            else
+              if c < 976 then
+                if c < 910 then
+                  c == 908
+                else
+                  if c < 931 then
+                    c >= 910 && c <= 929
+                  else
+                    c >= 931 && c <= 974
+              else
+                if c < 988 then
+                  if c < 986 then
+                    c >= 976 && c <= 982
+                  else
+                    c == 986
+                else
+                  if c < 990 then
+                    c == 988
+                  else
+                    c == 990
+        else
+          if c < 1369 then
+            if c < 1168 then
+              if c < 1038 then
+                if c < 994 then
+                  c == 992
+                else
+                  if c < 1025 then
+                    c >= 994 && c <= 1011
+                  else
+                    c >= 1025 && c <= 1036
+              else
+                if c < 1105 then
+                  c >= 1038 && c <= 1103
+                else
+                  if c < 1118 then
+                    c >= 1105 && c <= 1116
+                  else
+                    c >= 1118 && c <= 1153
+            else
+              if c < 1232 then
+                if c < 1223 then
+                  c >= 1168 && c <= 1220
+                else
+                  if c < 1227 then
+                    c >= 1223 && c <= 1224
+                  else
+                    c >= 1227 && c <= 1228
+              else
+                if c < 1272 then
+                  if c < 1262 then
+                    c >= 1232 && c <= 1259
+                  else
+                    c >= 1262 && c <= 1269
+                else
+                  if c < 1329 then
+                    c >= 1272 && c <= 1273
+                  else
+                    c >= 1329 && c <= 1366
+          else
+            if c < 1649 then
+              if c < 1520 then
+                if c < 1377 then
+                  c == 1369
+                else
+                  if c < 1488 then
+                    c >= 1377 && c <= 1414
+                  else
+                    c >= 1488 && c <= 1514
+              else
+                if c < 1569 then
+                  c >= 1520 && c <= 1522
+                else
+                  if c < 1601 then
+                    c >= 1569 && c <= 1594
+                  else
+                    c >= 1601 && c <= 1610
+            else
+              if c < 1744 then
+                if c < 1722 then
+                  c >= 1649 && c <= 1719
+                else
+                  if c < 1728 then
+                    c >= 1722 && c <= 1726
+                  else
+                    c >= 1728 && c <= 1742
+              else
+                if c < 1765 then
+                  if c < 1749 then
+                    c >= 1744 && c <= 1747
+                  else
+                    c == 1749
+                else
+                  if c < 2309 then
+                    c >= 1765 && c <= 1766
+                  else
+                    c >= 2309 && c <= 2361
+      else
+        if c < 2738 then
+          if c < 2579 then
+            if c < 2482 then
+              if c < 2447 then
+                if c < 2392 then
+                  c == 2365
+                else
+                  if c < 2437 then
+                    c >= 2392 && c <= 2401
+                  else
+                    c >= 2437 && c <= 2444
+              else
+                if c < 2451 then
+                  c >= 2447 && c <= 2448
+                else
+                  if c < 2474 then
+                    c >= 2451 && c <= 2472
+                  else
+                    c >= 2474 && c <= 2480
+            else
+              if c < 2527 then
+                if c < 2486 then
+                  c == 2482
+                else
+                  if c < 2524 then
+                    c >= 2486 && c <= 2489
+                  else
+                    c >= 2524 && c <= 2525
+              else
+                if c < 2565 then
+                  if c < 2544 then
+                    c >= 2527 && c <= 2529
+                  else
+                    c >= 2544 && c <= 2545
+                else
+                  if c < 2575 then
+                    c >= 2565 && c <= 2570
+                  else
+                    c >= 2575 && c <= 2576
+          else
+            if c < 2654 then
+              if c < 2613 then
+                if c < 2602 then
+                  c >= 2579 && c <= 2600
+                else
+                  if c < 2610 then
+                    c >= 2602 && c <= 2608
+                  else
+                    c >= 2610 && c <= 2611
+              else
+                if c < 2616 then
+                  c >= 2613 && c <= 2614
+                else
+                  if c < 2649 then
+                    c >= 2616 && c <= 2617
+                  else
+                    c >= 2649 && c <= 2652
+            else
+              if c < 2701 then
+                if c < 2674 then
+                  c == 2654
+                else
+                  if c < 2693 then
+                    c >= 2674 && c <= 2676
+                  else
+                    c >= 2693 && c <= 2699
+              else
+                if c < 2707 then
+                  if c < 2703 then
+                    c == 2701
+                  else
+                    c >= 2703 && c <= 2705
+                else
+                  if c < 2730 then
+                    c >= 2707 && c <= 2728
+                  else
+                    c >= 2730 && c <= 2736
+        else
+          if c < 2949 then
+            if c < 2835 then
+              if c < 2784 then
+                if c < 2741 then
+                  c >= 2738 && c <= 2739
+                else
+                  if c < 2749 then
+                    c >= 2741 && c <= 2745
+                  else
+                    c == 2749
+              else
+                if c < 2821 then
+                  c == 2784
+                else
+                  if c < 2831 then
+                    c >= 2821 && c <= 2828
+                  else
+                    c >= 2831 && c <= 2832
+            else
+              if c < 2870 then
+                if c < 2858 then
+                  c >= 2835 && c <= 2856
+                else
+                  if c < 2866 then
+                    c >= 2858 && c <= 2864
+                  else
+                    c >= 2866 && c <= 2867
+              else
+                if c < 2908 then
+                  if c < 2877 then
+                    c >= 2870 && c <= 2873
+                  else
+                    c == 2877
+                else
+                  if c < 2911 then
+                    c >= 2908 && c <= 2909
+                  else
+                    c >= 2911 && c <= 2913
+          else
+            if c < 2979 then
+              if c < 2969 then
+                if c < 2958 then
+                  c >= 2949 && c <= 2954
+                else
+                  if c < 2962 then
+                    c >= 2958 && c <= 2960
+                  else
+                    c >= 2962 && c <= 2965
+              else
+                if c < 2972 then
+                  c >= 2969 && c <= 2970
+                else
+                  if c < 2974 then
+                    c == 2972
+                  else
+                    c >= 2974 && c <= 2975
+            else
+              if c < 2999 then
+                if c < 2984 then
+                  c >= 2979 && c <= 2980
+                else
+                  if c < 2990 then
+                    c >= 2984 && c <= 2986
+                  else
+                    c >= 2990 && c <= 2997
+              else
+                if c < 3086 then
+                  if c < 3077 then
+                    c >= 2999 && c <= 3001
+                  else
+                    c >= 3077 && c <= 3084
+                else
+                  if c < 3090 then
+                    c >= 3086 && c <= 3088
+                  else
+                    c >= 3090 && c <= 3112
+    else
+      if c < 4436 then
+        if c < 3737 then
+          if c < 3346 then
+            if c < 3242 then
+              if c < 3205 then
+                if c < 3125 then
+                  c >= 3114 && c <= 3123
+                else
+                  if c < 3168 then
+                    c >= 3125 && c <= 3129
+                  else
+                    c >= 3168 && c <= 3169
+              else
+                if c < 3214 then
+                  c >= 3205 && c <= 3212
+                else
+                  if c < 3218 then
+                    c >= 3214 && c <= 3216
+                  else
+                    c >= 3218 && c <= 3240
+            else
+              if c < 3296 then
+                if c < 3253 then
+                  c >= 3242 && c <= 3251
+                else
+                  if c < 3294 then
+                    c >= 3253 && c <= 3257
+                  else
+                    c == 3294
+              else
+                if c < 3333 then
+                  c >= 3296 && c <= 3297
+                else
+                  if c < 3342 then
+                    c >= 3333 && c <= 3340
+                  else
+                    c >= 3342 && c <= 3344
+          else
+            if c < 3648 then
+              if c < 3585 then
+                if c < 3370 then
+                  c >= 3346 && c <= 3368
+                else
+                  if c < 3424 then
+                    c >= 3370 && c <= 3385
+                  else
+                    c >= 3424 && c <= 3425
+              else
+                if c < 3632 then
+                  c >= 3585 && c <= 3630
+                else
+                  if c < 3634 then
+                    c == 3632
+                  else
+                    c >= 3634 && c <= 3635
+            else
+              if c < 3719 then
+                if c < 3713 then
+                  c >= 3648 && c <= 3653
+                else
+                  if c < 3716 then
+                    c >= 3713 && c <= 3714
+                  else
+                    c == 3716
+              else
+                if c < 3725 then
+                  if c < 3722 then
+                    c >= 3719 && c <= 3720
+                  else
+                    c == 3722
+                else
+                  if c < 3732 then
+                    c == 3725
+                  else
+                    c >= 3732 && c <= 3735
+        else
+          if c < 4304 then
+            if c < 3760 then
+              if c < 3751 then
+                if c < 3745 then
+                  c >= 3737 && c <= 3743
+                else
+                  if c < 3749 then
+                    c >= 3745 && c <= 3747
+                  else
+                    c == 3749
+              else
+                if c < 3754 then
+                  c == 3751
+                else
+                  if c < 3757 then
+                    c >= 3754 && c <= 3755
+                  else
+                    c >= 3757 && c <= 3758
+            else
+              if c < 3776 then
+                if c < 3762 then
+                  c == 3760
+                else
+                  if c < 3773 then
+                    c >= 3762 && c <= 3763
+                  else
+                    c == 3773
+              else
+                if c < 3913 then
+                  if c < 3904 then
+                    c >= 3776 && c <= 3780
+                  else
+                    c >= 3904 && c <= 3911
+                else
+                  if c < 4256 then
+                    c >= 3913 && c <= 3945
+                  else
+                    c >= 4256 && c <= 4293
+          else
+            if c < 4366 then
+              if c < 4357 then
+                if c < 4352 then
+                  c >= 4304 && c <= 4342
+                else
+                  if c < 4354 then
+                    c == 4352
+                  else
+                    c >= 4354 && c <= 4355
+              else
+                if c < 4361 then
+                  c >= 4357 && c <= 4359
+                else
+                  if c < 4363 then
+                    c == 4361
+                  else
+                    c >= 4363 && c <= 4364
+            else
+              if c < 4416 then
+                if c < 4412 then
+                  c >= 4366 && c <= 4370
+                else
+                  if c < 4414 then
+                    c == 4412
+                  else
+                    c == 4414
+              else
+                if c < 4430 then
+                  if c < 4428 then
+                    c == 4416
+                  else
+                    c == 4428
+                else
+                  if c < 4432 then
+                    c == 4430
+                  else
+                    c == 4432
+      else
+        if c < 8016 then
+          if c < 4526 then
+            if c < 4457 then
+              if c < 4451 then
+                if c < 4441 then
+                  c >= 4436 && c <= 4437
+                else
+                  if c < 4447 then
+                    c == 4441
+                  else
+                    c >= 4447 && c <= 4449
+              else
+                if c < 4453 then
+                  c == 4451
+                else
+                  if c < 4455 then
+                    c == 4453
+                  else
+                    c == 4455
+            else
+              if c < 4469 then
+                if c < 4461 then
+                  c == 4457
+                else
+                  if c < 4466 then
+                    c >= 4461 && c <= 4462
+                  else
+                    c >= 4466 && c <= 4467
+              else
+                if c < 4520 then
+                  if c < 4510 then
+                    c == 4469
+                  else
+                    c == 4510
+                else
+                  if c < 4523 then
+                    c == 4520
+                  else
+                    c == 4523
+          else
+            if c < 4601 then
+              if c < 4540 then
+                if c < 4535 then
+                  c >= 4526 && c <= 4527
+                else
+                  if c < 4538 then
+                    c >= 4535 && c <= 4536
+                  else
+                    c == 4538
+              else
+                if c < 4587 then
+                  c >= 4540 && c <= 4546
+                else
+                  if c < 4592 then
+                    c == 4587
+                  else
+                    c == 4592
+            else
+              if c < 7936 then
+                if c < 7680 then
+                  c == 4601
+                else
+                  if c < 7840 then
+                    c >= 7680 && c <= 7835
+                  else
+                    c >= 7840 && c <= 7929
+              else
+                if c < 7968 then
+                  if c < 7960 then
+                    c >= 7936 && c <= 7957
+                  else
+                    c >= 7960 && c <= 7965
+                else
+                  if c < 8008 then
+                    c >= 7968 && c <= 8005
+                  else
+                    c >= 8008 && c <= 8013
+        else
+          if c < 8178 then
+            if c < 8118 then
+              if c < 8029 then
+                if c < 8025 then
+                  c >= 8016 && c <= 8023
+                else
+                  if c < 8027 then
+                    c == 8025
+                  else
+                    c == 8027
+              else
+                if c < 8031 then
+                  c == 8029
+                else
+                  if c < 8064 then
+                    c >= 8031 && c <= 8061
+                  else
+                    c >= 8064 && c <= 8116
+            else
+              if c < 8134 then
+                if c < 8126 then
+                  c >= 8118 && c <= 8124
+                else
+                  if c < 8130 then
+                    c == 8126
+                  else
+                    c >= 8130 && c <= 8132
+              else
+                if c < 8150 then
+                  if c < 8144 then
+                    c >= 8134 && c <= 8140
+                  else
+                    c >= 8144 && c <= 8147
+                else
+                  if c < 8160 then
+                    c >= 8150 && c <= 8155
+                  else
+                    c >= 8160 && c <= 8172
+          else
+            if c < 12295 then
+              if c < 8490 then
+                if c < 8182 then
+                  c >= 8178 && c <= 8180
+                else
+                  if c < 8486 then
+                    c >= 8182 && c <= 8188
+                  else
+                    c == 8486
+              else
+                if c < 8494 then
+                  c >= 8490 && c <= 8491
+                else
+                  if c < 8576 then
+                    c == 8494
+                  else
+                    c >= 8576 && c <= 8578
+            else
+              if c < 12449 then
+                if c < 12321 then
+                  c == 12295
+                else
+                  if c < 12353 then
+                    c >= 12321 && c <= 12329
+                  else
+                    c >= 12353 && c <= 12436
+              else
+                if c < 19968 then
+                  if c < 12549 then
+                    c >= 12449 && c <= 12538
+                  else
+                    c >= 12549 && c <= 12588
+                else
+                  if c < 44032 then
+                    c >= 19968 && c <= 40869
+                  else
+                    c >= 44032 && c <= 55203
+
+  -- | Whether a code point may continue an XML name (beyond those that may start one).
+  name-second :: Nat -> Bool
+  name-second c =
+    if c < 2946 then
+      if c < 2406 then
+        if c < 1476 then
+          if c < 903 then
+            if c < 720 then
+              if c < 48 then
+                c >= 45 && c <= 46
+              else
+                if c < 183 then
+                  c >= 48 && c <= 57
+                else
+                  c == 183
+            else
+              if c < 768 then
+                c >= 720 && c <= 721
+              else
+                if c < 864 then
+                  c >= 768 && c <= 837
+                else
+                  c >= 864 && c <= 865
+          else
+            if c < 1443 then
+              if c < 1155 then
+                c == 903
+              else
+                if c < 1425 then
+                  c >= 1155 && c <= 1158
+                else
+                  c >= 1425 && c <= 1441
+            else
+              if c < 1471 then
+                if c < 1467 then
+                  c >= 1443 && c <= 1465
+                else
+                  c >= 1467 && c <= 1469
+              else
+                if c < 1473 then
+                  c == 1471
+                else
+                  c >= 1473 && c <= 1474
+        else
+          if c < 1770 then
+            if c < 1632 then
+              if c < 1600 then
+                c == 1476
+              else
+                if c < 1611 then
+                  c == 1600
+                else
+                  c >= 1611 && c <= 1618
+            else
+              if c < 1750 then
+                if c < 1648 then
+                  c >= 1632 && c <= 1641
+                else
+                  c == 1648
+              else
+                if c < 1767 then
+                  c >= 1750 && c <= 1764
+                else
+                  c >= 1767 && c <= 1768
+          else
+            if c < 2364 then
+              if c < 1776 then
+                c >= 1770 && c <= 1773
+              else
+                if c < 2305 then
+                  c >= 1776 && c <= 1785
+                else
+                  c >= 2305 && c <= 2307
+            else
+              if c < 2385 then
+                if c < 2366 then
+                  c == 2364
+                else
+                  c >= 2366 && c <= 2381
+              else
+                if c < 2402 then
+                  c >= 2385 && c <= 2388
+                else
+                  c >= 2402 && c <= 2403
+      else
+        if c < 2662 then
+          if c < 2530 then
+            if c < 2494 then
+              if c < 2433 then
+                c >= 2406 && c <= 2415
+              else
+                if c < 2492 then
+                  c >= 2433 && c <= 2435
+                else
+                  c == 2492
+            else
+              if c < 2507 then
+                if c < 2503 then
+                  c >= 2494 && c <= 2500
+                else
+                  c >= 2503 && c <= 2504
+              else
+                if c < 2519 then
+                  c >= 2507 && c <= 2509
+                else
+                  c == 2519
+          else
+            if c < 2620 then
+              if c < 2534 then
+                c >= 2530 && c <= 2531
+              else
+                if c < 2562 then
+                  c >= 2534 && c <= 2543
+                else
+                  c == 2562
+            else
+              if c < 2631 then
+                if c < 2622 then
+                  c == 2620
+                else
+                  c >= 2622 && c <= 2626
+              else
+                if c < 2635 then
+                  c >= 2631 && c <= 2632
+                else
+                  c >= 2635 && c <= 2637
+        else
+          if c < 2817 then
+            if c < 2750 then
+              if c < 2689 then
+                c >= 2662 && c <= 2673
+              else
+                if c < 2748 then
+                  c >= 2689 && c <= 2691
+                else
+                  c == 2748
+            else
+              if c < 2763 then
+                if c < 2759 then
+                  c >= 2750 && c <= 2757
+                else
+                  c >= 2759 && c <= 2761
+              else
+                if c < 2790 then
+                  c >= 2763 && c <= 2765
+                else
+                  c >= 2790 && c <= 2799
+          else
+            if c < 2887 then
+              if c < 2876 then
+                c >= 2817 && c <= 2819
+              else
+                if c < 2878 then
+                  c == 2876
+                else
+                  c >= 2878 && c <= 2883
+            else
+              if c < 2902 then
+                if c < 2891 then
+                  c >= 2887 && c <= 2888
+                else
+                  c >= 2891 && c <= 2893
+              else
+                if c < 2918 then
+                  c >= 2902 && c <= 2903
+                else
+                  c >= 2918 && c <= 2927
+    else
+      if c < 3664 then
+        if c < 3262 then
+          if c < 3073 then
+            if c < 3018 then
+              if c < 3006 then
+                c >= 2946 && c <= 2947
+              else
+                if c < 3014 then
+                  c >= 3006 && c <= 3010
+                else
+                  c >= 3014 && c <= 3016
+            else
+              if c < 3031 then
+                c >= 3018 && c <= 3021
+              else
+                if c < 3047 then
+                  c == 3031
+                else
+                  c >= 3047 && c <= 3055
+          else
+            if c < 3146 then
+              if c < 3134 then
+                c >= 3073 && c <= 3075
+              else
+                if c < 3142 then
+                  c >= 3134 && c <= 3140
+                else
+                  c >= 3142 && c <= 3144
+            else
+              if c < 3174 then
+                if c < 3157 then
+                  c >= 3146 && c <= 3149
+                else
+                  c >= 3157 && c <= 3158
+              else
+                if c < 3202 then
+                  c >= 3174 && c <= 3183
+                else
+                  c >= 3202 && c <= 3203
+        else
+          if c < 3398 then
+            if c < 3285 then
+              if c < 3270 then
+                c >= 3262 && c <= 3268
+              else
+                if c < 3274 then
+                  c >= 3270 && c <= 3272
+                else
+                  c >= 3274 && c <= 3277
+            else
+              if c < 3330 then
+                if c < 3302 then
+                  c >= 3285 && c <= 3286
+                else
+                  c >= 3302 && c <= 3311
+              else
+                if c < 3390 then
+                  c >= 3330 && c <= 3331
+                else
+                  c >= 3390 && c <= 3395
+          else
+            if c < 3430 then
+              if c < 3402 then
+                c >= 3398 && c <= 3400
+              else
+                if c < 3415 then
+                  c >= 3402 && c <= 3405
+                else
+                  c == 3415
+            else
+              if c < 3636 then
+                if c < 3633 then
+                  c >= 3430 && c <= 3439
+                else
+                  c == 3633
+              else
+                if c < 3654 then
+                  c >= 3636 && c <= 3642
+                else
+                  c >= 3654 && c <= 3662
+      else
+        if c < 3974 then
+          if c < 3864 then
+            if c < 3771 then
+              if c < 3761 then
+                c >= 3664 && c <= 3673
+              else
+                if c < 3764 then
+                  c == 3761
+                else
+                  c >= 3764 && c <= 3769
+            else
+              if c < 3784 then
+                if c < 3782 then
+                  c >= 3771 && c <= 3772
+                else
+                  c == 3782
+              else
+                if c < 3792 then
+                  c >= 3784 && c <= 3789
+                else
+                  c >= 3792 && c <= 3801
+          else
+            if c < 3895 then
+              if c < 3872 then
+                c >= 3864 && c <= 3865
+              else
+                if c < 3893 then
+                  c >= 3872 && c <= 3881
+                else
+                  c == 3893
+            else
+              if c < 3902 then
+                if c < 3897 then
+                  c == 3895
+                else
+                  c == 3897
+              else
+                if c < 3953 then
+                  c >= 3902 && c <= 3903
+                else
+                  c >= 3953 && c <= 3972
+        else
+          if c < 8417 then
+            if c < 3993 then
+              if c < 3984 then
+                c >= 3974 && c <= 3979
+              else
+                if c < 3991 then
+                  c >= 3984 && c <= 3989
+                else
+                  c == 3991
+            else
+              if c < 4025 then
+                if c < 4017 then
+                  c >= 3993 && c <= 4013
+                else
+                  c >= 4017 && c <= 4023
+              else
+                if c < 8400 then
+                  c == 4025
+                else
+                  c >= 8400 && c <= 8412
+          else
+            if c < 12337 then
+              if c < 12293 then
+                c == 8417
+              else
+                if c < 12330 then
+                  c == 12293
+                else
+                  c >= 12330 && c <= 12335
+            else
+              if c < 12445 then
+                if c < 12441 then
+                  c >= 12337 && c <= 12341
+                else
+                  c >= 12441 && c <= 12442
+              else
+                if c < 12540 then
+                  c >= 12445 && c <= 12446
+                else
+                  c >= 12540 && c <= 12542
+
+  -- | Leading plain text bytes among the sixteen at base + offset (16 when all are). Stops at
+  -- controls other than tab and line feed, non-ASCII bytes, '<', '&', carriage return, ']' and one
+  -- extra byte (an attribute's quote, or 0 for none).
+  prim text-span :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %v = load <16 x i8>, ptr %at, align 1
+      %e8 = trunc i64 %2 to i8
+      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
+      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
+      %s0 = icmp eq <16 x i8> %v, %extra
+      %low = icmp ult <16 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %a0 = icmp ne <16 x i8> %v, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %k0 = and <16 x i1> %low, %a0
+      %a1 = icmp ne <16 x i8> %v, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
+      %k1 = and <16 x i1> %k0, %a1
+      %s1 = or <16 x i1> %s0, %k1
+      %hi = icmp uge <16 x i8> %v, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
+      %s2 = or <16 x i1> %s1, %hi
+      %t0 = icmp eq <16 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %u0 = or <16 x i1> %s2, %t0
+      %t1 = icmp eq <16 x i8> %v, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
+      %u1 = or <16 x i1> %u0, %t1
+      %t2 = icmp eq <16 x i8> %v, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
+      %u2 = or <16 x i1> %u1, %t2
+      %pick = select <16 x i1> %u2, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
+      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
+      %r = zext i8 %first to i64
+      ret i64 %r
+    }
+
+  -- | Leading bytes that escaping leaves unchanged among the sixteen at base + offset (16 when all
+  -- are). Stops at every control, non-ASCII bytes, the quotes, '&', '<', '>' and one extra byte.
+  prim escape-span :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %v = load <16 x i8>, ptr %at, align 1
+      %e8 = trunc i64 %2 to i8
+      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
+      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
+      %s0 = icmp eq <16 x i8> %v, %extra
+      %low = icmp ult <16 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %s1 = or <16 x i1> %s0, %low
+      %hi = icmp uge <16 x i8> %v, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
+      %s2 = or <16 x i1> %s1, %hi
+      %t0 = icmp eq <16 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %u0 = or <16 x i1> %s2, %t0
+      %t1 = icmp eq <16 x i8> %v, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
+      %u1 = or <16 x i1> %u0, %t1
+      %t2 = icmp eq <16 x i8> %v, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
+      %u2 = or <16 x i1> %u1, %t2
+      %t3 = icmp eq <16 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %u3 = or <16 x i1> %u2, %t3
+      %t4 = icmp eq <16 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %u4 = or <16 x i1> %u3, %t4
+      %pick = select <16 x i1> %u4, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
+      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
+      %r = zext i8 %first to i64
+      ret i64 %r
+    }

@@ -1,0 +1,2879 @@
+-- | The NIST P-256 curve (secp256r1): constant-time field, scalar and point arithmetic, keys and ECDH.
+-- Field elements and scalars are fixed 256-bit values in Montgomery form, held as
+-- two U128 halves and operated on by generated straight-line limb kernels, so
+-- no arithmetic branches on secret data. Points use projective coordinates and
+-- the complete addition and doubling formulas for a = -3 (Renes, Costello and
+-- Batina), which have no exceptional cases; scalar multiplication is a fixed
+-- 4-bit window whose table entry is chosen by scanning every entry. Public keys
+-- are SEC 1 points (uncompressed, or compressed on input), checked to lie on
+-- the curve; private keys are scalars in [1, n - 1]. ECDH yields the shared
+-- point's x-coordinate. Crypto.Ecdsa signs and verifies over this module.
+module Crypto.P256 where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export P256Error, P256InvalidPrivateKey, P256InvalidPublicKey, P256InvalidScalar, p256-error-message
+  export P256PrivateKey, P256PublicKey, p256-private-key, p256-private-key-bytes, p256-public-key-of
+  export p256-public-key, p256-public-key-bytes, p256-public-key-compressed, p256-public-key-coordinates, p256-ecdh
+  export P256Scalar, p256-scalar, p256-scalar-reduce, p256-scalar-bytes, p256-scalar-is-zero, p256-scalar-mul, p256-scalar-add, p256-scalar-inverse
+  export p256-private-scalar, P256Point, p256-public-point, p256-base-mult, p256-point-mult, p256-point-add, p256-point-is-identity, p256-point-x-scalar
+
+  -- ---------------------------------------------------------------------
+  -- Errors and keys.
+  -- ---------------------------------------------------------------------
+
+  -- | A rejected key or scalar.
+  data P256Error where
+    -- | A private key must be 32 bytes encoding a value in [1, n - 1].
+    P256InvalidPrivateKey :: P256Error
+    -- | A public key must be a SEC 1 encoding of a point on the curve.
+    P256InvalidPublicKey :: P256Error
+    -- | A scalar must be 32 bytes encoding a value below n.
+    P256InvalidScalar :: P256Error
+
+  -- | Render an error.
+  p256-error-message :: P256Error -> String
+  p256-error-message e = case e of
+    P256InvalidPrivateKey -> "p256: invalid private key"
+    P256InvalidPublicKey -> "p256: invalid public key"
+    P256InvalidScalar -> "p256: invalid scalar"
+
+  -- | A private key: its scalar and 32-byte encoding.
+  data P256PrivateKey where
+    -- | Scalar, then bytes.
+    P256PrivateKey :: Sc -> Bytes -> P256PrivateKey
+
+  -- | A public key: an affine point (x and y in Montgomery form).
+  data P256PublicKey where
+    -- | x, then y.
+    P256PublicKey :: Fe -> Fe -> P256PublicKey
+
+  -- | Parse a 32-byte big-endian private key in [1, n - 1].
+  p256-private-key :: Bytes -> Result P256Error P256PrivateKey
+  p256-private-key b =
+    if not (bytes-len b == 32) then Err P256InvalidPrivateKey
+    else case raw-pair b 0 of
+      (lo, hi) -> if n-below lo hi == 1 && not (is-zero lo hi) then Ok (P256PrivateKey (sc-to-mont (Sc lo hi)) (copy b)) else Err P256InvalidPrivateKey
+
+  -- | The private key's 32 bytes.
+  p256-private-key-bytes :: P256PrivateKey -> Bytes
+  p256-private-key-bytes k = case k of P256PrivateKey s b -> copy b
+
+  -- | The private key's scalar.
+  p256-private-scalar :: P256PrivateKey -> P256Scalar
+  p256-private-scalar k = case k of P256PrivateKey s b -> P256Scalar s
+
+  -- | The public key d * G.
+  p256-public-key-of :: P256PrivateKey -> P256PublicKey
+  p256-public-key-of k = case k of
+    P256PrivateKey s b -> case affine (base-mult (sc-to-bytes s)) of
+      Some (x, y) -> P256PublicKey x y
+      None -> P256PublicKey fe-zero fe-zero
+
+  -- | Parse a SEC 1 public key: 0x04 || x || y (65 bytes) or 0x02/0x03 || x (33 bytes); the point must be on the curve.
+  p256-public-key :: Bytes -> Result P256Error P256PublicKey
+  p256-public-key b =
+    if bytes-len b == 65 && at b 0 == 4 then
+      (case (field-element b 1, field-element b 33) of
+        (Some x, Some y) -> if on-curve x y then Ok (P256PublicKey x y) else Err P256InvalidPublicKey
+        other -> Err P256InvalidPublicKey)
+    else if bytes-len b == 33 && (at b 0 == 2 || at b 0 == 3) then
+      (case field-element b 1 of
+        None -> Err P256InvalidPublicKey
+        Some x -> case decompress x (at b 0 == 3) of Some y -> Ok (P256PublicKey x y); None -> Err P256InvalidPublicKey)
+    else Err P256InvalidPublicKey
+
+  -- | The uncompressed encoding (65 bytes).
+  p256-public-key-bytes :: P256PublicKey -> Bytes
+  p256-public-key-bytes k = case k of P256PublicKey x y -> concat3 (one 4) (fe-to-bytes x) (fe-to-bytes y)
+
+  -- | The compressed encoding (33 bytes).
+  p256-public-key-compressed :: P256PublicKey -> Bytes
+  p256-public-key-compressed k = case k of
+    P256PublicKey x y -> let yb = fe-to-bytes y in concat3 (one (if nat-rem (at yb 31) 2 == 1 then (3 :: Nat) else 2)) (fe-to-bytes x) (bytes-new 0)
+
+  -- | The affine coordinates as 32-byte big-endian values.
+  p256-public-key-coordinates :: P256PublicKey -> (Bytes, Bytes)
+  p256-public-key-coordinates k = case k of P256PublicKey x y -> (fe-to-bytes x, fe-to-bytes y)
+
+  -- | ECDH: the x-coordinate (32 bytes) of the private scalar times the peer's point.
+  p256-ecdh :: P256PrivateKey -> P256PublicKey -> Result P256Error Bytes
+  p256-ecdh k peer = case k of
+    P256PrivateKey s b -> case peer of
+      P256PublicKey x y -> case affine (point-mult (sc-to-bytes s) (Point x y fe-one)) of
+        Some (sx, sy) -> Ok (fe-to-bytes sx)
+        None -> Err P256InvalidPublicKey
+
+  -- | Whether (x, y) satisfies y^2 = x^3 - 3x + b.
+  on-curve :: Fe -> Fe -> Bool
+  on-curve x y = fe-eq (fe-sq y) (curve-rhs x)
+
+  -- | x^3 - 3x + b.
+  curve-rhs :: Fe -> Fe
+  curve-rhs x = let x3 = fe-mul (fe-sq x) x in fe-add (fe-sub x3 (fe-add x (fe-add x x))) fe-b
+
+  -- | The y with the given parity for x, when x is on the curve.
+  decompress :: Fe -> Bool -> Option Fe
+  decompress x odd =
+    let rhs = curve-rhs x in
+    let y = fe-pow rhs p-sqrt-exponent in
+    if not (fe-eq (fe-sq y) rhs) then None
+    else
+      let parity = nat-rem (at (fe-to-bytes y) 31) 2 == 1 in
+      Some (if parity == odd then y else fe-sub fe-zero y)
+
+  -- ---------------------------------------------------------------------
+  -- Scalars (public interface for signatures).
+  -- ---------------------------------------------------------------------
+
+  -- | A scalar modulo n.
+  data P256Scalar where
+    -- | The Montgomery-form value.
+    P256Scalar :: Sc -> P256Scalar
+
+  -- | Parse a 32-byte big-endian scalar below n.
+  p256-scalar :: Bytes -> Result P256Error P256Scalar
+  p256-scalar b = if not (bytes-len b == 32) then Err P256InvalidScalar else case raw-pair b 0 of
+    (lo, hi) -> if n-below lo hi == 1 then Ok (P256Scalar (sc-to-mont (Sc lo hi))) else Err P256InvalidScalar
+
+  -- | Interpret up to the first 32 bytes as a big-endian integer and reduce it modulo n (shorter inputs are left-padded).
+  p256-scalar-reduce :: Bytes -> P256Scalar
+  p256-scalar-reduce b =
+    let padded = left-pad (if bytes-len b > 32 then slice b 0 32 else b) 32 in
+    case raw-pair padded 0 of (lo, hi) -> P256Scalar (sc-to-mont (Sc (n-reduce-lo lo hi) (n-reduce-hi lo hi)))
+
+  -- | The scalar's 32-byte big-endian encoding.
+  p256-scalar-bytes :: P256Scalar -> Bytes
+  p256-scalar-bytes s = case s of P256Scalar v -> sc-to-bytes v
+
+  -- | Whether the scalar is zero.
+  p256-scalar-is-zero :: P256Scalar -> Bool
+  p256-scalar-is-zero s = case s of P256Scalar v -> case v of Sc lo hi -> is-zero lo hi
+
+  -- | Product modulo n.
+  p256-scalar-mul :: P256Scalar -> P256Scalar -> P256Scalar
+  p256-scalar-mul a b = case a of P256Scalar x -> case b of P256Scalar y -> P256Scalar (sc-mul x y)
+
+  -- | Sum modulo n.
+  p256-scalar-add :: P256Scalar -> P256Scalar -> P256Scalar
+  p256-scalar-add a b = case a of P256Scalar x -> case b of P256Scalar y -> P256Scalar (sc-add x y)
+
+  -- | Inverse modulo n (zero maps to zero).
+  p256-scalar-inverse :: P256Scalar -> P256Scalar
+  p256-scalar-inverse a = case a of P256Scalar x -> P256Scalar (sc-pow x n-minus-two)
+
+  -- | A curve point (projective).
+  data P256Point where
+    -- | The point.
+    P256Point :: Point -> P256Point
+
+  -- | A public key's point.
+  p256-public-point :: P256PublicKey -> P256Point
+  p256-public-point k = case k of P256PublicKey x y -> P256Point (Point x y fe-one)
+
+  -- | s * G.
+  p256-base-mult :: P256Scalar -> P256Point
+  p256-base-mult s = case s of P256Scalar v -> P256Point (base-mult (sc-to-bytes v))
+
+  -- | s * P.
+  p256-point-mult :: P256Scalar -> P256Point -> P256Point
+  p256-point-mult s p = case s of P256Scalar v -> case p of P256Point q -> P256Point (point-mult (sc-to-bytes v) q)
+
+  -- | P + Q.
+  p256-point-add :: P256Point -> P256Point -> P256Point
+  p256-point-add a b = case a of P256Point p -> case b of P256Point q -> P256Point (point-add p q)
+
+  -- | Whether a point is the identity.
+  p256-point-is-identity :: P256Point -> Bool
+  p256-point-is-identity p = case p of P256Point q -> case q of Point x y z -> fe-is-zero z
+
+  -- | The affine x-coordinate reduced modulo n (None for the identity).
+  p256-point-x-scalar :: P256Point -> Option P256Scalar
+  p256-point-x-scalar p = case p of
+    P256Point q -> case affine q of
+      Some (x, y) -> (case fe-from-mont x of Fe lo hi -> Some (P256Scalar (sc-to-mont (Sc (n-reduce-lo lo hi) (n-reduce-hi lo hi)))))
+      None -> None
+
+  -- ---------------------------------------------------------------------
+  -- Field elements modulo p.
+  -- ---------------------------------------------------------------------
+
+  -- | A field element in Montgomery form: low and high halves.
+  data Fe where
+    -- | Low half, then high half.
+    Fe :: U128 -> U128 -> Fe
+
+  -- | Zero.
+  fe-zero :: Fe
+  fe-zero = Fe (words 0 0) (words 0 0)
+
+  -- | Product.
+  fe-mul :: Fe -> Fe -> Fe
+  fe-mul a b = case a of Fe a0 a1 -> case b of Fe b0 b1 -> Fe (p-mul-lo a0 a1 b0 b1) (p-mul-hi a0 a1 b0 b1)
+
+  -- | Square.
+  fe-sq :: Fe -> Fe
+  fe-sq a = fe-mul a a
+
+  -- | Sum.
+  fe-add :: Fe -> Fe -> Fe
+  fe-add a b = case a of Fe a0 a1 -> case b of Fe b0 b1 -> Fe (p-add-lo a0 a1 b0 b1) (p-add-hi a0 a1 b0 b1)
+
+  -- | Difference.
+  fe-sub :: Fe -> Fe -> Fe
+  fe-sub a b = case a of Fe a0 a1 -> case b of Fe b0 b1 -> Fe (p-sub-lo a0 a1 b0 b1) (p-sub-hi a0 a1 b0 b1)
+
+  -- | Whether an element is zero.
+  fe-is-zero :: Fe -> Bool
+  fe-is-zero a = case a of Fe lo hi -> is-zero lo hi
+
+  -- | Equality.
+  fe-eq :: Fe -> Fe -> Bool
+  fe-eq a b = fe-is-zero (fe-sub a b)
+
+  -- | a^e for a public exponent (square and multiply over its 256 bits, most significant first).
+  fe-pow :: Fe -> Fe -> Fe
+  fe-pow a e = case e of Fe lo hi -> fe-pow-from a lo hi 255 fe-one
+
+  -- | Exponentiation from bit i down.
+  fe-pow-from :: Fe -> U128 -> U128 -> Nat -> Fe -> Fe
+  fe-pow-from a lo hi i acc =
+    let squared = fe-sq acc in
+    let next = if bit-at lo hi i == 1 then fe-mul squared a else squared in
+    if i == 0 then next else fe-pow-from a lo hi (i - 1) next
+
+  -- | Leave Montgomery form.
+  fe-from-mont :: Fe -> Fe
+  fe-from-mont a = fe-mul a fe-raw-one
+
+  -- | The canonical 32-byte big-endian encoding.
+  fe-to-bytes :: Fe -> Bytes
+  fe-to-bytes a = case fe-from-mont a of Fe lo hi -> pair-bytes lo hi
+
+  -- | Parse 32 big-endian bytes at an offset as a field element below p.
+  field-element :: Bytes -> Nat -> Option Fe
+  field-element b off = case raw-pair b off of
+    (lo, hi) -> if p-below lo hi == 1 then Some (fe-mul (Fe lo hi) fe-r2) else None
+
+  -- | Choose a when the flag is one, else b, without branching.
+  fe-select :: I64 -> Fe -> Fe -> Fe
+  fe-select flag a b = case a of Fe a0 a1 -> case b of Fe b0 b1 -> Fe (choose flag a0 b0) (choose flag a1 b1)
+
+  -- ---------------------------------------------------------------------
+  -- Scalars modulo n.
+  -- ---------------------------------------------------------------------
+
+  -- | A scalar in Montgomery form modulo n.
+  data Sc where
+    -- | Low half, then high half.
+    Sc :: U128 -> U128 -> Sc
+
+  -- | Product.
+  sc-mul :: Sc -> Sc -> Sc
+  sc-mul a b = case a of Sc a0 a1 -> case b of Sc b0 b1 -> Sc (n-mul-lo a0 a1 b0 b1) (n-mul-hi a0 a1 b0 b1)
+
+  -- | Sum.
+  sc-add :: Sc -> Sc -> Sc
+  sc-add a b = case a of Sc a0 a1 -> case b of Sc b0 b1 -> Sc (n-add-lo a0 a1 b0 b1) (n-add-hi a0 a1 b0 b1)
+
+  -- | Enter Montgomery form.
+  sc-to-mont :: Sc -> Sc
+  sc-to-mont a = sc-mul a sc-r2
+
+  -- | The canonical 32-byte encoding.
+  sc-to-bytes :: Sc -> Bytes
+  sc-to-bytes a = case sc-mul a sc-raw-one of Sc lo hi -> pair-bytes lo hi
+
+  -- | a^e for a public exponent.
+  sc-pow :: Sc -> Sc -> Sc
+  sc-pow a e = case e of Sc lo hi -> sc-pow-from a lo hi 255 sc-one
+
+  -- | Exponentiation from bit i down.
+  sc-pow-from :: Sc -> U128 -> U128 -> Nat -> Sc -> Sc
+  sc-pow-from a lo hi i acc =
+    let squared = sc-mul acc acc in
+    let next = if bit-at lo hi i == 1 then sc-mul squared a else squared in
+    if i == 0 then next else sc-pow-from a lo hi (i - 1) next
+
+  -- ---------------------------------------------------------------------
+  -- Points.
+  -- ---------------------------------------------------------------------
+
+  -- | A projective point (X : Y : Z); the identity is (0 : 1 : 0).
+  data Point where
+    -- | X, Y, Z in Montgomery form.
+    Point :: Fe -> Fe -> Fe -> Point
+
+  -- | The identity.
+  identity :: Point
+  identity = Point fe-zero fe-one fe-zero
+
+  -- | The base point.
+  generator :: Point
+  generator = Point fe-gx fe-gy fe-one
+
+  -- | Complete addition for a = -3 (Renes, Costello and Batina, Algorithm 4).
+  point-add :: Point -> Point -> Point
+  point-add p q = case p of
+    Point x1 y1 z1 -> case q of
+      Point x2 y2 z2 ->
+        let t0 = fe-mul x1 x2 in let t1 = fe-mul y1 y2 in let t2 = fe-mul z1 z2 in
+        let t3 = fe-mul (fe-add x1 y1) (fe-add x2 y2) in
+        let t3b = fe-sub t3 (fe-add t0 t1) in
+        let t4 = fe-mul (fe-add y1 z1) (fe-add y2 z2) in
+        let t4b = fe-sub t4 (fe-add t1 t2) in
+        let xa = fe-mul (fe-add x1 z1) (fe-add x2 z2) in
+        let ya = fe-sub xa (fe-add t0 t2) in
+        let za = fe-mul fe-b t2 in
+        let xb = fe-sub ya za in
+        let xc = fe-add xb (fe-add xb xb) in
+        let zb = fe-sub t1 xc in
+        let xd = fe-add t1 xc in
+        let yb = fe-mul fe-b ya in
+        let t2b = fe-add t2 (fe-add t2 t2) in
+        let yc = fe-sub (fe-sub yb t2b) t0 in
+        let yd = fe-add yc (fe-add yc yc) in
+        let t0b = fe-sub (fe-add t0 (fe-add t0 t0)) t2b in
+        let t1b = fe-mul t4b yd in
+        let t2c = fe-mul t0b yd in
+        let ye = fe-add (fe-mul xd zb) t2c in
+        let xe = fe-sub (fe-mul t3b xd) t1b in
+        let ze = fe-add (fe-mul t4b zb) (fe-mul t3b t0b) in
+        Point xe ye ze
+
+  -- | Doubling for a = -3 (Renes, Costello and Batina, Algorithm 6).
+  point-double :: Point -> Point
+  point-double p = case p of
+    Point x y z ->
+      let t0 = fe-sq x in let t1 = fe-sq y in let t2 = fe-sq z in
+      let t3 = let m = fe-mul x y in fe-add m m in
+      let z3 = let m = fe-mul x z in fe-add m m in
+      let y3 = fe-sub (fe-mul fe-b t2) z3 in
+      let x3 = fe-add y3 (fe-add y3 y3) in
+      let xa = fe-sub t1 x3 in
+      let ya = fe-mul (fe-add t1 x3) xa in
+      let xb = fe-mul xa t3 in
+      let t2b = fe-add t2 (fe-add t2 t2) in
+      let zb = fe-sub (fe-sub (fe-mul fe-b z3) t2b) t0 in
+      let zc = fe-add zb (fe-add zb zb) in
+      let t0b = fe-sub (fe-add t0 (fe-add t0 t0)) t2b in
+      let yb = fe-add ya (fe-mul t0b zc) in
+      let t0c = let m = fe-mul y z in fe-add m m in
+      let xc = fe-sub xb (fe-mul t0c zc) in
+      let zd = let m = fe-mul t0c t1 in let d = fe-add m m in fe-add d d in
+      Point xc yb zd
+
+  -- | The affine coordinates, None for the identity.
+  affine :: Point -> Option (Fe, Fe)
+  affine p = case p of
+    Point x y z -> if fe-is-zero z then None else let zi = fe-pow z p-minus-two in Some (fe-mul x zi, fe-mul y zi)
+
+  -- | k * G for a 32-byte big-endian scalar.
+  base-mult :: Bytes -> Point
+  base-mult k = point-mult k generator
+
+  -- | k * P: a fixed 4-bit window from the most significant nibble; each step doubles four times and adds the table
+  -- entry chosen by scanning all sixteen.
+  point-mult :: Bytes -> Point -> Point
+  point-mult k p =
+    let table = multiples p 1 (Cons identity Nil) in
+    windows k table 0 identity
+
+  -- | The multiples 0P .. 15P, in order.
+  multiples :: Point -> Nat -> List Point -> List Point
+  multiples p i acc = case acc of
+    Cons last rest -> if i >= 16 then reverse acc else multiples p (i + 1) (Cons (point-add last p) acc)
+    Nil -> Nil
+
+  -- | Process nibbles from index i (0 is the most significant).
+  windows :: Bytes -> List Point -> Nat -> Point -> Point
+  windows k table i acc =
+    if i >= 64 then acc
+    else
+      let byte = at k (nat-div i 2) in
+      let nibble = if nat-rem i 2 == 0 then nat-div byte 16 else nat-rem byte 16 in
+      let shifted = point-double (point-double (point-double (point-double acc))) in
+      windows k table (i + 1) (point-add shifted (lookup-point table nibble 0 identity))
+
+  -- | The table entry at an index, reading every entry.
+  lookup-point :: List Point -> Nat -> Nat -> Point -> Point
+  lookup-point table index i acc = case table of
+    Nil -> acc
+    Cons q rest -> lookup-point rest index (i + 1) (point-select (if i == index then 1 else 0) q acc)
+
+  -- | Choose a point by a flag without branching on coordinates.
+  point-select :: I64 -> Point -> Point -> Point
+  point-select flag a b = case a of
+    Point ax ay az -> case b of
+      Point bx by bz -> Point (fe-select flag ax bx) (fe-select flag ay by) (fe-select flag az bz)
+
+  -- ---------------------------------------------------------------------
+  -- Bytes and words.
+  -- ---------------------------------------------------------------------
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | One byte.
+  one :: Nat -> Bytes
+  one v = let out = bytes-new 1 in let w = if v < 256 then bytes-set out 0 v else () in out
+
+  -- | A fresh copy of b[x, y).
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b x y =
+    let n = if x <= y then y - x else 0 in
+    let out = bytes-new n in
+    if x + n <= bytes-len b then let c = bytes-copy-range out b 0 x n in out else out
+
+  -- | A fresh copy.
+  copy :: Bytes -> Bytes
+  copy b = slice b 0 (bytes-len b)
+
+  -- | Three buffers joined.
+  concat3 :: Bytes -> Bytes -> Bytes -> Bytes
+  concat3 a b c =
+    let out = bytes-new (bytes-len a + bytes-len b + bytes-len c) in
+    let w1 = if bytes-len a <= bytes-len out then bytes-copy-range out a 0 0 (bytes-len a) else () in
+    let w2 = if bytes-len a + bytes-len b <= bytes-len out then bytes-copy-range out b (bytes-len a) 0 (bytes-len b) else () in
+    let w3 = if bytes-len a + bytes-len b + bytes-len c <= bytes-len out then bytes-copy-range out c (bytes-len a + bytes-len b) 0 (bytes-len c) else () in
+    out
+
+  -- | Left-pad with zeros to n bytes.
+  left-pad :: Bytes -> Nat -> Bytes
+  left-pad b n = if bytes-len b >= n then b else concat3 (bytes-new (n - bytes-len b)) b (bytes-new 0)
+
+  -- | A big-endian 64-bit word.
+  be64 :: Bytes -> Nat -> U64
+  be64 b o = if o + 8 <= bytes-len b then swap-bytes-u64 (bytes-read-le64 b o) else 0
+
+  -- | 32 big-endian bytes at an offset as low and high halves.
+  raw-pair :: Bytes -> Nat -> (U128, U128)
+  raw-pair b o = (join64 (be64 b (o + 24)) (be64 b (o + 16)), join64 (be64 b (o + 8)) (be64 b o))
+
+  -- | Low and high halves as 32 big-endian bytes.
+  pair-bytes :: U128 -> U128 -> Bytes
+  pair-bytes lo hi =
+    let out = bytes-new 32 in
+    let a = bytes-write-le64 out 0 (swap-bytes-u64 (high64 hi)) in
+    let b = bytes-write-le64 out 8 (swap-bytes-u64 (low64 hi)) in
+    let c = bytes-write-le64 out 16 (swap-bytes-u64 (high64 lo)) in
+    let d = bytes-write-le64 out 24 (swap-bytes-u64 (low64 lo)) in
+    out
+
+  -- | Whether both halves are zero.
+  is-zero :: U128 -> U128 -> Bool
+  is-zero lo hi = zero-pair lo hi == 1
+
+  -- | Bit i (0 is least significant) of a 256-bit value.
+  bit-at :: U128 -> U128 -> Nat -> I64
+  bit-at lo hi i = if i < 128 then bit128 lo (nat-to-i64 i) else if i < 256 then bit128 hi (nat-to-i64 (i - 128)) else 0
+
+  -- | A U128 from signed 64-bit halves (low first).
+  prim words :: I64 -> I64 -> U128 where
+    llvm {
+      %lo = zext i64 %0 to i128
+      %hi = zext i64 %1 to i128
+      %s = shl i128 %hi, 64
+      %r = or i128 %lo, %s
+      ret i128 %r
+    }
+
+  -- | A U128 from unsigned halves (low first).
+  prim join64 :: U64 -> U64 -> U128 where
+    llvm {
+      %lo = zext i64 %0 to i128
+      %hi = zext i64 %1 to i128
+      %s = shl i128 %hi, 64
+      %r = or i128 %lo, %s
+      ret i128 %r
+    }
+
+  -- | The low half of a U128.
+  prim low64 :: U128 -> U64 where
+    llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+
+  -- | The high half of a U128.
+  prim high64 :: U128 -> U64 where
+    llvm {
+      %s = lshr i128 %0, 64
+      %r = trunc i128 %s to i64
+      ret i64 %r
+    }
+
+  -- | One when both values are zero, else zero.
+  prim zero-pair :: U128 -> U128 -> I64 where
+    llvm {
+      %o = or i128 %0, %1
+      %z = icmp eq i128 %o, 0
+      %r = zext i1 %z to i64
+      ret i64 %r
+    }
+
+  -- | Bit i of a U128.
+  prim bit128 :: U128 -> I64 -> I64 where
+    llvm {
+      %i = zext i64 %1 to i128
+      %s = lshr i128 %0, %i
+      %t = trunc i128 %s to i64
+      %r = and i64 %t, 1
+      ret i64 %r
+    }
+
+  -- | a when the flag is one, else b, by masking.
+  prim choose :: I64 -> U128 -> U128 -> U128 where
+    llvm {
+      %f = trunc i64 %0 to i1
+      %m = sext i1 %f to i128
+      %x = xor i128 %1, %2
+      %y = and i128 %x, %m
+      %r = xor i128 %y, %2
+      ret i128 %r
+    }
+
+  -- | One in Montgomery form (R mod p).
+  fe-one :: Fe
+  fe-one = Fe (words (1) (-4294967296)) (words (-1) (4294967294))
+
+  -- | R^2 mod p, which moves a value into Montgomery form.
+  fe-r2 :: Fe
+  fe-r2 = Fe (words (3) (-17179869185)) (words (-2) (21474836477))
+
+  -- | The plain value one, which moves a value out of Montgomery form.
+  fe-raw-one :: Fe
+  fe-raw-one = Fe (words (1) (0)) (words (0) (0))
+
+  -- | The curve coefficient b in Montgomery form.
+  fe-b :: Fe
+  fe-b = Fe (words (-2838148052449706529) (-5985277524727025520)) (words (-1899920169839284522) (-2580555864783501260))
+
+  -- | The base point's x in Montgomery form.
+  fe-gx :: Fe
+  fe-gx = Fe (words (8784043285714375740) (8483257759279461889)) (words (8789745728267363600) (1770019616739251654))
+
+  -- | The base point's y in Montgomery form.
+  fe-gy :: Fe
+  fe-gy = Fe (words (-2453807210370345462) (-8409706061646666660)) (words (-3249199208764148955) (-8830996915122840187))
+
+  -- | The exponent p - 2 (inversion by Fermat's little theorem).
+  p-minus-two :: Fe
+  p-minus-two = Fe (words (-3) (4294967295)) (words (0) (-4294967295))
+
+  -- | The exponent (p + 1) / 4 (square roots, as p is 3 mod 4).
+  p-sqrt-exponent :: Fe
+  p-sqrt-exponent = Fe (words (0) (1073741824)) (words (4611686018427387904) (4611686017353646080))
+
+  -- | One in Montgomery form modulo n.
+  sc-one :: Sc
+  sc-one = Sc (words (884452912994769583) (4834901526196019579)) (words (0) (4294967295))
+
+  -- | R^2 mod n.
+  sc-r2 :: Sc
+  sc-r2 = Sc (words (-8996981949549908318) (5087230966250696614)) (words (2901921493521525849) (7413256579398063648))
+
+  -- | The plain value one modulo n.
+  sc-raw-one :: Sc
+  sc-raw-one = Sc (words (1) (0)) (words (0) (0))
+
+  -- | The exponent n - 2.
+  n-minus-two :: Sc
+  n-minus-two = Sc (words (-884452912994769585) (-4834901526196019580)) (words (-1) (-4294967296))
+
+  -- Generated P-256 limb kernels: Montgomery multiplication, addition and subtraction modulo p and n.
+
+  -- | The lo half of the Montgomery product a * b / 2^256 modulo the field prime p.
+  prim p-mul-lo :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = mul i128 %t13, %t14
+      %t16 = add i128 0, %t15
+      %t17 = add i128 %t16, 0
+      %t18 = trunc i128 %t17 to i64
+      %t19 = lshr i128 %t17, 64
+      %t20 = zext i64 %t3 to i128
+      %t21 = zext i64 %t7 to i128
+      %t22 = mul i128 %t20, %t21
+      %t23 = add i128 0, %t22
+      %t24 = add i128 %t23, %t19
+      %t25 = trunc i128 %t24 to i64
+      %t26 = lshr i128 %t24, 64
+      %t27 = zext i64 %t4 to i128
+      %t28 = zext i64 %t7 to i128
+      %t29 = mul i128 %t27, %t28
+      %t30 = add i128 0, %t29
+      %t31 = add i128 %t30, %t26
+      %t32 = trunc i128 %t31 to i64
+      %t33 = lshr i128 %t31, 64
+      %t34 = zext i64 %t6 to i128
+      %t35 = zext i64 %t7 to i128
+      %t36 = mul i128 %t34, %t35
+      %t37 = add i128 0, %t36
+      %t38 = add i128 %t37, %t33
+      %t39 = trunc i128 %t38 to i64
+      %t40 = lshr i128 %t38, 64
+      %t41 = add i128 0, %t40
+      %t42 = trunc i128 %t41 to i64
+      %t43 = lshr i128 %t41, 64
+      %t44 = trunc i128 %t43 to i64
+      %t45 = mul i64 %t18, 1
+      %t46 = zext i64 %t18 to i128
+      %t47 = zext i64 %t45 to i128
+      %t48 = zext i64 -1 to i128
+      %t49 = mul i128 %t47, %t48
+      %t50 = add i128 %t46, %t49
+      %t51 = lshr i128 %t50, 64
+      %t52 = zext i64 %t25 to i128
+      %t53 = zext i64 %t45 to i128
+      %t54 = zext i64 4294967295 to i128
+      %t55 = mul i128 %t53, %t54
+      %t56 = add i128 %t52, %t55
+      %t57 = add i128 %t56, %t51
+      %t58 = trunc i128 %t57 to i64
+      %t59 = lshr i128 %t57, 64
+      %t60 = zext i64 %t32 to i128
+      %t61 = zext i64 %t45 to i128
+      %t62 = zext i64 0 to i128
+      %t63 = mul i128 %t61, %t62
+      %t64 = add i128 %t60, %t63
+      %t65 = add i128 %t64, %t59
+      %t66 = trunc i128 %t65 to i64
+      %t67 = lshr i128 %t65, 64
+      %t68 = zext i64 %t39 to i128
+      %t69 = zext i64 %t45 to i128
+      %t70 = zext i64 -4294967295 to i128
+      %t71 = mul i128 %t69, %t70
+      %t72 = add i128 %t68, %t71
+      %t73 = add i128 %t72, %t67
+      %t74 = trunc i128 %t73 to i64
+      %t75 = lshr i128 %t73, 64
+      %t76 = zext i64 %t42 to i128
+      %t77 = add i128 %t76, %t75
+      %t78 = trunc i128 %t77 to i64
+      %t79 = lshr i128 %t77, 64
+      %t80 = zext i64 %t44 to i128
+      %t81 = add i128 %t80, %t79
+      %t82 = trunc i128 %t81 to i64
+      %t83 = zext i64 %t58 to i128
+      %t84 = zext i64 %t1 to i128
+      %t85 = zext i64 %t9 to i128
+      %t86 = mul i128 %t84, %t85
+      %t87 = add i128 %t83, %t86
+      %t88 = add i128 %t87, 0
+      %t89 = trunc i128 %t88 to i64
+      %t90 = lshr i128 %t88, 64
+      %t91 = zext i64 %t66 to i128
+      %t92 = zext i64 %t3 to i128
+      %t93 = zext i64 %t9 to i128
+      %t94 = mul i128 %t92, %t93
+      %t95 = add i128 %t91, %t94
+      %t96 = add i128 %t95, %t90
+      %t97 = trunc i128 %t96 to i64
+      %t98 = lshr i128 %t96, 64
+      %t99 = zext i64 %t74 to i128
+      %t100 = zext i64 %t4 to i128
+      %t101 = zext i64 %t9 to i128
+      %t102 = mul i128 %t100, %t101
+      %t103 = add i128 %t99, %t102
+      %t104 = add i128 %t103, %t98
+      %t105 = trunc i128 %t104 to i64
+      %t106 = lshr i128 %t104, 64
+      %t107 = zext i64 %t78 to i128
+      %t108 = zext i64 %t6 to i128
+      %t109 = zext i64 %t9 to i128
+      %t110 = mul i128 %t108, %t109
+      %t111 = add i128 %t107, %t110
+      %t112 = add i128 %t111, %t106
+      %t113 = trunc i128 %t112 to i64
+      %t114 = lshr i128 %t112, 64
+      %t115 = zext i64 %t82 to i128
+      %t116 = add i128 %t115, %t114
+      %t117 = trunc i128 %t116 to i64
+      %t118 = lshr i128 %t116, 64
+      %t119 = trunc i128 %t118 to i64
+      %t120 = mul i64 %t89, 1
+      %t121 = zext i64 %t89 to i128
+      %t122 = zext i64 %t120 to i128
+      %t123 = zext i64 -1 to i128
+      %t124 = mul i128 %t122, %t123
+      %t125 = add i128 %t121, %t124
+      %t126 = lshr i128 %t125, 64
+      %t127 = zext i64 %t97 to i128
+      %t128 = zext i64 %t120 to i128
+      %t129 = zext i64 4294967295 to i128
+      %t130 = mul i128 %t128, %t129
+      %t131 = add i128 %t127, %t130
+      %t132 = add i128 %t131, %t126
+      %t133 = trunc i128 %t132 to i64
+      %t134 = lshr i128 %t132, 64
+      %t135 = zext i64 %t105 to i128
+      %t136 = zext i64 %t120 to i128
+      %t137 = zext i64 0 to i128
+      %t138 = mul i128 %t136, %t137
+      %t139 = add i128 %t135, %t138
+      %t140 = add i128 %t139, %t134
+      %t141 = trunc i128 %t140 to i64
+      %t142 = lshr i128 %t140, 64
+      %t143 = zext i64 %t113 to i128
+      %t144 = zext i64 %t120 to i128
+      %t145 = zext i64 -4294967295 to i128
+      %t146 = mul i128 %t144, %t145
+      %t147 = add i128 %t143, %t146
+      %t148 = add i128 %t147, %t142
+      %t149 = trunc i128 %t148 to i64
+      %t150 = lshr i128 %t148, 64
+      %t151 = zext i64 %t117 to i128
+      %t152 = add i128 %t151, %t150
+      %t153 = trunc i128 %t152 to i64
+      %t154 = lshr i128 %t152, 64
+      %t155 = zext i64 %t119 to i128
+      %t156 = add i128 %t155, %t154
+      %t157 = trunc i128 %t156 to i64
+      %t158 = zext i64 %t133 to i128
+      %t159 = zext i64 %t1 to i128
+      %t160 = zext i64 %t10 to i128
+      %t161 = mul i128 %t159, %t160
+      %t162 = add i128 %t158, %t161
+      %t163 = add i128 %t162, 0
+      %t164 = trunc i128 %t163 to i64
+      %t165 = lshr i128 %t163, 64
+      %t166 = zext i64 %t141 to i128
+      %t167 = zext i64 %t3 to i128
+      %t168 = zext i64 %t10 to i128
+      %t169 = mul i128 %t167, %t168
+      %t170 = add i128 %t166, %t169
+      %t171 = add i128 %t170, %t165
+      %t172 = trunc i128 %t171 to i64
+      %t173 = lshr i128 %t171, 64
+      %t174 = zext i64 %t149 to i128
+      %t175 = zext i64 %t4 to i128
+      %t176 = zext i64 %t10 to i128
+      %t177 = mul i128 %t175, %t176
+      %t178 = add i128 %t174, %t177
+      %t179 = add i128 %t178, %t173
+      %t180 = trunc i128 %t179 to i64
+      %t181 = lshr i128 %t179, 64
+      %t182 = zext i64 %t153 to i128
+      %t183 = zext i64 %t6 to i128
+      %t184 = zext i64 %t10 to i128
+      %t185 = mul i128 %t183, %t184
+      %t186 = add i128 %t182, %t185
+      %t187 = add i128 %t186, %t181
+      %t188 = trunc i128 %t187 to i64
+      %t189 = lshr i128 %t187, 64
+      %t190 = zext i64 %t157 to i128
+      %t191 = add i128 %t190, %t189
+      %t192 = trunc i128 %t191 to i64
+      %t193 = lshr i128 %t191, 64
+      %t194 = trunc i128 %t193 to i64
+      %t195 = mul i64 %t164, 1
+      %t196 = zext i64 %t164 to i128
+      %t197 = zext i64 %t195 to i128
+      %t198 = zext i64 -1 to i128
+      %t199 = mul i128 %t197, %t198
+      %t200 = add i128 %t196, %t199
+      %t201 = lshr i128 %t200, 64
+      %t202 = zext i64 %t172 to i128
+      %t203 = zext i64 %t195 to i128
+      %t204 = zext i64 4294967295 to i128
+      %t205 = mul i128 %t203, %t204
+      %t206 = add i128 %t202, %t205
+      %t207 = add i128 %t206, %t201
+      %t208 = trunc i128 %t207 to i64
+      %t209 = lshr i128 %t207, 64
+      %t210 = zext i64 %t180 to i128
+      %t211 = zext i64 %t195 to i128
+      %t212 = zext i64 0 to i128
+      %t213 = mul i128 %t211, %t212
+      %t214 = add i128 %t210, %t213
+      %t215 = add i128 %t214, %t209
+      %t216 = trunc i128 %t215 to i64
+      %t217 = lshr i128 %t215, 64
+      %t218 = zext i64 %t188 to i128
+      %t219 = zext i64 %t195 to i128
+      %t220 = zext i64 -4294967295 to i128
+      %t221 = mul i128 %t219, %t220
+      %t222 = add i128 %t218, %t221
+      %t223 = add i128 %t222, %t217
+      %t224 = trunc i128 %t223 to i64
+      %t225 = lshr i128 %t223, 64
+      %t226 = zext i64 %t192 to i128
+      %t227 = add i128 %t226, %t225
+      %t228 = trunc i128 %t227 to i64
+      %t229 = lshr i128 %t227, 64
+      %t230 = zext i64 %t194 to i128
+      %t231 = add i128 %t230, %t229
+      %t232 = trunc i128 %t231 to i64
+      %t233 = zext i64 %t208 to i128
+      %t234 = zext i64 %t1 to i128
+      %t235 = zext i64 %t12 to i128
+      %t236 = mul i128 %t234, %t235
+      %t237 = add i128 %t233, %t236
+      %t238 = add i128 %t237, 0
+      %t239 = trunc i128 %t238 to i64
+      %t240 = lshr i128 %t238, 64
+      %t241 = zext i64 %t216 to i128
+      %t242 = zext i64 %t3 to i128
+      %t243 = zext i64 %t12 to i128
+      %t244 = mul i128 %t242, %t243
+      %t245 = add i128 %t241, %t244
+      %t246 = add i128 %t245, %t240
+      %t247 = trunc i128 %t246 to i64
+      %t248 = lshr i128 %t246, 64
+      %t249 = zext i64 %t224 to i128
+      %t250 = zext i64 %t4 to i128
+      %t251 = zext i64 %t12 to i128
+      %t252 = mul i128 %t250, %t251
+      %t253 = add i128 %t249, %t252
+      %t254 = add i128 %t253, %t248
+      %t255 = trunc i128 %t254 to i64
+      %t256 = lshr i128 %t254, 64
+      %t257 = zext i64 %t228 to i128
+      %t258 = zext i64 %t6 to i128
+      %t259 = zext i64 %t12 to i128
+      %t260 = mul i128 %t258, %t259
+      %t261 = add i128 %t257, %t260
+      %t262 = add i128 %t261, %t256
+      %t263 = trunc i128 %t262 to i64
+      %t264 = lshr i128 %t262, 64
+      %t265 = zext i64 %t232 to i128
+      %t266 = add i128 %t265, %t264
+      %t267 = trunc i128 %t266 to i64
+      %t268 = lshr i128 %t266, 64
+      %t269 = trunc i128 %t268 to i64
+      %t270 = mul i64 %t239, 1
+      %t271 = zext i64 %t239 to i128
+      %t272 = zext i64 %t270 to i128
+      %t273 = zext i64 -1 to i128
+      %t274 = mul i128 %t272, %t273
+      %t275 = add i128 %t271, %t274
+      %t276 = lshr i128 %t275, 64
+      %t277 = zext i64 %t247 to i128
+      %t278 = zext i64 %t270 to i128
+      %t279 = zext i64 4294967295 to i128
+      %t280 = mul i128 %t278, %t279
+      %t281 = add i128 %t277, %t280
+      %t282 = add i128 %t281, %t276
+      %t283 = trunc i128 %t282 to i64
+      %t284 = lshr i128 %t282, 64
+      %t285 = zext i64 %t255 to i128
+      %t286 = zext i64 %t270 to i128
+      %t287 = zext i64 0 to i128
+      %t288 = mul i128 %t286, %t287
+      %t289 = add i128 %t285, %t288
+      %t290 = add i128 %t289, %t284
+      %t291 = trunc i128 %t290 to i64
+      %t292 = lshr i128 %t290, 64
+      %t293 = zext i64 %t263 to i128
+      %t294 = zext i64 %t270 to i128
+      %t295 = zext i64 -4294967295 to i128
+      %t296 = mul i128 %t294, %t295
+      %t297 = add i128 %t293, %t296
+      %t298 = add i128 %t297, %t292
+      %t299 = trunc i128 %t298 to i64
+      %t300 = lshr i128 %t298, 64
+      %t301 = zext i64 %t267 to i128
+      %t302 = add i128 %t301, %t300
+      %t303 = trunc i128 %t302 to i64
+      %t304 = lshr i128 %t302, 64
+      %t305 = zext i64 %t269 to i128
+      %t306 = add i128 %t305, %t304
+      %t307 = trunc i128 %t306 to i64
+      %t308 = zext i64 %t283 to i128
+      %t309 = zext i64 -1 to i128
+      %t310 = sub i128 %t308, %t309
+      %t311 = sub i128 %t310, 0
+      %t312 = trunc i128 %t311 to i64
+      %t313 = lshr i128 %t311, 127
+      %t314 = zext i64 %t291 to i128
+      %t315 = zext i64 4294967295 to i128
+      %t316 = sub i128 %t314, %t315
+      %t317 = sub i128 %t316, %t313
+      %t318 = trunc i128 %t317 to i64
+      %t319 = lshr i128 %t317, 127
+      %t320 = zext i64 %t299 to i128
+      %t321 = zext i64 0 to i128
+      %t322 = sub i128 %t320, %t321
+      %t323 = sub i128 %t322, %t319
+      %t324 = trunc i128 %t323 to i64
+      %t325 = lshr i128 %t323, 127
+      %t326 = zext i64 %t303 to i128
+      %t327 = zext i64 -4294967295 to i128
+      %t328 = sub i128 %t326, %t327
+      %t329 = sub i128 %t328, %t325
+      %t330 = trunc i128 %t329 to i64
+      %t331 = lshr i128 %t329, 127
+      %t332 = zext i64 %t307 to i128
+      %t333 = sub i128 %t332, 0
+      %t334 = sub i128 %t333, %t331
+      %t335 = trunc i128 %t334 to i64
+      %t336 = lshr i128 %t334, 127
+      %t337 = trunc i128 %t336 to i1
+      %t338 = select i1 %t337, i64 %t283, i64 %t312
+      %t339 = select i1 %t337, i64 %t291, i64 %t318
+      %t340 = select i1 %t337, i64 %t299, i64 %t324
+      %t341 = select i1 %t337, i64 %t303, i64 %t330
+      %t342 = zext i64 %t338 to i128
+      %t343 = zext i64 %t339 to i128
+      %t344 = shl i128 %t343, 64
+      %t345 = or i128 %t342, %t344
+      ret i128 %t345
+    }
+
+  -- | The lo half of (a + b) modulo the field prime p.
+  prim p-add-lo :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = add i128 %t13, %t14
+      %t16 = add i128 %t15, 0
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 64
+      %t19 = zext i64 %t3 to i128
+      %t20 = zext i64 %t9 to i128
+      %t21 = add i128 %t19, %t20
+      %t22 = add i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 64
+      %t25 = zext i64 %t4 to i128
+      %t26 = zext i64 %t10 to i128
+      %t27 = add i128 %t25, %t26
+      %t28 = add i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 64
+      %t31 = zext i64 %t6 to i128
+      %t32 = zext i64 %t12 to i128
+      %t33 = add i128 %t31, %t32
+      %t34 = add i128 %t33, %t30
+      %t35 = trunc i128 %t34 to i64
+      %t36 = lshr i128 %t34, 64
+      %t37 = trunc i128 %t36 to i64
+      %t38 = zext i64 %t17 to i128
+      %t39 = zext i64 -1 to i128
+      %t40 = sub i128 %t38, %t39
+      %t41 = sub i128 %t40, 0
+      %t42 = trunc i128 %t41 to i64
+      %t43 = lshr i128 %t41, 127
+      %t44 = zext i64 %t23 to i128
+      %t45 = zext i64 4294967295 to i128
+      %t46 = sub i128 %t44, %t45
+      %t47 = sub i128 %t46, %t43
+      %t48 = trunc i128 %t47 to i64
+      %t49 = lshr i128 %t47, 127
+      %t50 = zext i64 %t29 to i128
+      %t51 = zext i64 0 to i128
+      %t52 = sub i128 %t50, %t51
+      %t53 = sub i128 %t52, %t49
+      %t54 = trunc i128 %t53 to i64
+      %t55 = lshr i128 %t53, 127
+      %t56 = zext i64 %t35 to i128
+      %t57 = zext i64 -4294967295 to i128
+      %t58 = sub i128 %t56, %t57
+      %t59 = sub i128 %t58, %t55
+      %t60 = trunc i128 %t59 to i64
+      %t61 = lshr i128 %t59, 127
+      %t62 = zext i64 %t37 to i128
+      %t63 = sub i128 %t62, 0
+      %t64 = sub i128 %t63, %t61
+      %t65 = trunc i128 %t64 to i64
+      %t66 = lshr i128 %t64, 127
+      %t67 = trunc i128 %t66 to i1
+      %t68 = select i1 %t67, i64 %t17, i64 %t42
+      %t69 = select i1 %t67, i64 %t23, i64 %t48
+      %t70 = select i1 %t67, i64 %t29, i64 %t54
+      %t71 = select i1 %t67, i64 %t35, i64 %t60
+      %t72 = zext i64 %t68 to i128
+      %t73 = zext i64 %t69 to i128
+      %t74 = shl i128 %t73, 64
+      %t75 = or i128 %t72, %t74
+      ret i128 %t75
+    }
+
+  -- | The lo half of (a - b) modulo the field prime p.
+  prim p-sub-lo :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, 0
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t3 to i128
+      %t20 = zext i64 %t9 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t4 to i128
+      %t26 = zext i64 %t10 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = zext i64 %t6 to i128
+      %t32 = zext i64 %t12 to i128
+      %t33 = sub i128 %t31, %t32
+      %t34 = sub i128 %t33, %t30
+      %t35 = trunc i128 %t34 to i64
+      %t36 = lshr i128 %t34, 127
+      %t37 = trunc i128 %t36 to i1
+      %t38 = sext i1 %t37 to i64
+      %t39 = and i64 %t38, -1
+      %t40 = zext i64 %t17 to i128
+      %t41 = zext i64 %t39 to i128
+      %t42 = add i128 %t40, %t41
+      %t43 = add i128 %t42, 0
+      %t44 = trunc i128 %t43 to i64
+      %t45 = lshr i128 %t43, 64
+      %t46 = and i64 %t38, 4294967295
+      %t47 = zext i64 %t23 to i128
+      %t48 = zext i64 %t46 to i128
+      %t49 = add i128 %t47, %t48
+      %t50 = add i128 %t49, %t45
+      %t51 = trunc i128 %t50 to i64
+      %t52 = lshr i128 %t50, 64
+      %t53 = and i64 %t38, 0
+      %t54 = zext i64 %t29 to i128
+      %t55 = zext i64 %t53 to i128
+      %t56 = add i128 %t54, %t55
+      %t57 = add i128 %t56, %t52
+      %t58 = trunc i128 %t57 to i64
+      %t59 = lshr i128 %t57, 64
+      %t60 = and i64 %t38, -4294967295
+      %t61 = zext i64 %t35 to i128
+      %t62 = zext i64 %t60 to i128
+      %t63 = add i128 %t61, %t62
+      %t64 = add i128 %t63, %t59
+      %t65 = trunc i128 %t64 to i64
+      %t66 = lshr i128 %t64, 64
+      %t67 = zext i64 %t44 to i128
+      %t68 = zext i64 %t51 to i128
+      %t69 = shl i128 %t68, 64
+      %t70 = or i128 %t67, %t69
+      ret i128 %t70
+    }
+
+  -- | The lo half of a value below twice the field prime p, reduced once.
+  prim p-reduce-lo :: U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = zext i64 %t1 to i128
+      %t8 = zext i64 -1 to i128
+      %t9 = sub i128 %t7, %t8
+      %t10 = sub i128 %t9, 0
+      %t11 = trunc i128 %t10 to i64
+      %t12 = lshr i128 %t10, 127
+      %t13 = zext i64 %t3 to i128
+      %t14 = zext i64 4294967295 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, %t12
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t4 to i128
+      %t20 = zext i64 0 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t6 to i128
+      %t26 = zext i64 -4294967295 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = trunc i128 %t30 to i1
+      %t32 = select i1 %t31, i64 %t1, i64 %t11
+      %t33 = select i1 %t31, i64 %t3, i64 %t17
+      %t34 = select i1 %t31, i64 %t4, i64 %t23
+      %t35 = select i1 %t31, i64 %t6, i64 %t29
+      %t36 = zext i64 %t32 to i128
+      %t37 = zext i64 %t33 to i128
+      %t38 = shl i128 %t37, 64
+      %t39 = or i128 %t36, %t38
+      ret i128 %t39
+    }
+
+  -- | The hi half of the Montgomery product a * b / 2^256 modulo the field prime p.
+  prim p-mul-hi :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = mul i128 %t13, %t14
+      %t16 = add i128 0, %t15
+      %t17 = add i128 %t16, 0
+      %t18 = trunc i128 %t17 to i64
+      %t19 = lshr i128 %t17, 64
+      %t20 = zext i64 %t3 to i128
+      %t21 = zext i64 %t7 to i128
+      %t22 = mul i128 %t20, %t21
+      %t23 = add i128 0, %t22
+      %t24 = add i128 %t23, %t19
+      %t25 = trunc i128 %t24 to i64
+      %t26 = lshr i128 %t24, 64
+      %t27 = zext i64 %t4 to i128
+      %t28 = zext i64 %t7 to i128
+      %t29 = mul i128 %t27, %t28
+      %t30 = add i128 0, %t29
+      %t31 = add i128 %t30, %t26
+      %t32 = trunc i128 %t31 to i64
+      %t33 = lshr i128 %t31, 64
+      %t34 = zext i64 %t6 to i128
+      %t35 = zext i64 %t7 to i128
+      %t36 = mul i128 %t34, %t35
+      %t37 = add i128 0, %t36
+      %t38 = add i128 %t37, %t33
+      %t39 = trunc i128 %t38 to i64
+      %t40 = lshr i128 %t38, 64
+      %t41 = add i128 0, %t40
+      %t42 = trunc i128 %t41 to i64
+      %t43 = lshr i128 %t41, 64
+      %t44 = trunc i128 %t43 to i64
+      %t45 = mul i64 %t18, 1
+      %t46 = zext i64 %t18 to i128
+      %t47 = zext i64 %t45 to i128
+      %t48 = zext i64 -1 to i128
+      %t49 = mul i128 %t47, %t48
+      %t50 = add i128 %t46, %t49
+      %t51 = lshr i128 %t50, 64
+      %t52 = zext i64 %t25 to i128
+      %t53 = zext i64 %t45 to i128
+      %t54 = zext i64 4294967295 to i128
+      %t55 = mul i128 %t53, %t54
+      %t56 = add i128 %t52, %t55
+      %t57 = add i128 %t56, %t51
+      %t58 = trunc i128 %t57 to i64
+      %t59 = lshr i128 %t57, 64
+      %t60 = zext i64 %t32 to i128
+      %t61 = zext i64 %t45 to i128
+      %t62 = zext i64 0 to i128
+      %t63 = mul i128 %t61, %t62
+      %t64 = add i128 %t60, %t63
+      %t65 = add i128 %t64, %t59
+      %t66 = trunc i128 %t65 to i64
+      %t67 = lshr i128 %t65, 64
+      %t68 = zext i64 %t39 to i128
+      %t69 = zext i64 %t45 to i128
+      %t70 = zext i64 -4294967295 to i128
+      %t71 = mul i128 %t69, %t70
+      %t72 = add i128 %t68, %t71
+      %t73 = add i128 %t72, %t67
+      %t74 = trunc i128 %t73 to i64
+      %t75 = lshr i128 %t73, 64
+      %t76 = zext i64 %t42 to i128
+      %t77 = add i128 %t76, %t75
+      %t78 = trunc i128 %t77 to i64
+      %t79 = lshr i128 %t77, 64
+      %t80 = zext i64 %t44 to i128
+      %t81 = add i128 %t80, %t79
+      %t82 = trunc i128 %t81 to i64
+      %t83 = zext i64 %t58 to i128
+      %t84 = zext i64 %t1 to i128
+      %t85 = zext i64 %t9 to i128
+      %t86 = mul i128 %t84, %t85
+      %t87 = add i128 %t83, %t86
+      %t88 = add i128 %t87, 0
+      %t89 = trunc i128 %t88 to i64
+      %t90 = lshr i128 %t88, 64
+      %t91 = zext i64 %t66 to i128
+      %t92 = zext i64 %t3 to i128
+      %t93 = zext i64 %t9 to i128
+      %t94 = mul i128 %t92, %t93
+      %t95 = add i128 %t91, %t94
+      %t96 = add i128 %t95, %t90
+      %t97 = trunc i128 %t96 to i64
+      %t98 = lshr i128 %t96, 64
+      %t99 = zext i64 %t74 to i128
+      %t100 = zext i64 %t4 to i128
+      %t101 = zext i64 %t9 to i128
+      %t102 = mul i128 %t100, %t101
+      %t103 = add i128 %t99, %t102
+      %t104 = add i128 %t103, %t98
+      %t105 = trunc i128 %t104 to i64
+      %t106 = lshr i128 %t104, 64
+      %t107 = zext i64 %t78 to i128
+      %t108 = zext i64 %t6 to i128
+      %t109 = zext i64 %t9 to i128
+      %t110 = mul i128 %t108, %t109
+      %t111 = add i128 %t107, %t110
+      %t112 = add i128 %t111, %t106
+      %t113 = trunc i128 %t112 to i64
+      %t114 = lshr i128 %t112, 64
+      %t115 = zext i64 %t82 to i128
+      %t116 = add i128 %t115, %t114
+      %t117 = trunc i128 %t116 to i64
+      %t118 = lshr i128 %t116, 64
+      %t119 = trunc i128 %t118 to i64
+      %t120 = mul i64 %t89, 1
+      %t121 = zext i64 %t89 to i128
+      %t122 = zext i64 %t120 to i128
+      %t123 = zext i64 -1 to i128
+      %t124 = mul i128 %t122, %t123
+      %t125 = add i128 %t121, %t124
+      %t126 = lshr i128 %t125, 64
+      %t127 = zext i64 %t97 to i128
+      %t128 = zext i64 %t120 to i128
+      %t129 = zext i64 4294967295 to i128
+      %t130 = mul i128 %t128, %t129
+      %t131 = add i128 %t127, %t130
+      %t132 = add i128 %t131, %t126
+      %t133 = trunc i128 %t132 to i64
+      %t134 = lshr i128 %t132, 64
+      %t135 = zext i64 %t105 to i128
+      %t136 = zext i64 %t120 to i128
+      %t137 = zext i64 0 to i128
+      %t138 = mul i128 %t136, %t137
+      %t139 = add i128 %t135, %t138
+      %t140 = add i128 %t139, %t134
+      %t141 = trunc i128 %t140 to i64
+      %t142 = lshr i128 %t140, 64
+      %t143 = zext i64 %t113 to i128
+      %t144 = zext i64 %t120 to i128
+      %t145 = zext i64 -4294967295 to i128
+      %t146 = mul i128 %t144, %t145
+      %t147 = add i128 %t143, %t146
+      %t148 = add i128 %t147, %t142
+      %t149 = trunc i128 %t148 to i64
+      %t150 = lshr i128 %t148, 64
+      %t151 = zext i64 %t117 to i128
+      %t152 = add i128 %t151, %t150
+      %t153 = trunc i128 %t152 to i64
+      %t154 = lshr i128 %t152, 64
+      %t155 = zext i64 %t119 to i128
+      %t156 = add i128 %t155, %t154
+      %t157 = trunc i128 %t156 to i64
+      %t158 = zext i64 %t133 to i128
+      %t159 = zext i64 %t1 to i128
+      %t160 = zext i64 %t10 to i128
+      %t161 = mul i128 %t159, %t160
+      %t162 = add i128 %t158, %t161
+      %t163 = add i128 %t162, 0
+      %t164 = trunc i128 %t163 to i64
+      %t165 = lshr i128 %t163, 64
+      %t166 = zext i64 %t141 to i128
+      %t167 = zext i64 %t3 to i128
+      %t168 = zext i64 %t10 to i128
+      %t169 = mul i128 %t167, %t168
+      %t170 = add i128 %t166, %t169
+      %t171 = add i128 %t170, %t165
+      %t172 = trunc i128 %t171 to i64
+      %t173 = lshr i128 %t171, 64
+      %t174 = zext i64 %t149 to i128
+      %t175 = zext i64 %t4 to i128
+      %t176 = zext i64 %t10 to i128
+      %t177 = mul i128 %t175, %t176
+      %t178 = add i128 %t174, %t177
+      %t179 = add i128 %t178, %t173
+      %t180 = trunc i128 %t179 to i64
+      %t181 = lshr i128 %t179, 64
+      %t182 = zext i64 %t153 to i128
+      %t183 = zext i64 %t6 to i128
+      %t184 = zext i64 %t10 to i128
+      %t185 = mul i128 %t183, %t184
+      %t186 = add i128 %t182, %t185
+      %t187 = add i128 %t186, %t181
+      %t188 = trunc i128 %t187 to i64
+      %t189 = lshr i128 %t187, 64
+      %t190 = zext i64 %t157 to i128
+      %t191 = add i128 %t190, %t189
+      %t192 = trunc i128 %t191 to i64
+      %t193 = lshr i128 %t191, 64
+      %t194 = trunc i128 %t193 to i64
+      %t195 = mul i64 %t164, 1
+      %t196 = zext i64 %t164 to i128
+      %t197 = zext i64 %t195 to i128
+      %t198 = zext i64 -1 to i128
+      %t199 = mul i128 %t197, %t198
+      %t200 = add i128 %t196, %t199
+      %t201 = lshr i128 %t200, 64
+      %t202 = zext i64 %t172 to i128
+      %t203 = zext i64 %t195 to i128
+      %t204 = zext i64 4294967295 to i128
+      %t205 = mul i128 %t203, %t204
+      %t206 = add i128 %t202, %t205
+      %t207 = add i128 %t206, %t201
+      %t208 = trunc i128 %t207 to i64
+      %t209 = lshr i128 %t207, 64
+      %t210 = zext i64 %t180 to i128
+      %t211 = zext i64 %t195 to i128
+      %t212 = zext i64 0 to i128
+      %t213 = mul i128 %t211, %t212
+      %t214 = add i128 %t210, %t213
+      %t215 = add i128 %t214, %t209
+      %t216 = trunc i128 %t215 to i64
+      %t217 = lshr i128 %t215, 64
+      %t218 = zext i64 %t188 to i128
+      %t219 = zext i64 %t195 to i128
+      %t220 = zext i64 -4294967295 to i128
+      %t221 = mul i128 %t219, %t220
+      %t222 = add i128 %t218, %t221
+      %t223 = add i128 %t222, %t217
+      %t224 = trunc i128 %t223 to i64
+      %t225 = lshr i128 %t223, 64
+      %t226 = zext i64 %t192 to i128
+      %t227 = add i128 %t226, %t225
+      %t228 = trunc i128 %t227 to i64
+      %t229 = lshr i128 %t227, 64
+      %t230 = zext i64 %t194 to i128
+      %t231 = add i128 %t230, %t229
+      %t232 = trunc i128 %t231 to i64
+      %t233 = zext i64 %t208 to i128
+      %t234 = zext i64 %t1 to i128
+      %t235 = zext i64 %t12 to i128
+      %t236 = mul i128 %t234, %t235
+      %t237 = add i128 %t233, %t236
+      %t238 = add i128 %t237, 0
+      %t239 = trunc i128 %t238 to i64
+      %t240 = lshr i128 %t238, 64
+      %t241 = zext i64 %t216 to i128
+      %t242 = zext i64 %t3 to i128
+      %t243 = zext i64 %t12 to i128
+      %t244 = mul i128 %t242, %t243
+      %t245 = add i128 %t241, %t244
+      %t246 = add i128 %t245, %t240
+      %t247 = trunc i128 %t246 to i64
+      %t248 = lshr i128 %t246, 64
+      %t249 = zext i64 %t224 to i128
+      %t250 = zext i64 %t4 to i128
+      %t251 = zext i64 %t12 to i128
+      %t252 = mul i128 %t250, %t251
+      %t253 = add i128 %t249, %t252
+      %t254 = add i128 %t253, %t248
+      %t255 = trunc i128 %t254 to i64
+      %t256 = lshr i128 %t254, 64
+      %t257 = zext i64 %t228 to i128
+      %t258 = zext i64 %t6 to i128
+      %t259 = zext i64 %t12 to i128
+      %t260 = mul i128 %t258, %t259
+      %t261 = add i128 %t257, %t260
+      %t262 = add i128 %t261, %t256
+      %t263 = trunc i128 %t262 to i64
+      %t264 = lshr i128 %t262, 64
+      %t265 = zext i64 %t232 to i128
+      %t266 = add i128 %t265, %t264
+      %t267 = trunc i128 %t266 to i64
+      %t268 = lshr i128 %t266, 64
+      %t269 = trunc i128 %t268 to i64
+      %t270 = mul i64 %t239, 1
+      %t271 = zext i64 %t239 to i128
+      %t272 = zext i64 %t270 to i128
+      %t273 = zext i64 -1 to i128
+      %t274 = mul i128 %t272, %t273
+      %t275 = add i128 %t271, %t274
+      %t276 = lshr i128 %t275, 64
+      %t277 = zext i64 %t247 to i128
+      %t278 = zext i64 %t270 to i128
+      %t279 = zext i64 4294967295 to i128
+      %t280 = mul i128 %t278, %t279
+      %t281 = add i128 %t277, %t280
+      %t282 = add i128 %t281, %t276
+      %t283 = trunc i128 %t282 to i64
+      %t284 = lshr i128 %t282, 64
+      %t285 = zext i64 %t255 to i128
+      %t286 = zext i64 %t270 to i128
+      %t287 = zext i64 0 to i128
+      %t288 = mul i128 %t286, %t287
+      %t289 = add i128 %t285, %t288
+      %t290 = add i128 %t289, %t284
+      %t291 = trunc i128 %t290 to i64
+      %t292 = lshr i128 %t290, 64
+      %t293 = zext i64 %t263 to i128
+      %t294 = zext i64 %t270 to i128
+      %t295 = zext i64 -4294967295 to i128
+      %t296 = mul i128 %t294, %t295
+      %t297 = add i128 %t293, %t296
+      %t298 = add i128 %t297, %t292
+      %t299 = trunc i128 %t298 to i64
+      %t300 = lshr i128 %t298, 64
+      %t301 = zext i64 %t267 to i128
+      %t302 = add i128 %t301, %t300
+      %t303 = trunc i128 %t302 to i64
+      %t304 = lshr i128 %t302, 64
+      %t305 = zext i64 %t269 to i128
+      %t306 = add i128 %t305, %t304
+      %t307 = trunc i128 %t306 to i64
+      %t308 = zext i64 %t283 to i128
+      %t309 = zext i64 -1 to i128
+      %t310 = sub i128 %t308, %t309
+      %t311 = sub i128 %t310, 0
+      %t312 = trunc i128 %t311 to i64
+      %t313 = lshr i128 %t311, 127
+      %t314 = zext i64 %t291 to i128
+      %t315 = zext i64 4294967295 to i128
+      %t316 = sub i128 %t314, %t315
+      %t317 = sub i128 %t316, %t313
+      %t318 = trunc i128 %t317 to i64
+      %t319 = lshr i128 %t317, 127
+      %t320 = zext i64 %t299 to i128
+      %t321 = zext i64 0 to i128
+      %t322 = sub i128 %t320, %t321
+      %t323 = sub i128 %t322, %t319
+      %t324 = trunc i128 %t323 to i64
+      %t325 = lshr i128 %t323, 127
+      %t326 = zext i64 %t303 to i128
+      %t327 = zext i64 -4294967295 to i128
+      %t328 = sub i128 %t326, %t327
+      %t329 = sub i128 %t328, %t325
+      %t330 = trunc i128 %t329 to i64
+      %t331 = lshr i128 %t329, 127
+      %t332 = zext i64 %t307 to i128
+      %t333 = sub i128 %t332, 0
+      %t334 = sub i128 %t333, %t331
+      %t335 = trunc i128 %t334 to i64
+      %t336 = lshr i128 %t334, 127
+      %t337 = trunc i128 %t336 to i1
+      %t338 = select i1 %t337, i64 %t283, i64 %t312
+      %t339 = select i1 %t337, i64 %t291, i64 %t318
+      %t340 = select i1 %t337, i64 %t299, i64 %t324
+      %t341 = select i1 %t337, i64 %t303, i64 %t330
+      %t342 = zext i64 %t340 to i128
+      %t343 = zext i64 %t341 to i128
+      %t344 = shl i128 %t343, 64
+      %t345 = or i128 %t342, %t344
+      ret i128 %t345
+    }
+
+  -- | The hi half of (a + b) modulo the field prime p.
+  prim p-add-hi :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = add i128 %t13, %t14
+      %t16 = add i128 %t15, 0
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 64
+      %t19 = zext i64 %t3 to i128
+      %t20 = zext i64 %t9 to i128
+      %t21 = add i128 %t19, %t20
+      %t22 = add i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 64
+      %t25 = zext i64 %t4 to i128
+      %t26 = zext i64 %t10 to i128
+      %t27 = add i128 %t25, %t26
+      %t28 = add i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 64
+      %t31 = zext i64 %t6 to i128
+      %t32 = zext i64 %t12 to i128
+      %t33 = add i128 %t31, %t32
+      %t34 = add i128 %t33, %t30
+      %t35 = trunc i128 %t34 to i64
+      %t36 = lshr i128 %t34, 64
+      %t37 = trunc i128 %t36 to i64
+      %t38 = zext i64 %t17 to i128
+      %t39 = zext i64 -1 to i128
+      %t40 = sub i128 %t38, %t39
+      %t41 = sub i128 %t40, 0
+      %t42 = trunc i128 %t41 to i64
+      %t43 = lshr i128 %t41, 127
+      %t44 = zext i64 %t23 to i128
+      %t45 = zext i64 4294967295 to i128
+      %t46 = sub i128 %t44, %t45
+      %t47 = sub i128 %t46, %t43
+      %t48 = trunc i128 %t47 to i64
+      %t49 = lshr i128 %t47, 127
+      %t50 = zext i64 %t29 to i128
+      %t51 = zext i64 0 to i128
+      %t52 = sub i128 %t50, %t51
+      %t53 = sub i128 %t52, %t49
+      %t54 = trunc i128 %t53 to i64
+      %t55 = lshr i128 %t53, 127
+      %t56 = zext i64 %t35 to i128
+      %t57 = zext i64 -4294967295 to i128
+      %t58 = sub i128 %t56, %t57
+      %t59 = sub i128 %t58, %t55
+      %t60 = trunc i128 %t59 to i64
+      %t61 = lshr i128 %t59, 127
+      %t62 = zext i64 %t37 to i128
+      %t63 = sub i128 %t62, 0
+      %t64 = sub i128 %t63, %t61
+      %t65 = trunc i128 %t64 to i64
+      %t66 = lshr i128 %t64, 127
+      %t67 = trunc i128 %t66 to i1
+      %t68 = select i1 %t67, i64 %t17, i64 %t42
+      %t69 = select i1 %t67, i64 %t23, i64 %t48
+      %t70 = select i1 %t67, i64 %t29, i64 %t54
+      %t71 = select i1 %t67, i64 %t35, i64 %t60
+      %t72 = zext i64 %t70 to i128
+      %t73 = zext i64 %t71 to i128
+      %t74 = shl i128 %t73, 64
+      %t75 = or i128 %t72, %t74
+      ret i128 %t75
+    }
+
+  -- | The hi half of (a - b) modulo the field prime p.
+  prim p-sub-hi :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, 0
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t3 to i128
+      %t20 = zext i64 %t9 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t4 to i128
+      %t26 = zext i64 %t10 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = zext i64 %t6 to i128
+      %t32 = zext i64 %t12 to i128
+      %t33 = sub i128 %t31, %t32
+      %t34 = sub i128 %t33, %t30
+      %t35 = trunc i128 %t34 to i64
+      %t36 = lshr i128 %t34, 127
+      %t37 = trunc i128 %t36 to i1
+      %t38 = sext i1 %t37 to i64
+      %t39 = and i64 %t38, -1
+      %t40 = zext i64 %t17 to i128
+      %t41 = zext i64 %t39 to i128
+      %t42 = add i128 %t40, %t41
+      %t43 = add i128 %t42, 0
+      %t44 = trunc i128 %t43 to i64
+      %t45 = lshr i128 %t43, 64
+      %t46 = and i64 %t38, 4294967295
+      %t47 = zext i64 %t23 to i128
+      %t48 = zext i64 %t46 to i128
+      %t49 = add i128 %t47, %t48
+      %t50 = add i128 %t49, %t45
+      %t51 = trunc i128 %t50 to i64
+      %t52 = lshr i128 %t50, 64
+      %t53 = and i64 %t38, 0
+      %t54 = zext i64 %t29 to i128
+      %t55 = zext i64 %t53 to i128
+      %t56 = add i128 %t54, %t55
+      %t57 = add i128 %t56, %t52
+      %t58 = trunc i128 %t57 to i64
+      %t59 = lshr i128 %t57, 64
+      %t60 = and i64 %t38, -4294967295
+      %t61 = zext i64 %t35 to i128
+      %t62 = zext i64 %t60 to i128
+      %t63 = add i128 %t61, %t62
+      %t64 = add i128 %t63, %t59
+      %t65 = trunc i128 %t64 to i64
+      %t66 = lshr i128 %t64, 64
+      %t67 = zext i64 %t58 to i128
+      %t68 = zext i64 %t65 to i128
+      %t69 = shl i128 %t68, 64
+      %t70 = or i128 %t67, %t69
+      ret i128 %t70
+    }
+
+  -- | The hi half of a value below twice the field prime p, reduced once.
+  prim p-reduce-hi :: U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = zext i64 %t1 to i128
+      %t8 = zext i64 -1 to i128
+      %t9 = sub i128 %t7, %t8
+      %t10 = sub i128 %t9, 0
+      %t11 = trunc i128 %t10 to i64
+      %t12 = lshr i128 %t10, 127
+      %t13 = zext i64 %t3 to i128
+      %t14 = zext i64 4294967295 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, %t12
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t4 to i128
+      %t20 = zext i64 0 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t6 to i128
+      %t26 = zext i64 -4294967295 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = trunc i128 %t30 to i1
+      %t32 = select i1 %t31, i64 %t1, i64 %t11
+      %t33 = select i1 %t31, i64 %t3, i64 %t17
+      %t34 = select i1 %t31, i64 %t4, i64 %t23
+      %t35 = select i1 %t31, i64 %t6, i64 %t29
+      %t36 = zext i64 %t34 to i128
+      %t37 = zext i64 %t35 to i128
+      %t38 = shl i128 %t37, 64
+      %t39 = or i128 %t36, %t38
+      ret i128 %t39
+    }
+
+  -- | One when a value is below the field prime p, else zero.
+  prim p-below :: U128 -> U128 -> I64 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = zext i64 %t1 to i128
+      %t8 = zext i64 -1 to i128
+      %t9 = sub i128 %t7, %t8
+      %t10 = sub i128 %t9, 0
+      %t11 = trunc i128 %t10 to i64
+      %t12 = lshr i128 %t10, 127
+      %t13 = zext i64 %t3 to i128
+      %t14 = zext i64 4294967295 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, %t12
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t4 to i128
+      %t20 = zext i64 0 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t6 to i128
+      %t26 = zext i64 -4294967295 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = trunc i128 %t30 to i1
+      %t32 = zext i1 %t31 to i64
+      ret i64 %t32
+    }
+
+  -- | The lo half of the Montgomery product a * b / 2^256 modulo the group order n.
+  prim n-mul-lo :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = mul i128 %t13, %t14
+      %t16 = add i128 0, %t15
+      %t17 = add i128 %t16, 0
+      %t18 = trunc i128 %t17 to i64
+      %t19 = lshr i128 %t17, 64
+      %t20 = zext i64 %t3 to i128
+      %t21 = zext i64 %t7 to i128
+      %t22 = mul i128 %t20, %t21
+      %t23 = add i128 0, %t22
+      %t24 = add i128 %t23, %t19
+      %t25 = trunc i128 %t24 to i64
+      %t26 = lshr i128 %t24, 64
+      %t27 = zext i64 %t4 to i128
+      %t28 = zext i64 %t7 to i128
+      %t29 = mul i128 %t27, %t28
+      %t30 = add i128 0, %t29
+      %t31 = add i128 %t30, %t26
+      %t32 = trunc i128 %t31 to i64
+      %t33 = lshr i128 %t31, 64
+      %t34 = zext i64 %t6 to i128
+      %t35 = zext i64 %t7 to i128
+      %t36 = mul i128 %t34, %t35
+      %t37 = add i128 0, %t36
+      %t38 = add i128 %t37, %t33
+      %t39 = trunc i128 %t38 to i64
+      %t40 = lshr i128 %t38, 64
+      %t41 = add i128 0, %t40
+      %t42 = trunc i128 %t41 to i64
+      %t43 = lshr i128 %t41, 64
+      %t44 = trunc i128 %t43 to i64
+      %t45 = mul i64 %t18, -3687945983376704433
+      %t46 = zext i64 %t18 to i128
+      %t47 = zext i64 %t45 to i128
+      %t48 = zext i64 -884452912994769583 to i128
+      %t49 = mul i128 %t47, %t48
+      %t50 = add i128 %t46, %t49
+      %t51 = lshr i128 %t50, 64
+      %t52 = zext i64 %t25 to i128
+      %t53 = zext i64 %t45 to i128
+      %t54 = zext i64 -4834901526196019580 to i128
+      %t55 = mul i128 %t53, %t54
+      %t56 = add i128 %t52, %t55
+      %t57 = add i128 %t56, %t51
+      %t58 = trunc i128 %t57 to i64
+      %t59 = lshr i128 %t57, 64
+      %t60 = zext i64 %t32 to i128
+      %t61 = zext i64 %t45 to i128
+      %t62 = zext i64 -1 to i128
+      %t63 = mul i128 %t61, %t62
+      %t64 = add i128 %t60, %t63
+      %t65 = add i128 %t64, %t59
+      %t66 = trunc i128 %t65 to i64
+      %t67 = lshr i128 %t65, 64
+      %t68 = zext i64 %t39 to i128
+      %t69 = zext i64 %t45 to i128
+      %t70 = zext i64 -4294967296 to i128
+      %t71 = mul i128 %t69, %t70
+      %t72 = add i128 %t68, %t71
+      %t73 = add i128 %t72, %t67
+      %t74 = trunc i128 %t73 to i64
+      %t75 = lshr i128 %t73, 64
+      %t76 = zext i64 %t42 to i128
+      %t77 = add i128 %t76, %t75
+      %t78 = trunc i128 %t77 to i64
+      %t79 = lshr i128 %t77, 64
+      %t80 = zext i64 %t44 to i128
+      %t81 = add i128 %t80, %t79
+      %t82 = trunc i128 %t81 to i64
+      %t83 = zext i64 %t58 to i128
+      %t84 = zext i64 %t1 to i128
+      %t85 = zext i64 %t9 to i128
+      %t86 = mul i128 %t84, %t85
+      %t87 = add i128 %t83, %t86
+      %t88 = add i128 %t87, 0
+      %t89 = trunc i128 %t88 to i64
+      %t90 = lshr i128 %t88, 64
+      %t91 = zext i64 %t66 to i128
+      %t92 = zext i64 %t3 to i128
+      %t93 = zext i64 %t9 to i128
+      %t94 = mul i128 %t92, %t93
+      %t95 = add i128 %t91, %t94
+      %t96 = add i128 %t95, %t90
+      %t97 = trunc i128 %t96 to i64
+      %t98 = lshr i128 %t96, 64
+      %t99 = zext i64 %t74 to i128
+      %t100 = zext i64 %t4 to i128
+      %t101 = zext i64 %t9 to i128
+      %t102 = mul i128 %t100, %t101
+      %t103 = add i128 %t99, %t102
+      %t104 = add i128 %t103, %t98
+      %t105 = trunc i128 %t104 to i64
+      %t106 = lshr i128 %t104, 64
+      %t107 = zext i64 %t78 to i128
+      %t108 = zext i64 %t6 to i128
+      %t109 = zext i64 %t9 to i128
+      %t110 = mul i128 %t108, %t109
+      %t111 = add i128 %t107, %t110
+      %t112 = add i128 %t111, %t106
+      %t113 = trunc i128 %t112 to i64
+      %t114 = lshr i128 %t112, 64
+      %t115 = zext i64 %t82 to i128
+      %t116 = add i128 %t115, %t114
+      %t117 = trunc i128 %t116 to i64
+      %t118 = lshr i128 %t116, 64
+      %t119 = trunc i128 %t118 to i64
+      %t120 = mul i64 %t89, -3687945983376704433
+      %t121 = zext i64 %t89 to i128
+      %t122 = zext i64 %t120 to i128
+      %t123 = zext i64 -884452912994769583 to i128
+      %t124 = mul i128 %t122, %t123
+      %t125 = add i128 %t121, %t124
+      %t126 = lshr i128 %t125, 64
+      %t127 = zext i64 %t97 to i128
+      %t128 = zext i64 %t120 to i128
+      %t129 = zext i64 -4834901526196019580 to i128
+      %t130 = mul i128 %t128, %t129
+      %t131 = add i128 %t127, %t130
+      %t132 = add i128 %t131, %t126
+      %t133 = trunc i128 %t132 to i64
+      %t134 = lshr i128 %t132, 64
+      %t135 = zext i64 %t105 to i128
+      %t136 = zext i64 %t120 to i128
+      %t137 = zext i64 -1 to i128
+      %t138 = mul i128 %t136, %t137
+      %t139 = add i128 %t135, %t138
+      %t140 = add i128 %t139, %t134
+      %t141 = trunc i128 %t140 to i64
+      %t142 = lshr i128 %t140, 64
+      %t143 = zext i64 %t113 to i128
+      %t144 = zext i64 %t120 to i128
+      %t145 = zext i64 -4294967296 to i128
+      %t146 = mul i128 %t144, %t145
+      %t147 = add i128 %t143, %t146
+      %t148 = add i128 %t147, %t142
+      %t149 = trunc i128 %t148 to i64
+      %t150 = lshr i128 %t148, 64
+      %t151 = zext i64 %t117 to i128
+      %t152 = add i128 %t151, %t150
+      %t153 = trunc i128 %t152 to i64
+      %t154 = lshr i128 %t152, 64
+      %t155 = zext i64 %t119 to i128
+      %t156 = add i128 %t155, %t154
+      %t157 = trunc i128 %t156 to i64
+      %t158 = zext i64 %t133 to i128
+      %t159 = zext i64 %t1 to i128
+      %t160 = zext i64 %t10 to i128
+      %t161 = mul i128 %t159, %t160
+      %t162 = add i128 %t158, %t161
+      %t163 = add i128 %t162, 0
+      %t164 = trunc i128 %t163 to i64
+      %t165 = lshr i128 %t163, 64
+      %t166 = zext i64 %t141 to i128
+      %t167 = zext i64 %t3 to i128
+      %t168 = zext i64 %t10 to i128
+      %t169 = mul i128 %t167, %t168
+      %t170 = add i128 %t166, %t169
+      %t171 = add i128 %t170, %t165
+      %t172 = trunc i128 %t171 to i64
+      %t173 = lshr i128 %t171, 64
+      %t174 = zext i64 %t149 to i128
+      %t175 = zext i64 %t4 to i128
+      %t176 = zext i64 %t10 to i128
+      %t177 = mul i128 %t175, %t176
+      %t178 = add i128 %t174, %t177
+      %t179 = add i128 %t178, %t173
+      %t180 = trunc i128 %t179 to i64
+      %t181 = lshr i128 %t179, 64
+      %t182 = zext i64 %t153 to i128
+      %t183 = zext i64 %t6 to i128
+      %t184 = zext i64 %t10 to i128
+      %t185 = mul i128 %t183, %t184
+      %t186 = add i128 %t182, %t185
+      %t187 = add i128 %t186, %t181
+      %t188 = trunc i128 %t187 to i64
+      %t189 = lshr i128 %t187, 64
+      %t190 = zext i64 %t157 to i128
+      %t191 = add i128 %t190, %t189
+      %t192 = trunc i128 %t191 to i64
+      %t193 = lshr i128 %t191, 64
+      %t194 = trunc i128 %t193 to i64
+      %t195 = mul i64 %t164, -3687945983376704433
+      %t196 = zext i64 %t164 to i128
+      %t197 = zext i64 %t195 to i128
+      %t198 = zext i64 -884452912994769583 to i128
+      %t199 = mul i128 %t197, %t198
+      %t200 = add i128 %t196, %t199
+      %t201 = lshr i128 %t200, 64
+      %t202 = zext i64 %t172 to i128
+      %t203 = zext i64 %t195 to i128
+      %t204 = zext i64 -4834901526196019580 to i128
+      %t205 = mul i128 %t203, %t204
+      %t206 = add i128 %t202, %t205
+      %t207 = add i128 %t206, %t201
+      %t208 = trunc i128 %t207 to i64
+      %t209 = lshr i128 %t207, 64
+      %t210 = zext i64 %t180 to i128
+      %t211 = zext i64 %t195 to i128
+      %t212 = zext i64 -1 to i128
+      %t213 = mul i128 %t211, %t212
+      %t214 = add i128 %t210, %t213
+      %t215 = add i128 %t214, %t209
+      %t216 = trunc i128 %t215 to i64
+      %t217 = lshr i128 %t215, 64
+      %t218 = zext i64 %t188 to i128
+      %t219 = zext i64 %t195 to i128
+      %t220 = zext i64 -4294967296 to i128
+      %t221 = mul i128 %t219, %t220
+      %t222 = add i128 %t218, %t221
+      %t223 = add i128 %t222, %t217
+      %t224 = trunc i128 %t223 to i64
+      %t225 = lshr i128 %t223, 64
+      %t226 = zext i64 %t192 to i128
+      %t227 = add i128 %t226, %t225
+      %t228 = trunc i128 %t227 to i64
+      %t229 = lshr i128 %t227, 64
+      %t230 = zext i64 %t194 to i128
+      %t231 = add i128 %t230, %t229
+      %t232 = trunc i128 %t231 to i64
+      %t233 = zext i64 %t208 to i128
+      %t234 = zext i64 %t1 to i128
+      %t235 = zext i64 %t12 to i128
+      %t236 = mul i128 %t234, %t235
+      %t237 = add i128 %t233, %t236
+      %t238 = add i128 %t237, 0
+      %t239 = trunc i128 %t238 to i64
+      %t240 = lshr i128 %t238, 64
+      %t241 = zext i64 %t216 to i128
+      %t242 = zext i64 %t3 to i128
+      %t243 = zext i64 %t12 to i128
+      %t244 = mul i128 %t242, %t243
+      %t245 = add i128 %t241, %t244
+      %t246 = add i128 %t245, %t240
+      %t247 = trunc i128 %t246 to i64
+      %t248 = lshr i128 %t246, 64
+      %t249 = zext i64 %t224 to i128
+      %t250 = zext i64 %t4 to i128
+      %t251 = zext i64 %t12 to i128
+      %t252 = mul i128 %t250, %t251
+      %t253 = add i128 %t249, %t252
+      %t254 = add i128 %t253, %t248
+      %t255 = trunc i128 %t254 to i64
+      %t256 = lshr i128 %t254, 64
+      %t257 = zext i64 %t228 to i128
+      %t258 = zext i64 %t6 to i128
+      %t259 = zext i64 %t12 to i128
+      %t260 = mul i128 %t258, %t259
+      %t261 = add i128 %t257, %t260
+      %t262 = add i128 %t261, %t256
+      %t263 = trunc i128 %t262 to i64
+      %t264 = lshr i128 %t262, 64
+      %t265 = zext i64 %t232 to i128
+      %t266 = add i128 %t265, %t264
+      %t267 = trunc i128 %t266 to i64
+      %t268 = lshr i128 %t266, 64
+      %t269 = trunc i128 %t268 to i64
+      %t270 = mul i64 %t239, -3687945983376704433
+      %t271 = zext i64 %t239 to i128
+      %t272 = zext i64 %t270 to i128
+      %t273 = zext i64 -884452912994769583 to i128
+      %t274 = mul i128 %t272, %t273
+      %t275 = add i128 %t271, %t274
+      %t276 = lshr i128 %t275, 64
+      %t277 = zext i64 %t247 to i128
+      %t278 = zext i64 %t270 to i128
+      %t279 = zext i64 -4834901526196019580 to i128
+      %t280 = mul i128 %t278, %t279
+      %t281 = add i128 %t277, %t280
+      %t282 = add i128 %t281, %t276
+      %t283 = trunc i128 %t282 to i64
+      %t284 = lshr i128 %t282, 64
+      %t285 = zext i64 %t255 to i128
+      %t286 = zext i64 %t270 to i128
+      %t287 = zext i64 -1 to i128
+      %t288 = mul i128 %t286, %t287
+      %t289 = add i128 %t285, %t288
+      %t290 = add i128 %t289, %t284
+      %t291 = trunc i128 %t290 to i64
+      %t292 = lshr i128 %t290, 64
+      %t293 = zext i64 %t263 to i128
+      %t294 = zext i64 %t270 to i128
+      %t295 = zext i64 -4294967296 to i128
+      %t296 = mul i128 %t294, %t295
+      %t297 = add i128 %t293, %t296
+      %t298 = add i128 %t297, %t292
+      %t299 = trunc i128 %t298 to i64
+      %t300 = lshr i128 %t298, 64
+      %t301 = zext i64 %t267 to i128
+      %t302 = add i128 %t301, %t300
+      %t303 = trunc i128 %t302 to i64
+      %t304 = lshr i128 %t302, 64
+      %t305 = zext i64 %t269 to i128
+      %t306 = add i128 %t305, %t304
+      %t307 = trunc i128 %t306 to i64
+      %t308 = zext i64 %t283 to i128
+      %t309 = zext i64 -884452912994769583 to i128
+      %t310 = sub i128 %t308, %t309
+      %t311 = sub i128 %t310, 0
+      %t312 = trunc i128 %t311 to i64
+      %t313 = lshr i128 %t311, 127
+      %t314 = zext i64 %t291 to i128
+      %t315 = zext i64 -4834901526196019580 to i128
+      %t316 = sub i128 %t314, %t315
+      %t317 = sub i128 %t316, %t313
+      %t318 = trunc i128 %t317 to i64
+      %t319 = lshr i128 %t317, 127
+      %t320 = zext i64 %t299 to i128
+      %t321 = zext i64 -1 to i128
+      %t322 = sub i128 %t320, %t321
+      %t323 = sub i128 %t322, %t319
+      %t324 = trunc i128 %t323 to i64
+      %t325 = lshr i128 %t323, 127
+      %t326 = zext i64 %t303 to i128
+      %t327 = zext i64 -4294967296 to i128
+      %t328 = sub i128 %t326, %t327
+      %t329 = sub i128 %t328, %t325
+      %t330 = trunc i128 %t329 to i64
+      %t331 = lshr i128 %t329, 127
+      %t332 = zext i64 %t307 to i128
+      %t333 = sub i128 %t332, 0
+      %t334 = sub i128 %t333, %t331
+      %t335 = trunc i128 %t334 to i64
+      %t336 = lshr i128 %t334, 127
+      %t337 = trunc i128 %t336 to i1
+      %t338 = select i1 %t337, i64 %t283, i64 %t312
+      %t339 = select i1 %t337, i64 %t291, i64 %t318
+      %t340 = select i1 %t337, i64 %t299, i64 %t324
+      %t341 = select i1 %t337, i64 %t303, i64 %t330
+      %t342 = zext i64 %t338 to i128
+      %t343 = zext i64 %t339 to i128
+      %t344 = shl i128 %t343, 64
+      %t345 = or i128 %t342, %t344
+      ret i128 %t345
+    }
+
+  -- | The lo half of (a + b) modulo the group order n.
+  prim n-add-lo :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = add i128 %t13, %t14
+      %t16 = add i128 %t15, 0
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 64
+      %t19 = zext i64 %t3 to i128
+      %t20 = zext i64 %t9 to i128
+      %t21 = add i128 %t19, %t20
+      %t22 = add i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 64
+      %t25 = zext i64 %t4 to i128
+      %t26 = zext i64 %t10 to i128
+      %t27 = add i128 %t25, %t26
+      %t28 = add i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 64
+      %t31 = zext i64 %t6 to i128
+      %t32 = zext i64 %t12 to i128
+      %t33 = add i128 %t31, %t32
+      %t34 = add i128 %t33, %t30
+      %t35 = trunc i128 %t34 to i64
+      %t36 = lshr i128 %t34, 64
+      %t37 = trunc i128 %t36 to i64
+      %t38 = zext i64 %t17 to i128
+      %t39 = zext i64 -884452912994769583 to i128
+      %t40 = sub i128 %t38, %t39
+      %t41 = sub i128 %t40, 0
+      %t42 = trunc i128 %t41 to i64
+      %t43 = lshr i128 %t41, 127
+      %t44 = zext i64 %t23 to i128
+      %t45 = zext i64 -4834901526196019580 to i128
+      %t46 = sub i128 %t44, %t45
+      %t47 = sub i128 %t46, %t43
+      %t48 = trunc i128 %t47 to i64
+      %t49 = lshr i128 %t47, 127
+      %t50 = zext i64 %t29 to i128
+      %t51 = zext i64 -1 to i128
+      %t52 = sub i128 %t50, %t51
+      %t53 = sub i128 %t52, %t49
+      %t54 = trunc i128 %t53 to i64
+      %t55 = lshr i128 %t53, 127
+      %t56 = zext i64 %t35 to i128
+      %t57 = zext i64 -4294967296 to i128
+      %t58 = sub i128 %t56, %t57
+      %t59 = sub i128 %t58, %t55
+      %t60 = trunc i128 %t59 to i64
+      %t61 = lshr i128 %t59, 127
+      %t62 = zext i64 %t37 to i128
+      %t63 = sub i128 %t62, 0
+      %t64 = sub i128 %t63, %t61
+      %t65 = trunc i128 %t64 to i64
+      %t66 = lshr i128 %t64, 127
+      %t67 = trunc i128 %t66 to i1
+      %t68 = select i1 %t67, i64 %t17, i64 %t42
+      %t69 = select i1 %t67, i64 %t23, i64 %t48
+      %t70 = select i1 %t67, i64 %t29, i64 %t54
+      %t71 = select i1 %t67, i64 %t35, i64 %t60
+      %t72 = zext i64 %t68 to i128
+      %t73 = zext i64 %t69 to i128
+      %t74 = shl i128 %t73, 64
+      %t75 = or i128 %t72, %t74
+      ret i128 %t75
+    }
+
+  -- | The lo half of (a - b) modulo the group order n.
+  prim n-sub-lo :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, 0
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t3 to i128
+      %t20 = zext i64 %t9 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t4 to i128
+      %t26 = zext i64 %t10 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = zext i64 %t6 to i128
+      %t32 = zext i64 %t12 to i128
+      %t33 = sub i128 %t31, %t32
+      %t34 = sub i128 %t33, %t30
+      %t35 = trunc i128 %t34 to i64
+      %t36 = lshr i128 %t34, 127
+      %t37 = trunc i128 %t36 to i1
+      %t38 = sext i1 %t37 to i64
+      %t39 = and i64 %t38, -884452912994769583
+      %t40 = zext i64 %t17 to i128
+      %t41 = zext i64 %t39 to i128
+      %t42 = add i128 %t40, %t41
+      %t43 = add i128 %t42, 0
+      %t44 = trunc i128 %t43 to i64
+      %t45 = lshr i128 %t43, 64
+      %t46 = and i64 %t38, -4834901526196019580
+      %t47 = zext i64 %t23 to i128
+      %t48 = zext i64 %t46 to i128
+      %t49 = add i128 %t47, %t48
+      %t50 = add i128 %t49, %t45
+      %t51 = trunc i128 %t50 to i64
+      %t52 = lshr i128 %t50, 64
+      %t53 = and i64 %t38, -1
+      %t54 = zext i64 %t29 to i128
+      %t55 = zext i64 %t53 to i128
+      %t56 = add i128 %t54, %t55
+      %t57 = add i128 %t56, %t52
+      %t58 = trunc i128 %t57 to i64
+      %t59 = lshr i128 %t57, 64
+      %t60 = and i64 %t38, -4294967296
+      %t61 = zext i64 %t35 to i128
+      %t62 = zext i64 %t60 to i128
+      %t63 = add i128 %t61, %t62
+      %t64 = add i128 %t63, %t59
+      %t65 = trunc i128 %t64 to i64
+      %t66 = lshr i128 %t64, 64
+      %t67 = zext i64 %t44 to i128
+      %t68 = zext i64 %t51 to i128
+      %t69 = shl i128 %t68, 64
+      %t70 = or i128 %t67, %t69
+      ret i128 %t70
+    }
+
+  -- | The lo half of a value below twice the group order n, reduced once.
+  prim n-reduce-lo :: U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = zext i64 %t1 to i128
+      %t8 = zext i64 -884452912994769583 to i128
+      %t9 = sub i128 %t7, %t8
+      %t10 = sub i128 %t9, 0
+      %t11 = trunc i128 %t10 to i64
+      %t12 = lshr i128 %t10, 127
+      %t13 = zext i64 %t3 to i128
+      %t14 = zext i64 -4834901526196019580 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, %t12
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t4 to i128
+      %t20 = zext i64 -1 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t6 to i128
+      %t26 = zext i64 -4294967296 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = trunc i128 %t30 to i1
+      %t32 = select i1 %t31, i64 %t1, i64 %t11
+      %t33 = select i1 %t31, i64 %t3, i64 %t17
+      %t34 = select i1 %t31, i64 %t4, i64 %t23
+      %t35 = select i1 %t31, i64 %t6, i64 %t29
+      %t36 = zext i64 %t32 to i128
+      %t37 = zext i64 %t33 to i128
+      %t38 = shl i128 %t37, 64
+      %t39 = or i128 %t36, %t38
+      ret i128 %t39
+    }
+
+  -- | The hi half of the Montgomery product a * b / 2^256 modulo the group order n.
+  prim n-mul-hi :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = mul i128 %t13, %t14
+      %t16 = add i128 0, %t15
+      %t17 = add i128 %t16, 0
+      %t18 = trunc i128 %t17 to i64
+      %t19 = lshr i128 %t17, 64
+      %t20 = zext i64 %t3 to i128
+      %t21 = zext i64 %t7 to i128
+      %t22 = mul i128 %t20, %t21
+      %t23 = add i128 0, %t22
+      %t24 = add i128 %t23, %t19
+      %t25 = trunc i128 %t24 to i64
+      %t26 = lshr i128 %t24, 64
+      %t27 = zext i64 %t4 to i128
+      %t28 = zext i64 %t7 to i128
+      %t29 = mul i128 %t27, %t28
+      %t30 = add i128 0, %t29
+      %t31 = add i128 %t30, %t26
+      %t32 = trunc i128 %t31 to i64
+      %t33 = lshr i128 %t31, 64
+      %t34 = zext i64 %t6 to i128
+      %t35 = zext i64 %t7 to i128
+      %t36 = mul i128 %t34, %t35
+      %t37 = add i128 0, %t36
+      %t38 = add i128 %t37, %t33
+      %t39 = trunc i128 %t38 to i64
+      %t40 = lshr i128 %t38, 64
+      %t41 = add i128 0, %t40
+      %t42 = trunc i128 %t41 to i64
+      %t43 = lshr i128 %t41, 64
+      %t44 = trunc i128 %t43 to i64
+      %t45 = mul i64 %t18, -3687945983376704433
+      %t46 = zext i64 %t18 to i128
+      %t47 = zext i64 %t45 to i128
+      %t48 = zext i64 -884452912994769583 to i128
+      %t49 = mul i128 %t47, %t48
+      %t50 = add i128 %t46, %t49
+      %t51 = lshr i128 %t50, 64
+      %t52 = zext i64 %t25 to i128
+      %t53 = zext i64 %t45 to i128
+      %t54 = zext i64 -4834901526196019580 to i128
+      %t55 = mul i128 %t53, %t54
+      %t56 = add i128 %t52, %t55
+      %t57 = add i128 %t56, %t51
+      %t58 = trunc i128 %t57 to i64
+      %t59 = lshr i128 %t57, 64
+      %t60 = zext i64 %t32 to i128
+      %t61 = zext i64 %t45 to i128
+      %t62 = zext i64 -1 to i128
+      %t63 = mul i128 %t61, %t62
+      %t64 = add i128 %t60, %t63
+      %t65 = add i128 %t64, %t59
+      %t66 = trunc i128 %t65 to i64
+      %t67 = lshr i128 %t65, 64
+      %t68 = zext i64 %t39 to i128
+      %t69 = zext i64 %t45 to i128
+      %t70 = zext i64 -4294967296 to i128
+      %t71 = mul i128 %t69, %t70
+      %t72 = add i128 %t68, %t71
+      %t73 = add i128 %t72, %t67
+      %t74 = trunc i128 %t73 to i64
+      %t75 = lshr i128 %t73, 64
+      %t76 = zext i64 %t42 to i128
+      %t77 = add i128 %t76, %t75
+      %t78 = trunc i128 %t77 to i64
+      %t79 = lshr i128 %t77, 64
+      %t80 = zext i64 %t44 to i128
+      %t81 = add i128 %t80, %t79
+      %t82 = trunc i128 %t81 to i64
+      %t83 = zext i64 %t58 to i128
+      %t84 = zext i64 %t1 to i128
+      %t85 = zext i64 %t9 to i128
+      %t86 = mul i128 %t84, %t85
+      %t87 = add i128 %t83, %t86
+      %t88 = add i128 %t87, 0
+      %t89 = trunc i128 %t88 to i64
+      %t90 = lshr i128 %t88, 64
+      %t91 = zext i64 %t66 to i128
+      %t92 = zext i64 %t3 to i128
+      %t93 = zext i64 %t9 to i128
+      %t94 = mul i128 %t92, %t93
+      %t95 = add i128 %t91, %t94
+      %t96 = add i128 %t95, %t90
+      %t97 = trunc i128 %t96 to i64
+      %t98 = lshr i128 %t96, 64
+      %t99 = zext i64 %t74 to i128
+      %t100 = zext i64 %t4 to i128
+      %t101 = zext i64 %t9 to i128
+      %t102 = mul i128 %t100, %t101
+      %t103 = add i128 %t99, %t102
+      %t104 = add i128 %t103, %t98
+      %t105 = trunc i128 %t104 to i64
+      %t106 = lshr i128 %t104, 64
+      %t107 = zext i64 %t78 to i128
+      %t108 = zext i64 %t6 to i128
+      %t109 = zext i64 %t9 to i128
+      %t110 = mul i128 %t108, %t109
+      %t111 = add i128 %t107, %t110
+      %t112 = add i128 %t111, %t106
+      %t113 = trunc i128 %t112 to i64
+      %t114 = lshr i128 %t112, 64
+      %t115 = zext i64 %t82 to i128
+      %t116 = add i128 %t115, %t114
+      %t117 = trunc i128 %t116 to i64
+      %t118 = lshr i128 %t116, 64
+      %t119 = trunc i128 %t118 to i64
+      %t120 = mul i64 %t89, -3687945983376704433
+      %t121 = zext i64 %t89 to i128
+      %t122 = zext i64 %t120 to i128
+      %t123 = zext i64 -884452912994769583 to i128
+      %t124 = mul i128 %t122, %t123
+      %t125 = add i128 %t121, %t124
+      %t126 = lshr i128 %t125, 64
+      %t127 = zext i64 %t97 to i128
+      %t128 = zext i64 %t120 to i128
+      %t129 = zext i64 -4834901526196019580 to i128
+      %t130 = mul i128 %t128, %t129
+      %t131 = add i128 %t127, %t130
+      %t132 = add i128 %t131, %t126
+      %t133 = trunc i128 %t132 to i64
+      %t134 = lshr i128 %t132, 64
+      %t135 = zext i64 %t105 to i128
+      %t136 = zext i64 %t120 to i128
+      %t137 = zext i64 -1 to i128
+      %t138 = mul i128 %t136, %t137
+      %t139 = add i128 %t135, %t138
+      %t140 = add i128 %t139, %t134
+      %t141 = trunc i128 %t140 to i64
+      %t142 = lshr i128 %t140, 64
+      %t143 = zext i64 %t113 to i128
+      %t144 = zext i64 %t120 to i128
+      %t145 = zext i64 -4294967296 to i128
+      %t146 = mul i128 %t144, %t145
+      %t147 = add i128 %t143, %t146
+      %t148 = add i128 %t147, %t142
+      %t149 = trunc i128 %t148 to i64
+      %t150 = lshr i128 %t148, 64
+      %t151 = zext i64 %t117 to i128
+      %t152 = add i128 %t151, %t150
+      %t153 = trunc i128 %t152 to i64
+      %t154 = lshr i128 %t152, 64
+      %t155 = zext i64 %t119 to i128
+      %t156 = add i128 %t155, %t154
+      %t157 = trunc i128 %t156 to i64
+      %t158 = zext i64 %t133 to i128
+      %t159 = zext i64 %t1 to i128
+      %t160 = zext i64 %t10 to i128
+      %t161 = mul i128 %t159, %t160
+      %t162 = add i128 %t158, %t161
+      %t163 = add i128 %t162, 0
+      %t164 = trunc i128 %t163 to i64
+      %t165 = lshr i128 %t163, 64
+      %t166 = zext i64 %t141 to i128
+      %t167 = zext i64 %t3 to i128
+      %t168 = zext i64 %t10 to i128
+      %t169 = mul i128 %t167, %t168
+      %t170 = add i128 %t166, %t169
+      %t171 = add i128 %t170, %t165
+      %t172 = trunc i128 %t171 to i64
+      %t173 = lshr i128 %t171, 64
+      %t174 = zext i64 %t149 to i128
+      %t175 = zext i64 %t4 to i128
+      %t176 = zext i64 %t10 to i128
+      %t177 = mul i128 %t175, %t176
+      %t178 = add i128 %t174, %t177
+      %t179 = add i128 %t178, %t173
+      %t180 = trunc i128 %t179 to i64
+      %t181 = lshr i128 %t179, 64
+      %t182 = zext i64 %t153 to i128
+      %t183 = zext i64 %t6 to i128
+      %t184 = zext i64 %t10 to i128
+      %t185 = mul i128 %t183, %t184
+      %t186 = add i128 %t182, %t185
+      %t187 = add i128 %t186, %t181
+      %t188 = trunc i128 %t187 to i64
+      %t189 = lshr i128 %t187, 64
+      %t190 = zext i64 %t157 to i128
+      %t191 = add i128 %t190, %t189
+      %t192 = trunc i128 %t191 to i64
+      %t193 = lshr i128 %t191, 64
+      %t194 = trunc i128 %t193 to i64
+      %t195 = mul i64 %t164, -3687945983376704433
+      %t196 = zext i64 %t164 to i128
+      %t197 = zext i64 %t195 to i128
+      %t198 = zext i64 -884452912994769583 to i128
+      %t199 = mul i128 %t197, %t198
+      %t200 = add i128 %t196, %t199
+      %t201 = lshr i128 %t200, 64
+      %t202 = zext i64 %t172 to i128
+      %t203 = zext i64 %t195 to i128
+      %t204 = zext i64 -4834901526196019580 to i128
+      %t205 = mul i128 %t203, %t204
+      %t206 = add i128 %t202, %t205
+      %t207 = add i128 %t206, %t201
+      %t208 = trunc i128 %t207 to i64
+      %t209 = lshr i128 %t207, 64
+      %t210 = zext i64 %t180 to i128
+      %t211 = zext i64 %t195 to i128
+      %t212 = zext i64 -1 to i128
+      %t213 = mul i128 %t211, %t212
+      %t214 = add i128 %t210, %t213
+      %t215 = add i128 %t214, %t209
+      %t216 = trunc i128 %t215 to i64
+      %t217 = lshr i128 %t215, 64
+      %t218 = zext i64 %t188 to i128
+      %t219 = zext i64 %t195 to i128
+      %t220 = zext i64 -4294967296 to i128
+      %t221 = mul i128 %t219, %t220
+      %t222 = add i128 %t218, %t221
+      %t223 = add i128 %t222, %t217
+      %t224 = trunc i128 %t223 to i64
+      %t225 = lshr i128 %t223, 64
+      %t226 = zext i64 %t192 to i128
+      %t227 = add i128 %t226, %t225
+      %t228 = trunc i128 %t227 to i64
+      %t229 = lshr i128 %t227, 64
+      %t230 = zext i64 %t194 to i128
+      %t231 = add i128 %t230, %t229
+      %t232 = trunc i128 %t231 to i64
+      %t233 = zext i64 %t208 to i128
+      %t234 = zext i64 %t1 to i128
+      %t235 = zext i64 %t12 to i128
+      %t236 = mul i128 %t234, %t235
+      %t237 = add i128 %t233, %t236
+      %t238 = add i128 %t237, 0
+      %t239 = trunc i128 %t238 to i64
+      %t240 = lshr i128 %t238, 64
+      %t241 = zext i64 %t216 to i128
+      %t242 = zext i64 %t3 to i128
+      %t243 = zext i64 %t12 to i128
+      %t244 = mul i128 %t242, %t243
+      %t245 = add i128 %t241, %t244
+      %t246 = add i128 %t245, %t240
+      %t247 = trunc i128 %t246 to i64
+      %t248 = lshr i128 %t246, 64
+      %t249 = zext i64 %t224 to i128
+      %t250 = zext i64 %t4 to i128
+      %t251 = zext i64 %t12 to i128
+      %t252 = mul i128 %t250, %t251
+      %t253 = add i128 %t249, %t252
+      %t254 = add i128 %t253, %t248
+      %t255 = trunc i128 %t254 to i64
+      %t256 = lshr i128 %t254, 64
+      %t257 = zext i64 %t228 to i128
+      %t258 = zext i64 %t6 to i128
+      %t259 = zext i64 %t12 to i128
+      %t260 = mul i128 %t258, %t259
+      %t261 = add i128 %t257, %t260
+      %t262 = add i128 %t261, %t256
+      %t263 = trunc i128 %t262 to i64
+      %t264 = lshr i128 %t262, 64
+      %t265 = zext i64 %t232 to i128
+      %t266 = add i128 %t265, %t264
+      %t267 = trunc i128 %t266 to i64
+      %t268 = lshr i128 %t266, 64
+      %t269 = trunc i128 %t268 to i64
+      %t270 = mul i64 %t239, -3687945983376704433
+      %t271 = zext i64 %t239 to i128
+      %t272 = zext i64 %t270 to i128
+      %t273 = zext i64 -884452912994769583 to i128
+      %t274 = mul i128 %t272, %t273
+      %t275 = add i128 %t271, %t274
+      %t276 = lshr i128 %t275, 64
+      %t277 = zext i64 %t247 to i128
+      %t278 = zext i64 %t270 to i128
+      %t279 = zext i64 -4834901526196019580 to i128
+      %t280 = mul i128 %t278, %t279
+      %t281 = add i128 %t277, %t280
+      %t282 = add i128 %t281, %t276
+      %t283 = trunc i128 %t282 to i64
+      %t284 = lshr i128 %t282, 64
+      %t285 = zext i64 %t255 to i128
+      %t286 = zext i64 %t270 to i128
+      %t287 = zext i64 -1 to i128
+      %t288 = mul i128 %t286, %t287
+      %t289 = add i128 %t285, %t288
+      %t290 = add i128 %t289, %t284
+      %t291 = trunc i128 %t290 to i64
+      %t292 = lshr i128 %t290, 64
+      %t293 = zext i64 %t263 to i128
+      %t294 = zext i64 %t270 to i128
+      %t295 = zext i64 -4294967296 to i128
+      %t296 = mul i128 %t294, %t295
+      %t297 = add i128 %t293, %t296
+      %t298 = add i128 %t297, %t292
+      %t299 = trunc i128 %t298 to i64
+      %t300 = lshr i128 %t298, 64
+      %t301 = zext i64 %t267 to i128
+      %t302 = add i128 %t301, %t300
+      %t303 = trunc i128 %t302 to i64
+      %t304 = lshr i128 %t302, 64
+      %t305 = zext i64 %t269 to i128
+      %t306 = add i128 %t305, %t304
+      %t307 = trunc i128 %t306 to i64
+      %t308 = zext i64 %t283 to i128
+      %t309 = zext i64 -884452912994769583 to i128
+      %t310 = sub i128 %t308, %t309
+      %t311 = sub i128 %t310, 0
+      %t312 = trunc i128 %t311 to i64
+      %t313 = lshr i128 %t311, 127
+      %t314 = zext i64 %t291 to i128
+      %t315 = zext i64 -4834901526196019580 to i128
+      %t316 = sub i128 %t314, %t315
+      %t317 = sub i128 %t316, %t313
+      %t318 = trunc i128 %t317 to i64
+      %t319 = lshr i128 %t317, 127
+      %t320 = zext i64 %t299 to i128
+      %t321 = zext i64 -1 to i128
+      %t322 = sub i128 %t320, %t321
+      %t323 = sub i128 %t322, %t319
+      %t324 = trunc i128 %t323 to i64
+      %t325 = lshr i128 %t323, 127
+      %t326 = zext i64 %t303 to i128
+      %t327 = zext i64 -4294967296 to i128
+      %t328 = sub i128 %t326, %t327
+      %t329 = sub i128 %t328, %t325
+      %t330 = trunc i128 %t329 to i64
+      %t331 = lshr i128 %t329, 127
+      %t332 = zext i64 %t307 to i128
+      %t333 = sub i128 %t332, 0
+      %t334 = sub i128 %t333, %t331
+      %t335 = trunc i128 %t334 to i64
+      %t336 = lshr i128 %t334, 127
+      %t337 = trunc i128 %t336 to i1
+      %t338 = select i1 %t337, i64 %t283, i64 %t312
+      %t339 = select i1 %t337, i64 %t291, i64 %t318
+      %t340 = select i1 %t337, i64 %t299, i64 %t324
+      %t341 = select i1 %t337, i64 %t303, i64 %t330
+      %t342 = zext i64 %t340 to i128
+      %t343 = zext i64 %t341 to i128
+      %t344 = shl i128 %t343, 64
+      %t345 = or i128 %t342, %t344
+      ret i128 %t345
+    }
+
+  -- | The hi half of (a + b) modulo the group order n.
+  prim n-add-hi :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = add i128 %t13, %t14
+      %t16 = add i128 %t15, 0
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 64
+      %t19 = zext i64 %t3 to i128
+      %t20 = zext i64 %t9 to i128
+      %t21 = add i128 %t19, %t20
+      %t22 = add i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 64
+      %t25 = zext i64 %t4 to i128
+      %t26 = zext i64 %t10 to i128
+      %t27 = add i128 %t25, %t26
+      %t28 = add i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 64
+      %t31 = zext i64 %t6 to i128
+      %t32 = zext i64 %t12 to i128
+      %t33 = add i128 %t31, %t32
+      %t34 = add i128 %t33, %t30
+      %t35 = trunc i128 %t34 to i64
+      %t36 = lshr i128 %t34, 64
+      %t37 = trunc i128 %t36 to i64
+      %t38 = zext i64 %t17 to i128
+      %t39 = zext i64 -884452912994769583 to i128
+      %t40 = sub i128 %t38, %t39
+      %t41 = sub i128 %t40, 0
+      %t42 = trunc i128 %t41 to i64
+      %t43 = lshr i128 %t41, 127
+      %t44 = zext i64 %t23 to i128
+      %t45 = zext i64 -4834901526196019580 to i128
+      %t46 = sub i128 %t44, %t45
+      %t47 = sub i128 %t46, %t43
+      %t48 = trunc i128 %t47 to i64
+      %t49 = lshr i128 %t47, 127
+      %t50 = zext i64 %t29 to i128
+      %t51 = zext i64 -1 to i128
+      %t52 = sub i128 %t50, %t51
+      %t53 = sub i128 %t52, %t49
+      %t54 = trunc i128 %t53 to i64
+      %t55 = lshr i128 %t53, 127
+      %t56 = zext i64 %t35 to i128
+      %t57 = zext i64 -4294967296 to i128
+      %t58 = sub i128 %t56, %t57
+      %t59 = sub i128 %t58, %t55
+      %t60 = trunc i128 %t59 to i64
+      %t61 = lshr i128 %t59, 127
+      %t62 = zext i64 %t37 to i128
+      %t63 = sub i128 %t62, 0
+      %t64 = sub i128 %t63, %t61
+      %t65 = trunc i128 %t64 to i64
+      %t66 = lshr i128 %t64, 127
+      %t67 = trunc i128 %t66 to i1
+      %t68 = select i1 %t67, i64 %t17, i64 %t42
+      %t69 = select i1 %t67, i64 %t23, i64 %t48
+      %t70 = select i1 %t67, i64 %t29, i64 %t54
+      %t71 = select i1 %t67, i64 %t35, i64 %t60
+      %t72 = zext i64 %t70 to i128
+      %t73 = zext i64 %t71 to i128
+      %t74 = shl i128 %t73, 64
+      %t75 = or i128 %t72, %t74
+      ret i128 %t75
+    }
+
+  -- | The hi half of (a - b) modulo the group order n.
+  prim n-sub-hi :: U128 -> U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = trunc i128 %2 to i64
+      %t8 = lshr i128 %2, 64
+      %t9 = trunc i128 %t8 to i64
+      %t10 = trunc i128 %3 to i64
+      %t11 = lshr i128 %3, 64
+      %t12 = trunc i128 %t11 to i64
+      %t13 = zext i64 %t1 to i128
+      %t14 = zext i64 %t7 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, 0
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t3 to i128
+      %t20 = zext i64 %t9 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t4 to i128
+      %t26 = zext i64 %t10 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = zext i64 %t6 to i128
+      %t32 = zext i64 %t12 to i128
+      %t33 = sub i128 %t31, %t32
+      %t34 = sub i128 %t33, %t30
+      %t35 = trunc i128 %t34 to i64
+      %t36 = lshr i128 %t34, 127
+      %t37 = trunc i128 %t36 to i1
+      %t38 = sext i1 %t37 to i64
+      %t39 = and i64 %t38, -884452912994769583
+      %t40 = zext i64 %t17 to i128
+      %t41 = zext i64 %t39 to i128
+      %t42 = add i128 %t40, %t41
+      %t43 = add i128 %t42, 0
+      %t44 = trunc i128 %t43 to i64
+      %t45 = lshr i128 %t43, 64
+      %t46 = and i64 %t38, -4834901526196019580
+      %t47 = zext i64 %t23 to i128
+      %t48 = zext i64 %t46 to i128
+      %t49 = add i128 %t47, %t48
+      %t50 = add i128 %t49, %t45
+      %t51 = trunc i128 %t50 to i64
+      %t52 = lshr i128 %t50, 64
+      %t53 = and i64 %t38, -1
+      %t54 = zext i64 %t29 to i128
+      %t55 = zext i64 %t53 to i128
+      %t56 = add i128 %t54, %t55
+      %t57 = add i128 %t56, %t52
+      %t58 = trunc i128 %t57 to i64
+      %t59 = lshr i128 %t57, 64
+      %t60 = and i64 %t38, -4294967296
+      %t61 = zext i64 %t35 to i128
+      %t62 = zext i64 %t60 to i128
+      %t63 = add i128 %t61, %t62
+      %t64 = add i128 %t63, %t59
+      %t65 = trunc i128 %t64 to i64
+      %t66 = lshr i128 %t64, 64
+      %t67 = zext i64 %t58 to i128
+      %t68 = zext i64 %t65 to i128
+      %t69 = shl i128 %t68, 64
+      %t70 = or i128 %t67, %t69
+      ret i128 %t70
+    }
+
+  -- | The hi half of a value below twice the group order n, reduced once.
+  prim n-reduce-hi :: U128 -> U128 -> U128 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = zext i64 %t1 to i128
+      %t8 = zext i64 -884452912994769583 to i128
+      %t9 = sub i128 %t7, %t8
+      %t10 = sub i128 %t9, 0
+      %t11 = trunc i128 %t10 to i64
+      %t12 = lshr i128 %t10, 127
+      %t13 = zext i64 %t3 to i128
+      %t14 = zext i64 -4834901526196019580 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, %t12
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t4 to i128
+      %t20 = zext i64 -1 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t6 to i128
+      %t26 = zext i64 -4294967296 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = trunc i128 %t30 to i1
+      %t32 = select i1 %t31, i64 %t1, i64 %t11
+      %t33 = select i1 %t31, i64 %t3, i64 %t17
+      %t34 = select i1 %t31, i64 %t4, i64 %t23
+      %t35 = select i1 %t31, i64 %t6, i64 %t29
+      %t36 = zext i64 %t34 to i128
+      %t37 = zext i64 %t35 to i128
+      %t38 = shl i128 %t37, 64
+      %t39 = or i128 %t36, %t38
+      ret i128 %t39
+    }
+
+  -- | One when a value is below the group order n, else zero.
+  prim n-below :: U128 -> U128 -> I64 where
+    llvm {
+      %t1 = trunc i128 %0 to i64
+      %t2 = lshr i128 %0, 64
+      %t3 = trunc i128 %t2 to i64
+      %t4 = trunc i128 %1 to i64
+      %t5 = lshr i128 %1, 64
+      %t6 = trunc i128 %t5 to i64
+      %t7 = zext i64 %t1 to i128
+      %t8 = zext i64 -884452912994769583 to i128
+      %t9 = sub i128 %t7, %t8
+      %t10 = sub i128 %t9, 0
+      %t11 = trunc i128 %t10 to i64
+      %t12 = lshr i128 %t10, 127
+      %t13 = zext i64 %t3 to i128
+      %t14 = zext i64 -4834901526196019580 to i128
+      %t15 = sub i128 %t13, %t14
+      %t16 = sub i128 %t15, %t12
+      %t17 = trunc i128 %t16 to i64
+      %t18 = lshr i128 %t16, 127
+      %t19 = zext i64 %t4 to i128
+      %t20 = zext i64 -1 to i128
+      %t21 = sub i128 %t19, %t20
+      %t22 = sub i128 %t21, %t18
+      %t23 = trunc i128 %t22 to i64
+      %t24 = lshr i128 %t22, 127
+      %t25 = zext i64 %t6 to i128
+      %t26 = zext i64 -4294967296 to i128
+      %t27 = sub i128 %t25, %t26
+      %t28 = sub i128 %t27, %t24
+      %t29 = trunc i128 %t28 to i64
+      %t30 = lshr i128 %t28, 127
+      %t31 = trunc i128 %t30 to i1
+      %t32 = zext i1 %t31 to i64
+      ret i64 %t32
+    }

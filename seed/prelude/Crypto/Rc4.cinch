@@ -1,0 +1,98 @@
+-- | The RC4 stream cipher, for interoperation with legacy formats only.
+-- RC4's keystream is biased and the cipher is broken for confidentiality
+-- (RFC 7465 prohibits it in TLS); it is provided to read and write old data.
+-- A stream is an explicit state machine: the 256-byte permutation and the two
+-- indices. Every call returns the advanced stream with its own copy of the
+-- permutation, so earlier streams remain usable and replay the same keystream.
+module Crypto.Rc4 where
+
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Show (nat-to-string)
+
+  export Rc4, Rc4Error, Rc4InvalidKeySize, rc4-error-message, rc4-new, rc4-xor
+
+  -- | A key outside 1 to 256 bytes; its length.
+  data Rc4Error where
+    -- | The key length given.
+    Rc4InvalidKeySize :: Nat -> Rc4Error
+
+  -- | Render an error.
+  rc4-error-message :: Rc4Error -> String
+  rc4-error-message error = case error of Rc4InvalidKeySize n -> string-concat "rc4: invalid key size " (nat-to-string n)
+
+  -- | Stream state: the permutation and the indices i and j.
+  data Rc4 where
+    -- | Private fields in the order listed above.
+    Rc4 :: Bytes -> Nat -> Nat -> Rc4
+
+  -- | Key a stream with 1 to 256 key bytes (the key-scheduling algorithm).
+  rc4-new :: Bytes -> Result Rc4Error Rc4
+  rc4-new key =
+    if bytes-len key == 0 || bytes-len key > 256 then Err (Rc4InvalidKeySize (bytes-len key))
+    else
+      let s = bytes-new 256 in
+      let filled = identity s 0 in
+      let mixed = schedule s key 0 0 in
+      Ok (Rc4 s 0 0)
+
+  -- | The identity permutation.
+  identity :: Bytes -> Nat -> Unit
+  identity s i = if i < bytes-len s then let w = bytes-set s i (nat-rem i 256) in identity s (i + 1) else ()
+
+  -- | Mix the key into the permutation.
+  schedule :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  schedule s key i j =
+    if i >= 256 then ()
+    else
+      let k = nat-rem (j + at s i + key-byte key i) 256 in
+      let swapped = swap s i k in
+      schedule s key (i + 1) k
+
+  -- | The key byte used at step i: the key repeats cyclically.
+  key-byte :: Bytes -> Nat -> Nat
+  key-byte key i = if 0 < bytes-len key then at key (nat-rem i (bytes-len key)) else 0
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Exchange two entries.
+  swap :: Bytes -> Nat -> Nat -> Unit
+  swap s a b =
+    if a < bytes-len s && b < bytes-len s then
+      let x = bytes-get s a in let y = bytes-get s b in let w = bytes-set s a y in bytes-set s b x
+    else ()
+
+  -- | XOR the input with the next keystream bytes, returning the advanced stream and the output.
+  rc4-xor :: Rc4 -> Bytes -> (Rc4, Bytes)
+  rc4-xor stream input = case stream of
+    Rc4 perm i j ->
+      let s = bytes-new 256 in
+      let copied = if bytes-len perm == 256 then bytes-copy-range s perm 0 0 256 else () in
+      let out = bytes-new (bytes-len input) in
+      case run s input out 0 i j of (ni, nj) -> (Rc4 s ni nj, out)
+
+  -- | The pseudo-random generation algorithm over the input from an offset; returns the final indices.
+  run :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> (Nat, Nat)
+  run s input out at-index i j =
+    if at-index >= bytes-len input || at-index >= bytes-len out then (i, j)
+    else
+      let ni = nat-rem (i + 1) 256 in
+      let nj = nat-rem (j + at s ni) 256 in
+      let swapped = swap s ni nj in
+      let k = at s (nat-rem (at s ni + at s nj) 256) in
+      let v = xor8 (at input at-index) k in
+      let w = if v < 256 then bytes-set out at-index v else () in
+      run s input out (at-index + 1) ni nj
+
+  -- | XOR of two bytes.
+  xor8 :: Nat -> Nat -> Nat
+  xor8 a b = u32-to-nat (bit-xor-u32 (byte a) (byte b))
+
+  -- | A byte value as a word.
+  byte :: Nat -> U32
+  byte n = if n < 256 then wrapping-i64-to-u32 (nat-to-i64 n) else 0

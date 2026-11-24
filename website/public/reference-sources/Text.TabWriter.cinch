@@ -1,0 +1,358 @@
+-- | Elastic tabstops: align tab-separated cells into columns, the way terminal tables and aligned listings need.
+-- Input is a sequence of cells, each terminated by a horizontal tab ('\t') or
+-- a vertical tab ('\v'); a newline ends a line and a form feed ('\f') ends a
+-- line and forces output. Consecutive lines whose cells reach the same column
+-- form a column block; every cell in a block is padded to the block's widest
+-- cell plus the configured padding. The last cell of each line is never
+-- aligned. Text between two 0xff escape bytes is copied literally (its tabs and
+-- newlines do not split cells), and with tab-filter-html, HTML tags have zero
+-- width and entities a width of one. Cell width counts Unicode scalars, using
+-- SWAR to skip eight bytes at a time; in malformed UTF-8 every byte that is not
+-- a continuation byte counts as one column.
+--
+-- The writer is an immutable value: tab-write returns the output that became
+-- final (blocks are released at a form feed or after a line with a single
+-- cell) together with the advanced writer, and tab-flush releases everything
+-- buffered. Retaining a writer branches the formatting.
+module Text.TabWriter where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+
+  export TabConfig, tab-config, tab-filter-html, tab-strip-escape, tab-align-right, tab-discard-empty-columns, tab-indent, tab-debug, tab-escape
+  export TabWriter, tab-writer, tab-write, tab-flush, tab-format
+
+  -- | Treat HTML tags as zero width and entities as width one; both are copied unchanged.
+  tab-filter-html :: Nat
+  tab-filter-html = 1
+
+  -- | Remove the 0xff escape bytes that bracket literal text instead of copying them.
+  tab-strip-escape :: Nat
+  tab-strip-escape = 2
+
+  -- | Pad cells on the left, aligning their text to the right edge of the column.
+  tab-align-right :: Nat
+  tab-align-right = 4
+
+  -- | Give columns whose cells are all empty and soft-terminated a width of zero.
+  tab-discard-empty-columns :: Nat
+  tab-discard-empty-columns = 8
+
+  -- | Pad leading empty cells with tabs, whatever the padding byte, so indentation stays tab-based.
+  tab-indent :: Nat
+  tab-indent = 16
+
+  -- | Print a vertical bar between columns and a dashed line after each form feed.
+  tab-debug :: Nat
+  tab-debug = 32
+
+  -- | The escape byte, 0xff, that brackets literal text.
+  tab-escape :: Nat
+  tab-escape = 255
+
+  -- | Formatting parameters: minimum cell width, tab width (for tab padding), padding added to the
+  -- widest cell, the padding byte, and the bitwise union of the flag constants.
+  data TabConfig where
+    -- | Private fields in the order listed above.
+    Config :: Nat -> Nat -> Nat -> InRange 0 255 Nat -> Nat -> TabConfig
+
+  -- | Build a configuration. A padding byte of 9 (tab) pads with tabs of the given tab width, rounding
+  -- column widths up to multiples of it; any other byte pads with repetitions of that byte.
+  -- Tab padding implies left alignment, so tab-align-right is cleared when the padding byte is a tab.
+  tab-config :: Nat -> Nat -> Nat -> InRange 0 255 Nat -> Nat -> TabConfig
+  tab-config minimum tab-width padding byte flags =
+    let base = Config minimum tab-width padding byte flags in
+    if byte == 9 && has base tab-align-right && tab-align-right <= flags then Config minimum tab-width padding byte (flags - tab-align-right) else base
+
+  -- | Whether a configuration has a flag.
+  has :: TabConfig -> Nat -> Bool
+  has config flag = case config of
+    Config minimum tab-width padding byte flags -> if flag > 0 then nat-rem (nat-div flags flag) 2 == 1 else False
+
+  -- | A finished cell: its output bytes, its display width, and whether a horizontal tab ended it.
+  data Cell where
+    -- | Private fields in the order listed above.
+    Cell :: Bytes -> Nat -> Bool -> Cell
+
+  -- | The input lexer's state between writes.
+  data TabLexer where
+    -- | Ordinary cell text.
+    InText :: TabLexer
+    -- | Literal text after an opening escape byte.
+    InEscape :: TabLexer
+    -- | An HTML tag awaiting its closing angle bracket.
+    InTag :: TabLexer
+    -- | An HTML entity awaiting its closing semicolon.
+    InEntity :: TabLexer
+
+  -- | Buffered lines (most recent first, each line's cells in order), the current line's finished
+  -- cells (most recent first), the current cell's chunks (most recent first) and width, and the lexer.
+  data TabWriter where
+    -- | Private fields in the order listed above, after the configuration.
+    Tabs :: TabConfig -> List (List Cell) -> List Cell -> List Bytes -> Nat -> TabLexer -> TabWriter
+
+  -- | A writer with nothing buffered.
+  tab-writer :: TabConfig -> TabWriter
+  tab-writer config = Tabs config Nil Nil Nil 0 InText
+
+  -- | Format an entire input as one write followed by a flush.
+  tab-format :: TabConfig -> Bytes -> Bytes
+  tab-format config input = case tab-write (tab-writer config) input of
+    (released, writer) -> case tab-flush writer of (rest, done) -> bytes-concat [released, rest]
+
+  -- | Consume input and return the output that became final, with the advanced writer.
+  tab-write :: TabWriter -> Bytes -> (Bytes, TabWriter)
+  tab-write writer input = case lex writer input 0 0 Nil of
+    (chunks, next) -> (bytes-concat (reverse chunks), next)
+
+  -- | Release every buffered line and the pending cell, ending any open escape, as final output.
+  -- The final line receives no newline of its own; the writer is empty afterwards.
+  tab-flush :: TabWriter -> (Bytes, TabWriter)
+  tab-flush writer = case close-escape writer of
+    Tabs config lines cells chunks width lexer ->
+      (emit (finish-pending (Tabs config lines cells chunks width lexer)), tab-writer config)
+
+  -- | Terminate the current cell as soft-terminated when it holds any bytes.
+  finish-pending :: TabWriter -> TabWriter
+  finish-pending writer = case writer of
+    Tabs config lines cells chunks width lexer ->
+      if bytes-len (bytes-concat chunks) > 0 then finish-cell writer False else writer
+
+  -- | End an unterminated escape, tag or entity as if its closing byte had arrived.
+  close-escape :: TabWriter -> TabWriter
+  close-escape writer = case writer of
+    Tabs config lines cells chunks width lexer -> case lexer of
+      InText -> writer
+      InEscape -> Tabs config lines cells chunks width InText
+      InTag -> Tabs config lines cells chunks width InText
+      InEntity -> Tabs config lines cells chunks (width + 1) InText
+
+  -- | Scan input from start; run marks where the current unconsumed text began.
+  -- Returns emitted chunks (most recent first) and the writer after the input.
+  lex :: TabWriter -> Bytes -> Nat -> Nat -> List Bytes -> (List Bytes, TabWriter)
+  lex writer input run i out = case writer of
+    Tabs config lines cells chunks width lexer ->
+      if i >= bytes-len input then (out, append-text writer input run i)
+      else
+        let byte = bytes-get input i in
+        case lexer of
+          InText ->
+            if byte == 9 || byte == 11 || byte == 10 || byte == 12 then
+              let ended = finish-cell (append-text writer input run i) (byte == 9) in
+              if byte == 10 || byte == 12 then
+                let single = case ended of Tabs c ls cs ch w lx -> list-length cs == 1 in
+                let lined = new-line ended in
+                if byte == 12 || single then
+                  let printed = emit lined in
+                  let marked = if byte == 12 && has config tab-debug then Cons (bytes-from-u8s [45, 45, 45, 10]) (Cons printed out) else Cons printed out in
+                  lex (reset lined) input (i + 1) (i + 1) marked
+                else lex lined input (i + 1) (i + 1) out
+              else lex ended input (i + 1) (i + 1) out
+            else if byte == 255 then
+              let before = append-text writer input run i in
+              let start = if has config tab-strip-escape then i + 1 else i in
+              lex (set-lexer before InEscape) input start (i + 1) out
+            else if (byte == 60 || byte == 38) && has config tab-filter-html then
+              lex (set-lexer (append-text writer input run i) (if byte == 60 then InTag else InEntity)) input i (i + 1) out
+            else lex writer input run (i + 1) out
+          InEscape ->
+            if byte == 255 then
+              let end = if has config tab-strip-escape then i else i + 1 in
+              let kept = append-text writer input run end in
+              let adjusted = if has config tab-strip-escape then kept else less-width kept 2 in
+              lex (set-lexer adjusted InText) input (i + 1) (i + 1) out
+            else lex writer input run (i + 1) out
+          InTag ->
+            if byte == 62 then lex (set-lexer (append-raw writer input run (i + 1)) InText) input (i + 1) (i + 1) out
+            else lex writer input run (i + 1) out
+          InEntity ->
+            if byte == 59 then lex (set-lexer (add-width (append-raw writer input run (i + 1)) 1) InText) input (i + 1) (i + 1) out
+            else lex writer input run (i + 1) out
+
+  -- | Change the lexer state.
+  set-lexer :: TabWriter -> TabLexer -> TabWriter
+  set-lexer writer lexer = case writer of Tabs c ls cs ch w old -> Tabs c ls cs ch w lexer
+
+  -- | Reduce the current cell width, saturating at zero.
+  less-width :: TabWriter -> Nat -> TabWriter
+  less-width writer n = case writer of Tabs c ls cs ch w lx -> Tabs c ls cs ch (if w >= n then w - n else 0) lx
+
+  -- | Increase the current cell width.
+  add-width :: TabWriter -> Nat -> TabWriter
+  add-width writer n = case writer of Tabs c ls cs ch w lx -> Tabs c ls cs ch (w + n) lx
+
+  -- | Append input[start, stop) to the current cell, counting its scalars toward the cell width.
+  append-text :: TabWriter -> Bytes -> Nat -> Nat -> TabWriter
+  append-text writer input start stop =
+    if start < stop && stop <= bytes-len input then
+      let chunk = slice input start stop in
+      case writer of Tabs c ls cs ch w lx -> Tabs c ls cs (Cons chunk ch) (w + scalar-count chunk 0 0) lx
+    else writer
+
+  -- | Append input[start, stop) to the current cell without changing its width.
+  append-raw :: TabWriter -> Bytes -> Nat -> Nat -> TabWriter
+  append-raw writer input start stop =
+    if start < stop && stop <= bytes-len input then
+      case writer of Tabs c ls cs ch w lx -> Tabs c ls cs (Cons (slice input start stop) ch) w lx
+    else writer
+
+  -- | Copy input[start, stop) into fresh storage.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice input start stop =
+    if start <= stop && stop <= bytes-len input then
+      let out = bytes-new (stop - start) in let copied = bytes-copy-range out input 0 start (stop - start) in out
+    else bytes-new 0
+
+  -- | Count Unicode scalars: bytes that are not UTF-8 continuation bytes, eight at a time with SWAR.
+  scalar-count :: Bytes -> Nat -> Nat -> Nat
+  scalar-count bytes i acc =
+    if i + 8 <= bytes-len bytes then scalar-count bytes (i + 8) (acc + u64-to-nat (lead-bytes (bytes-read-le64 bytes i)))
+    else if i < bytes-len bytes then
+      let byte = bytes-get bytes i in
+      scalar-count bytes (i + 1) (if byte >= 128 && byte < 192 then acc else acc + 1)
+    else acc
+
+  -- | Convert a small machine count to a natural number.
+  u64-to-nat :: U64 -> Nat
+  u64-to-nat value = u8-to-nat (wrapping-u64-to-u8 value)
+
+  -- | SWAR: the number of the eight bytes that are not continuation bytes (bit 7 set and bit 6 clear).
+  prim lead-bytes :: U64 -> U64 where
+    llvm {
+      %high = and i64 %0, -9187201950435737472
+      %inverse = xor i64 %0, -1
+      %six = shl i64 %inverse, 1
+      %continuation = and i64 %high, %six
+      %count = call i64 @llvm.ctpop.i64(i64 %continuation)
+      %value = sub i64 8, %count
+      ret i64 %value
+    }
+
+  -- | Terminate the current cell, appending it to the current line.
+  finish-cell :: TabWriter -> Bool -> TabWriter
+  finish-cell writer htab = case writer of
+    Tabs config lines cells chunks width lexer ->
+      Tabs config lines (Cons (Cell (bytes-concat (reverse chunks)) width htab) cells) Nil 0 lexer
+
+  -- | Close the current line and start an empty one.
+  new-line :: TabWriter -> TabWriter
+  new-line writer = case writer of
+    Tabs config lines cells chunks width lexer -> Tabs config (Cons (reverse cells) lines) Nil chunks width lexer
+
+  -- | Discard every buffered line, keeping the configuration and lexer.
+  reset :: TabWriter -> TabWriter
+  reset writer = case writer of Tabs config lines cells chunks width lexer -> Tabs config Nil Nil Nil 0 lexer
+
+  -- | Format and render all buffered lines, including the unfinished current line.
+  emit :: TabWriter -> Bytes
+  emit writer = case writer of
+    Tabs config lines cells chunks width lexer ->
+      let all-lines = reverse (Cons (reverse cells) lines) in
+      bytes-concat (reverse (format config all-lines Nil True Nil))
+
+  -- | Format a run of lines given the widths of the columns to their left (innermost last in widths).
+  -- final records whether no buffered line follows this run, which decides the trailing newline.
+  -- Output chunks accumulate most recent first.
+  format :: TabConfig -> List (List Cell) -> List Nat -> Bool -> List Bytes -> List Bytes
+  format config lines widths final out = case lines of
+    Nil -> out
+    Cons line rest ->
+      let column = list-length widths in
+      if column + 1 < list-length line then
+        let block = take-block column lines in
+        let after = drop (list-length block) lines in
+        let width = block-width config column block in
+        let inner = format config block (snoc widths width) (final && is-empty after) out in
+        format config after widths final inner
+      else format config rest widths final (write-line config widths line (final && is-empty rest) out)
+
+  -- | Add a width for the next column to the right.
+  snoc :: List Nat -> Nat -> List Nat
+  snoc widths width = case widths of
+    Nil -> Cons width Nil
+    Cons first rest -> Cons first (snoc rest width)
+
+  -- | The maximal prefix of lines that have a cell in the given column (that is not their last cell).
+  take-block :: Nat -> List (List Cell) -> List (List Cell)
+  take-block column lines = case lines of
+    Nil -> Nil
+    Cons line rest -> if column + 1 < list-length line then Cons line (take-block column rest) else Nil
+
+  -- | The column width: the configured minimum or the widest cell plus padding, or zero when the
+  -- column is discardable (all cells empty and soft-terminated) and discarding is enabled.
+  block-width :: TabConfig -> Nat -> List (List Cell) -> Nat
+  block-width config column block = case config of
+    Config minimum tab-width padding byte flags ->
+      let widest = widest-cell column block minimum padding in
+      if has config tab-discard-empty-columns && all-discardable column block then 0 else widest
+
+  -- | The maximum of the minimum and every cell width plus padding.
+  widest-cell :: Nat -> List (List Cell) -> Nat -> Nat -> Nat
+  widest-cell column block acc padding = case block of
+    Nil -> acc
+    Cons line rest -> case cell-at line column of
+      Cell text width htab -> widest-cell column rest (if width + padding > acc then width + padding else acc) padding
+
+  -- | Whether every cell in the column is empty and soft-terminated.
+  all-discardable :: Nat -> List (List Cell) -> Bool
+  all-discardable column block = case block of
+    Nil -> True
+    Cons line rest -> case cell-at line column of
+      Cell text width htab -> width == 0 && not htab && all-discardable column rest
+
+  -- | The cell at an index, or an empty cell past the end.
+  cell-at :: List Cell -> Nat -> Cell
+  cell-at cells index = case cells of
+    Nil -> Cell (bytes-new 0) 0 False
+    Cons first rest -> if index == 0 then first else cell-at rest (index - 1)
+
+  -- | The width at an index, or zero past the end.
+  width-at :: List Nat -> Nat -> Nat
+  width-at widths index = case widths of
+    Nil -> 0
+    Cons first rest -> if index == 0 then first else width-at rest (index - 1)
+
+  -- | Render one line's cells with padding to the known column widths, then a newline unless it is the last line.
+  write-line :: TabConfig -> List Nat -> List Cell -> Bool -> List Bytes -> List Bytes
+  write-line config widths line final-line out =
+    let body = write-cells config widths line 0 (has config tab-indent) out in
+    if final-line then body else Cons (bytes-from-u8s [10]) body
+
+  -- | Render cells from index j; leading empty cells may pad with tabs under tab-indent.
+  write-cells :: TabConfig -> List Nat -> List Cell -> Nat -> Bool -> List Bytes -> List Bytes
+  write-cells config widths cells j use-tabs out = case cells of
+    Nil -> out
+    Cons cell rest -> case cell of
+      Cell text width htab ->
+        let bar = if j > 0 && has config tab-debug then Cons (bytes-from-u8s [124]) out else out in
+        let aligned = j < list-length widths in
+        let column = width-at widths j in
+        if bytes-len text == 0 then
+          write-cells config widths rest (j + 1) use-tabs (if aligned then pad config width column use-tabs bar else bar)
+        else if has config tab-align-right then
+          write-cells config widths rest (j + 1) False (Cons text (if aligned then pad config width column False bar else bar))
+        else
+          write-cells config widths rest (j + 1) False (if aligned then pad config width column False (Cons text bar) else Cons text bar)
+
+  -- | Tabs needed to reach the column width rounded up to a tab stop; zero for a zero tab width.
+  tab-count :: Nat -> Nat -> Nat -> Nat
+  tab-count column text-width tab-width =
+    if tab-width > 0 then
+      let rounded = nat-div (column + tab-width - 1) tab-width * tab-width in
+      if rounded >= text-width then nat-div (rounded - text-width + tab-width - 1) tab-width else 0
+    else 0
+
+  -- | Pad text of width text-width to the column width with the padding byte, or with tabs.
+  pad :: TabConfig -> Nat -> Nat -> Bool -> List Bytes -> List Bytes
+  pad config text-width column use-tabs out = case config of
+    Config minimum tab-width padding byte flags ->
+      if byte == 9 || use-tabs then
+        if tab-width == 0 then out
+        else
+          Cons (bytes-repeat (tab-count column text-width tab-width) (bytes-from-u8s [9])) out
+      else if column > text-width then Cons (bytes-repeat (column - text-width) (bytes-from-u8s [wrapping-i64-to-u8 (nat-to-i64 byte)])) out
+      else out

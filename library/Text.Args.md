@@ -179,4 +179,4 @@ occurrence, `--name` per flag, then the positional values.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Args.cinch`. Source SHA-256: `d32463cc68034db08180c0417761348dd772852b1d99a3d24db7d6e3492a91ec`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Args.cinch`. Source SHA-256: `106fb5aa92d80c508d1047542d28cd0409801cf136e2a03c299532ccfa156496`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

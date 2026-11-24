@@ -6,17 +6,53 @@
   "packages": [
     {
       "reference_package": "archive/tar",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 85
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Tar"
+      ],
+      "remaining": [
+        "Incremental Reader/Writer over Effect.Stream for archives larger than memory",
+        "Sparse files (GNU and PAX sparse formats)",
+        "FileInfoHeader/AddFS filesystem integration",
+        "Sub-second, access and change times"
+      ],
+      "reference_declarations": 85,
+      "tests": [
+        "lib_tar"
+      ],
+      "capability_mapping": {
+        "Header and type constants": "TarHeader with accessors and setters; tar-regular, tar-hardlink, tar-symlink, tar-char, tar-block, tar-directory, tar-fifo, tar-contiguous, tar-pax-global",
+        "Format, FormatUSTAR/PAX/GNU": "tar-format-v7, tar-format-ustar, tar-format-pax, tar-format-gnu as bits observed by tar-format",
+        "Reader.Next/Read": "tar-read over a complete archive returns entries with data; checksums (unsigned or signed), octal and base-256 numbers, USTAR prefixes, GNU long names/links and PAX local/global records are handled",
+        "Writer.WriteHeader/Write/Close": "tar-write emits USTAR (with prefix splitting) or a PAX extended header for fields USTAR cannot hold, and the two-block trailer",
+        "ErrHeader/ErrWriteTooLong/ErrFieldTooLong": "TarBadHeader, TarBadChecksum, TarTruncated, TarBadPax and TarFieldTooLong with offsets"
+      },
+      "review": "Thirteen archives written by the reference implementation (directories, links, devices, block-boundary sizes, prefix-split and over-long names, non-ASCII names and owners, large ids, negative times and extra PAX records) are reproduced byte for byte and read back field for field; GNU long-name/long-link/base-256, PAX global and V7 archives read correctly; truncation, checksum corruption, data after the end marker and unrepresentable modes are rejected precisely. Header checksums sum sixteen bytes per SIMD step, accumulating unsigned and signed sums together."
     },
     {
       "reference_package": "archive/zip",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 78
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Zip"
+      ],
+      "remaining": [
+        "Incremental Reader/Writer over Effect.Stream",
+        "Compressor/decompressor registration for other methods",
+        "LZ77 DEFLATE compression (the writer currently uses the run-length DEFLATE encoder)"
+      ],
+      "reference_declarations": 78,
+      "tests": [
+        "lib_zip"
+      ],
+      "capability_mapping": {
+        "NewReader/Reader.File/Reader.Comment": "zip-read parses the end-of-central-directory (and Zip64) records and directory; zip-entries and zip-comment",
+        "File.Open": "zip-open stores or inflates and verifies CRC-32 and size",
+        "FileHeader fields": "zip-entry-name/comment/method/flags/crc32/compressed-size/size/modified/mode/external-attrs/creator/extra/is-directory",
+        "NewWriter/CreateHeader/SetComment/Close": "zip-write with zip-file, zip-file-with-mode, zip-file-with-modified and zip-file-with-comment",
+        "Store/Deflate": "zip-store and zip-deflate",
+        "ErrFormat/ErrChecksum/ErrAlgorithm": "ZipNotFound, ZipBadEntry, ZipTruncated, ZipChecksumMismatch, ZipSizeMismatch, ZipUnsupportedMethod and ZipBadDeflate"
+      },
+      "review": "Four stored archives written by the reference implementation (directories, Unix modes, UTF-8 and legacy names with the UTF-8 flag, per-file and archive comments, extended timestamps and pre-2000 MS-DOS dates) are reproduced byte for byte and read back; deflated archives (including an empty deflated entry) and a Zip64-marked entry read, inflate and verify; deflated writing round-trips; missing directories, corrupted data and corrupted signatures are rejected precisely."
     },
     {
       "reference_package": "bufio",
@@ -122,10 +158,17 @@
     },
     {
       "reference_package": "compress/bzip2",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 3
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Bzip2"
+      ],
+      "remaining": [
+        "Incremental reader adapter over Effect.Stream (NewReader)"
+      ],
+      "reference_declarations": 3,
+      "tests": [
+        "lib_bzip2"
+      ]
     },
     {
       "reference_package": "compress/flate",
@@ -160,10 +203,24 @@
     },
     {
       "reference_package": "compress/lzw",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 15
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Lzw"
+      ],
+      "remaining": [
+        "Incremental reader and writer adapters over Effect.Stream (NewReader/NewWriter/Reset)"
+      ],
+      "reference_declarations": 15,
+      "tests": [
+        "lib_lzw"
+      ],
+      "capability_mapping": {
+        "Order/LSB/MSB": "LzwOrder with LzwLsb and LzwMsb",
+        "NewWriter + Write + Close": "lzw-compress over a complete input; begins with a clear code and clears when all 4096 codes are used",
+        "NewReader + Read": "lzw-decompress over a complete stream through its end-of-data code",
+        "errors": "InvalidLiteralWidth, LiteralTooLarge (with offset), InvalidLzwCode (with code index) and UnexpectedLzwEnd"
+      },
+      "review": "Whole-buffer compression and decompression reproduce 270 reference encodings byte for byte (both bit orders, literal widths 2-8, sequence, periodic and pseudo-random corpora up to 20000 bytes with several dictionary resets) and decode them back. The encoder dictionary is an open-addressed hash table in a private byte buffer; the decoder expands codes backwards from prefix/suffix/length tables directly into output position. Streaming adapters remain."
     },
     {
       "reference_package": "compress/zlib",
@@ -262,24 +319,68 @@
     },
     {
       "reference_package": "crypto/aes",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Crypto.Aes"
+      ],
       "remaining": [],
-      "reference_declarations": 5
+      "reference_declarations": 5,
+      "tests": [
+        "lib_aes"
+      ],
+      "benchmarks": [
+        "aes-gcm-64MiB-o3",
+        "aes-ctr-64MiB-o3",
+        "aes-ctr-portable-4MiB-o3"
+      ],
+      "capability_mapping": {
+        "NewCipher": "aes-key validates 16/24/32-byte keys and expands immutable schedules, selecting hardware rounds after detection; aes-portable-key forces the constant-time fallback",
+        "BlockSize": "aes-block-size and cipher-block-size are 16",
+        "KeySizeError": "AesKeyError InvalidAesKeySize records the rejected length; InvalidAesBlockSize covers block-buffer operations",
+        "Block.Encrypt/Decrypt": "aes-encrypt-word/aes-decrypt-word over U128 blocks and aes-encrypt-block/aes-decrypt-block over 16-byte buffers; aes-cipher adapts a key to Crypto.Cipher"
+      },
+      "review": "All five recorded declarations are mapped. x86-64 uses AES-NI after CPUID detection and AArch64 uses the ARMv8 cryptography extension when the profile supplies ArmAes evidence; both run whole blocks with round keys as register operands, and decryption uses equivalent-inverse-cipher keys. The portable fallback runs each round on all sixteen bytes in <16 x i8> SIMD lanes and computes SubBytes arithmetically (x^254 by seven linear masked squarings and four lane-parallel products, then the affine map), so it has no table lookups or data-dependent branches. Fixtures from OpenSSL (via the Python cryptography package) and FIPS-197 cover all key sizes on both paths, keystream/CBC/GCM modes, and errors, with zero leaks in normal and poisoned-free runs; the default constructor is checked to select hardware on this host. Kernels including AES-NI, ARMv8 AES and PCLMULQDQ bodies compile for x86-64, AArch64 with and without ArmAes, WebAssembly and big-endian PowerPC; ARM execution is not claimed. At --opt-level 3, 64 MiB of AES-128-GCM seals in about 0.5 s and CTR in about 0.56 s with hardware rounds; the portable fallback encrypts about 14 MB/s. Per-block Cinch-level overhead (natural-number positions and checked stores) dominates the hardware path; it is far below assembly implementations."
     },
     {
       "reference_package": "crypto/cipher",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 37
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.ChaCha20Poly1305",
+        "Crypto.Cipher",
+        "Effect.Crypto"
+      ],
+      "remaining": [
+        "StreamReader/StreamWriter adapters over Effect.Stream",
+        "Machine-word block loops to remove per-block natural-number and checked-store overhead"
+      ],
+      "reference_declarations": 37,
+      "tests": [
+        "lib_aes",
+        "lib_effect_crypto",
+        "lib_chacha"
+      ],
+      "capability_mapping": {
+        "Block": "BlockCipher packages forward and inverse U128 block functions; block-cipher builds one from any 128-bit cipher",
+        "Stream/NewCTR/NewOFB/NewCFBEncrypter/NewCFBDecrypter": "XorStream with ctr-stream, ofb-stream, cfb-encrypt-stream and cfb-decrypt-stream; stream-xor processes inputs of any length and returns the advanced stream; ctr-xor, ofb-xor, cfb-encrypt and cfb-decrypt are one-shot forms",
+        "BlockMode/NewCBCEncrypter/NewCBCDecrypter/CryptBlocks": "CbcState with cbc-encrypter, cbc-decrypter and cbc-crypt-blocks (whole blocks only, no padding), plus one-shot cbc-encrypt/cbc-decrypt",
+        "AEAD/NewGCM/NewGCMWithNonceSize/NewGCMWithTagSize/Seal/Open/NonceSize/Overhead": "gcm, gcm-with-nonce-size, gcm-with-tag-size, gcm-seal, gcm-open, gcm-nonce-size, gcm-tag-size and gcm-overhead; open compares tags in constant time and releases no plaintext on failure",
+        "NewGCMWithRandomNonce": "Effect.Crypto.gcm-seal-random prepends a fresh nonce; gcm-open-random splits it off and verifies"
+      },
+      "review": "CTR, OFB, CFB, CBC and GCM are implemented over any BlockCipher and verified with AES against independent vectors, including every two-chunk split for streams, chained CBC calls, counter wrap at 2^128, GCM tag sizes 12-16, nonce sizes 8, 9, 12, 16 and 60, AAD-only messages and rejection of tampered ciphertext, tags, AAD, nonces and truncated input. GHASH uses a constant-time portable product (masked-integer carry-less multiplication with a reflected reduction) or PCLMULQDQ after CPUID detection. Random-nonce GCM and reader/writer adapters remain."
     },
     {
       "reference_package": "crypto/des",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 6
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Des"
+      ],
+      "remaining": [
+        "Integration of 64-bit block ciphers with the generic Crypto.Cipher mode constructors"
+      ],
+      "reference_declarations": 6,
+      "tests": [
+        "lib_des_rc4"
+      ]
     },
     {
       "reference_package": "crypto/dsa",
@@ -290,31 +391,103 @@
     },
     {
       "reference_package": "crypto/ecdh",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 23
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Field25519",
+        "Crypto.P256",
+        "Crypto.X25519",
+        "Effect.Crypto"
+      ],
+      "remaining": [
+        "P-384 and P-521"
+      ],
+      "reference_declarations": 23,
+      "tests": [
+        "lib_curve25519",
+        "lib_p256",
+        "lib_effect_crypto"
+      ],
+      "capability_mapping": {
+        "X25519/NewPrivateKey/PrivateKey.PublicKey/ECDH/Bytes": "x25519-private-key, x25519-public-key, x25519-shared and x25519-private-bytes; x25519 and x25519-base are the raw functions",
+        "low-order rejection": "LowOrderPeer when the shared secret is all zero bytes",
+        "GenerateKey": "Effect.Crypto.x25519-generate and p256-generate",
+        "P256/NewPrivateKey/NewPublicKey/ECDH": "p256-private-key, p256-public-key, p256-public-key-of and p256-ecdh returning the 32-byte x coordinate"
+      },
+      "review": "X25519 is a constant-time Montgomery ladder with masked swaps over the shared field module. RFC 7748 vectors including the 1000-iteration chain, a non-canonical peer coordinate, twelve independent library exchanges and five key derivations match; four low-order peers are rejected. About 120 microseconds per exchange at --opt-level 3. P-256 agreement matches six independent-library exchanges against compressed and uncompressed peers, and five out-of-range or short private keys are rejected. P-384 and P-521 remain."
     },
     {
       "reference_package": "crypto/ecdsa",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 37
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Ecdsa",
+        "Crypto.P256",
+        "Effect.Crypto"
+      ],
+      "remaining": [
+        "P-224, P-384 and P-521 keys",
+        "big-integer r/s interface (the 64-byte r||s form replaces it)"
+      ],
+      "reference_declarations": 37,
+      "tests": [
+        "lib_p256",
+        "lib_effect_crypto"
+      ],
+      "capability_mapping": {
+        "Sign/SignASN1": "ecdsa-sign and ecdsa-sign-der (deterministic RFC 6979 nonces); ecdsa-sign-hedged and ecdsa-sign-der-hedged mix caller entropy into the nonce derivation",
+        "Verify/VerifyASN1": "ecdsa-verify over 64-byte r||s and ecdsa-verify-der with strict minimal DER parsing",
+        "GenerateKey/PrivateKey.Sign with rand": "Effect.Crypto.p256-generate and ecdsa-sign-random",
+        "PrivateKey/PublicKey bytes": "Crypto.P256.p256-private-key, p256-public-key and their encoders"
+      },
+      "review": "P-256 ECDSA over the constant-time Crypto.P256 arithmetic. Forty-four deterministic signatures over eleven keys (including 1, 2, n-1 and n-2) are byte-identical to an independent library's RFC 6979 signatures in both raw and DER form. Thirty-six verifications of independently produced signatures over SHA-1, SHA-256, SHA-384 and SHA-512 digests (exercising digest truncation) agree for the original, a flipped-digest and a negated-s variant; six malformed DER encodings are rejected, and hedged signatures from system randomness verify and differ. The other NIST curves remain."
     },
     {
       "reference_package": "crypto/ed25519",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 24
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.Ed25519",
+        "Crypto.Field25519",
+        "Effect.Crypto"
+      ],
+      "remaining": [
+        "Ed25519ph and Ed25519ctx (VerifyWithOptions/Options)",
+        "Precomputed base-point tables for faster signing"
+      ],
+      "reference_declarations": 24,
+      "tests": [
+        "lib_curve25519",
+        "lib_effect_crypto"
+      ],
+      "capability_mapping": {
+        "NewKeyFromSeed/PrivateKey/Seed/Public": "ed25519-private-key expands a 32-byte seed; ed25519-seed and ed25519-public-key return copies",
+        "Sign": "ed25519-sign produces the deterministic 64-byte signature",
+        "Verify": "ed25519-verify decodes the key, rejects S >= L and reserved bits, and compares the encoding of [S]B - [k]A with R",
+        "SeedSize/PublicKeySize/SignatureSize": "ed25519-seed-size, ed25519-public-key-size, ed25519-signature-size",
+        "GenerateKey": "Effect.Crypto.ed25519-generate draws a seed from the operating system random source"
+      },
+      "review": "Field arithmetic uses five 51-bit limbs with 128-bit column primitives; point arithmetic uses complete extended-coordinate formulas; scalar multiplication always doubles and adds and selects by mask; scalar arithmetic modulo L is bit-serial with masked conditional subtraction, so signing never branches on secrets. RFC 8032 tests 1-3 and the SHA(abc)/1023-byte cases plus independent library signatures match exactly, every signature verifies, and tampered messages, signatures and keys, S + L malleability, non-point keys, wrong lengths and reserved bits are rejected. At --opt-level 3 a signature plus a verification takes under a millisecond; there are no precomputed tables."
     },
     {
       "reference_package": "crypto/elliptic",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 43
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.P256"
+      ],
+      "remaining": [
+        "P-224, P-384 and P-521",
+        "the deprecated generic Curve/CurveParams big-integer arithmetic"
+      ],
+      "reference_declarations": 43,
+      "tests": [
+        "lib_p256"
+      ],
+      "capability_mapping": {
+        "P256": "Crypto.P256 module",
+        "Marshal/Unmarshal": "p256-public-key-bytes and p256-public-key with SEC 1 uncompressed encodings, rejecting off-curve and non-canonical coordinates",
+        "MarshalCompressed/UnmarshalCompressed": "p256-public-key-compressed and compressed decoding through the (p+1)/4 square root",
+        "ScalarMult/ScalarBaseMult/Add": "p256-point-mult, p256-base-mult and p256-point-add over P256Scalar and P256Point",
+        "GenerateKey": "Effect.Crypto.p256-generate"
+      },
+      "review": "Field and scalar arithmetic are two-U128 Montgomery residues driven by generated branch-free CIOS product, sum, difference and reduction kernels; points use the complete Renes-Costello-Batina formulas, and scalar multiplication is a fixed 4-bit window with masked table lookups, so timing does not depend on secrets. Encodings round-trip against an independent library and seven malformed points, including a non-residue x coordinate, are rejected."
     },
     {
       "reference_package": "crypto/fips140",
@@ -363,19 +536,55 @@
     },
     {
       "reference_package": "crypto/hpke",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 51
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.ChaCha20Poly1305",
+        "Crypto.Hpke",
+        "Effect.Crypto"
+      ],
+      "remaining": [
+        "DHKEM(P-384) and DHKEM(P-521)",
+        "ML-KEM and hybrid post-quantum KEMs"
+      ],
+      "reference_declarations": 51,
+      "tests": [
+        "lib_hpke",
+        "lib_chacha",
+        "lib_effect_crypto"
+      ],
+      "capability_mapping": {
+        "KEM/KDF/AEAD identifiers": "HpkeKem (DHKEM X25519 and P-256), HpkeKdf (HKDF-SHA256/384/512) and HpkeAead (AES-128-GCM, AES-256-GCM, ChaCha20-Poly1305, export-only) with their RFC 9180 identifiers",
+        "Sender/Recipient setup in all modes": "hpke-setup-sender and hpke-setup-recipient; a sender key selects auth, a (PSK, identifier) pair selects PSK, both auth-PSK",
+        "Seal/Open/Export": "hpke-seal and hpke-open return the next context; hpke-export; hpke-seal-once and hpke-open-once",
+        "Key generation and parsing": "hpke-derive-key-pair, hpke-private-key, hpke-public-key, Effect.Crypto.hpke-generate, hpke-setup-sender-random and hpke-seal-random"
+      },
+      "review": "RFC 9180 with DHKEM(X25519) and DHKEM(P-256) over the existing curve modules, labeled HKDF with SHA-256, SHA-384 (a local HMAC over the SHA-384 digest) and SHA-512, and AES-GCM or the new ChaCha20-Poly1305. Fifty-five suite and mode combinations from an independent implementation match derived keys, encapsulated keys, three sequential seals and two exports each; recipient contexts open every seal, refuse tampered additional data and export the same secrets. Contexts are immutable values whose seal and open return the next context. The post-quantum KEMs and the larger NIST curves remain."
     },
     {
       "reference_package": "crypto/md5",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Digest"
+        "Effect.Md5",
+        "Text.Digest",
+        "Text.Md5"
       ],
       "remaining": [],
-      "reference_declarations": 6
+      "reference_declarations": 6,
+      "tests": [
+        "lib_sha1_md5"
+      ],
+      "benchmarks": [
+        "sha1-md5-64MiB-o3"
+      ],
+      "capability_mapping": {
+        "BlockSize/Size": "md5-block-size and md5-size expose 64 and 16",
+        "Sum": "md5-sum returns a fresh 16-byte digest",
+        "New": "md5-state initializes an immutable state",
+        "hash.Hash.Write/Sum/Reset/Size/BlockSize": "md5-state-update, md5-state-sum, md5-state-append, md5-state-reset, md5-state-size, md5-state-block-size; Effect.Md5 provides md5-write, md5-hashing-writer and bounded md5-copy",
+        "hash.Cloner.Clone": "Retaining a Md5State branches computation without aliasing caller storage",
+        "encoding.BinaryMarshaler/BinaryAppender/BinaryUnmarshaler": "md5-state-save, md5-state-append-save and md5-state-load use a 92-byte identifier/chaining/tail/count checkpoint; identifier checks precede exact size"
+      },
+      "review": "All six recorded declarations and returned hash/clone/state capabilities are mapped in a standalone module. MD5 rounds are strictly sequential, so each is one private primitive with a native rotate whose amount folds to a constant after inlining; there is no profitable SIMD formulation for a single message. Fixtures from hashlib and an independent Python model cover 17 digest/checkpoint/append/split cases across padding boundaries including 64 KiB, 9 load cases, alias isolation and stream adapters, with zero leaks in normal and poisoned-free runs; kernels compile for WebAssembly, AArch64 and big-endian PowerPC. The module documentation states that MD5 is broken for collision resistance."
     },
     {
       "reference_package": "crypto/mldsa",
@@ -386,10 +595,17 @@
     },
     {
       "reference_package": "crypto/mlkem",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Crypto.MlKem",
+        "Effect.Crypto"
+      ],
       "remaining": [],
-      "reference_declarations": 34
+      "reference_declarations": 34,
+      "tests": [
+        "lib_mlkem",
+        "lib_effect_crypto"
+      ]
     },
     {
       "reference_package": "crypto/mlkem/mlkemtest",
@@ -428,10 +644,15 @@
     },
     {
       "reference_package": "crypto/rc4",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Crypto.Rc4"
+      ],
       "remaining": [],
-      "reference_declarations": 7
+      "reference_declarations": 7,
+      "tests": [
+        "lib_des_rc4"
+      ]
     },
     {
       "reference_package": "crypto/rsa",
@@ -442,12 +663,29 @@
     },
     {
       "reference_package": "crypto/sha1",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Digest"
+        "Effect.Sha1",
+        "Text.Digest",
+        "Text.Sha1"
       ],
       "remaining": [],
-      "reference_declarations": 6
+      "reference_declarations": 6,
+      "tests": [
+        "lib_sha1_md5"
+      ],
+      "benchmarks": [
+        "sha1-md5-64MiB-o3"
+      ],
+      "capability_mapping": {
+        "BlockSize/Size": "sha1-block-size and sha1-size expose 64 and 20",
+        "Sum": "sha1-sum returns a fresh 20-byte network-order digest",
+        "New": "sha1-state initializes an immutable state",
+        "hash.Hash.Write/Sum/Reset/Size/BlockSize": "sha1-state-update, sha1-state-sum, sha1-state-append, sha1-state-reset, sha1-state-size, sha1-state-block-size; Effect.Sha1 provides sha1-write, sha1-hashing-writer and bounded sha1-copy",
+        "hash.Cloner.Clone": "Retaining a Sha1State branches computation without aliasing caller storage",
+        "encoding.BinaryMarshaler/BinaryAppender/BinaryUnmarshaler": "sha1-state-save, sha1-state-append-save and sha1-state-load use a 96-byte identifier/chaining/tail/count checkpoint; identifier checks precede exact size"
+      },
+      "review": "All six recorded declarations and returned hash/clone/state capabilities are mapped in a standalone module. The schedule expands four words per step in <4 x i32> lanes; the dependent fourth lane is completed by one rotated exclusive-or because a one-bit rotation distributes over exclusive-or. Each round is one private primitive returning the new a and rotated b words. Fixtures from hashlib and an independent Python model cover 17 digest/checkpoint/append/split cases across padding boundaries including 64 KiB, 9 load cases, alias isolation and stream adapters, with zero leaks in normal and poisoned-free runs; kernels compile for WebAssembly, AArch64 and big-endian PowerPC. SHA-1 plus MD5 over 64 MiB at --opt-level 3 take about 0.28 s against about 0.18 s for an assembly-optimized system implementation; SHA hardware instructions are not used. The module documentation states that SHA-1 is broken for collision resistance."
     },
     {
       "reference_package": "crypto/sha256",
@@ -490,19 +728,60 @@
     },
     {
       "reference_package": "crypto/sha3",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Effect.Sha3",
+        "Text.Sha3"
+      ],
       "remaining": [],
-      "reference_declarations": 32
+      "reference_declarations": 32,
+      "tests": [
+        "lib_sha3"
+      ],
+      "benchmarks": [
+        "sha3-256-64MiB-o3"
+      ],
+      "capability_mapping": {
+        "Sum224/Sum256/Sum384/Sum512": "sha3-sum224, sha3-sum256, sha3-sum384 and sha3-sum512 return fresh digests",
+        "SumSHAKE128/SumSHAKE256": "shake128-sum and shake256-sum take the input and an exact output length",
+        "New224/New256/New384/New512": "sha3-state224, sha3-state256, sha3-state384 and sha3-state512",
+        "NewSHAKE128/NewSHAKE256": "shake128-state and shake256-state",
+        "NewCSHAKE128/NewCSHAKE256": "cshake128-state and cshake256-state take the function name and customization; with both empty they are exactly SHAKE",
+        "SHA3.Write/Sum/Reset/Size/BlockSize": "sha3-state-update, sha3-state-sum, sha3-state-append, sha3-state-reset, sha3-state-size and sha3-state-block-size (the rate)",
+        "SHAKE.Write/Read/Reset/BlockSize": "sha3-state-update absorbs; shake-read finalizes a copy and returns a persistent ShakeReader; shake-reader-read continues the output stream; Effect.Sha3.shake-byte-reader adapts a reader to ByteReader",
+        "MarshalBinary/AppendBinary/UnmarshalBinary (both types)": "sha3-state-save, sha3-state-append-save and sha3-state-load use a 573-byte checkpoint with the variant, initial (customized) lanes, current lanes and pending bytes; identifier, size and pending-length errors are distinct",
+        "hash.Hash streaming": "Effect.Sha3 provides sha3-write, sha3-hashing-writer and bounded sha3-copy"
+      },
+      "review": "All recorded SHA-3, SHAKE and cSHAKE capabilities are mapped. Keccak-f[1600] is generated straight-line code over twenty-five private lanes: column parities and theta words are small primitives and each output lane is one fused theta/rho/pi/chi primitive whose duplicated source rotations are merged by LLVM after inlining, so the permutation stays register-resident with native 64-bit rotates. A single sponge is sequential across rounds, so scalar code is the appropriate single-message form. Rate-specific absorb steps load little-endian lanes directly from the retained input owner. Fixtures from hashlib, the NIST SP 800-185 cSHAKE samples and a separate Python sponge cover 134 digest/checkpoint/append/split rows over every rate boundary for all eight variants (including 64 KiB inputs and 200/300-byte customizations), four multi-read SHAKE streams with empty and block-crossing reads, 72 identifier/size/pending-length load cases, alias isolation, generic stream adapters and the SHAKE reader adapter, with zero leaks in normal and poisoned-free runs; kernels compile for WebAssembly, AArch64 and big-endian PowerPC. Sixty-four 1 MiB SHA3-256 digests take about 0.25 s of user time at --opt-level 3 against about 0.18 s for an assembly-optimized system implementation. Self-built compiler qualification remains open."
     },
     {
       "reference_package": "crypto/sha512",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
-        "Text.Digest"
+        "Effect.Sha512",
+        "Text.Digest",
+        "Text.Sha512"
       ],
       "remaining": [],
-      "reference_declarations": 18
+      "reference_declarations": 18,
+      "tests": [
+        "lib_sha512"
+      ],
+      "benchmarks": [
+        "sha512-64MiB-o3"
+      ],
+      "capability_mapping": {
+        "BlockSize/Size/Size224/Size256/Size384 (value and ideal-integer declarations)": "sha512-block-size, sha512-size, sha384-size, sha512t224-size and sha512t256-size expose exact Nat constants 128, 64, 48, 28 and 32",
+        "Sum512/Sum384/Sum512_224/Sum512_256": "sha512-sum, sha384-sum, sha512t224-sum and sha512t256-sum return fresh network-order digest bytes for a complete input",
+        "New/New384/New512_224/New512_256": "sha512-state, sha384-state, sha512t224-state and sha512t256-state initialize immutable states; truncated-variant chaining values are derived by the standard generation function in the kernel generator",
+        "hash.Hash.Write": "sha512-state-update consumes every byte; Effect.Sha512.sha512-write returns the accepted count and advanced state; sha512-hashing-writer adapts any variant to ByteWriter; sha512-copy hashes a bounded reader",
+        "hash.Hash.Sum": "sha512-state-sum finalizes a retained state without modifying it; sha512-state-append copies a caller prefix before the digest",
+        "hash.Hash.Reset/Size/BlockSize": "sha512-state-reset preserves the variant; sha512-state-size is 48, 28, 32 or 64; sha512-state-block-size is 128",
+        "hash.Cloner.Clone": "Retaining a Sha512State branches computation; pending bytes and chaining words never alias mutable caller storage",
+        "encoding.BinaryMarshaler/BinaryAppender": "sha512-state-save and sha512-state-append-save encode the 204-byte identifier/chaining/tail/count checkpoint (variant bytes 4-7) with network-order numeric fields and zero unused tail bytes",
+        "encoding.BinaryUnmarshaler": "sha512-state-load uses its template only to select the variant; identifier checks precede exact size and only live count-modulo-128 tail bytes are copied"
+      },
+      "review": "All eighteen recorded declarations have functional mappings in a standalone module; Text.Digest remains as the runtime facade. Compression uses a generated two-lane <2 x i64> SIMD message schedule whose word pairs are independent, one private round primitive per ordered round with funnel-shift rotates, and exact private block loads over remaining-length machine counters. Independent fixtures (hashlib digests and a separate Python compression model for checkpoints) cover 74 digest/checkpoint/append cases over every padding boundary for all four variants including 64 KiB inputs, requested two-chunk splits with save/load resumption, 44 identifier/size load cases, retained-branch and mutable-buffer isolation, and explicit, generic and bounded stream hashing. Runs validate a 32 MiB heap and 8 MiB stack, a separate 256 MiB poisoned-free run, and zero leaks. Kernels compile for WebAssembly, AArch64 and big-endian PowerPC; foreign execution is not claimed. At --opt-level 3, sixty-four 1 MiB digests take about 0.20 s (roughly 335 MB/s) on the development host, against about 0.11 s of user time for an assembly-optimized system implementation; hardware SHA-512 instructions are not used. Self-built compiler qualification remains open."
     },
     {
       "reference_package": "crypto/subtle",
@@ -657,10 +936,29 @@
     },
     {
       "reference_package": "encoding/asn1",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 73
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Asn1"
+      ],
+      "remaining": [
+        "Typed record codecs (the reference marshals structs by reflection; a staged generator over Asn1 values is the idiomatic replacement)",
+        "BitString.At/RightAlign and ObjectIdentifier.String conveniences",
+        "BER-only inputs (indefinite lengths) are rejected by design"
+      ],
+      "reference_declarations": 73,
+      "tests": [
+        "lib_asn1"
+      ],
+      "capability_mapping": {
+        "Marshal/MarshalWithParams": "asn1-encode over an explicit Asn1 value tree; asn1-explicit and asn1-implicit apply context tags",
+        "Unmarshal/UnmarshalWithParams": "asn1-decode with strict DER validation",
+        "RawValue/RawContent": "Asn1Raw with class, tag, constructed flag and content",
+        "BitString/ObjectIdentifier/Enumerated/Flag/NullRawValue": "Asn1BitString, Asn1Oid, Asn1Enumerated, Asn1Boolean and Asn1Null",
+        "Tag and Class constants": "tag-utf8-string, tag-printable-string, tag-ia5-string, tag-numeric-string, tag-t61-string, tag-bmp-string and class-universal/application/context/private",
+        "time fields": "Asn1UtcTime and Asn1GeneralizedTime with asn1-time-seconds",
+        "StructuralError/SyntaxError": "Asn1Truncated, Asn1BadLength, Asn1BadContent and Asn1TrailingData with offsets"
+      },
+      "review": "Forty-six values encoded by the reference implementation (integers across sign and width boundaries and beyond 64 bits, booleans, OIDs including large and first-arc edge cases, four string types, octet and bit strings, null, UTC and generalized times, enumerations, nested sequences, sorted sets, explicit and implicit tags, application-class high tag numbers and long-form lengths) encode byte for byte and decode back to the same encoding; twenty-two DER violations are rejected; times convert to Unix seconds."
     },
     {
       "reference_package": "encoding/base32",
@@ -945,10 +1243,20 @@
     },
     {
       "reference_package": "encoding/xml",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 83
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Xml"
+      ],
+      "remaining": [
+        "Marshal/Unmarshal over user types (no reflection; a class-based codec is the intended counterpart)",
+        "Non-strict decoding: AutoClose, HTMLAutoClose, HTMLEntity, custom Entity maps",
+        "CharsetReader conversion for non-UTF-8 declarations",
+        "Streaming input over Effect.Stream"
+      ],
+      "reference_declarations": 83,
+      "tests": [
+        "lib_xml"
+      ]
     },
     {
       "reference_package": "errors",
@@ -1285,10 +1593,17 @@
     },
     {
       "reference_package": "image",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 281
+      "status": "partial",
+      "cinch_modules": [
+        "Image.Color",
+        "Image.Raster"
+      ],
+      "remaining": [
+        "Image/Rectangle/Point geometry, sub-images and the YCbCr, CMYK and alpha-mask image types",
+        "Registered format sniffing (image.Decode)"
+      ],
+      "reference_declarations": 281,
+      "review": "Image.Raster provides gray, gray-alpha, RGB and RGBA rasters at eight and sixteen bits and paletted rasters, with bounds-checked pixel access and RGBA conversion; the broader image interface family remains unreviewed."
     },
     {
       "reference_package": "image/color",
@@ -1341,31 +1656,79 @@
     },
     {
       "reference_package": "image/draw",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 25
+      "status": "partial",
+      "cinch_modules": [
+        "Image.Draw",
+        "Image.Raster"
+      ],
+      "remaining": [
+        "User-supplied Drawer and Quantizer implementations (only Floyd-Steinberg is built in)",
+        "Premultiplied RGBA and YCbCr/CMYK raster formats and their fast paths"
+      ],
+      "reference_declarations": 25,
+      "tests": [
+        "lib_draw"
+      ]
     },
     {
       "reference_package": "image/gif",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 22
+      "status": "partial",
+      "cinch_modules": [
+        "Image.Gif",
+        "Image.Raster"
+      ],
+      "remaining": [
+        "Quantization and dithering when encoding non-indexed rasters (Options.Quantizer, Options.Drawer, NumColors)"
+      ],
+      "reference_declarations": 22,
+      "tests": [
+        "lib_gif"
+      ]
     },
     {
       "reference_package": "image/jpeg",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Image.Jpeg",
+        "Image.Raster"
+      ],
       "remaining": [],
-      "reference_declarations": 15
+      "reference_declarations": 15,
+      "tests": [
+        "lib_jpeg"
+      ],
+      "capability_mapping": {
+        "Decode": "jpeg-decode returning JpegGray, JpegYcbcr (planes with the chroma ratio), JpegRgb or JpegCmyk, and jpeg-to-raster for a Gray8 or Rgb8 raster",
+        "DecodeConfig": "jpeg-decode-config: colour model, width and height, stopping where the reference stops",
+        "Encode/Options/DefaultQuality": "jpeg-encode quality raster (Gray8 as one component, every other format premultiplied and coded as YCbCr 4:2:0), jpeg-encode-ycbcr for planes, jpeg-default-quality 75",
+        "FormatError/UnsupportedError": "JpegFormatError and JpegUnsupported with the same rule names; JpegTruncated for data that ends early; JpegTooLarge",
+        "Reader": "decoding takes the whole file as bytes"
+      },
+      "review": "Baseline, extended and progressive Huffman decoding with restart intervals, non-interleaved scans, every supported chroma ratio, Adobe CMYK, YCCK and RGB-coded files, and baseline encoding. 238 decoding rows (files from an independent libjpeg encoder, the SDK's own JPEG test images, 72 truncations and 120 corruptions in all) give identical samples, RGB conversions, configurations and error messages; 57 rasters of nine pixel formats and YCbCr planes of six ratios encode to the reference's exact bytes at qualities 1 to 100. Dequantization with the integer IDCT, the FDCT with rounding quantization, Huffman resolution, AC run decoding, zig-zag scanning, entropy-segment scanning and colour conversion run in generated vector kernels whose lane programs are checked against the scalar definitions. At --opt-level 3 a 1920x1080 4:2:0 baseline file decodes in about 85 ms and encodes in about 120 ms (the reference takes 44 and 77 ms), with per-byte stores dominating what remains; its progressive form decodes in about 155 ms (reference 80 ms), refinement scans walking coefficients in machine arithmetic through segment, bit and zig-zag kernels."
     },
     {
       "reference_package": "image/png",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 24
+      "status": "partial",
+      "cinch_modules": [
+        "Image.Png",
+        "Image.Raster"
+      ],
+      "remaining": [
+        "Encoder compression levels (the writer uses the existing DEFLATE encoder)",
+        "Access to ancillary chunks (gamma, text, physical size)",
+        "Integration with a general image interface once the image package is reviewed"
+      ],
+      "reference_declarations": 24,
+      "tests": [
+        "lib_png"
+      ],
+      "capability_mapping": {
+        "Decode": "png-decode to a Raster in the file's native format (sub-byte samples widened, transparency keys as alpha)",
+        "DecodeConfig": "png-config returns width, height and the raster format without inflating",
+        "Encode/Encoder": "png-encode writes non-interlaced PNG with per-row adaptive filters",
+        "FormatError/UnsupportedError": "PngError: PngBadSignature, PngBadChunk, PngBadCrc, PngBadHeader, PngMissingData, PngBadData"
+      },
+      "review": "280 vectors decode exactly: an independent encoder written from the specification covers every color type and bit depth, every filter type and a per-row mix, Adam7 interlacing, gray/RGB/palette transparency and split IDAT chunks, and PIL-written files cover common modes; every decoded raster re-encodes and decodes back to the same pixels and palette, and png-config agrees with every header. Malformed signatures, truncation, CRC corruption and invalid headers are rejected. Up reconstruction adds eight bytes per SIMD step and Sub uses lane-shift prefix scans specialized for 1-8 byte pixels (with big-endian bodies); the kernels compile for AArch64, WebAssembly and big-endian PowerPC."
     },
     {
       "reference_package": "index/suffixarray",
@@ -1487,12 +1850,23 @@
     },
     {
       "reference_package": "math",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
+        "Data.Float",
         "Data.Machine"
       ],
       "remaining": [],
-      "reference_declarations": 133
+      "reference_declarations": 133,
+      "tests": [
+        "lib_float"
+      ],
+      "capability_mapping": {
+        "Erf/Erfc/Erfinv/Erfcinv": "erf-f64, erfc-f64, erfinv-f64, erfcinv-f64",
+        "Gamma/Lgamma": "gamma-f64 and lgamma-f64 (value and sign as a pair)",
+        "J0/J1/Jn/Y0/Y1/Yn": "j0-f64, j1-f64, jn-f64, y0-f64, y1-f64, yn-f64 (orders as I64)",
+        "FMA": "fma-f64: exact product and sum in 128-bit integer arithmetic, rounded once"
+      },
+      "review": "Data.Float implements every reference math function for binary64: constants, classification, exact roundings, frexp/ldexp/modf, remainders, roots, exponentials, logarithms, powers, the trigonometric, inverse trigonometric and hyperbolic functions, erf/erfc and their inverses, Gamma and lgamma, Bessel functions of the first and second kinds, and FMA. The algorithms are the classic fdlibm and Cephes ones (split-ln2 and three-part pi/4 reduction, Payne-Hanek reduction from 2^29, interval rational approximations, Stirling and reflection for Gamma, Hankel asymptotics and continued fractions for Bessel functions, 128-bit integer FMA). The kernels are written once in a typed kernel language and generated as branch-free LLVM prims (every special case a compare and select) plus executable Python models; both reproduce the reference's portable implementations bit for bit on about 37,000 vectors, except that J1 keeps its odd symmetry below 2^-27 where the reference drops the sign. No host libm or fused multiply-add is used, so results are identical on every target. Throughput on amd64: log and sin match the reference, exp is within 1.3x of its hand-written assembly. Loops remain only in pow, mod, Gamma's recurrence and the order-n Bessel recurrences."
     },
     {
       "reference_package": "math/big",
@@ -1562,17 +1936,14 @@
     },
     {
       "reference_package": "math/rand/v2",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
+        "Data.ChaCha8",
+        "Data.Rand",
+        "Effect.Rand",
         "Effect.Random"
       ],
-      "remaining": [
-        "Generic explicit sources and state capabilities",
-        "ChaCha8 source and persistence",
-        "Bounded and scalar distributions, normal/exponential/Zipf samplers",
-        "Permutations/shuffling and concurrent adaptations",
-        "Public benchmarks/portable/Native qualification and production registration"
-      ],
+      "remaining": [],
       "reference_declarations": 60,
       "candidate_modules": [
         {
@@ -1581,7 +1952,22 @@
           "availability": "Isolated immutable PCG state/draw/snapshot candidate; absent from production prelude."
         }
       ],
-      "review": "The cryptographic Effect.Random module alone does not implement seeded deterministic generators. The isolated PCG candidate passes2048 independent words plus state snapshots/appends and alias/refusal controls atO0/O2 across4 zero-leak memory profiles. Generic source/distribution/permutation/other-generator surface remains open."
+      "review": "Data.Rand models sources as values: the Source signature yields a 64-bit draw and the next source, with PCG (128-bit LCG with the DXSM output, one i128 multiply-add per draw) and ChaCha8 as instances, so streams are deterministic, replayable and independent. Bounded draws use Lemire's multiply-and-reject with the 64-bit host's choices, floats take 53 and 24 bits, permutations and shuffles apply the reference's Fisher-Yates swaps to an index buffer, normal and exponential variates use the 128- and 256-strip ziggurats (tables generated from the Marsaglia-Tsang recurrences through the bit-exact exp/log models, and equal to the reference's), and Zipf uses rejection-inversion. Scripts over three PCG seeds and a ChaCha8 seed reproduce the reference draw for draw for every method, encodings round-trip and refusals match. Effect.Rand seeds sources from operating-system entropy for the top-level functions. Cost: the current compiler boxes the returned source, so a raw draw is about 25 ns against the reference's 2 ns.",
+      "tests": [
+        "lib_rand",
+        "lib_chacha8"
+      ],
+      "capability_mapping": {
+        "Source/New/Rand": "the Source signature (a draw and the next source); every Rand method is a function over any source returning the next source",
+        "PCG/NewPCG/Seed/Uint64/MarshalBinary/AppendBinary/UnmarshalBinary": "Pcg: pcg-new, pcg-seed, pcg-uint64, pcg-marshal, pcg-unmarshal (reference encoding and error)",
+        "Uint64/Int64/Uint32/Int32/Uint/Int": "rand-uint64, rand-int64, rand-uint32, rand-int32 (Uint and Int are the 64-bit forms)",
+        "Uint64N/Int64N/Uint32N/Int32N/UintN/IntN/N": "rand-uint64-n, rand-int64-n, rand-uint32-n, rand-int32-n: None for an empty bound where the reference panics; the generic N is the typed forms",
+        "Float64/Float32": "rand-float64, rand-float32",
+        "Perm/Shuffle": "rand-perm (List I64) and rand-shuffle (a list in the order the same swaps give)",
+        "NormFloat64/ExpFloat64": "rand-norm-float64, rand-exp-float64 (ziggurat tables derived from the construction)",
+        "Zipf/NewZipf/Zipf.Uint64": "zipf-new (None for s <= 1 or v < 1) and zipf-uint64 over any source",
+        "top-level functions": "Effect.Rand: random-pcg and random-chacha8 seed a source from operating-system entropy; draw from it with the functions above"
+      }
     },
     {
       "reference_package": "mime",
@@ -1686,10 +2072,20 @@
       "reference_package": "net/http",
       "status": "partial",
       "cinch_modules": [
-        "Effect.Http"
+        "Effect.Http",
+        "Text.Cookie"
       ],
-      "remaining": [],
-      "reference_declarations": 505
+      "remaining": [
+        "Server, handler and transport APIs beyond Effect.Http's plaintext client",
+        "Client cookie-jar wiring and request/response cookie helpers in Effect.Http",
+        "HTTP/2, TLS and multipart"
+      ],
+      "reference_declarations": 505,
+      "capability_mapping": {
+        "Cookie/SameSite/ParseSetCookie/ParseCookie": "Text.Cookie: Cookie with every reference field, SameSite, cookie-parse-set and cookie-parse with the reference errors",
+        "Request.Cookies/CookiesNamed/Cookie": "cookie-read line filter (lenient Cookie header reading)",
+        "Cookie.String/Cookie.Valid": "cookie-string and cookie-valid with the reference sanitizing, Expires formatting and messages"
+      }
     },
     {
       "reference_package": "net/http/cgi",
@@ -1700,10 +2096,24 @@
     },
     {
       "reference_package": "net/http/cookiejar",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Data.CookieJar",
+        "Text.Cookie",
+        "Text.Punycode"
+      ],
       "remaining": [],
-      "reference_declarations": 9
+      "reference_declarations": 9,
+      "tests": [
+        "lib_cookie"
+      ],
+      "capability_mapping": {
+        "New/Options/PublicSuffixList": "cookie-jar-new (Option (String -> String)): the public suffix list is its PublicSuffix function; String() is only used for diagnostics there",
+        "Jar.SetCookies": "jar-set-cookies-url jar url cookies now (or jar-set-cookies with scheme, host and path) returns the next jar",
+        "Jar.Cookies": "jar-cookies-url jar url now returns the cookies to send and the jar after expiry and access bookkeeping",
+        "Jar": "CookieJar, an immutable value: domain groups keyed by registrable domain, entries with creation order and sequence numbers; time is an explicit Unix-seconds argument"
+      },
+      "review": "Data.CookieJar reproduces the reference jar's RFC 6265 storage model: canonical hosts (ports, trailing dots, Punycode labels via Text.Punycode, ASCII lower case), registrable-domain keys with or without a public suffix function (broken suffix answers fall back to the host), host-only and domain cookies, IP-address hosts, default paths and path matching, Secure over HTTPS only, Max-Age over Expires, deletion by negative Max-Age or past Expires, expiry on lookup, replacement that keeps creation order, and the reference's send order. Ten scripted scenarios across hosts, ports, schemes, paths, time, replacement, public suffixes, IP addresses, illegal domains and internationalized hosts send the same cookies in the same order as the reference jar driven at the same instants, both from URL fields and from URLs parsed by Text.Url. The jar is a value rather than a locked shared object, so concurrent clients thread it explicitly."
     },
     {
       "reference_package": "net/http/fcgi",
@@ -1742,10 +2152,18 @@
     },
     {
       "reference_package": "net/mail",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 20
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Mail"
+      ],
+      "remaining": [
+        "Caller-supplied charset conversion for encoded words (AddressParser.WordDecoder)",
+        "Incremental message body reader over Effect.Stream"
+      ],
+      "reference_declarations": 20,
+      "tests": [
+        "lib_mail"
+      ]
     },
     {
       "reference_package": "net/netip",
@@ -1772,17 +2190,52 @@
     },
     {
       "reference_package": "net/smtp",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 27
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Smtp",
+        "Text.Smtp"
+      ],
+      "remaining": [
+        "StartTLS and TLSConnectionState (no TLS implementation yet)",
+        "NewClient over an arbitrary connection value"
+      ],
+      "reference_declarations": 27,
+      "tests": [
+        "lib_smtp"
+      ],
+      "capability_mapping": {
+        "Dial/Client.Close": "smtp-dial host port reads the 220 greeting; smtp-close",
+        "Hello/Extension/Verify/Reset/Noop/Quit": "smtp-hello (refused after the greeting), smtp-extension, smtp-verify, smtp-reset, smtp-noop and smtp-quit; each returns the next SmtpClient",
+        "Auth/PlainAuth/CRAMMD5Auth/ServerInfo": "smtp-auth with SmtpPlainAuth (refused over unencrypted connections except to the local machine, and for the wrong host) or SmtpCramMd5Auth; Text.Smtp exposes the exchange as smtp-auth-start and smtp-auth-next",
+        "Mail/Rcpt/Data": "smtp-mail (BODY=8BITMIME and SMTPUTF8 when offered), smtp-rcpt and smtp-data with the transparency encoding",
+        "SendMail": "smtp-send-mail host port (Option SmtpAuth) sender recipients message"
+      },
+      "review": "The protocol core is pure: an explicit reply state machine (continuations, foreign-code lines folded into the message, the expected-code error carrying the full message), CR/LF line validation, extension parsing and a four-state body encoder; the client threads its socket, read-ahead buffer and greeting state (not greeted, greeted with or without extensions, or failed for good) through every call. Nineteen scenarios replayed from the reference client's transcripts (EHLO and the HELO fallback, both authentication mechanisms and their refusals and aborts, rejected recipients and data, multi-line, mismatched and malformed replies, injected line breaks, late Hello, dot-stuffing and line-end repair) produce byte-identical client output and identical results. TLS remains."
     },
     {
       "reference_package": "net/textproto",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 64
+      "status": "partial",
+      "cinch_modules": [
+        "Text.TextProto"
+      ],
+      "remaining": [
+        "Conn, Pipeline and Writer.PrintfLine over Effect.Net connections",
+        "Incremental readers over Effect.Stream (current readers take a buffer and an offset)"
+      ],
+      "reference_declarations": 64,
+      "tests": [
+        "lib_textproto"
+      ],
+      "capability_mapping": {
+        "CanonicalMIMEHeaderKey": "canonical-header-key (SWAR lowercase and validation, then word capitalization; invalid keys unchanged)",
+        "MIMEHeader Add/Set/Get/Values/Del": "MimeHeader with header-add, header-set, header-get, header-values, header-delete, header-keys and header-entries",
+        "Reader.ReadLine/ReadContinuedLine/ReadMIMEHeader": "read-line, read-continued-line, read-mime-header over a buffer and offset",
+        "Reader.ReadCodeLine/ReadResponse": "read-code-line and read-response with expected-code prefixes",
+        "Reader.ReadDotBytes/DotReader, Writer.DotWriter": "read-dot-bytes and dot-encode as explicit byte state machines",
+        "TrimBytes/TrimString": "trim-bytes",
+        "Error/ProtocolError": "TextProtoError with UnexpectedEnd, MalformedHeader, MalformedCode and UnexpectedCode"
+      },
+      "review": "Sixty reference vectors match: twenty canonical keys (including invalid, empty and multibyte keys), eleven header blocks (continuations, repeated keys, keys with spaces, empty values, control bytes, missing terminators, leading whitespace), thirteen status lines and multi-line responses (prefix codes, mismatches, short and low codes, interleaved foreign lines), and sixteen dot decodings and encodings (stuffed dots, lone CR, missing terminators, empty bodies). The dot reader and writer are explicit state machines. Connection-level conveniences remain."
     },
     {
       "reference_package": "net/url",
@@ -2216,17 +2669,39 @@
     },
     {
       "reference_package": "text/tabwriter",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Text.TabWriter"
+      ],
       "remaining": [],
-      "reference_declarations": 19
+      "reference_declarations": 19,
+      "tests": [
+        "lib_tabwriter"
+      ],
+      "capability_mapping": {
+        "NewWriter/Writer.Init": "tab-config (minimum width, tab width, padding, padding byte, flags) and tab-writer; tab padding clears right alignment",
+        "Writer.Write": "tab-write consumes any chunking and returns the output that became final (at form feeds or after single-cell lines) with the advanced immutable writer",
+        "Writer.Flush": "tab-flush releases everything buffered, ending open escapes; tab-format is write-plus-flush for a whole input",
+        "FilterHTML/StripEscape/AlignRight/DiscardEmptyColumns/TabIndent/Debug": "tab-filter-html, tab-strip-escape, tab-align-right, tab-discard-empty-columns, tab-indent and tab-debug, combined by addition",
+        "Escape": "tab-escape (0xff)"
+      },
+      "review": "All recorded declarations are mapped; output is returned to the caller rather than written to a sink. The lexer is an explicit state machine (text, escape, tag, entity) carried across writes. Cell widths count Unicode scalars with a SWAR primitive that recognizes continuation bytes eight at a time; malformed UTF-8 counts every non-continuation byte as one column. 176 reference vectors (eleven configurations over sixteen inputs, including split writes, escapes, HTML, multibyte text, vertical tabs and form feeds) match both the output released before the final flush and the complete output."
     },
     {
       "reference_package": "text/template",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 39
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Template"
+      ],
+      "remaining": [
+        "Reflection over arbitrary application values and method calls (call); values are a dynamic TemplateValue",
+        "Parse-tree access and AddParseTree/Clone (text/template/parse)",
+        "Exact error message wording with source positions in execution errors"
+      ],
+      "reference_declarations": 39,
+      "tests": [
+        "lib_template"
+      ]
     },
     {
       "reference_package": "text/template/parse",

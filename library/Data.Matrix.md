@@ -239,4 +239,4 @@ matrix. An empty row list is the 0x0 matrix.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Matrix.cinch`. Source SHA-256: `415f1178cef0922afe6e0d13bad42bd3a495f5236c0e197ee471ba4543968510`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Matrix.cinch`. Source SHA-256: `1c0d2056a1a83186275ef0506d0df7d884ffb167771c00609e076874c88d6688`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

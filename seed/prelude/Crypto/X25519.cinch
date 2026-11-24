@@ -1,0 +1,149 @@
+-- | X25519 Diffie-Hellman key agreement (RFC 7748) in constant time.
+-- A private key is 32 secret bytes, clamped as the function requires; the
+-- public key is the private key applied to the base point u = 9. Scalar
+-- multiplication is the Montgomery ladder over the u-coordinate with masked
+-- conditional swaps and a fixed iteration count, so its timing and memory
+-- accesses do not depend on the secret. A shared secret of all zero bytes,
+-- produced by low-order peer keys, is rejected. Private keys should come from
+-- a cryptographic random source such as Effect.Random.
+module Crypto.X25519 where
+
+  import Crypto.Field25519
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export X25519Error, InvalidX25519KeySize, InvalidX25519PeerSize, LowOrderPeer, x25519-error-message
+  export X25519PrivateKey, x25519-private-key, x25519-private-bytes, x25519-public-key, x25519-shared, x25519, x25519-base, x25519-key-size
+
+  -- | Key, scalar and coordinate size in bytes, always 32.
+  x25519-key-size :: Nat
+  x25519-key-size = 32
+
+  -- | A rejected key or a degenerate shared secret.
+  data X25519Error where
+    -- | A private key must be 32 bytes; the actual length follows.
+    InvalidX25519KeySize :: Nat -> X25519Error
+    -- | A peer public key must be 32 bytes; the actual length follows.
+    InvalidX25519PeerSize :: Nat -> X25519Error
+    -- | The peer key has low order, so the shared secret would be all zero bytes.
+    LowOrderPeer :: X25519Error
+
+  -- | Render an X25519 error.
+  x25519-error-message :: X25519Error -> String
+  x25519-error-message error = case error of
+    InvalidX25519KeySize n -> string-concat "X25519 private key must be 32 bytes; received " (nat-to-string n)
+    InvalidX25519PeerSize n -> string-concat "X25519 public key must be 32 bytes; received " (nat-to-string n)
+    LowOrderPeer -> "X25519 peer public key has low order"
+
+  -- | A private key: its 32 secret bytes (copied) and the derived public key.
+  data X25519PrivateKey where
+    -- | Private fields: secret bytes and public key bytes.
+    PrivateKey :: Bytes -> Bytes -> X25519PrivateKey
+
+  -- | Accept 32 secret bytes as a private key and derive its public key.
+  x25519-private-key :: Bytes -> Result X25519Error X25519PrivateKey
+  x25519-private-key secret =
+    if bytes-len secret == 32 then
+      let copy = clone secret in Ok (PrivateKey copy (ladder (clamp copy) (base-point)))
+    else Err (InvalidX25519KeySize (bytes-len secret))
+
+  -- | The private key's secret bytes, in fresh storage.
+  x25519-private-bytes :: X25519PrivateKey -> Bytes
+  x25519-private-bytes key = case key of PrivateKey secret public -> clone secret
+
+  -- | The 32-byte public key, in fresh storage.
+  x25519-public-key :: X25519PrivateKey -> Bytes
+  x25519-public-key key = case key of PrivateKey secret public -> clone public
+
+  -- | The shared secret with a peer's 32-byte public key; low-order peers are rejected.
+  x25519-shared :: X25519PrivateKey -> Bytes -> Result X25519Error Bytes
+  x25519-shared key peer = case key of PrivateKey secret public -> x25519 secret peer
+
+  -- | The raw function X25519(scalar, u) with clamping, rejecting an all-zero result.
+  x25519 :: Bytes -> Bytes -> Result X25519Error Bytes
+  x25519 scalar point =
+    if not (bytes-len scalar == 32) then Err (InvalidX25519KeySize (bytes-len scalar))
+    else if not (bytes-len point == 32) then Err (InvalidX25519PeerSize (bytes-len point))
+    else
+      let out = ladder (clamp scalar) (fe-from-bytes point 0) in
+      if all-zero out then Err LowOrderPeer else Ok out
+
+  -- | X25519(scalar, 9): the public key for a private scalar.
+  x25519-base :: Bytes -> Result X25519Error Bytes
+  x25519-base scalar = if bytes-len scalar == 32 then Ok (ladder (clamp scalar) base-point) else Err (InvalidX25519KeySize (bytes-len scalar))
+
+  -- | The base point's u-coordinate, 9.
+  base-point :: Fe
+  base-point = fe-from-u64 9
+
+  -- | Copy bytes into fresh storage.
+  clone :: Bytes -> Bytes
+  clone input = let out = bytes-new (bytes-len input) in let copied = bytes-copy-range out input 0 0 (bytes-len input) in out
+
+  -- | Clear the three low bits and the top bit and set bit 254 of a copy of the scalar.
+  clamp :: Bytes -> Bytes
+  clamp scalar =
+    let out = clone scalar in
+    let low = if 0 < bytes-len out then bytes-set out 0 (u8-to-nat (bit-and-u8 (byte-at out 0) 248)) else () in
+    let high = if 31 < bytes-len out then bytes-set out 31 (u8-to-nat (bit-or-u8 (bit-and-u8 (byte-at out 31) 127) 64)) else () in
+    out
+
+  -- | A byte as a machine value, or zero past the end.
+  byte-at :: Bytes -> Nat -> U8
+  byte-at input i = if i < bytes-len input then wrapping-i64-to-u8 (nat-to-i64 (bytes-get input i)) else 0
+
+  -- | Scalar bit t as 0 or 1.
+  bit :: Bytes -> Nat -> U64
+  bit scalar t = bit-and-u64 (wrapping-shr-u64 (u8-to-u64 (byte-at scalar (nat-div t 8))) (wrapping-i64-to-u32 (nat-to-i64 (nat-rem t 8)))) 1
+
+  -- | Whether every byte is zero, examined in full without early exit.
+  all-zero :: Bytes -> Bool
+  all-zero input = eq-u64 (or-words input 0 0) 0
+
+  -- | Bitwise OR of every eight-byte word of a 32-byte buffer.
+  or-words :: Bytes -> Nat -> U64 -> U64
+  or-words input i acc = if i + 8 <= bytes-len input then or-words input (i + 8) (bit-or-u64 acc (bytes-read-le64 input i)) else acc
+
+  -- | The ladder state: x1, x2, z2, x3, z3 and the pending swap bit.
+  data Ladder where
+    -- | Private fields in the order listed above.
+    Ladder :: Fe -> Fe -> Fe -> Fe -> Fe -> U64 -> Ladder
+
+  -- | Multiply the point with u-coordinate u by the clamped scalar and encode the affine result.
+  ladder :: Bytes -> Fe -> Bytes
+  ladder scalar u = case steps scalar 254 (Ladder u fe-one fe-zero u fe-one 0) of
+    Ladder x1 x2 z2 x3 z3 swap -> case fe-swap swap x2 x3 of
+      (a2, a3) -> case fe-swap swap z2 z3 of
+        (b2, b3) -> fe-to-bytes (fe-mul a2 (fe-invert b2))
+
+  -- | One ladder step per scalar bit from 254 down to 0, with deferred conditional swaps.
+  steps :: Bytes -> Nat -> Ladder -> Ladder
+  steps scalar t state = case state of
+    Ladder x1 x2 z2 x3 z3 swap ->
+      let k = bit scalar t in
+      let next = swapped-step x1 x2 z2 x3 z3 (bit-xor-u64 swap k) k in
+      if t == 0 then next else steps scalar (t - 1) next
+
+  -- | Apply the pending conditional swap, then one ladder step.
+  swapped-step :: Fe -> Fe -> Fe -> Fe -> Fe -> U64 -> U64 -> Ladder
+  swapped-step x1 x2 z2 x3 z3 pending k = case fe-swap pending x2 x3 of
+    (sx2, sx3) -> case fe-swap pending z2 z3 of
+      (sz2, sz3) -> step x1 sx2 sz2 sx3 sz3 k
+
+  -- | The differential addition and doubling of RFC 7748, section 5.
+  step :: Fe -> Fe -> Fe -> Fe -> Fe -> U64 -> Ladder
+  step x1 x2 z2 x3 z3 k =
+    let a = fe-add x2 z2 in let aa = fe-square a in
+    let b = fe-sub x2 z2 in let bb = fe-square b in
+    let e = fe-sub aa bb in
+    let c = fe-add x3 z3 in let d = fe-sub x3 z3 in
+    let da = fe-mul d a in let cb = fe-mul c b in
+    let nx3 = fe-square (fe-add da cb) in
+    let nz3 = fe-mul x1 (fe-square (fe-sub da cb)) in
+    let nx2 = fe-mul aa bb in
+    let nz2 = fe-mul e (fe-add aa (fe-mul-small e 121665)) in
+    Ladder x1 nx2 nz2 nx3 nz3 k

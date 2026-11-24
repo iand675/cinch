@@ -268,7 +268,7 @@ module Text.Json.Dynamic where
     JsonBooleanKind -> decode-finish options (AnyBool (case json-value-bool source of Some value -> value; None -> False)) frames error
     JsonStringKind -> decode-finish options (AnyString (string-to-bytes (case json-value-string source of Some value -> value; None -> ""))) frames error
     JsonNumberKind -> case json-value-number source of
-      None -> json-decoded-failure AnyNull (JsonTargetError "dynamic number source has no number spelling")
+      None -> if json-value-complete source then json-decoded-failure AnyNull (JsonTargetError "dynamic number source has no number spelling") else decode-finish options (if json-read-use-number options then AnyNumber json-zero-number else AnyFloat (i64-to-f64 0)) frames error
       Some number -> if json-read-use-number options then decode-finish options (AnyNumber number) frames error
         else case json-number-float64 number of
           Ok value -> decode-finish options (AnyFloat value) frames error
@@ -283,11 +283,16 @@ module Text.Json.Dynamic where
         Nil -> decode-finish options AnyObjectEnd frames error
         Cons first rest -> decode-node options (json-member-value first) (Cons (DecodeObject rest (json-map-empty json-string-key) (json-member-name first) path) frames) (Cons (json-member-name first) path) error
       None -> json-decoded-failure AnyNull (JsonTargetError "dynamic object source has no member views")
-    other -> json-decoded-failure AnyNull (JsonTargetError "dynamic source is not a JSON value")
+    other -> if json-value-complete source then json-decoded-failure AnyNull (JsonTargetError "dynamic source is not a JSON value") else decode-finish options AnyNull frames error
 
-  -- | Replace a non-pointer dynamic application payload after complete source syntax validation.
+  -- | Replace a dynamic payload from complete or explicitly retained partial structural source state.
   dynamic-update :: JsonReadOptions -> JsonValue -> JsonAny -> JsonDecoded JsonAny
-  dynamic-update options source prior = decode-node options source Nil Nil None
+  dynamic-update options source prior = case decode-node options source Nil Nil None of
+    decoded -> case json-decoded-error decoded of
+      Some cause -> decoded
+      None -> case json-value-structural-refusal source of
+        None -> decoded
+        Some cause -> json-decoded-failure (json-decoded-value decoded) (json-preserve-error-context cause)
 
   -- | One already normalized object member, retaining its exact raw name for deterministic tie ordering.
   data PreparedMember where

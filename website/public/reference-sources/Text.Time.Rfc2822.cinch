@@ -1,0 +1,510 @@
+-- Text.Time.Rfc2822: the date-time of internet mail and HTTP-era
+-- headers (RFC 2822 section 3.3, unchanged in RFC 5322), printing and
+-- parsing (design/datetime.md, layer L4; T9, T10).
+--
+--     Sat, 13 Jul 2024 15:09:59 -0400
+--
+-- Strict grammar (RFC 5322 section 3.3 without the obsolete forms and
+-- without comments; `ws` is one or more spaces or tabs, names match in
+-- any letter case):
+--
+--     date-time = [ws] [day-name [ws] "," [ws]] day ws month ws year ws
+--                 hour ":" minute [":" second] ws zone [ws]
+--     day-name  = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun"
+--     day       = 1*2DIGIT
+--     month     = "Jan" | ... | "Dec"
+--     year      = 4DIGIT
+--     zone      = ("+" | "-") 4DIGIT          ; hours and minutes
+--
+-- The lenient parsers (`-lenient`) accept the RFC's obsolete syntax as
+-- well: comments in parentheses (nested, with `\` quoting) and line
+-- breaks wherever white space may appear, and around the colons of the
+-- time; no white space before the zone; two-digit years (00..=49 are
+-- 2000..=2049, 50..=99 are 1950..=1999) and three-digit years (1900 is
+-- added); the zone names `UT` and `GMT` (+0000) and the North American
+-- `EST` -0500, `EDT` -0400, `CST` -0600, `CDT` -0500, `MST` -0700,
+-- `MDT` -0600, `PST` -0800, `PDT` -0700; and second 60, read as second
+-- 59 (Text.Time.Iso's reading of a leap second).
+--
+-- Design law shape.
+--   - A parse answers the instant and the offset as written, as
+--     `(Timestamp, Offset)`; `zoned-from-rfc2822` is the same in the
+--     fixed-offset zone of that offset. The format names no time zone,
+--     only an offset, so no `TzDb` is involved.
+--   - A day name, when present, must be the date's weekday
+--     (`Rfc2822WeekdayMismatch`).
+--   - `-0000` (the RFC's "the local offset is not known") reads as
+--     offset zero, like `+0000`.
+--   - The printer writes the day name, a two-digit day, the month
+--     name, a four-digit year, `HH:MM:SS` and `+HHMM`: always 31 bytes.
+--     The subsecond is dropped (the format has no fraction), so
+--     printing then parsing gives the instant truncated to its second
+--     and the same offset.
+--   - The parser is a state machine over the input's bytes (`st-*`),
+--     never going back; the printer fills one 31-byte buffer.
+--   - No operation faults; every refusal is an `Rfc2822Error`
+--     constructor, with the byte position where one exists.
+--
+-- NAMED REFUSALS:
+--   - printing a year before 0000 or (never, with T3's range) after
+--     9999: `Rfc2822YearNotPrintable`. The format's year has no sign.
+--   - printing at an offset with seconds: `Rfc2822OffsetNotPrintable`.
+--     The format's zone has hours and minutes only; Jiff rounds the
+--     offset here, which makes the text name a different instant.
+--   - the obsolete forms in strict mode, each by name:
+--     `Rfc2822ObsoleteYear`, `Rfc2822ObsoleteZone`,
+--     `Rfc2822CommentNotAllowed`.
+--   - zone names outside the list above, including the military
+--     single letters (which RFC 2822 itself says were defined wrongly
+--     and carry no information): `Rfc2822UnknownZone`.
+--   - a year of five or more digits, or of one: `Rfc2822InvalidYear`.
+--   - an offset beyond +-25:59 or with minutes above 59:
+--     `Rfc2822OffsetOutOfRange`.
+--   - the rest of a mail header (the field name, unfolding of a header
+--     line before the date begins): the caller's.
+module Text.Time.Rfc2822 where
+
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.Bytes
+  import Data.String
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Time.Scan
+  import Data.Time.Timestamp
+  import Data.Time.Weekday as W
+  import Data.Time.Date (Date)
+  import Data.Time.Date as D
+  import Data.Time.TimeOfDay (TimeOfDay)
+  import Data.Time.TimeOfDay as T
+  import Data.Time.DateTime (DateTime)
+  import Data.Time.DateTime as DT
+  import Data.Time.Offset
+  import Data.Time.Zone
+  import Data.Time.Zoned
+
+  export Rfc2822Error, Rfc2822UnexpectedEnd, Rfc2822ExpectedDigit, Rfc2822ExpectedSpace
+  export Rfc2822ExpectedComma, Rfc2822ExpectedColon, Rfc2822ExpectedZone
+  export Rfc2822InvalidDayName, Rfc2822InvalidMonth, Rfc2822InvalidYear
+  export Rfc2822ObsoleteYear, Rfc2822ObsoleteZone, Rfc2822UnknownZone
+  export Rfc2822CommentNotAllowed, Rfc2822UnclosedComment
+  export Rfc2822DayOutOfRange, Rfc2822HourOutOfRange, Rfc2822MinuteOutOfRange
+  export Rfc2822SecondOutOfRange, Rfc2822LeapSecond, Rfc2822OffsetOutOfRange
+  export Rfc2822WeekdayMismatch, Rfc2822TrailingInput, Rfc2822TimestampOutOfRange
+  export Rfc2822YearNotPrintable, Rfc2822OffsetNotPrintable
+  export rfc2822-error-position
+  export timestamp-to-rfc2822, zoned-to-rfc2822
+  export timestamp-from-rfc2822, timestamp-from-rfc2822-lenient
+  export zoned-from-rfc2822, zoned-from-rfc2822-lenient
+
+
+  -- One constructor per refusal. A position is a byte index into the
+  -- input.
+  data Rfc2822Error where
+    -- The input ended where the grammar needs more.
+    Rfc2822UnexpectedEnd :: I64 -> Rfc2822Error
+    -- Not a digit where the day, the year, a time field or the zone's
+    -- digits are required.
+    Rfc2822ExpectedDigit :: I64 -> Rfc2822Error
+    -- No white space where the grammar requires some.
+    Rfc2822ExpectedSpace :: I64 -> Rfc2822Error
+    -- No `,` after the day name.
+    Rfc2822ExpectedComma :: I64 -> Rfc2822Error
+    -- No `:` between the hour and the minute.
+    Rfc2822ExpectedColon :: I64 -> Rfc2822Error
+    -- Neither a sign nor a letter where the zone starts.
+    Rfc2822ExpectedZone :: I64 -> Rfc2822Error
+    -- Letters at the start that are no day name.
+    Rfc2822InvalidDayName :: I64 -> Rfc2822Error
+    Rfc2822InvalidMonth :: I64 -> Rfc2822Error
+    -- A year of one digit, or of five or more.
+    Rfc2822InvalidYear :: I64 -> Rfc2822Error
+    -- Strict mode: a year of two or three digits.
+    Rfc2822ObsoleteYear :: I64 -> Rfc2822Error
+    -- Strict mode: one of the zone names the lenient parser reads.
+    Rfc2822ObsoleteZone :: I64 -> Rfc2822Error
+    -- A zone name that is not one of them.
+    Rfc2822UnknownZone :: I64 -> Rfc2822Error
+    -- Strict mode: a `(`.
+    Rfc2822CommentNotAllowed :: I64 -> Rfc2822Error
+    -- Lenient mode: a `(` with no matching `)`.
+    Rfc2822UnclosedComment :: I64 -> Rfc2822Error
+    -- Day 0, or a day beyond the month's length in that year. The
+    -- position is the day.
+    Rfc2822DayOutOfRange :: I64 -> Rfc2822Error
+    Rfc2822HourOutOfRange :: I64 -> Rfc2822Error
+    Rfc2822MinuteOutOfRange :: I64 -> Rfc2822Error
+    Rfc2822SecondOutOfRange :: I64 -> Rfc2822Error
+    -- Strict mode: second 60.
+    Rfc2822LeapSecond :: I64 -> Rfc2822Error
+    -- A zone beyond +-2559, or with minutes above 59. The position is
+    -- the sign.
+    Rfc2822OffsetOutOfRange :: I64 -> Rfc2822Error
+    -- The day name is not the date's weekday. The position is the name.
+    Rfc2822WeekdayMismatch :: I64 -> Rfc2822Error
+    -- Input after the zone.
+    Rfc2822TrailingInput :: I64 -> Rfc2822Error
+    -- The instant is outside the `Timestamp` range.
+    Rfc2822TimestampOutOfRange :: Rfc2822Error
+    -- Printing: the civil year is negative.
+    Rfc2822YearNotPrintable :: Rfc2822Error
+    -- Printing: the offset has seconds.
+    Rfc2822OffsetNotPrintable :: Rfc2822Error
+
+  -- The byte position of a parse refusal; `None` for the range and the
+  -- two printing refusals.
+  rfc2822-error-position :: Rfc2822Error -> Option I64
+  rfc2822-error-position e = case e of
+    Rfc2822UnexpectedEnd p -> Some p
+    Rfc2822ExpectedDigit p -> Some p
+    Rfc2822ExpectedSpace p -> Some p
+    Rfc2822ExpectedComma p -> Some p
+    Rfc2822ExpectedColon p -> Some p
+    Rfc2822ExpectedZone p -> Some p
+    Rfc2822InvalidDayName p -> Some p
+    Rfc2822InvalidMonth p -> Some p
+    Rfc2822InvalidYear p -> Some p
+    Rfc2822ObsoleteYear p -> Some p
+    Rfc2822ObsoleteZone p -> Some p
+    Rfc2822UnknownZone p -> Some p
+    Rfc2822CommentNotAllowed p -> Some p
+    Rfc2822UnclosedComment p -> Some p
+    Rfc2822DayOutOfRange p -> Some p
+    Rfc2822HourOutOfRange p -> Some p
+    Rfc2822MinuteOutOfRange p -> Some p
+    Rfc2822SecondOutOfRange p -> Some p
+    Rfc2822LeapSecond p -> Some p
+    Rfc2822OffsetOutOfRange p -> Some p
+    Rfc2822WeekdayMismatch p -> Some p
+    Rfc2822TrailingInput p -> Some p
+    Rfc2822TimestampOutOfRange -> None
+    Rfc2822YearNotPrintable -> None
+    Rfc2822OffsetNotPrintable -> None
+
+  -- -----------------------------------------------------------------
+  -- Printing.
+  -- -----------------------------------------------------------------
+
+  -- The civil reading of the instant at `o` (header). The subsecond is
+  -- dropped.
+  timestamp-to-rfc2822 :: Offset -> Timestamp -> Result Rfc2822Error String
+  timestamp-to-rfc2822 o ts = print-at (offset-timestamp-to-datetime o ts) (offset-to-seconds o)
+
+  -- At the zone's offset in force. The zone's name is not written (the
+  -- format has no place for one).
+  zoned-to-rfc2822 :: Zoned -> Result Rfc2822Error String
+  zoned-to-rfc2822 x = print-at (zoned-datetime x) (offset-to-seconds (zoned-offset x))
+
+  day-names :: Bytes
+  day-names = scan-bytes-of-string "MonTueWedThuFriSatSun"
+
+  month-names :: Bytes
+  month-names = scan-bytes-of-string "JanFebMarAprMayJunJulAugSepOctNovDec"
+
+  -- `Sat, 13 Jul 2024 15:09:59 -0400`: 3 + 2 + 2 + 1 + 3 + 1 + 4 + 1 +
+  -- 8 + 1 + 5 = 31 bytes. The magnitude of the offset is at most 93599,
+  -- so the hour field is at most 25.
+  print-at :: DateTime -> I64 -> Result Rfc2822Error String
+  print-at dt off =
+    let y = DT.year dt in
+    let a = if off < 0 then minus 0 off else off in
+    if y < 0 || y > 9999 then Err Rfc2822YearNotPrintable
+    else if scan-rem a 60 /= 0 then Err Rfc2822OffsetNotPrintable
+    else
+      let b = scan-new 31 in
+      let i1 = scan-put-bytes b 0 day-names (times (W.to-monday-zero (DT.weekday dt)) 3) 3 in
+      let i2 = scan-put-byte b (scan-put-byte b i1 44) 32 in
+      let i3 = scan-put-byte b (scan-put-digits b i2 2 (DT.day dt)) 32 in
+      let i4 = scan-put-byte b (scan-put-bytes b i3 month-names (times (minus (DT.month dt) 1) 3) 3) 32 in
+      let i5 = scan-put-byte b (scan-put-digits b i4 4 y) 32 in
+      let i6 = scan-put-byte b (scan-put-digits b i5 2 (DT.hour dt)) 58 in
+      let i7 = scan-put-byte b (scan-put-digits b i6 2 (DT.minute dt)) 58 in
+      let i8 = scan-put-byte b (scan-put-digits b i7 2 (DT.second dt)) 32 in
+      let i9 = scan-put-byte b i8 (if off < 0 then 45 else 43) in
+      let i10 = scan-put-digits b i9 2 (scan-quot a 3600) in
+      let u = scan-put-digits b i10 2 (scan-rem (scan-quot a 60) 60) in
+      Ok (scan-string-of-bytes b)
+
+  -- -----------------------------------------------------------------
+  -- Parsing. States, in order:
+  --   st-start -> [st-comma] -> st-day -> st-month -> st-year
+  --   -> st-hour -> st-minute -> [st-second] -> st-zone
+  --   -> (st-zone-digits | st-zone-name) -> st-end.
+  -- `lenient` is carried through; `skip` is the white space (and, in
+  -- lenient mode, comment and line break) reader between tokens.
+  -- -----------------------------------------------------------------
+
+  timestamp-from-rfc2822 :: String -> Result Rfc2822Error (Timestamp, Offset)
+  timestamp-from-rfc2822 s = st-start False (scan-bytes-of-string s)
+
+  -- Also the obsolete forms (header).
+  timestamp-from-rfc2822-lenient :: String -> Result Rfc2822Error (Timestamp, Offset)
+  timestamp-from-rfc2822-lenient s = st-start True (scan-bytes-of-string s)
+
+  -- The instant in the fixed-offset zone of the offset written.
+  zoned-from-rfc2822 :: String -> Result Rfc2822Error Zoned
+  zoned-from-rfc2822 s = in-fixed-zone (timestamp-from-rfc2822 s)
+
+  zoned-from-rfc2822-lenient :: String -> Result Rfc2822Error Zoned
+  zoned-from-rfc2822-lenient s = in-fixed-zone (timestamp-from-rfc2822-lenient s)
+
+  in-fixed-zone :: Result Rfc2822Error (Timestamp, Offset) -> Result Rfc2822Error Zoned
+  in-fixed-zone r = case r of
+    Err e -> Err e
+    Ok p -> case p of
+      (ts, o) -> Ok (zoned-from-timestamp (zone-fixed o) ts)
+
+  -- The position after the white space at `i` (`i` itself when there
+  -- is none). Strict: spaces and tabs. Lenient: also CR, LF and
+  -- comments. A negative answer `-(p + 1)` is a refusal at `p`: a `(`
+  -- in strict mode, an unclosed comment in lenient mode
+  -- (`skip-error`).
+  skip :: Bool -> Bytes -> I64 -> I64
+  skip lenient b i =
+    let c = scan-byte-at b i in
+    if c == 32 || c == 9 then skip lenient b (plus i 1)
+    else if c == 40 then
+      (if lenient then
+         let e = comment-end b (plus i 1) 1 in
+         if e < 0 then minus (-1) i else skip lenient b e
+       else minus (-1) i)
+    else if lenient && (c == 13 || c == 10) then skip lenient b (plus i 1)
+    else i
+
+  -- The position after the `)` that closes a comment opened `depth`
+  -- deep, scanning from `i`; -1 when the input ends first. `\` quotes
+  -- the next byte.
+  comment-end :: Bytes -> I64 -> I64 -> I64
+  comment-end b i depth =
+    let c = scan-byte-at b i in
+    if c < 0 then -1
+    else if c == 92 then comment-end b (plus i 2) depth
+    else if c == 40 then comment-end b (plus i 1) (plus depth 1)
+    else if c == 41 then
+      (if depth <= 1 then plus i 1 else comment-end b (plus i 1) (minus depth 1))
+    else comment-end b (plus i 1) depth
+
+  -- The refusal a negative `skip` answer `r` stands for.
+  skip-error :: forall a. Bool -> I64 -> Result Rfc2822Error a
+  skip-error lenient r =
+    let p = minus (-1) r in
+    if lenient then Err (Rfc2822UnclosedComment p) else Err (Rfc2822CommentNotAllowed p)
+
+  is-alpha :: I64 -> Bool
+  is-alpha c = (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+
+  -- The index of the three-letter name at `i` (any letter case) in a
+  -- table of `count` lower case three-letter names, or -1.
+  name-index :: Bytes -> I64 -> Bytes -> I64 -> I64 -> I64
+  name-index b i table k count =
+    if k >= count then -1
+    else
+      let t = times k 3 in
+      if scan-lower-at b i == scan-byte-at table t
+         && scan-lower-at b (plus i 1) == scan-byte-at table (plus t 1)
+         && scan-lower-at b (plus i 2) == scan-byte-at table (plus t 2)
+        then k
+        else name-index b i table (plus k 1) count
+
+  st-start :: Bool -> Bytes -> Result Rfc2822Error (Timestamp, Offset)
+  st-start lenient b =
+    let i = skip lenient b 0 in
+    if i < 0 then skip-error lenient i
+    else if is-alpha (scan-byte-at b i) then
+      let wd = name-index b i (scan-bytes-of-string "montuewedthufrisatsun") 0 7 in
+      if wd < 0 then Err (Rfc2822InvalidDayName i)
+      else st-comma lenient b (skip lenient b (plus i 3)) wd i
+    else st-day lenient b i (-1) i
+
+  -- `wd` is the day name's index (Monday 0) and `wp` its position.
+  st-comma :: Bool -> Bytes -> I64 -> I64 -> I64 -> Result Rfc2822Error (Timestamp, Offset)
+  st-comma lenient b i wd wp =
+    if i < 0 then skip-error lenient i
+    else
+      let c = scan-byte-at b i in
+      if c == 44 then
+        let j = skip lenient b (plus i 1) in
+        if j < 0 then skip-error lenient j else st-day lenient b j wd wp
+      else if c < 0 then Err (Rfc2822UnexpectedEnd i)
+      else Err (Rfc2822ExpectedComma i)
+
+  -- One or two digits, then white space.
+  st-day :: Bool -> Bytes -> I64 -> I64 -> I64 -> Result Rfc2822Error (Timestamp, Offset)
+  st-day lenient b i wd wp =
+    let k = scan-count-digits b i 2 in
+    if k == 0 then no-digit b i
+    else
+      let j = skip lenient b (plus i k) in
+      if j < 0 then skip-error lenient j
+      else if j == plus i k then no-space b j
+      else st-month lenient b j wd wp (scan-digits b i k) i
+
+  no-digit :: forall a. Bytes -> I64 -> Result Rfc2822Error a
+  no-digit b i = if scan-byte-at b i < 0 then Err (Rfc2822UnexpectedEnd i) else Err (Rfc2822ExpectedDigit i)
+
+  no-space :: forall a. Bytes -> I64 -> Result Rfc2822Error a
+  no-space b i = if scan-byte-at b i < 0 then Err (Rfc2822UnexpectedEnd i) else Err (Rfc2822ExpectedSpace i)
+
+  -- `d` is the day and `dp` its position.
+  st-month :: Bool -> Bytes -> I64 -> I64 -> I64 -> I64 -> I64 -> Result Rfc2822Error (Timestamp, Offset)
+  st-month lenient b i wd wp d dp =
+    let m = name-index b i (scan-bytes-of-string "janfebmaraprmayjunjulaugsepoctnovdec") 0 12 in
+    if m < 0 then
+      (if scan-byte-at b i < 0 then Err (Rfc2822UnexpectedEnd i) else Err (Rfc2822InvalidMonth i))
+    else
+      let j = skip lenient b (plus i 3) in
+      if j < 0 then skip-error lenient j
+      else if j == plus i 3 then no-space b j
+      else st-year lenient b j wd wp d dp (plus m 1)
+
+  -- Four digits; two or three in lenient mode (header). Then the date
+  -- is complete: it must exist, and agree with the day name.
+  st-year :: Bool -> Bytes -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> Result Rfc2822Error (Timestamp, Offset)
+  st-year lenient b i wd wp d dp m =
+    let k = scan-count-digits b i 5 in
+    if k == 0 then no-digit b i
+    else if k == 1 || k == 5 then Err (Rfc2822InvalidYear i)
+    else if k < 4 && not lenient then Err (Rfc2822ObsoleteYear i)
+    else
+      let v = scan-digits b i k in
+      let y = if k == 4 then v else if k == 3 then plus v 1900 else if v < 50 then plus v 2000 else plus v 1900 in
+      let j = skip lenient b (plus i k) in
+      if j < 0 then skip-error lenient j
+      else if j == plus i k then no-space b j
+      else case D.date y m d of
+        None -> Err (Rfc2822DayOutOfRange dp)
+        Some date ->
+          if wd >= 0 && W.to-monday-zero (D.weekday date) /= wd then Err (Rfc2822WeekdayMismatch wp)
+          else st-hour lenient b j date
+
+  -- The position after optional white space around a colon: lenient
+  -- only (the obsolete grammar); strict stays put.
+  around :: Bool -> Bytes -> I64 -> I64
+  around lenient b i = if lenient then skip lenient b i else i
+
+  st-hour :: Bool -> Bytes -> I64 -> Date -> Result Rfc2822Error (Timestamp, Offset)
+  st-hour lenient b i date =
+    let h = scan-digits b i 2 in
+    if h < 0 then no-digit b (plus i (scan-count-digits b i 2))
+    else if h > 23 then Err (Rfc2822HourOutOfRange i)
+    else
+      let j = around lenient b (plus i 2) in
+      if j < 0 then skip-error lenient j
+      else if scan-byte-at b j == 58 then
+        let k = around lenient b (plus j 1) in
+        if k < 0 then skip-error lenient k else st-minute lenient b k date h
+      else if scan-byte-at b j < 0 then Err (Rfc2822UnexpectedEnd j)
+      else Err (Rfc2822ExpectedColon j)
+
+  st-minute :: Bool -> Bytes -> I64 -> Date -> I64 -> Result Rfc2822Error (Timestamp, Offset)
+  st-minute lenient b i date h =
+    let mi = scan-digits b i 2 in
+    if mi < 0 then no-digit b (plus i (scan-count-digits b i 2))
+    else if mi > 59 then Err (Rfc2822MinuteOutOfRange i)
+    else
+      let j = around lenient b (plus i 2) in
+      if j < 0 then skip-error lenient j
+      else if scan-byte-at b j == 58 then
+        let k = around lenient b (plus j 1) in
+        if k < 0 then skip-error lenient k else st-second lenient b k date h mi
+      else st-zone lenient b (plus i 2) date h mi 0
+
+  st-second :: Bool -> Bytes -> I64 -> Date -> I64 -> I64 -> Result Rfc2822Error (Timestamp, Offset)
+  st-second lenient b i date h mi =
+    let s = scan-digits b i 2 in
+    if s < 0 then no-digit b (plus i (scan-count-digits b i 2))
+    else if s > 60 then Err (Rfc2822SecondOutOfRange i)
+    else if s == 60 then
+      (if lenient then st-zone lenient b (plus i 2) date h mi 59 else Err (Rfc2822LeapSecond i))
+    else st-zone lenient b (plus i 2) date h mi s
+
+  -- `i` is just after the time: white space (required in strict mode),
+  -- then the zone.
+  st-zone :: Bool -> Bytes -> I64 -> Date -> I64 -> I64 -> I64 -> Result Rfc2822Error (Timestamp, Offset)
+  st-zone lenient b i date h mi s =
+    let j = skip lenient b i in
+    if j < 0 then skip-error lenient j
+    else if j == i && not lenient then no-space b j
+    else
+      let c = scan-byte-at b j in
+      if c == 43 then st-zone-digits lenient b j date h mi s False
+      else if c == 45 then st-zone-digits lenient b j date h mi s True
+      else if is-alpha c then st-zone-name lenient b j date h mi s
+      else if c < 0 then Err (Rfc2822UnexpectedEnd j)
+      else Err (Rfc2822ExpectedZone j)
+
+  -- `i` is at the sign; four digits follow.
+  st-zone-digits :: Bool -> Bytes -> I64 -> Date -> I64 -> I64 -> I64 -> Bool -> Result Rfc2822Error (Timestamp, Offset)
+  st-zone-digits lenient b i date h mi s negative =
+    let oh = scan-digits b (plus i 1) 2 in
+    let om = scan-digits b (plus i 3) 2 in
+    if oh < 0 || om < 0 then no-digit b (plus (plus i 1) (scan-count-digits b (plus i 1) 4))
+    else case offset-from-hms negative oh om 0 of
+      None -> Err (Rfc2822OffsetOutOfRange i)
+      Some o -> st-end lenient b (plus i 5) date h mi s o
+
+  -- A run of letters at `i`: one of the obsolete names (lenient), each
+  -- a whole number of hours west of UTC.
+  st-zone-name :: Bool -> Bytes -> I64 -> Date -> I64 -> I64 -> I64 -> Result Rfc2822Error (Timestamp, Offset)
+  st-zone-name lenient b i date h mi s =
+    let n = letters b i 0 in
+    let west = zone-hours-west b i n in
+    if west < 0 then Err (Rfc2822UnknownZone i)
+    else if not lenient then Err (Rfc2822ObsoleteZone i)
+    else case offset-from-hms True west 0 0 of
+      None -> Err (Rfc2822UnknownZone i)
+      Some o -> st-end lenient b (plus i n) date h mi s o
+
+  -- The length of the run of letters at `i` (counted from `k`).
+  letters :: Bytes -> I64 -> I64 -> I64
+  letters b i k = if is-alpha (scan-byte-at b (plus i k)) then letters b i (plus k 1) else k
+
+  -- Hours west of UTC for the `n`-letter name at `i`, or -1.
+  zone-hours-west :: Bytes -> I64 -> I64 -> I64
+  zone-hours-west b i n =
+    if n == 2 then
+      (if scan-lower-at b i == 117 && scan-lower-at b (plus i 1) == 116 then 0 else -1)
+    else if n == 3 then
+      let k = name-index b i (scan-bytes-of-string "gmtestedtcstcdtmstmdtpstpdt") 0 9 in
+      if k < 0 then -1
+      else if k == 0 then 0
+      else if k == 1 then 5
+      else if k == 2 then 4
+      else if k == 3 then 6
+      else if k == 4 then 5
+      else if k == 5 then 7
+      else if k == 6 then 6
+      else if k == 7 then 8
+      else 7
+    else -1
+
+  -- Only white space may follow. The fields were range-checked by
+  -- their states, so `time-of-day-checked` answers `Some`; its `None`
+  -- arm is unreachable and reports the second.
+  st-end :: Bool -> Bytes -> I64 -> Date -> I64 -> I64 -> I64 -> Offset -> Result Rfc2822Error (Timestamp, Offset)
+  st-end lenient b i date h mi s o =
+    let j = skip lenient b i in
+    if j < 0 then skip-error lenient j
+    else if scan-byte-at b j >= 0 then Err (Rfc2822TrailingInput j)
+    else case T.time-of-day-checked h mi s 0 of
+      None -> Err (Rfc2822SecondOutOfRange i)
+      Some t -> case offset-datetime-to-timestamp o (DT.datetime date t) of
+        None -> Err Rfc2822TimestampOutOfRange
+        Some ts -> Ok (ts, o)
+
+  -- -----------------------------------------------------------------
+  -- Private arithmetic. Every use is on a byte position (below 2^62),
+  -- a calendar field or an offset, so the wrapping operations never
+  -- wrap.
+  -- -----------------------------------------------------------------
+
+  plus :: I64 -> I64 -> I64
+  plus a b = wrapping-add-i64 a b
+
+  minus :: I64 -> I64 -> I64
+  minus a b = wrapping-sub-i64 a b
+
+  times :: I64 -> I64 -> I64
+  times a b = wrapping-mul-i64 a b

@@ -10,7 +10,7 @@ Import with `import Data.Nat`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Semiring](Algebra.Semiring.md), [Data.Core](Data.Core.md), [Data.Hash](Data.Hash.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Semiring](Algebra.Semiring.md), [Data.Core](Data.Core.md), [Data.Enum](Data.Enum.md), [Data.Hash](Data.Hash.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -56,7 +56,7 @@ Division where a zero divisor is an ordinary input the caller
 handles: `None` exactly when `d` is zero. The decision is the
 divisor's evidence, so the division inside is the total one.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 63
+[Source](/reference-sources/Data.Nat.cinch) · line 64
 
 <a id="value-636865636b65642d6e61742d66726f6d2d693634"></a>
 
@@ -67,7 +67,7 @@ divisor's evidence, so the division inside is the total one.
 The `I64` conversions where an out-of-range value is an ordinary
 input: `None` exactly then.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 86
+[Source](/reference-sources/Data.Nat.cinch) · line 87
 
 <a id="value-636865636b65642d6e61742d746f2d693634"></a>
 
@@ -94,7 +94,7 @@ input: `None` exactly then.
 Subtraction where `b > a` is an ordinary input the caller handles:
 `None` exactly then. The test is the subtraction's evidence.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 81
+[Source](/reference-sources/Data.Nat.cinch) · line 82
 
 <a id="value-6e61742d616464"></a>
 
@@ -105,7 +105,7 @@ Subtraction where `b > a` is an ordinary input the caller handles:
 The mathematical `Nat` and `Int` (primitive types specification,
 section 1): boxed bignums, distinct from every machine scalar.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 37
+[Source](/reference-sources/Data.Nat.cinch) · line 38
 
 <a id="value-6e61742d636d70"></a>
 
@@ -136,7 +136,7 @@ the range it needs: a negative `I64` is no `Nat`, and a `Nat` past
 value may be out of range, `checked-nat-from-i64`/
 `checked-nat-to-i64` answer `None`.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 52
+[Source](/reference-sources/Data.Nat.cinch) · line 53
 
 <a id="value-6e61742d66726f6d2d696e74"></a>
 
@@ -163,7 +163,7 @@ value may be out of range, `checked-nat-from-i64`/
 The remainder is below the divisor (`r < d`, a fact about each
 call's result: `let r = nat-rem v 256` knows `r < 256`).
 
-[Source](/reference-sources/Data.Nat.cinch) · line 44
+[Source](/reference-sources/Data.Nat.cinch) · line 45
 
 <a id="value-6e61742d737562"></a>
 
@@ -173,7 +173,7 @@ call's result: `let r = nat-rem v 256` knows `r < 256`).
 
 The exact difference: the caller proves it is a `Nat`.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 39
+[Source](/reference-sources/Data.Nat.cinch) · line 40
 
 <a id="value-6e61742d746f2d693634"></a>
 
@@ -193,7 +193,7 @@ The `Int` conversions: every `Nat` is an `Int`, and a non-negative
 `Int` is a `Nat`, both keeping the value (no `I64` in between, so a
 value of any size converts).
 
-[Source](/reference-sources/Data.Nat.cinch) · line 57
+[Source](/reference-sources/Data.Nat.cinch) · line 58
 
 <a id="value-73617475726174696e672d737562"></a>
 
@@ -205,7 +205,7 @@ Truncated subtraction ("monus", Rust's `saturating_sub`): `a - b`
 when `b <= a`, else `0`. Use it where clamping at zero is what the
 code means, not to silence the obligation of `-`.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 76
+[Source](/reference-sources/Data.Nat.cinch) · line 77
 
 # Instances
 
@@ -240,4 +240,4 @@ apply `-` to anything, this dictionary is never passed to it.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Nat.cinch`. Source SHA-256: `6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Nat.cinch`. Source SHA-256: `caed61b507f2cd957fb00d45ef663cee44f9fd56036054355079804a6f945afb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

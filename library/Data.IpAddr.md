@@ -238,4 +238,4 @@ over).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/IpAddr.cinch`. Source SHA-256: `1315365aa804385982fcb718a6772635be4b70cec5b62aeb30e3478ffa8b39ae`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/IpAddr.cinch`. Source SHA-256: `05576a008c5e1b982453d2d7b1e404fc56e21b038d69fbefe6ad6bc3845980ba`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

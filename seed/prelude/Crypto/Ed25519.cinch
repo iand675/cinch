@@ -1,0 +1,355 @@
+-- | Ed25519 signatures (RFC 8032) with constant-time key handling and signing.
+-- A private key is a 32-byte seed; signing hashes it with SHA-512 into a
+-- clamped secret scalar and a nonce prefix, so signatures are deterministic.
+-- Points use extended twisted Edwards coordinates with complete addition
+-- formulas; scalar multiplication always doubles and adds and selects with
+-- masks, and scalar arithmetic modulo the group order L is bit-serial with a
+-- single masked conditional subtraction per bit, so secret values never drive
+-- branches or memory addresses. Verification decodes the public key, rejects
+-- signatures whose S is not below L, and compares the encoding of
+-- [S]B - [k]A with R, the cofactorless check most implementations use.
+module Crypto.Ed25519 where
+
+  import Crypto.Field25519
+  import Text.Sha512
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.Wide
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export Ed25519Error, InvalidEd25519SeedSize, Ed25519PrivateKey, ed25519-private-key, ed25519-seed, ed25519-public-key
+  export ed25519-sign, ed25519-verify, ed25519-error-message, ed25519-seed-size, ed25519-public-key-size, ed25519-sig-size
+
+  -- | Seed size in bytes, 32.
+  ed25519-seed-size :: Nat
+  ed25519-seed-size = 32
+
+  -- | Public key size in bytes, 32.
+  ed25519-public-key-size :: Nat
+  ed25519-public-key-size = 32
+
+  -- | Signature size in bytes, 64.
+  ed25519-sig-size :: Nat
+  ed25519-sig-size = 64
+
+  -- | A rejected seed.
+  data Ed25519Error where
+    -- | A seed must be 32 bytes; the actual length follows.
+    InvalidEd25519SeedSize :: Nat -> Ed25519Error
+
+  -- | Render an Ed25519 error.
+  ed25519-error-message :: Ed25519Error -> String
+  ed25519-error-message error = case error of
+    InvalidEd25519SeedSize n -> string-concat "Ed25519 seed must be 32 bytes; received " (nat-to-string n)
+
+  -- | An expanded private key: the seed, the clamped secret scalar bytes, the nonce prefix and the public key.
+  data Ed25519PrivateKey where
+    -- | Private fields in the order listed above.
+    PrivateKey :: Bytes -> Bytes -> Bytes -> Bytes -> Ed25519PrivateKey
+
+  -- | Expand a 32-byte seed into a private key and derive its public key.
+  ed25519-private-key :: Bytes -> Result Ed25519Error Ed25519PrivateKey
+  ed25519-private-key seed =
+    if bytes-len seed == 32 then
+      let digest = sha512-sum seed in
+      let secret = clamp (slice digest 0 32) in
+      Ok (PrivateKey (slice seed 0 32) secret (slice digest 32 64) (encode (scalar-mult secret base-point)))
+    else Err (InvalidEd25519SeedSize (bytes-len seed))
+
+  -- | The seed, in fresh storage.
+  ed25519-seed :: Ed25519PrivateKey -> Bytes
+  ed25519-seed key = case key of PrivateKey seed secret prefix public -> slice seed 0 32
+
+  -- | The 32-byte public key, in fresh storage.
+  ed25519-public-key :: Ed25519PrivateKey -> Bytes
+  ed25519-public-key key = case key of PrivateKey seed secret prefix public -> slice public 0 32
+
+  -- | Sign a message: R = [r]B for r = SHA-512(prefix || message) mod L, and S = r + k s mod L
+  -- for k = SHA-512(R || public key || message) mod L. Returns the 64-byte signature R || S.
+  ed25519-sign :: Ed25519PrivateKey -> Bytes -> Bytes
+  ed25519-sign key message = case key of
+    PrivateKey seed secret prefix public ->
+      let r = reduce-wide (sha512-sum (bytes-concat [prefix, message])) in
+      let encoded-r = encode (scalar-mult (scalar-bytes r) base-point) in
+      let k = reduce-wide (sha512-sum (bytes-concat [encoded-r, public, message])) in
+      let s = sc-add (sc-mul k (reduce-wide (widen secret))) r in
+      bytes-concat [encoded-r, scalar-bytes s]
+
+  -- | Verify a 64-byte signature of a message under a 32-byte public key.
+  ed25519-verify :: Bytes -> Bytes -> Bytes -> Bool
+  ed25519-verify public message sig =
+    if not (bytes-len public == 32) || not (bytes-len sig == 64) then False
+    else if bytes-get sig 63 >= 32 then False
+    else case decode public of
+      None -> False
+      Some point ->
+        let s-bytes = slice sig 32 64 in
+        if not (below-order s-bytes) then False
+        else
+          let k = reduce-wide (sha512-sum (bytes-concat [slice sig 0 32, public, message])) in
+          let check = point-add (scalar-mult s-bytes base-point) (scalar-mult (scalar-bytes k) (point-neg point)) in
+          eq-i64 (bytes-compare (encode check) (slice sig 0 32)) 0
+
+  -- | Copy an interval.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice input start stop =
+    if start <= stop && stop <= bytes-len input then
+      let out = bytes-new (stop - start) in let copied = bytes-copy-range out input 0 start (stop - start) in out
+    else bytes-new 0
+
+  -- | Clear the low three bits and the top bit and set bit 254 of a 32-byte copy.
+  clamp :: Bytes -> Bytes
+  clamp scalar =
+    let out = slice scalar 0 32 in
+    let low = if 0 < bytes-len out then bytes-set out 0 (u8-to-nat (bit-and-u8 (byte-at out 0) 248)) else () in
+    let high = if 31 < bytes-len out then bytes-set out 31 (u8-to-nat (bit-or-u8 (bit-and-u8 (byte-at out 31) 127) 64)) else () in
+    out
+
+  -- | A byte as a machine value, or zero past the end.
+  byte-at :: Bytes -> Nat -> U8
+  byte-at input i = if i < bytes-len input then wrapping-i64-to-u8 (nat-to-i64 (bytes-get input i)) else 0
+
+  -- | Bit t of a little-endian byte string as 0 or 1.
+  bit :: Bytes -> Nat -> U64
+  bit input t = bit-and-u64 (wrapping-shr-u64 (u8-to-u64 (byte-at input (nat-div t 8))) (wrapping-i64-to-u32 (nat-to-i64 (nat-rem t 8)))) 1
+
+  -- | A point in extended coordinates (X : Y : Z : T) with x = X/Z, y = Y/Z and x y = T/Z.
+  data Point where
+    -- | Coordinates in the order X, Y, Z, T.
+    Point :: Fe -> Fe -> Fe -> Fe -> Point
+
+  -- | The curve constant d = -121665/121666.
+  curve-d :: Fe
+  curve-d = Fe 929955233495203 466365720129213 1662059464998953 2033849074728123 1442794654840575
+
+  -- | 2d, used by the addition formula.
+  curve-d2 :: Fe
+  curve-d2 = Fe 1859910466990425 932731440258426 1072319116312658 1815898335770999 633789495995903
+
+  -- | A square root of -1 modulo p.
+  sqrt-minus-one :: Fe
+  sqrt-minus-one = Fe 1718705420411056 234908883556509 2233514472574048 2117202627021982 765476049583133
+
+  -- | The base point B with y = 4/5 and even x.
+  base-point :: Point
+  base-point = Point (Fe 1738742601995546 1146398526822698 2070867633025821 562264141797630 587772402128613)
+    (Fe 1801439850948184 1351079888211148 450359962737049 900719925474099 1801439850948198) fe-one
+    (Fe 1841354044333475 16398895984059 755974180946558 900171276175154 1821297809914039)
+
+  -- | The neutral element (0, 1).
+  identity :: Point
+  identity = Point fe-zero fe-one fe-one fe-zero
+
+  -- | Complete addition for a = -1 twisted Edwards curves in extended coordinates.
+  point-add :: Point -> Point -> Point
+  point-add p q = case p of
+    Point x1 y1 z1 t1 -> case q of
+      Point x2 y2 z2 t2 ->
+        let a = fe-mul (fe-sub y1 x1) (fe-sub y2 x2) in
+        let b = fe-mul (fe-add y1 x1) (fe-add y2 x2) in
+        let c = fe-mul (fe-mul t1 curve-d2) t2 in
+        let d = fe-mul (fe-add z1 z1) z2 in
+        let e = fe-sub b a in let f = fe-sub d c in let g = fe-add d c in let h = fe-add b a in
+        Point (fe-mul e f) (fe-mul g h) (fe-mul f g) (fe-mul e h)
+
+  -- | Doubling in extended coordinates.
+  point-double :: Point -> Point
+  point-double p = case p of
+    Point x1 y1 z1 t1 ->
+      let a = fe-square x1 in let b = fe-square y1 in
+      let c = fe-add (fe-square z1) (fe-square z1) in
+      let h = fe-add a b in
+      let e = fe-sub h (fe-square (fe-add x1 y1)) in
+      let g = fe-sub a b in let f = fe-add c g in
+      Point (fe-mul e f) (fe-mul g h) (fe-mul f g) (fe-mul e h)
+
+  -- | Negation: (-x, y).
+  point-neg :: Point -> Point
+  point-neg p = case p of Point x y z t -> Point (fe-neg x) y z (fe-neg t)
+
+  -- | Choose q when the low bit of choice is set and p otherwise, without branching.
+  point-select :: U64 -> Point -> Point -> Point
+  point-select choice p q = case p of
+    Point x1 y1 z1 t1 -> case q of
+      Point x2 y2 z2 t2 -> Point (fe-select choice x1 x2) (fe-select choice y1 y2) (fe-select choice z1 z2) (fe-select choice t1 t2)
+
+  -- | Multiply a point by a 256-bit little-endian scalar: always double, always add, select by mask.
+  scalar-mult :: Bytes -> Point -> Point
+  scalar-mult scalar p = ladder scalar p identity 255
+
+  -- | Process bits from the top down.
+  ladder :: Bytes -> Point -> Point -> Nat -> Point
+  ladder scalar p acc t =
+    let doubled = point-double acc in
+    let next = point-select (bit scalar t) doubled (point-add doubled p) in
+    if t == 0 then next else ladder scalar p next (t - 1)
+
+  -- | Encode a point as y with the sign of x in the top bit.
+  encode :: Point -> Bytes
+  encode p = case p of
+    Point x y z t ->
+      let inverse = fe-invert z in
+      let out = fe-to-bytes (fe-mul y inverse) in
+      let sign = fe-is-negative (fe-mul x inverse) in
+      let top = if 31 < bytes-len out then bytes-set out 31 (u8-to-nat (bit-or-u8 (byte-at out 31) (wrapping-u64-to-u8 (wrapping-shl-u64 sign 7)))) else () in
+      out
+
+  -- | Decode a point: recover x from y with x^2 = (y^2 - 1) / (d y^2 + 1), choosing the encoded sign.
+  -- Non-canonical y encodings of valid points are accepted; non-points are rejected.
+  decode :: Bytes -> Option Point
+  decode input =
+    let y = fe-from-bytes input 0 in
+    let u = fe-sub (fe-square y) fe-one in
+    let v = fe-add (fe-mul curve-d (fe-square y)) fe-one in
+    let v3 = fe-mul (fe-square v) v in
+    let x = fe-mul (fe-mul u v3) (fe-pow22523 (fe-mul u (fe-mul (fe-square v3) v))) in
+    case square-root (fe-mul v (fe-square x)) u x of
+      None -> None
+      Some found ->
+        let want = wrapping-shr-u64 (u8-to-u64 (byte-at input 31)) 7 in
+        let signed = fe-select (bit-xor-u64 (fe-is-negative found) want) found (fe-neg found) in
+        Some (Point signed y fe-one (fe-mul signed y))
+
+  -- | Given the candidate x and v x^2, the square root of u / v: x itself, x times the square root of -1, or none.
+  square-root :: Fe -> Fe -> Fe -> Option Fe
+  square-root check u x =
+    if eq-u64 (fe-equal check u) 1 then Some x
+    else if eq-u64 (fe-equal check (fe-neg u)) 1 then Some (fe-mul x sqrt-minus-one)
+    else None
+
+  -- | A scalar modulo L as four little-endian 64-bit limbs.
+  data Scalar where
+    -- | Limbs from least to most significant.
+    Sc :: U64 -> U64 -> U64 -> U64 -> Scalar
+
+  -- | The group order L = 2^252 + 27742317777372353535851937790883648493.
+  order :: Scalar
+  order = Sc 6346243789798364141 1503914060200516822 0 1152921504606846976
+
+  -- | Sum of two words and a carry: the low word in the low half and the carry in the high half.
+  prim add-carry :: U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %a = zext i64 %0 to i128
+      %b = zext i64 %1 to i128
+      %c = zext i64 %2 to i128
+      %s = add i128 %a, %b
+      %value = add i128 %s, %c
+      ret i128 %value
+    }
+
+  -- | Difference of two words minus a borrow: the low word in the low half and the borrow (0 or 1) in the high half.
+  prim sub-borrow :: U64 -> U64 -> U64 -> U128 where
+    llvm {
+      %a = zext i64 %0 to i128
+      %b = zext i64 %1 to i128
+      %c = zext i64 %2 to i128
+      %s = sub i128 %a, %b
+      %d = sub i128 %s, %c
+      %lo = and i128 %d, 18446744073709551615
+      %neg = lshr i128 %d, 127
+      %hi = shl i128 %neg, 64
+      %value = or i128 %lo, %hi
+      ret i128 %value
+    }
+
+  -- | The low word of a wide result.
+  low :: U128 -> U64
+  low value = wrapping-u128-to-u64 value
+
+  -- | The high word of a wide result.
+  high :: U128 -> U64
+  high value = wrapping-u128-to-u64 (wrapping-shr-u128 value 64)
+
+  -- | Subtract L when the value is at least L, by computing the difference and selecting with a mask.
+  reduce-once :: Scalar -> Scalar
+  reduce-once a = case a of
+    Sc a0 a1 a2 a3 -> case order of
+      Sc l0 l1 l2 l3 ->
+        let d0 = sub-borrow a0 l0 0 in
+        let d1 = sub-borrow a1 l1 (high d0) in
+        let d2 = sub-borrow a2 l2 (high d1) in
+        let d3 = sub-borrow a3 l3 (high d2) in
+        let keep = wrapping-sub-u64 0 (high d3) in
+        let take = bit-not-u64 keep in
+        Sc (bit-or-u64 (bit-and-u64 keep a0) (bit-and-u64 take (low d0))) (bit-or-u64 (bit-and-u64 keep a1) (bit-and-u64 take (low d1)))
+          (bit-or-u64 (bit-and-u64 keep a2) (bit-and-u64 take (low d2))) (bit-or-u64 (bit-and-u64 keep a3) (bit-and-u64 take (low d3)))
+
+  -- | 2a + bit, then reduce; a < L keeps the result below L.
+  double-in :: Scalar -> U64 -> Scalar
+  double-in a b = case a of
+    Sc a0 a1 a2 a3 ->
+      reduce-once (Sc (bit-or-u64 (wrapping-shl-u64 a0 1) b) (bit-or-u64 (wrapping-shl-u64 a1 1) (wrapping-shr-u64 a0 63))
+        (bit-or-u64 (wrapping-shl-u64 a2 1) (wrapping-shr-u64 a1 63)) (bit-or-u64 (wrapping-shl-u64 a3 1) (wrapping-shr-u64 a2 63)))
+
+  -- | Sum modulo L of two reduced scalars.
+  sc-add :: Scalar -> Scalar -> Scalar
+  sc-add a b = case a of
+    Sc a0 a1 a2 a3 -> case b of
+      Sc b0 b1 b2 b3 ->
+        let s0 = add-carry a0 b0 0 in let s1 = add-carry a1 b1 (high s0) in
+        let s2 = add-carry a2 b2 (high s1) in let s3 = add-carry a3 b3 (high s2) in
+        reduce-once (Sc (low s0) (low s1) (low s2) (low s3))
+
+  -- | Product modulo L by double-and-always-add over the bits of a, selecting with masks.
+  sc-mul :: Scalar -> Scalar -> Scalar
+  sc-mul a b = mul-bits (scalar-bytes a) b (Sc 0 0 0 0) 255
+
+  -- | Process bits of a from the top down.
+  mul-bits :: Bytes -> Scalar -> Scalar -> Nat -> Scalar
+  mul-bits a b acc t =
+    let doubled = double-in acc 0 in
+    let added = sc-add doubled b in
+    let next = sc-select (bit a t) doubled added in
+    if t == 0 then next else mul-bits a b next (t - 1)
+
+  -- | Choose b when the low bit of choice is set and a otherwise.
+  sc-select :: U64 -> Scalar -> Scalar -> Scalar
+  sc-select choice a b = case a of
+    Sc a0 a1 a2 a3 -> case b of
+      Sc b0 b1 b2 b3 ->
+        let m = wrapping-sub-u64 0 (bit-and-u64 choice 1) in
+        Sc (bit-xor-u64 a0 (bit-and-u64 m (bit-xor-u64 a0 b0))) (bit-xor-u64 a1 (bit-and-u64 m (bit-xor-u64 a1 b1)))
+          (bit-xor-u64 a2 (bit-and-u64 m (bit-xor-u64 a2 b2))) (bit-xor-u64 a3 (bit-and-u64 m (bit-xor-u64 a3 b3)))
+
+  -- | Reduce a little-endian byte string (such as a 64-byte digest) modulo L, one bit at a time from the top.
+  reduce-wide :: Bytes -> Scalar
+  reduce-wide input = if bytes-len input == 0 then Sc 0 0 0 0 else reduce-bits input (Sc 0 0 0 0) (top-bit (bytes-len input))
+
+  -- | Index of the most significant bit of a byte string of the given positive length.
+  top-bit :: Nat -> Nat
+  top-bit n = if n > 0 then 8 * n - 1 else 0
+
+  -- | Shift in bits from the top down.
+  reduce-bits :: Bytes -> Scalar -> Nat -> Scalar
+  reduce-bits input acc t =
+    let next = double-in acc (bit input t) in
+    if t == 0 then next else reduce-bits input next (t - 1)
+
+  -- | A 32-byte value padded to 64 bytes, for reduction.
+  widen :: Bytes -> Bytes
+  widen input = if bytes-len input <= 64 then bytes-concat [input, bytes-new (64 - bytes-len input)] else input
+
+  -- | Encode a scalar as 32 little-endian bytes.
+  scalar-bytes :: Scalar -> Bytes
+  scalar-bytes a = case a of
+    Sc a0 a1 a2 a3 ->
+      let out = bytes-new 32 in
+      let w0 = bytes-write-le64 out 0 a0 in let w1 = bytes-write-le64 out 8 a1 in
+      let w2 = bytes-write-le64 out 16 a2 in let w3 = bytes-write-le64 out 24 a3 in out
+
+  -- | Whether 32 little-endian bytes encode an integer below L (the canonical-S check).
+  below-order :: Bytes -> Bool
+  below-order input =
+    if bytes-len input == 32 then
+      case order of
+        Sc l0 l1 l2 l3 ->
+          let d0 = sub-borrow (bytes-read-le64 input 0) l0 0 in
+          let d1 = sub-borrow (bytes-read-le64 input 8) l1 (high d0) in
+          let d2 = sub-borrow (bytes-read-le64 input 16) l2 (high d1) in
+          let d3 = sub-borrow (bytes-read-le64 input 24) l3 (high d2) in
+          eq-u64 (high d3) 1
+    else False

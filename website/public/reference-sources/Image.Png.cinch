@@ -1,0 +1,766 @@
+-- | PNG images: decode every color type, bit depth and interlace method into rasters, and encode rasters.
+-- Decoding verifies the signature and every chunk CRC, joins the IDAT stream
+-- and inflates it, then reverses each scanline's filter in place: Up adds the
+-- prior row eight bytes at a time in SIMD lanes, and Sub reconstructs eight
+-- bytes per step with a lane-shift prefix scan specialized to the pixel size;
+-- Average and Paeth depend on the byte to their left and run bytewise with a
+-- branchless Paeth predictor. Samples below eight bits are widened (gray scaled
+-- to the full range, palette indices kept), a gray or RGB transparency key
+-- adds an alpha channel, and Adam7 passes are scattered into place. Encoding
+-- writes a non-interlaced image, choosing each row's filter by the smallest sum
+-- of absolute signed residuals.
+module Image.Png where
+
+  import Image.Raster
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Bytes.Word
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Checksum
+  import Text.Zlib
+
+  export PngError, PngBadSignature, PngBadChunk, PngBadCrc, PngBadHeader, PngMissingData, PngBadData, png-error-message
+  export png-decode, png-encode, png-config
+
+  -- | A malformed or unsupported PNG file.
+  data PngError where
+    -- | The eight-byte signature is missing.
+    PngBadSignature :: PngError
+    -- | The chunk at this offset is truncated or out of order.
+    PngBadChunk :: Nat -> PngError
+    -- | The chunk at this offset fails its CRC.
+    PngBadCrc :: Nat -> PngError
+    -- | The IHDR chunk is missing or describes an invalid image.
+    PngBadHeader :: PngError
+    -- | There is no image data, or an indexed image has no palette.
+    PngMissingData :: PngError
+    -- | The compressed image data is malformed, too short, or uses an unknown filter.
+    PngBadData :: PngError
+
+  -- | Render a PNG error.
+  png-error-message :: PngError -> String
+  png-error-message error = case error of
+    PngBadSignature -> "png: not a PNG file"
+    PngBadChunk at -> string-concat "png: malformed chunk at offset " (nat-to-string at)
+    PngBadCrc at -> string-concat "png: chunk checksum mismatch at offset " (nat-to-string at)
+    PngBadHeader -> "png: invalid image header"
+    PngMissingData -> "png: missing image data or palette"
+    PngBadData -> "png: invalid image data"
+
+  -- | Image header fields: width, height, bit depth, color type and interlace method.
+  data Ihdr where
+    -- | Fields in the order listed above.
+    Ihdr :: Nat -> Nat -> Nat -> Nat -> Nat -> Ihdr
+
+  -- | Chunks gathered while scanning: header, palette RGB bytes, transparency bytes and IDAT pieces (most recent first).
+  data Scan where
+    -- | Fields in the order listed above.
+    Scan :: Option Ihdr -> Bytes -> Bytes -> List Bytes -> Scan
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at input i = if i < bytes-len input then bytes-get input i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Big-endian 32-bit field.
+  be32 :: Bytes -> Nat -> Nat
+  be32 input i = ((at input i * 256 + at input (i + 1)) * 256 + at input (i + 2)) * 256 + at input (i + 3)
+
+  -- | Copy an interval.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice input start stop =
+    if start <= stop && stop <= bytes-len input then
+      let out = bytes-new (stop - start) in let copied = bytes-copy-range out input 0 start (stop - start) in out
+    else bytes-new 0
+
+  -- | Whether four bytes at an offset spell a chunk type.
+  is-type :: Bytes -> Nat -> List Nat -> Bool
+  is-type input i letters = case letters of
+    Nil -> True
+    Cons b rest -> at input i == b && is-type input (i + 1) rest
+
+  -- | Decode a complete PNG file.
+  png-decode :: Bytes -> Result PngError Raster
+  png-decode input =
+    if not (is-type input 0 [137, 80, 78, 71, 13, 10, 26, 10]) then Err PngBadSignature
+    else case scan-chunks input 8 (Scan None (bytes-new 0) (bytes-new 0) Nil) of
+      Err error -> Err error
+      Ok found -> case found of
+        Scan header palette trns idat -> case header of
+          None -> Err PngBadHeader
+          Some ihdr -> if is-empty idat then Err PngMissingData else decode-image ihdr palette trns (bytes-concat (reverse idat))
+
+  -- | Read only the header: width, height and the raster format decoding would produce, without inflating
+  -- image data. Transparency is taken into account when a tRNS chunk precedes the first IDAT.
+  png-config :: Bytes -> Result PngError (Nat, Nat, PixelFormat)
+  png-config input =
+    if not (is-type input 0 [137, 80, 78, 71, 13, 10, 26, 10]) then Err PngBadSignature
+    else if input-length-ok input && is-type input 12 [73, 72, 68, 82] then
+      (case parse-ihdr (slice input 16 29) of
+        Some h -> (case h of Ihdr w ht depth ctype interlace -> Ok (w, ht, format-of ctype depth (has-key input 33 ctype)))
+        None -> Err PngBadHeader)
+    else Err PngBadHeader
+
+  -- | Whether the file holds at least the signature and a complete IHDR chunk.
+  input-length-ok :: Bytes -> Bool
+  input-length-ok input = bytes-len input >= 33 && be32 input 8 == 13
+
+  -- | Whether a tRNS chunk appears before the first IDAT, for gray and RGB images.
+  has-key :: Bytes -> Nat -> Nat -> Bool
+  has-key input i ctype =
+    if not (ctype == 0 || ctype == 2) || i + 8 > bytes-len input then False
+    else if is-type input (i + 4) [116, 82, 78, 83] then True
+    else if is-type input (i + 4) [73, 68, 65, 84] || is-type input (i + 4) [73, 69, 78, 68] then False
+    else has-key input (i + 12 + be32 input i) ctype
+
+  -- | Read chunks until IEND, verifying each CRC.
+  scan-chunks :: Bytes -> Nat -> Scan -> Result PngError Scan
+  scan-chunks input i scan =
+    if i + 12 > bytes-len input then Err (PngBadChunk i)
+    else
+      let length = be32 input i in
+      let end = i + 12 + length in
+      if end > bytes-len input then Err (PngBadChunk i)
+      else if not (eq-u32 (crc32-sum (slice input (i + 4) (i + 8 + length))) (word32 (be32 input (i + 8 + length)))) then Err (PngBadCrc i)
+      else
+        let body = slice input (i + 8) (i + 8 + length) in
+        case scan of
+          Scan header palette trns idat ->
+            if is-type input (i + 4) [73, 69, 78, 68] then Ok scan
+            else if is-type input (i + 4) [73, 72, 68, 82] then (case parse-ihdr body of Some h -> scan-chunks input end (Scan (Some h) palette trns idat); None -> Err PngBadHeader)
+            else if is-type input (i + 4) [80, 76, 84, 69] then scan-chunks input end (Scan header body trns idat)
+            else if is-type input (i + 4) [116, 82, 78, 83] then scan-chunks input end (Scan header palette body idat)
+            else if is-type input (i + 4) [73, 68, 65, 84] then scan-chunks input end (Scan header palette trns (Cons body idat))
+            else scan-chunks input end scan
+
+  -- | A natural number below 2^32 as a word.
+  word32 :: Nat -> U32
+  word32 n = if n < 4294967296 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+
+  -- | Validate IHDR: positive dimensions, an allowed depth for the color type, and standard methods.
+  parse-ihdr :: Bytes -> Option Ihdr
+  parse-ihdr body =
+    let w = be32 body 0 in let h = be32 body 4 in let depth = at body 8 in let ctype = at body 9 in
+    if bytes-len body == 13 && w > 0 && h > 0 && allowed-depth ctype depth && at body 10 == 0 && at body 11 == 0 && at body 12 <= 1 then Some (Ihdr w h depth ctype (at body 12)) else None
+
+  -- | The bit depths each color type permits.
+  allowed-depth :: Nat -> Nat -> Bool
+  allowed-depth ctype depth =
+    if ctype == 0 then depth == 1 || depth == 2 || depth == 4 || depth == 8 || depth == 16
+    else if ctype == 3 then depth == 1 || depth == 2 || depth == 4 || depth == 8
+    else if ctype == 2 || ctype == 4 || ctype == 6 then depth == 8 || depth == 16
+    else False
+
+  -- | Samples per pixel for a color type.
+  channels :: Nat -> Nat
+  channels ctype = if ctype == 2 then 3 else if ctype == 4 then 2 else if ctype == 6 then 4 else 1
+
+  -- | The raster format produced for a color type, depth and transparency presence.
+  format-of :: Nat -> Nat -> Bool -> PixelFormat
+  format-of ctype depth keyed =
+    if ctype == 3 then Indexed
+    else if ctype == 0 then (if keyed then (if depth == 16 then GrayAlpha16 else GrayAlpha8) else (if depth == 16 then Gray16 else Gray8))
+    else if ctype == 2 then (if keyed then (if depth == 16 then Rgba16 else Rgba8) else (if depth == 16 then Rgb16 else Rgb8))
+    else if ctype == 4 then (if depth == 16 then GrayAlpha16 else GrayAlpha8)
+    else (if depth == 16 then Rgba16 else Rgba8)
+
+  -- | Inflate, unfilter and expand the image, then scatter Adam7 passes.
+  decode-image :: Ihdr -> Bytes -> Bytes -> Bytes -> Result PngError Raster
+  decode-image ihdr palette trns compressed = case ihdr of
+    Ihdr width height depth ctype interlace ->
+      if ctype == 3 && bytes-len palette == 0 then Err PngMissingData
+      else case inflate compressed of
+        Err error -> Err PngBadData
+        Ok raw ->
+          let keyed = bytes-len trns > 0 && (ctype == 0 || ctype == 2) in
+          let format = format-of ctype depth keyed in
+          let out = raster-new format width height in
+          let ok = if interlace == 1 then passes ihdr trns raw out 0 0 else image-pass ihdr trns raw out 0 width height 0 0 1 1 in
+          if ok then Ok (with-palette out (rgba-palette palette trns ctype)) else Err PngBadData
+
+  -- | Attach the RGBA palette.
+  with-palette :: Raster -> Bytes -> Raster
+  with-palette r palette = case raster (raster-format r) (raster-width r) (raster-height r) (raster-pixels r) palette of
+    Some withp -> withp
+    None -> r
+
+  -- | Palette RGB triples with alphas from tRNS (opaque by default), as RGBA quadruples.
+  rgba-palette :: Bytes -> Bytes -> Nat -> Bytes
+  rgba-palette palette trns ctype =
+    if not (ctype == 3) then bytes-new 0
+    else
+      let count = nat-div (bytes-len palette) 3 in
+      let out = bytes-new (count * 4) in
+      let filled = fill-palette out palette trns 0 count in out
+
+  -- | Copy each entry with its alpha.
+  fill-palette :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Unit
+  fill-palette out palette trns i count =
+    if i >= count then ()
+    else
+      let w0 = set-byte out (4 * i) (at palette (3 * i)) in let w1 = set-byte out (4 * i + 1) (at palette (3 * i + 1)) in
+      let w2 = set-byte out (4 * i + 2) (at palette (3 * i + 2)) in
+      let w3 = set-byte out (4 * i + 3) (if i < bytes-len trns then at trns i else 255) in
+      fill-palette out palette trns (i + 1) count
+
+  -- | Store a byte value when the position exists.
+  set-byte :: Bytes -> Nat -> Nat -> Unit
+  set-byte out i v = if i < bytes-len out && v < 256 then bytes-set out i v else ()
+
+  -- | Decode the seven Adam7 passes in order; offset tracks the position in the inflated data.
+  passes :: Ihdr -> Bytes -> Bytes -> Raster -> Nat -> Nat -> Bool
+  passes ihdr trns raw out pass offset =
+    if pass >= 7 then True
+    else case ihdr of
+      Ihdr width height depth ctype interlace ->
+        let pw = nat-div (minus (width + spacing-x pass) (adam7-x0 pass + 1)) (adam7-dx pass) in
+        let ph = nat-div (minus (height + spacing-y pass) (adam7-y0 pass + 1)) (adam7-dy pass) in
+        if pw == 0 || ph == 0 then passes ihdr trns raw out (pass + 1) offset
+        else image-pass ihdr trns raw out offset pw ph (adam7-x0 pass) (adam7-y0 pass) (spacing-x pass) (spacing-y pass)
+          && passes ihdr trns raw out (pass + 1) (offset + ph * (1 + row-bytes pw depth ctype))
+
+  -- | Starting column of an Adam7 pass.
+  adam7-x0 :: Nat -> Nat
+  adam7-x0 pass = if pass == 1 then 4 else if pass == 3 then 2 else if pass == 5 then 1 else 0
+
+  -- | Starting row of an Adam7 pass.
+  adam7-y0 :: Nat -> Nat
+  adam7-y0 pass = if pass == 2 then 4 else if pass == 4 then 2 else if pass == 6 then 1 else 0
+
+  -- | Column spacing of an Adam7 pass, for arithmetic.
+  spacing-x :: Nat -> Nat
+  spacing-x pass = if pass <= 1 then 8 else if pass <= 3 then 4 else if pass <= 5 then 2 else 1
+
+  -- | Row spacing of an Adam7 pass, for arithmetic.
+  spacing-y :: Nat -> Nat
+  spacing-y pass = if pass <= 2 then 8 else if pass <= 4 then 4 else 2
+
+  -- | Column spacing of an Adam7 pass, as a divisor.
+  adam7-dx :: Nat -> NonZero Nat
+  adam7-dx pass = if pass <= 1 then 8 else if pass <= 3 then 4 else if pass <= 5 then 2 else 1
+
+  -- | Row spacing of an Adam7 pass, as a divisor.
+  adam7-dy :: Nat -> NonZero Nat
+  adam7-dy pass = if pass <= 2 then 8 else if pass <= 4 then 4 else 2
+
+  -- | Bytes in one filtered row (without its filter byte).
+  row-bytes :: Nat -> Nat -> Nat -> Nat
+  row-bytes width depth ctype = nat-div (width * channels ctype * depth + 7) 8
+
+  -- | Bytes between corresponding samples of adjacent pixels for filtering (at least one).
+  filter-distance :: Nat -> Nat -> Nat
+  filter-distance depth ctype = let bits = channels ctype * depth in if bits < 8 then 1 else nat-div bits 8
+
+  -- | Unfilter one image or pass of pw by ph pixels starting at offset, then place its pixels at
+  -- (x0 + px dx, y0 + py dy). Returns False when the data is short or a filter type is unknown.
+  image-pass :: Ihdr -> Bytes -> Bytes -> Raster -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool
+  image-pass ihdr trns raw out offset pw ph x0 y0 dx dy = case ihdr of
+    Ihdr width height depth ctype interlace ->
+      let rb = row-bytes pw depth ctype in
+      if offset + ph * (rb + 1) > bytes-len raw then False
+      else unfilter-rows raw offset rb (filter-distance depth ctype) 0 ph && place-rows ihdr trns raw out offset rb pw 0 ph x0 y0 dx dy
+
+  -- | Reverse each row's filter in place.
+  unfilter-rows :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool
+  unfilter-rows raw offset rb bpp y ph =
+    if y >= ph then True
+    else
+      let row = offset + y * (rb + 1) + 1 in
+      let kind = at raw (minus row 1) in
+      let prior = if y > 0 then minus row (rb + 1) else 0 in
+      if kind > 4 then False
+      else
+        let done = unfilter raw row rb bpp kind (y > 0) prior in
+        unfilter-rows raw offset rb bpp (y + 1) ph
+
+  -- | Dispatch one row's filter.
+  unfilter :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bool -> Nat -> Unit
+  unfilter raw row rb bpp kind has-prior prior =
+    if kind == 1 then sub-row raw row rb bpp 0
+    else if kind == 2 then (if has-prior then up-row raw row prior rb 0 else ())
+    else if kind == 3 then average-row raw row prior rb bpp has-prior 0
+    else if kind == 4 then paeth-row raw row prior rb bpp has-prior 0
+    else ()
+
+  -- | Store a reconstructed byte modulo 256.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put raw i v = let b = nat-rem v 256 in if i < bytes-len raw && b < 256 then bytes-set raw i b else ()
+
+  -- | Sub: eight bytes per SIMD step for the common pixel sizes, then bytewise.
+  sub-row :: Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
+  sub-row raw row rb bpp i =
+    if i + 8 <= rb && row + i + 8 <= bytes-len raw && (bpp == 1 || bpp == 2 || bpp == 3 || bpp == 4 || bpp == 6 || bpp == 8) then
+      let previous = if i >= 8 then word-at raw (minus (row + i) 8) else 0 in
+      let word = sub-word bpp (bytes-read-le64 raw (row + i)) previous in
+      let stored = bytes-write-le64 raw (row + i) word in
+      sub-row raw row rb bpp (i + 8)
+    else sub-bytes raw row rb bpp i
+
+  -- | An eight-byte little-endian word, or zero when it does not fit.
+  word-at :: Bytes -> Nat -> U64
+  word-at raw pos = if pos + 8 <= bytes-len raw then bytes-read-le64 raw pos else 0
+
+  -- | Select the specialized Sub kernel.
+  sub-word :: Nat -> U64 -> U64 -> U64
+  sub-word bpp word previous =
+    if bpp == 1 then sub1 word previous else if bpp == 2 then sub2 word previous else if bpp == 3 then sub3 word previous
+    else if bpp == 4 then sub4 word previous else if bpp == 6 then sub6 word previous else sub8 word previous
+
+  -- | Sub for the remaining bytes.
+  sub-bytes :: Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
+  sub-bytes raw row rb bpp i =
+    if i >= rb then ()
+    else let w = put raw (row + i) (at raw (row + i) + (if i >= bpp then at raw (minus (row + i) bpp) else 0)) in sub-bytes raw row rb bpp (i + 1)
+
+  -- | Up: add the prior row eight bytes at a time, then bytewise.
+  up-row :: Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
+  up-row raw row prior rb i =
+    if i + 8 <= rb && row + i + 8 <= bytes-len raw && prior + i + 8 <= bytes-len raw then
+      let w = bytes-write-le64 raw (row + i) (add-bytes (bytes-read-le64 raw (row + i)) (bytes-read-le64 raw (prior + i))) in
+      up-row raw row prior rb (i + 8)
+    else if i < rb then let w = put raw (row + i) (at raw (row + i) + at raw (prior + i)) in up-row raw row prior rb (i + 1)
+    else ()
+
+  -- | Average: add the floor of the mean of the left and prior bytes.
+  average-row :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bool -> Nat -> Unit
+  average-row raw row prior rb bpp has-prior i =
+    if i >= rb then ()
+    else
+      let left = if i >= bpp then at raw (minus (row + i) bpp) else 0 in
+      let up = if has-prior then at raw (prior + i) else 0 in
+      let w = put raw (row + i) (at raw (row + i) + nat-div (left + up) 2) in
+      average-row raw row prior rb bpp has-prior (i + 1)
+
+  -- | Paeth: add the neighbor (left, above or upper-left) nearest to left + above - upper-left.
+  paeth-row :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bool -> Nat -> Unit
+  paeth-row raw row prior rb bpp has-prior i =
+    if i >= rb then ()
+    else
+      let a = if i >= bpp then at raw (minus (row + i) bpp) else 0 in
+      let b = if has-prior then at raw (prior + i) else 0 in
+      let c = if has-prior && i >= bpp then at raw (minus (prior + i) bpp) else 0 in
+      let w = put raw (row + i) (at raw (row + i) + predictor a b c) in
+      paeth-row raw row prior rb bpp has-prior (i + 1)
+
+  -- | The Paeth predictor with ties broken toward left, then above.
+  predictor :: Nat -> Nat -> Nat -> Nat
+  predictor a b c =
+    let pa = distance b c in let pb = distance a c in let pc = distance (a + b) (c + c) in
+    if pa <= pb && pa <= pc then a else if pb <= pc then b else c
+
+  -- | Absolute difference.
+  distance :: Nat -> Nat -> Nat
+  distance x y = if x >= y then x - y else y - x
+
+  -- | Byte-wise sum of two words in SIMD lanes, wrapping each byte.
+  prim add-bytes :: U64 -> U64 -> U64 where
+    llvm {
+      %a = bitcast i64 %0 to <8 x i8>
+      %b = bitcast i64 %1 to <8 x i8>
+      %s = add <8 x i8> %a, %b
+      %value = bitcast <8 x i8> %s to i64
+      ret i64 %value
+    }
+
+  -- | Copy or expand each reconstructed row into the raster.
+  place-rows :: Ihdr -> Bytes -> Bytes -> Raster -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool
+  place-rows ihdr trns raw out offset rb pw py ph x0 y0 dx dy =
+    if py >= ph then True
+    else
+      let row = offset + py * (rb + 1) + 1 in
+      let placed = place-row ihdr trns raw out row pw (y0 + py * dy) x0 dx in
+      place-rows ihdr trns raw out offset rb pw (py + 1) ph x0 y0 dx dy
+
+  -- | Place one row: a direct copy for full-width eight- and sixteen-bit rows without a key, else per pixel.
+  place-row :: Ihdr -> Bytes -> Bytes -> Raster -> Nat -> Nat -> Nat -> Nat -> Nat -> Unit
+  place-row ihdr trns raw out row pw y x0 dx = case ihdr of
+    Ihdr width height depth ctype interlace ->
+      let keyed = bytes-len trns > 0 && (ctype == 0 || ctype == 2) in
+      let stride = raster-stride out in
+      if depth >= 8 && not keyed && dx == 1 && x0 == 0 then copy-row raw (raster-pixels out) row (y * stride) (row-bytes pw depth ctype)
+      else place-pixels ihdr trns raw out row pw y x0 dx 0
+
+  -- | Copy a reconstructed row whose samples already have the raster's layout.
+  copy-row :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  copy-row raw pixels row dest size =
+    if row + size <= bytes-len raw && dest + size <= bytes-len pixels then bytes-copy-range pixels raw dest row size else ()
+
+  -- | Expand pixels one at a time.
+  place-pixels :: Ihdr -> Bytes -> Bytes -> Raster -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Unit
+  place-pixels ihdr trns raw out row pw y x0 dx px =
+    if px >= pw then ()
+    else
+      let done = place-pixel ihdr trns raw out row px (y * raster-stride out + (x0 + px * dx) * pixel-bytes (raster-format out)) in
+      place-pixels ihdr trns raw out row pw y x0 dx (px + 1)
+
+  -- | Sample s of pixel px in a row at the image's bit depth (sixteen-bit samples as numbers).
+  sample :: Bytes -> Nat -> Nat -> Nat -> Nat
+  sample raw row index depth =
+    if depth == 16 then at raw (row + 2 * index) * 256 + at raw (row + 2 * index + 1)
+    else if depth == 8 then at raw (row + index)
+    else
+      let bit = index * depth in
+      let byte = at raw (row + nat-div bit 8) in
+      nat-rem (nat-div byte (pow2 (minus 8 (nat-rem bit 8 + depth)))) (pow2 depth)
+
+  -- | 2^n.
+  pow2 :: Nat -> NonZero Nat
+  pow2 n = if n == 0 then 1 else if n == 1 then 2 else if n == 2 then 4 else if n == 3 then 8 else if n == 4 then 16 else if n == 5 then 32 else if n == 6 then 64 else if n == 7 then 128 else 256
+
+  -- | Write one output sample at eight or sixteen bits.
+  emit :: Bytes -> Nat -> Nat -> Bool -> Unit
+  emit out at16 value sixteen =
+    if sixteen then let hi = set-byte out at16 (nat-div value 256) in set-byte out (at16 + 1) (nat-rem value 256)
+    else set-byte out at16 value
+
+  -- | Expand one pixel into the raster at byte offset o.
+  place-pixel :: Ihdr -> Bytes -> Bytes -> Raster -> Nat -> Nat -> Nat -> Unit
+  place-pixel ihdr trns raw out row px o = case ihdr of
+    Ihdr width height depth ctype interlace ->
+      if ctype == 3 then set-byte (raster-pixels out) o (sample raw row px depth)
+      else if ctype == 0 then place-gray raw (raster-pixels out) trns row px o depth
+      else place-color raw (raster-pixels out) trns row px o depth ctype
+
+  -- | A gray pixel, scaled to eight bits below depth eight, with alpha from a transparency key.
+  place-gray :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Unit
+  place-gray raw pixels trns row px o depth =
+    let v = sample raw row px depth in
+    let sixteen = depth == 16 in
+    let scaled = v * gray-scale depth in
+    let g = emit pixels o scaled sixteen in
+    if bytes-len trns >= 2 then emit pixels (o + (if sixteen then (2 :: Nat) else 1)) (alpha (v == key trns 0) sixteen) sixteen else ()
+
+  -- | The factor 255 / (2^depth - 1) that widens a sub-byte gray sample to eight bits (1 at eight or more bits).
+  gray-scale :: Nat -> Nat
+  gray-scale depth = if depth == 1 then 255 else if depth == 2 then 85 else if depth == 4 then 17 else 1
+
+  -- | Full transparency for a keyed sample, otherwise full opacity.
+  alpha :: Bool -> Bool -> Nat
+  alpha transparent sixteen = if transparent then 0 else if sixteen then 65535 else 255
+
+  -- | An RGB, gray-alpha or RGBA pixel, with alpha added for an RGB transparency key.
+  place-color :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Unit
+  place-color raw pixels trns row px o depth ctype =
+    let n = channels ctype in
+    let sixteen = depth == 16 in
+    let step = if sixteen then (2 :: Nat) else 1 in
+    let copied = copy-samples raw row px n depth pixels o step 0 in
+    if ctype == 2 && bytes-len trns >= 6 then emit pixels (o + 3 * step) (alpha (keyed-rgb raw row px depth trns) sixteen) sixteen else ()
+
+  -- | Whether an RGB pixel equals the transparency key.
+  keyed-rgb :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Bool
+  keyed-rgb raw row px depth trns =
+    sample raw row (3 * px) depth == key trns 0 && sample raw row (3 * px + 1) depth == key trns 2 && sample raw row (3 * px + 2) depth == key trns 4
+
+  -- | A big-endian 16-bit transparency key sample.
+  key :: Bytes -> Nat -> Nat
+  key trns i = at trns i * 256 + at trns (i + 1)
+
+  -- | Copy the n samples of one pixel.
+  copy-samples :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> Unit
+  copy-samples raw row px n depth pixels o step k =
+    if k >= n then ()
+    else let w = emit pixels (o + k * step) (sample raw row (px * n + k) depth) (depth == 16) in copy-samples raw row px n depth pixels o step (k + 1)
+
+  -- | Encode a raster as a non-interlaced PNG.
+  png-encode :: Raster -> Bytes
+  png-encode r =
+    let format = raster-format r in
+    let ctype = color-type format in
+    let depth = if is-sixteen format then (16 :: Nat) else 8 in
+    let header = bytes-concat [be32-bytes (raster-width r), be32-bytes (raster-height r), bytes-from-u8s [byte depth, byte ctype, 0, 0, 0]] in
+    let palette-chunks = if ctype == 3 then palette-chunks-of (raster-palette r) else bytes-new 0 in
+    let compressed = deflate (filter-image r (pixel-bytes format)) in
+    bytes-concat [bytes-from-u8s [137, 80, 78, 71, 13, 10, 26, 10], chunk [73, 72, 68, 82] header, palette-chunks, chunk [73, 68, 65, 84] compressed, chunk [73, 69, 78, 68] (bytes-new 0)]
+
+  -- | PNG color type for a raster format.
+  color-type :: PixelFormat -> Nat
+  color-type format = case format of
+    Gray8 -> 0
+    Gray16 -> 0
+    GrayAlpha8 -> 4
+    GrayAlpha16 -> 4
+    Rgb8 -> 2
+    Rgb16 -> 2
+    Rgba8 -> 6
+    Rgba16 -> 6
+    Indexed -> 3
+
+  -- | Whether samples are sixteen bits.
+  is-sixteen :: PixelFormat -> Bool
+  is-sixteen format = case format of
+    Gray16 -> True
+    GrayAlpha16 -> True
+    Rgb16 -> True
+    Rgba16 -> True
+    other -> False
+
+  -- | Four big-endian bytes.
+  be32-bytes :: Nat -> Bytes
+  be32-bytes n = bytes-from-u8s [byte (nat-div n 16777216), byte (nat-div n 65536), byte (nat-div n 256), byte n]
+
+  -- | The low byte of a number.
+  byte :: Nat -> U8
+  byte n = wrapping-i64-to-u8 (nat-to-i64 (nat-rem n 256))
+
+  -- | A chunk with its length and CRC.
+  chunk :: List Nat -> Bytes -> Bytes
+  chunk letters body =
+    let kind = bytes-from-u8s (map byte letters) in
+    bytes-concat [be32-bytes (bytes-len body), kind, body, be32-bytes (u32-to-nat (crc32-sum (bytes-concat [kind, body])))]
+
+  -- | PLTE from RGBA quadruples, plus tRNS up to the last translucent entry when any entry is translucent.
+  palette-chunks-of :: Bytes -> Bytes
+  palette-chunks-of palette =
+    let count = nat-div (bytes-len palette) 4 in
+    let rgb = bytes-from-u8s (palette-rgb palette 0 count) in
+    let last = last-translucent palette count 0 0 in
+    let trns = if last > 0 then chunk [116, 82, 78, 83] (bytes-from-u8s (palette-alpha palette 0 last)) else bytes-new 0 in
+    bytes-concat [chunk [80, 76, 84, 69] rgb, trns]
+
+  -- | RGB bytes of the first count entries.
+  palette-rgb :: Bytes -> Nat -> Nat -> List U8
+  palette-rgb palette i count = if i >= count then Nil else Cons (byte (at palette (4 * i))) (Cons (byte (at palette (4 * i + 1))) (Cons (byte (at palette (4 * i + 2))) (palette-rgb palette (i + 1) count)))
+
+  -- | Alpha bytes of the first count entries.
+  palette-alpha :: Bytes -> Nat -> Nat -> List U8
+  palette-alpha palette i count = if i >= count then Nil else Cons (byte (at palette (4 * i + 3))) (palette-alpha palette (i + 1) count)
+
+  -- | One past the last entry whose alpha is not 255.
+  last-translucent :: Bytes -> Nat -> Nat -> Nat -> Nat
+  last-translucent palette count i found = if i >= count then found else last-translucent palette count (i + 1) (if at palette (4 * i + 3) < 255 then i + 1 else found)
+
+  -- | Filter every row, choosing per row the filter with the smallest sum of absolute signed residuals.
+  filter-image :: Raster -> Nat -> Bytes
+  filter-image r bpp =
+    let rb = raster-width r * pixel-bytes (raster-format r) in
+    bytes-concat (filter-rows (raster-pixels r) (raster-stride r) rb bpp 0 (raster-height r) Nil)
+
+  -- | Filtered rows, each with its filter byte, in order.
+  filter-rows :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> List Bytes -> List Bytes
+  filter-rows pixels stride rb bpp y height acc =
+    if y >= height then reverse acc
+    else filter-rows pixels stride rb bpp (y + 1) height (Cons (best-row pixels (y * stride) (if y > 0 then Some (minus (y * stride) stride) else None) rb bpp) acc)
+
+  -- | The filtered row with the lowest score among the five filters.
+  best-row :: Bytes -> Nat -> Option Nat -> Nat -> Nat -> Bytes
+  best-row pixels row prior rb bpp = pick (encode-row pixels row prior rb bpp 0) (encode-row pixels row prior rb bpp 1) (encode-row pixels row prior rb bpp 2) (encode-row pixels row prior rb bpp 3) (encode-row pixels row prior rb bpp 4)
+
+  -- | Choose the lowest-scoring candidate, preferring earlier filters on ties.
+  pick :: Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> Bytes
+  pick a b c d e = smaller (smaller (smaller (smaller a b) c) d) e
+
+  -- | The candidate with the smaller score.
+  smaller :: Bytes -> Bytes -> Bytes
+  smaller a b = if score b 1 0 < score a 1 0 then b else a
+
+  -- | Sum of residuals read as signed bytes.
+  score :: Bytes -> Nat -> Nat -> Nat
+  score row i acc = if i < bytes-len row then (let v = at row i in score row (i + 1) (acc + (if v >= 128 then minus 256 v else v))) else acc
+
+  -- | One row filtered with a given type, preceded by its filter byte.
+  encode-row :: Bytes -> Nat -> Option Nat -> Nat -> Nat -> Nat -> Bytes
+  encode-row pixels row prior rb bpp kind =
+    let out = bytes-new (rb + 1) in
+    let mark = set-byte out 0 kind in
+    let filled = residuals pixels row prior rb bpp kind out 0 in out
+
+  -- | Residual bytes: each sample minus its prediction modulo 256.
+  residuals :: Bytes -> Nat -> Option Nat -> Nat -> Nat -> Nat -> Bytes -> Nat -> Unit
+  residuals pixels row prior rb bpp kind out i =
+    if i >= rb then ()
+    else
+      let x = at pixels (row + i) in
+      let a = if i >= bpp then at pixels (minus (row + i) bpp) else 0 in
+      let b = case prior of Some p -> at pixels (p + i); None -> 0 in
+      let c = case prior of Some p -> (if i >= bpp then at pixels (minus (p + i) bpp) else 0); None -> 0 in
+      let guess = if kind == 1 then a else if kind == 2 then b else if kind == 3 then nat-div (a + b) 2 else if kind == 4 then predictor a b c else 0 in
+      let w = set-byte out (i + 1) (nat-rem (minus (x + 256) guess) 256) in
+      residuals pixels row prior rb bpp kind out (i + 1)
+  -- | Reconstruct eight Sub-filtered bytes with 1-byte pixels, given the previous eight reconstructed
+  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
+  prim sub1 :: U64 -> U64 -> U64 where
+    llvm {
+      %x = bitcast i64 %0 to <8 x i8>
+      %p = bitcast i64 %1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 15, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14>
+      %v1 = add <8 x i8> %v0, %s0
+      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
+      %v2 = add <8 x i8> %v1, %s1
+      %s2 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v2, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
+      %v3 = add <8 x i8> %v2, %s2
+      %w = bitcast <8 x i8> %v3 to i64
+      %value = or i64 %w, 0
+      ret i64 %value
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %in1 = call i64 @llvm.bswap.i64(i64 %1)
+      %x = bitcast i64 %in0 to <8 x i8>
+      %p = bitcast i64 %in1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 15, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14>
+      %v1 = add <8 x i8> %v0, %s0
+      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
+      %v2 = add <8 x i8> %v1, %s1
+      %s2 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v2, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
+      %v3 = add <8 x i8> %v2, %s2
+      %w = bitcast <8 x i8> %v3 to i64
+      %value = call i64 @llvm.bswap.i64(i64 %w)
+      ret i64 %value
+    } when endian big
+
+  -- | Reconstruct eight Sub-filtered bytes with 2-byte pixels, given the previous eight reconstructed
+  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
+  prim sub2 :: U64 -> U64 -> U64 where
+    llvm {
+      %x = bitcast i64 %0 to <8 x i8>
+      %p = bitcast i64 %1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 14, i32 15, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
+      %v1 = add <8 x i8> %v0, %s0
+      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
+      %v2 = add <8 x i8> %v1, %s1
+      %w = bitcast <8 x i8> %v2 to i64
+      %value = or i64 %w, 0
+      ret i64 %value
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %in1 = call i64 @llvm.bswap.i64(i64 %1)
+      %x = bitcast i64 %in0 to <8 x i8>
+      %p = bitcast i64 %in1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 14, i32 15, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13>
+      %v1 = add <8 x i8> %v0, %s0
+      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
+      %v2 = add <8 x i8> %v1, %s1
+      %w = bitcast <8 x i8> %v2 to i64
+      %value = call i64 @llvm.bswap.i64(i64 %w)
+      ret i64 %value
+    } when endian big
+
+  -- | Reconstruct eight Sub-filtered bytes with 3-byte pixels, given the previous eight reconstructed
+  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
+  prim sub3 :: U64 -> U64 -> U64 where
+    llvm {
+      %x = bitcast i64 %0 to <8 x i8>
+      %p = bitcast i64 %1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 13, i32 14, i32 15, i32 0, i32 0, i32 0, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12>
+      %v1 = add <8 x i8> %v0, %s0
+      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 8, i32 9>
+      %v2 = add <8 x i8> %v1, %s1
+      %w = bitcast <8 x i8> %v2 to i64
+      %value = or i64 %w, 0
+      ret i64 %value
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %in1 = call i64 @llvm.bswap.i64(i64 %1)
+      %x = bitcast i64 %in0 to <8 x i8>
+      %p = bitcast i64 %in1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 13, i32 14, i32 15, i32 0, i32 0, i32 0, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11, i32 12>
+      %v1 = add <8 x i8> %v0, %s0
+      %s1 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v1, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 8, i32 9>
+      %v2 = add <8 x i8> %v1, %s1
+      %w = bitcast <8 x i8> %v2 to i64
+      %value = call i64 @llvm.bswap.i64(i64 %w)
+      ret i64 %value
+    } when endian big
+
+  -- | Reconstruct eight Sub-filtered bytes with 4-byte pixels, given the previous eight reconstructed
+  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
+  prim sub4 :: U64 -> U64 -> U64 where
+    llvm {
+      %x = bitcast i64 %0 to <8 x i8>
+      %p = bitcast i64 %1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 12, i32 13, i32 14, i32 15, i32 0, i32 0, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
+      %v1 = add <8 x i8> %v0, %s0
+      %w = bitcast <8 x i8> %v1 to i64
+      %value = or i64 %w, 0
+      ret i64 %value
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %in1 = call i64 @llvm.bswap.i64(i64 %1)
+      %x = bitcast i64 %in0 to <8 x i8>
+      %p = bitcast i64 %in1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 12, i32 13, i32 14, i32 15, i32 0, i32 0, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 8, i32 9, i32 10, i32 11>
+      %v1 = add <8 x i8> %v0, %s0
+      %w = bitcast <8 x i8> %v1 to i64
+      %value = call i64 @llvm.bswap.i64(i64 %w)
+      ret i64 %value
+    } when endian big
+
+  -- | Reconstruct eight Sub-filtered bytes with 6-byte pixels, given the previous eight reconstructed
+  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
+  prim sub6 :: U64 -> U64 -> U64 where
+    llvm {
+      %x = bitcast i64 %0 to <8 x i8>
+      %p = bitcast i64 %1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 8, i32 9>
+      %v1 = add <8 x i8> %v0, %s0
+      %w = bitcast <8 x i8> %v1 to i64
+      %value = or i64 %w, 0
+      ret i64 %value
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %in1 = call i64 @llvm.bswap.i64(i64 %1)
+      %x = bitcast i64 %in0 to <8 x i8>
+      %p = bitcast i64 %in1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 0, i32 0>
+      %v0 = add <8 x i8> %x, %c
+      %s0 = shufflevector <8 x i8> zeroinitializer, <8 x i8> %v0, <8 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 8, i32 9>
+      %v1 = add <8 x i8> %v0, %s0
+      %w = bitcast <8 x i8> %v1 to i64
+      %value = call i64 @llvm.bswap.i64(i64 %w)
+      ret i64 %value
+    } when endian big
+
+  -- | Reconstruct eight Sub-filtered bytes with 8-byte pixels, given the previous eight reconstructed
+  -- bytes: add the previous pixel to the first lanes, then a lane-shift prefix scan in SIMD byte lanes.
+  prim sub8 :: U64 -> U64 -> U64 where
+    llvm {
+      %x = bitcast i64 %0 to <8 x i8>
+      %p = bitcast i64 %1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+      %v0 = add <8 x i8> %x, %c
+      %w = bitcast <8 x i8> %v0 to i64
+      %value = or i64 %w, 0
+      ret i64 %value
+    } when endian little
+    llvm {
+      %in0 = call i64 @llvm.bswap.i64(i64 %0)
+      %in1 = call i64 @llvm.bswap.i64(i64 %1)
+      %x = bitcast i64 %in0 to <8 x i8>
+      %p = bitcast i64 %in1 to <8 x i8>
+      %c = shufflevector <8 x i8> zeroinitializer, <8 x i8> %p, <8 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+      %v0 = add <8 x i8> %x, %c
+      %w = bitcast <8 x i8> %v0 to i64
+      %value = call i64 @llvm.bswap.i64(i64 %w)
+      ret i64 %value
+    } when endian big
+

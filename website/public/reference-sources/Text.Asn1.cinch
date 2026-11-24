@@ -1,0 +1,523 @@
+-- | ASN.1 values in DER: a typed value tree with a strict decoder and a canonical encoder.
+-- Values cover booleans, arbitrary-precision integers and enumerations, bit and
+-- octet strings, null, object identifiers, the common character string types,
+-- UTC and generalized times, sequences, sets and raw values of any class and tag
+-- (for explicit and implicit tagging). Decoding enforces DER: definite minimal
+-- lengths, minimal two's-complement integers, booleans of 0x00 or 0xFF, zero
+-- padding bits in bit strings, minimal object identifier arcs and no trailing
+-- data. Encoding produces DER, sorting the members of a set by their encodings.
+module Text.Asn1 where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export Asn1, Asn1Boolean, Asn1Integer, Asn1Enumerated, Asn1BitString, Asn1OctetString, Asn1Null, Asn1Oid, Asn1String, Asn1UtcTime, Asn1GeneralizedTime, Asn1Sequence, Asn1Set, Asn1Member, Asn1End, Asn1Raw
+  export asn1-sequence, asn1-set, asn1-members
+  export Asn1Error, Asn1Truncated, Asn1BadLength, Asn1BadContent, Asn1TrailingData, asn1-error-message
+  export asn1-decode, asn1-encode, asn1-explicit, asn1-implicit
+  export tag-utf8-string, tag-printable-string, tag-ia5-string, tag-numeric-string, tag-t61-string, tag-bmp-string
+  export class-universal, class-application, class-context, class-private, asn1-time-seconds
+
+  -- | Universal tag of UTF8String.
+  tag-utf8-string :: Nat
+  tag-utf8-string = 12
+
+  -- | Universal tag of NumericString.
+  tag-numeric-string :: Nat
+  tag-numeric-string = 18
+
+  -- | Universal tag of PrintableString.
+  tag-printable-string :: Nat
+  tag-printable-string = 19
+
+  -- | Universal tag of T61String (TeletexString).
+  tag-t61-string :: Nat
+  tag-t61-string = 20
+
+  -- | Universal tag of IA5String.
+  tag-ia5-string :: Nat
+  tag-ia5-string = 22
+
+  -- | Universal tag of BMPString.
+  tag-bmp-string :: Nat
+  tag-bmp-string = 30
+
+  -- | The universal class.
+  class-universal :: Nat
+  class-universal = 0
+
+  -- | The application class.
+  class-application :: Nat
+  class-application = 1
+
+  -- | The context-specific class, used for tagged fields.
+  class-context :: Nat
+  class-context = 2
+
+  -- | The private class.
+  class-private :: Nat
+  class-private = 3
+
+  -- | An ASN.1 value.
+  data Asn1 where
+    -- | BOOLEAN.
+    Asn1Boolean :: Bool -> Asn1
+    -- | INTEGER of any size.
+    Asn1Integer :: Int -> Asn1
+    -- | ENUMERATED.
+    Asn1Enumerated :: Int -> Asn1
+    -- | BIT STRING: the bytes and the bit length (the final byte's unused low bits are zero).
+    Asn1BitString :: Bytes -> Nat -> Asn1
+    -- | OCTET STRING.
+    Asn1OctetString :: Bytes -> Asn1
+    -- | NULL.
+    Asn1Null :: Asn1
+    -- | OBJECT IDENTIFIER as its arcs.
+    Asn1Oid :: List Nat -> Asn1
+    -- | A character string with its universal tag (such as tag-utf8-string) and raw content bytes.
+    Asn1String :: Nat -> Bytes -> Asn1
+    -- | UTCTime with its text (YYMMDDHHMMSSZ).
+    Asn1UtcTime :: Bytes -> Asn1
+    -- | GeneralizedTime with its text (YYYYMMDDHHMMSSZ, optionally with fractional seconds).
+    Asn1GeneralizedTime :: Bytes -> Asn1
+    -- | SEQUENCE, holding its members as an Asn1Member/Asn1End spine (build with asn1-sequence).
+    Asn1Sequence :: Asn1 -> Asn1
+    -- | SET, holding its members as a spine (build with asn1-set); encoded with members sorted by encoding.
+    Asn1Set :: Asn1 -> Asn1
+    -- | A spine cell: one member and the rest. Spines keep recursion direct, as data declarations require.
+    Asn1Member :: Asn1 -> Asn1 -> Asn1
+    -- | The end of a member spine.
+    Asn1End :: Asn1
+    -- | Any other element: class, tag number, whether constructed, and content octets.
+    Asn1Raw :: Nat -> Nat -> Bool -> Bytes -> Asn1
+
+  -- | A SEQUENCE of the given members.
+  asn1-sequence :: List Asn1 -> Asn1
+  asn1-sequence items = Asn1Sequence (spine items)
+
+  -- | A SET of the given members.
+  asn1-set :: List Asn1 -> Asn1
+  asn1-set items = Asn1Set (spine items)
+
+  -- | Members of a SEQUENCE or SET in order; other values have none.
+  asn1-members :: Asn1 -> List Asn1
+  asn1-members value = case value of
+    Asn1Sequence cells -> unspine cells
+    Asn1Set cells -> unspine cells
+    other -> Nil
+
+  -- | A list as a member spine.
+  spine :: List Asn1 -> Asn1
+  spine items = case items of Nil -> Asn1End; Cons x rest -> Asn1Member x (spine rest)
+
+  -- | A member spine as a list.
+  unspine :: Asn1 -> List Asn1
+  unspine cells = case cells of Asn1Member x rest -> Cons x (unspine rest); other -> Nil
+
+  -- | A DER violation; offsets locate the element.
+  data Asn1Error where
+    -- | The input ends inside the element at this offset.
+    Asn1Truncated :: Nat -> Asn1Error
+    -- | The element at this offset has an indefinite, non-minimal or oversized length.
+    Asn1BadLength :: Nat -> Asn1Error
+    -- | The element at this offset has content that is not valid DER for its type.
+    Asn1BadContent :: Nat -> Asn1Error
+    -- | Bytes follow the complete value at this offset.
+    Asn1TrailingData :: Nat -> Asn1Error
+
+  -- | Render an ASN.1 error.
+  asn1-error-message :: Asn1Error -> String
+  asn1-error-message error = case error of
+    Asn1Truncated at -> string-concat "asn1: truncated element at offset " (nat-to-string at)
+    Asn1BadLength at -> string-concat "asn1: invalid length at offset " (nat-to-string at)
+    Asn1BadContent at -> string-concat "asn1: invalid content at offset " (nat-to-string at)
+    Asn1TrailingData at -> string-concat "asn1: trailing data at offset " (nat-to-string at)
+
+  -- | Wrap a value in an explicit context-specific tag.
+  asn1-explicit :: Nat -> Asn1 -> Asn1
+  asn1-explicit tag value = Asn1Raw class-context tag True (asn1-encode value)
+
+  -- | Replace a value's identifier with an implicit context-specific tag, keeping its content and form.
+  asn1-implicit :: Nat -> Asn1 -> Asn1
+  asn1-implicit tag value = case element-parts value of (constructed, content) -> Asn1Raw class-context tag constructed content
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at input i = if i < bytes-len input then bytes-get input i else 0
+
+  -- | Copy an interval.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice input start stop =
+    if start <= stop && stop <= bytes-len input then
+      let out = bytes-new (stop - start) in let copied = bytes-copy-range out input 0 start (stop - start) in out
+    else bytes-new 0
+
+  -- | One byte as a buffer.
+  byte :: Nat -> Bytes
+  byte n = bytes-from-u8s [wrapping-i64-to-u8 (nat-to-i64 (nat-rem n 256))]
+
+  -- | Decode exactly one DER value occupying the whole input.
+  asn1-decode :: Bytes -> Result Asn1Error Asn1
+  asn1-decode input = case decode-at input 0 of
+    Err error -> Err error
+    Ok result -> case result of
+      (value, next) -> if next == bytes-len input then Ok value else Err (Asn1TrailingData next)
+
+  -- | An element's identifier, content bounds and the offset after it.
+  data Header where
+    -- | Class, tag, constructed flag, content start and content end.
+    Head :: Nat -> Nat -> Bool -> Nat -> Nat -> Header
+
+  -- | Parse an identifier and a definite DER length.
+  read-header :: Bytes -> Nat -> Result Asn1Error Header
+  read-header input start =
+    if start + 2 > bytes-len input then Err (Asn1Truncated start)
+    else
+      let first = at input start in
+      let cls = nat-div first 64 in
+      let constructed = nat-rem (nat-div first 32) 2 == 1 in
+      case read-tag input start (nat-rem first 32) of
+        Err error -> Err error
+        Ok tagged -> case tagged of
+          (tag, after) -> case read-length input start after of
+            Err error -> Err error
+            Ok sized -> case sized of
+              (length, content) -> if content + length > bytes-len input then Err (Asn1Truncated start) else Ok (Head cls tag constructed content (content + length))
+
+  -- | A low tag, or a high tag in base-128 continuation bytes with no leading zero digit.
+  read-tag :: Bytes -> Nat -> Nat -> Result Asn1Error (Nat, Nat)
+  read-tag input start low =
+    if low < 31 then Ok (low, start + 1)
+    else if at input (start + 1) == 128 then Err (Asn1BadContent start)
+    else case base128 input (start + 1) 0 0 of
+      None -> Err (Asn1Truncated start)
+      Some found -> case found of (value, next) -> if value < 31 then Err (Asn1BadContent start) else Ok (value, next)
+
+  -- | A base-128 number ending at the first byte without the high bit; at most nine digits.
+  base128 :: Bytes -> Nat -> Nat -> Nat -> Option (Nat, Nat)
+  base128 input i acc count =
+    if i >= bytes-len input || count > 8 then None
+    else
+      let b = bytes-get input i in
+      let next = acc * 128 + nat-rem b 128 in
+      if b >= 128 then base128 input (i + 1) next (count + 1) else Some (next, i + 1)
+
+  -- | A short length below 128, or a long length of one to four bytes that is minimal.
+  read-length :: Bytes -> Nat -> Nat -> Result Asn1Error (Nat, Nat)
+  read-length input start i =
+    if i >= bytes-len input then Err (Asn1Truncated start)
+    else
+      let b = bytes-get input i in
+      if b < 128 then Ok (b, i + 1)
+      else if b == 128 || b > 132 then Err (Asn1BadLength start)
+      else
+        let count = minus b 128 in
+        if i + 1 + count > bytes-len input then Err (Asn1Truncated start)
+        else
+          let value = big-endian input (i + 1) (i + 1 + count) 0 in
+          if at input (i + 1) == 0 || value < 128 then Err (Asn1BadLength start) else Ok (value, i + 1 + count)
+
+  -- | An unsigned big-endian number from a byte interval.
+  big-endian :: Bytes -> Nat -> Nat -> Nat -> Nat
+  big-endian input i end acc = if i < end then big-endian input (i + 1) end (acc * 256 + at input i) else acc
+
+  -- | Decode the element at an offset.
+  decode-at :: Bytes -> Nat -> Result Asn1Error (Asn1, Nat)
+  decode-at input start = case read-header input start of
+    Err error -> Err error
+    Ok header -> case header of
+      Head cls tag constructed content end -> case decode-content input start cls tag constructed content end of
+        Err error -> Err error
+        Ok value -> Ok (value, end)
+
+  -- | Interpret content for universal types; other classes are raw values.
+  decode-content :: Bytes -> Nat -> Nat -> Nat -> Bool -> Nat -> Nat -> Result Asn1Error Asn1
+  decode-content input start cls tag constructed content end =
+    let body = slice input content end in
+    if not (cls == 0) then Ok (Asn1Raw cls tag constructed body)
+    else if constructed then decode-constructed input tag content end body
+    else decode-primitive start tag body
+
+  -- | SEQUENCE and SET contents decode as element lists; other constructed universal types stay raw.
+  decode-constructed :: Bytes -> Nat -> Nat -> Nat -> Bytes -> Result Asn1Error Asn1
+  decode-constructed input tag content end body =
+    if tag == 16 then map-ok asn1-sequence (decode-list input content end Nil)
+    else if tag == 17 then map-ok asn1-set (decode-list input content end Nil)
+    else Ok (Asn1Raw 0 tag True body)
+
+  -- | Apply a constructor to a successful list.
+  map-ok :: (List Asn1 -> Asn1) -> Result Asn1Error (List Asn1) -> Result Asn1Error Asn1
+  map-ok make result = case result of Ok items -> Ok (make items); Err error -> Err error
+
+  -- | Decode consecutive elements filling an interval.
+  decode-list :: Bytes -> Nat -> Nat -> List Asn1 -> Result Asn1Error (List Asn1)
+  decode-list input i end acc =
+    if i >= end then Ok (reverse acc)
+    else case decode-at input i of
+      Err error -> Err error
+      Ok result -> case result of
+        (value, next) -> if next > end then Err (Asn1BadLength i) else decode-list input next end (Cons value acc)
+
+  -- | Decode a primitive universal value with its DER restrictions.
+  decode-primitive :: Nat -> Nat -> Bytes -> Result Asn1Error Asn1
+  decode-primitive start tag body =
+    let n = bytes-len body in
+    if tag == 1 then (if n == 1 && at body 0 == 255 then Ok (Asn1Boolean True) else if n == 1 && at body 0 == 0 then Ok (Asn1Boolean False) else Err (Asn1BadContent start))
+    else if tag == 2 then (if minimal-integer body then Ok (Asn1Integer (integer-value body)) else Err (Asn1BadContent start))
+    else if tag == 10 then (if minimal-integer body then Ok (Asn1Enumerated (integer-value body)) else Err (Asn1BadContent start))
+    else if tag == 3 then decode-bits start body
+    else if tag == 4 then Ok (Asn1OctetString body)
+    else if tag == 5 then (if n == 0 then Ok Asn1Null else Err (Asn1BadContent start))
+    else if tag == 6 then (case decode-oid body 0 Nil of Some arcs -> Ok (Asn1Oid arcs); None -> Err (Asn1BadContent start))
+    else if tag == 23 then Ok (Asn1UtcTime body)
+    else if tag == 24 then Ok (Asn1GeneralizedTime body)
+    else if tag == 12 || tag == 18 || tag == 19 || tag == 20 || tag == 22 || tag == 30 then Ok (Asn1String tag body)
+    else Ok (Asn1Raw 0 tag False body)
+
+  -- | Non-empty two's complement without a redundant leading byte.
+  minimal-integer :: Bytes -> Bool
+  minimal-integer body =
+    let n = bytes-len body in
+    n > 0 && (n == 1 || not ((at body 0 == 0 && at body 1 < 128) || (at body 0 == 255 && at body 1 >= 128)))
+
+  -- | The two's-complement value of a big-endian integer.
+  integer-value :: Bytes -> Int
+  integer-value body =
+    let magnitude = nat-to-int (big-endian body 0 (bytes-len body) 0) in
+    if at body 0 >= 128 then magnitude - power256 (bytes-len body) else magnitude
+
+  -- | 256^n.
+  power256 :: Nat -> Int
+  power256 n = if n == 0 then 1 else 256 * power256 (minus n 1)
+
+  -- | A bit string: an unused-bit count of at most seven (zero for empty strings) whose bits are zero.
+  decode-bits :: Nat -> Bytes -> Result Asn1Error Asn1
+  decode-bits start body =
+    let n = bytes-len body in
+    let unused = at body 0 in
+    if n == 0 || unused > 7 || (n == 1 && unused > 0) then Err (Asn1BadContent start)
+    else
+      let last = at body (minus n 1) in
+      if not (modulo last (power2 unused) == 0) then Err (Asn1BadContent start)
+      else Ok (Asn1BitString (slice body 1 n) (minus (minus n 1 * 8) unused))
+
+  -- | The remainder modulo a positive bound, or zero for a zero bound.
+  modulo :: Nat -> Nat -> Nat
+  modulo value bound = if bound > 0 then nat-rem value bound else 0
+
+  -- | 2^n for small n.
+  power2 :: Nat -> Nat
+  power2 n = if n == 0 then 1 else 2 * power2 (minus n 1)
+
+  -- | Object identifier arcs: base-128 subidentifiers with no leading 0x80, the first splitting into two arcs.
+  decode-oid :: Bytes -> Nat -> List Nat -> Option (List Nat)
+  decode-oid body i acc =
+    if i >= bytes-len body then (if is-empty acc then None else Some (reverse acc))
+    else if at body i == 128 then None
+    else case base128 body i 0 0 of
+      None -> None
+      Some found -> case found of
+        (value, next) -> if is-empty acc then decode-oid body next (first-arcs value) else decode-oid body next (Cons value acc)
+
+  -- | The first two arcs encoded in the first subidentifier, most recent first.
+  first-arcs :: Nat -> List Nat
+  first-arcs value = if value < 40 then Cons value (Cons 0 Nil) else if value < 80 then Cons (minus value 40) (Cons 1 Nil) else Cons (minus value 80) (Cons 2 Nil)
+
+  -- | Encode a value in DER.
+  asn1-encode :: Asn1 -> Bytes
+  asn1-encode value = case value of
+    Asn1Raw cls tag constructed content -> element cls tag constructed content
+    other -> case element-parts value of (constructed, content) -> element 0 (universal-tag value) constructed content
+
+  -- | The universal tag of a typed value.
+  universal-tag :: Asn1 -> Nat
+  universal-tag value = case value of
+    Asn1Boolean b -> 1
+    Asn1Integer i -> 2
+    Asn1BitString b n -> 3
+    Asn1OctetString b -> 4
+    Asn1Null -> 5
+    Asn1Oid arcs -> 6
+    Asn1Enumerated i -> 10
+    Asn1String tag b -> tag
+    Asn1UtcTime t -> 23
+    Asn1GeneralizedTime t -> 24
+    Asn1Sequence items -> 16
+    Asn1Set items -> 17
+    Asn1Raw cls tag c b -> tag
+    other -> 16
+
+  -- | Whether the value is constructed, and its content octets.
+  element-parts :: Asn1 -> (Bool, Bytes)
+  element-parts value = case value of
+    Asn1Boolean b -> (False, byte (if b then 255 else 0))
+    Asn1Integer i -> (False, integer-bytes i)
+    Asn1Enumerated i -> (False, integer-bytes i)
+    Asn1BitString bytes bits -> (False, bit-content bytes bits)
+    Asn1OctetString b -> (False, b)
+    Asn1Null -> (False, bytes-new 0)
+    Asn1Oid arcs -> (False, oid-content arcs)
+    Asn1String tag b -> (False, b)
+    Asn1UtcTime t -> (False, t)
+    Asn1GeneralizedTime t -> (False, t)
+    Asn1Sequence cells -> (True, bytes-concat (encode-all (unspine cells)))
+    Asn1Set cells -> (True, bytes-concat (sort-encodings (encode-all (unspine cells))))
+    Asn1Raw cls tag constructed content -> (constructed, content)
+    other -> (True, bytes-concat (encode-all (unspine value)))
+
+  -- | Encode each value.
+  encode-all :: List Asn1 -> List Bytes
+  encode-all items = case items of Nil -> Nil; Cons x rest -> Cons (asn1-encode x) (encode-all rest)
+
+  -- | Sort encodings bytewise (shorter prefixes first), as DER requires for SET members.
+  sort-encodings :: List Bytes -> List Bytes
+  sort-encodings items = case items of Nil -> Nil; Cons x rest -> insert-encoding x (sort-encodings rest)
+
+  -- | Insert one encoding in order.
+  insert-encoding :: Bytes -> List Bytes -> List Bytes
+  insert-encoding x sorted = case sorted of
+    Nil -> Cons x Nil
+    Cons y rest -> if lt-i64 (bytes-compare y x) 0 then Cons y (insert-encoding x rest) else Cons x sorted
+
+  -- | Identifier, length and content.
+  element :: Nat -> Nat -> Bool -> Bytes -> Bytes
+  element cls tag constructed content = bytes-concat [identifier cls tag constructed, length-bytes (bytes-len content), content]
+
+  -- | Identifier octets, with base-128 continuation for tags of 31 and above.
+  identifier :: Nat -> Nat -> Bool -> Bytes
+  identifier cls tag constructed =
+    let lead = nat-rem cls 4 * 64 + (if constructed then 32 else 0) in
+    if tag < 31 then byte (lead + tag) else bytes-concat [byte (lead + 31), base128-bytes tag]
+
+  -- | A number as minimal base-128 digits with continuation bits.
+  base128-bytes :: Nat -> Bytes
+  base128-bytes n = bytes-concat (digits128 n True Nil)
+
+  -- | Digits from the least significant, prepended.
+  digits128 :: Nat -> Bool -> List Bytes -> List Bytes
+  digits128 n last acc =
+    let digit = nat-rem n 128 + (if last then 0 else 128) in
+    if n < 128 then Cons (byte digit) acc else digits128 (nat-div n 128) False (Cons (byte digit) acc)
+
+  -- | A minimal DER length.
+  length-bytes :: Nat -> Bytes
+  length-bytes n = if n < 128 then byte n else let digits = unsigned-bytes n in bytes-concat [byte (128 + bytes-len digits), digits]
+
+  -- | Minimal big-endian bytes of a positive number.
+  unsigned-bytes :: Nat -> Bytes
+  unsigned-bytes n = if n < 256 then byte n else bytes-concat [unsigned-bytes (nat-div n 256), byte (nat-rem n 256)]
+
+  -- | Minimal two's complement of an integer.
+  integer-bytes :: Int -> Bytes
+  integer-bytes i = if i >= 0 then positive-bytes (nat-from-int-or-zero i) else negative-bytes i 1
+
+  -- | A non-negative integer as a natural number.
+  nat-from-int-or-zero :: Int -> Nat
+  nat-from-int-or-zero i = if i >= 0 then nat-from-int i else 0
+
+  -- | Unsigned bytes with a leading zero when the top bit would read as a sign.
+  positive-bytes :: Nat -> Bytes
+  positive-bytes n = let digits = unsigned-bytes n in if at digits 0 >= 128 then bytes-concat [byte 0, digits] else digits
+
+  -- | The shortest k-byte two's complement for a negative value: the smallest k with -256^k/2 <= i.
+  negative-bytes :: Int -> Nat -> Bytes
+  negative-bytes i k =
+    if i >= 0 - int-div (power256 k) 2 then unsigned-width (nat-from-int-or-zero (power256 k + i)) k
+    else negative-bytes i (k + 1)
+
+  -- | A number as exactly k big-endian bytes.
+  unsigned-width :: Nat -> Nat -> Bytes
+  unsigned-width n k = if k == 0 then bytes-new 0 else bytes-concat [unsigned-width (nat-div n 256) (minus k 1), byte (nat-rem n 256)]
+
+  -- | Unused-bit count followed by the bytes, with trailing unused bits cleared.
+  bit-content :: Bytes -> Nat -> Bytes
+  bit-content bytes bits =
+    let used = nat-div (bits + 7) 8 in
+    let unused = minus (used * 8) bits in
+    let chunk = slice bytes 0 (if used <= bytes-len bytes then used else bytes-len bytes) in
+    let cleared = clear-low chunk unused in
+    bytes-concat [byte unused, cleared]
+
+  -- | Clear the low bits of the final byte.
+  clear-low :: Bytes -> Nat -> Bytes
+  clear-low chunk unused =
+    if bytes-len chunk == 0 || unused == 0 then chunk
+    else
+      let n = bytes-len chunk in
+      let last = at chunk (minus n 1) in
+      bytes-concat [slice chunk 0 (minus n 1), byte (minus last (modulo last (power2 unused)))]
+
+  -- | Subidentifiers of an object identifier, the first combining the first two arcs.
+  oid-content :: List Nat -> Bytes
+  oid-content arcs = case arcs of
+    Cons a (Cons b rest) -> bytes-concat (Cons (base128-bytes (a * 40 + b)) (encode-arcs rest))
+    Cons a Nil -> base128-bytes (a * 40)
+    Nil -> bytes-new 0
+
+  -- | Base-128 subidentifiers.
+  encode-arcs :: List Nat -> List Bytes
+  encode-arcs arcs = case arcs of Nil -> Nil; Cons a rest -> Cons (base128-bytes a) (encode-arcs rest)
+
+  -- | Unix seconds of a UTCTime (years 50-99 are 1950-1999) or GeneralizedTime in the Z form, ignoring
+  -- fractional seconds; None for any other value or text.
+  asn1-time-seconds :: Asn1 -> Option Int
+  asn1-time-seconds value = case value of
+    Asn1UtcTime text -> utc-seconds text
+    Asn1GeneralizedTime text -> generalized-seconds text
+    other -> None
+
+  -- | Seconds of a UTCTime text YYMMDDHHMMSSZ.
+  utc-seconds :: Bytes -> Option Int
+  utc-seconds text =
+    if bytes-len text == 13 && at text 12 == 90 then (case digits text 0 2 of Some yy -> time-from text (if yy >= 50 then 1900 + yy else 2000 + yy) 2; None -> None)
+    else None
+
+  -- | Seconds of a GeneralizedTime text YYYYMMDDHHMMSS[.fraction]Z.
+  generalized-seconds :: Bytes -> Option Int
+  generalized-seconds text =
+    if bytes-len text >= 15 && at text (minus (bytes-len text) 1) == 90 then (case digits text 0 4 of Some year -> time-from text year 4; None -> None)
+    else None
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Fields after the year: month, day, hour, minute and second, two digits each.
+  time-from :: Bytes -> Nat -> Nat -> Option Int
+  time-from text year i = case (digits text i 2, digits text (i + 2) 2, digits text (i + 4) 2, digits text (i + 6) 2, digits text (i + 8) 2) of
+    (Some month, Some day, Some hour, Some minute, Some second) ->
+      if month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour < 24 && minute < 60 && second < 61 then
+        Some (days-from-civil (nat-to-int year) (nat-to-int month) (nat-to-int day) * 86400 + nat-to-int (hour * 3600 + minute * 60 + second))
+      else None
+    other -> None
+
+  -- | A run of decimal digits.
+  digits :: Bytes -> Nat -> Nat -> Option Nat
+  digits text i count = if count == 0 then Some 0 else digit-run text i count (at text i)
+
+  -- | Continue a digit run whose first byte is known.
+  digit-run :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  digit-run text i count b =
+    if b >= 48 && b <= 57 && count > 0 then (case digits text (i + 1) (minus count 1) of Some rest -> Some (minus b 48 * power10 (minus count 1) + rest); None -> None)
+    else None
+
+  -- | 10^n.
+  power10 :: Nat -> Nat
+  power10 n = if n == 0 then 1 else 10 * power10 (minus n 1)
+
+  -- | Days since 1970-01-01 for a proleptic Gregorian date in a year from 1 onward.
+  days-from-civil :: Int -> Int -> Int -> Int
+  days-from-civil y m d =
+    let shifted = if m <= 2 then y - 1 else y in
+    let era = int-div shifted 400 in
+    let yoe = shifted - era * 400 in
+    let mp = if m > 2 then m - 3 else m + 9 in
+    let doy = int-div (153 * mp + 2) 5 + d - 1 in
+    let doe = yoe * 365 + int-div yoe 4 - int-div yoe 100 + doy in
+    era * 146097 + doe - 719468

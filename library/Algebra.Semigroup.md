@@ -132,4 +132,4 @@ constraint.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Semigroup.cinch`. Source SHA-256: `f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Semigroup.cinch`. Source SHA-256: `03b8c3463a181da5deaa4de35921c2bfb69520b4aed1c0a21043fc72f9be6272`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

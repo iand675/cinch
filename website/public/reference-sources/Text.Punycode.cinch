@@ -1,0 +1,297 @@
+-- | Punycode (RFC 3492): the bootstring encoding of Unicode labels in the ASCII letters, digits and hyphen
+-- that internationalized domain names use, and the "xn--" per-label conversion of host names.
+--
+-- Encoding copies a label's ASCII code points, adds a hyphen when there were any, and then emits the
+-- variable-length deltas that insert each remaining code point in increasing order, adapting the bias
+-- after every insertion. Decoding runs the same state machine backwards and refuses digits that are not
+-- base-36, deltas that overflow 32 bits and code points beyond U+10FFFF. Case folding and the other
+-- IDNA mapping steps are not applied.
+module Text.Punycode where
+
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export PunycodeError, PunycodeOverflow, PunycodeBadDigit, PunycodeBadInput, punycode-error-message
+  export punycode-encode, punycode-decode, punycode-to-ascii
+
+  -- | Why a label could not be converted.
+  data PunycodeError where
+    -- | A delta does not fit in 32 bits.
+    PunycodeOverflow :: PunycodeError
+    -- | An encoded label holds a character that is not a base-36 digit.
+    PunycodeBadDigit :: PunycodeError
+    -- | The text is not valid UTF-8, or decodes to a code point beyond U+10FFFF.
+    PunycodeBadInput :: PunycodeError
+
+  -- | A readable description of an error.
+  punycode-error-message :: PunycodeError -> String
+  punycode-error-message e = case e of
+    PunycodeOverflow -> "punycode: delta overflow"
+    PunycodeBadDigit -> "punycode: invalid digit"
+    PunycodeBadInput -> "punycode: invalid input"
+
+  -- | The largest 32-bit signed value; deltas past it overflow.
+  max-int :: Nat
+  max-int = 2147483647
+
+  -- | The bias after an insertion (RFC 3492 section 6.1).
+  adapt :: Nat -> Nat -> Bool -> Nat
+  adapt delta points first =
+    let d0 = if first then nat-div delta 700 else nat-div delta 2 in
+    let d = d0 + div0 d0 points in
+    adapt-loop d 0
+
+  -- | Divide the delta down while it exceeds the threshold.
+  adapt-loop :: Nat -> Nat -> Nat
+  adapt-loop d k = if d > 455 then adapt-loop (nat-div d 35) (k + 36) else k + div0 (36 * d) (d + 38)
+
+  -- | The threshold for digit position k.
+  threshold :: Nat -> Nat -> Nat
+  threshold k bias = if k <= bias then 1 else if k >= bias + 26 then 26 else minus k bias
+
+  -- | A digit's character: a-z for 0-25, 0-9 for 26-35.
+  digit-char :: Nat -> Nat
+  digit-char d = if d < 26 then 97 + d else 22 + d
+
+  -- | A character's digit value (36 when it is not a digit).
+  char-digit :: Nat -> Nat
+  char-digit c =
+    if c >= 48 && c <= 57 then minus c 22
+    else if c >= 65 && c <= 90 then minus c 65
+    else if c >= 97 && c <= 122 then minus c 97
+    else 36
+
+  -- | The code points of UTF-8 text, or None when it is malformed.
+  code-points :: Bytes -> Nat -> List Nat -> Option (List Nat)
+  code-points b i acc =
+    if i >= bytes-len b then Some (reverse acc)
+    else
+      let c = bytes-get b i in
+      if c < 128 then code-points b (i + 1) (Cons c acc)
+      else if c >= 194 && c < 224 && i + 1 < bytes-len b && cont (at b (i + 1)) then code-points b (i + 2) (Cons (64 * minus c 192 + low6 (at b (i + 1))) acc)
+      else if c >= 224 && c < 240 && i + 2 < bytes-len b && cont (at b (i + 1)) && cont (at b (i + 2)) then
+        (let v = 4096 * minus c 224 + 64 * low6 (at b (i + 1)) + low6 (at b (i + 2)) in
+        if v < 2048 || (v >= 55296 && v < 57344) then None else code-points b (i + 3) (Cons v acc))
+      else if c >= 240 && c < 245 && i + 3 < bytes-len b && cont (at b (i + 1)) && cont (at b (i + 2)) && cont (at b (i + 3)) then
+        (let v = 262144 * minus c 240 + 4096 * low6 (at b (i + 1)) + 64 * low6 (at b (i + 2)) + low6 (at b (i + 3)) in
+        if v < 65536 || v > 1114111 then None else code-points b (i + 4) (Cons v acc))
+      else None
+
+  -- | Whether a byte continues a UTF-8 sequence.
+  cont :: Nat -> Bool
+  cont c = c >= 128 && c < 192
+
+  -- | The low six bits of a continuation byte.
+  low6 :: Nat -> Nat
+  low6 c = minus c 128
+
+  -- | The byte at an offset, zero outside the buffer.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Division that answers zero for a zero divisor.
+  div0 :: Nat -> Nat -> Nat
+  div0 a b = if b > 0 then nat-div a b else 0
+
+  -- | Remainder that answers zero for a zero divisor.
+  rem0 :: Nat -> Nat -> Nat
+  rem0 a b = if b > 0 then nat-rem a b else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Code points as UTF-8 text.
+  utf8 :: List Nat -> String
+  utf8 points = case string-from-bytes (utf8-bytes points) of
+    Some s -> s
+    None -> ""
+
+  -- | Code points as UTF-8 bytes.
+  utf8-bytes :: List Nat -> Bytes
+  utf8-bytes points =
+    let out = bytes-new (utf8-size points 0) in
+    let filled = utf8-into out 0 points in
+    out
+
+  -- | The UTF-8 length of code points.
+  utf8-size :: List Nat -> Nat -> Nat
+  utf8-size points acc = case points of
+    Nil -> acc
+    Cons c rest -> utf8-size rest (acc + (if c < 128 then (1 :: Nat) else if c < 2048 then (2 :: Nat) else if c < 65536 then (3 :: Nat) else (4 :: Nat)))
+
+  -- | Store code points from offset o.
+  utf8-into :: Bytes -> Nat -> List Nat -> Unit
+  utf8-into out o points = case points of
+    Nil -> ()
+    Cons c rest ->
+      if c < 128 then (let a = put out o c in utf8-into out (o + 1) rest)
+      else if c < 2048 then (let a = put out o (192 + nat-div c 64) in let b = put out (o + 1) (128 + nat-rem c 64) in utf8-into out (o + 2) rest)
+      else if c < 65536 then (let a = put out o (224 + nat-div c 4096) in let b = put out (o + 1) (128 + nat-rem (nat-div c 64) 64) in let d = put out (o + 2) (128 + nat-rem c 64) in utf8-into out (o + 3) rest)
+      else (let a = put out o (240 + nat-div c 262144) in let b = put out (o + 1) (128 + nat-rem (nat-div c 4096) 64) in let d = put out (o + 2) (128 + nat-rem (nat-div c 64) 64) in let e = put out (o + 3) (128 + nat-rem c 64) in utf8-into out (o + 4) rest)
+
+  -- | Store a byte when it fits.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | Encode a label (without the "xn--" prefix).
+  punycode-encode :: String -> Result PunycodeError String
+  punycode-encode label = case code-points (string-to-bytes label) 0 Nil of
+    None -> Err PunycodeBadInput
+    Some points ->
+      let basic = filter-basic points Nil in
+      let b = list-length basic in
+      let start = if b > 0 then append-one basic 45 else basic in
+      (case encode-rounds points (minus (list-length points) b) 128 0 72 b b (reverse start) of
+        Err e -> Err e
+        Ok out -> Ok (utf8 (reverse out)))
+
+  -- | The ASCII code points, in order.
+  filter-basic :: List Nat -> List Nat -> List Nat
+  filter-basic points acc = case points of
+    Nil -> reverse acc
+    Cons c rest -> filter-basic rest (if c < 128 then Cons c acc else acc)
+
+  -- | A list with one more element at the end.
+  append-one :: List Nat -> Nat -> List Nat
+  append-one l x = reverse (Cons x (reverse l))
+
+  -- | Insert the remaining code points: n is the next code point to insert, delta the running delta, h how
+  -- many are handled and b how many were basic; output is reversed.
+  encode-rounds :: List Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> List Nat -> Result PunycodeError (List Nat)
+  encode-rounds points remaining n delta bias h b out =
+    if remaining == 0 then Ok out
+    else
+      let m = smallest-at-least points n 1114112 in
+      let d = delta + minus m n * (h + 1) in
+      if d > max-int then Err PunycodeOverflow
+      else case encode-pass points m d bias h b out remaining of
+        Err e -> Err e
+        Ok state -> (case state of
+          (d2, bias2, h2, out2, rem2) -> encode-rounds points rem2 (m + 1) (d2 + 1) bias2 h2 b out2)
+
+  -- | The smallest code point at least n (best is the candidate so far).
+  smallest-at-least :: List Nat -> Nat -> Nat -> Nat
+  smallest-at-least points n best = case points of
+    Nil -> best
+    Cons c rest -> smallest-at-least rest n (if c >= n && c < best then c else best)
+
+  -- | One pass over the label for code point n: count smaller code points into the delta and emit the delta at
+  -- every occurrence of n. Returns (delta, bias, handled, output, remaining).
+  encode-pass :: List Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> List Nat -> Nat -> Result PunycodeError (Nat, Nat, Nat, List Nat, Nat)
+  encode-pass points n delta bias h b out remaining = case points of
+    Nil -> Ok (delta, bias, h, out, remaining)
+    Cons c rest ->
+      if c < n then (if delta + 1 > max-int then Err PunycodeOverflow else encode-pass rest n (delta + 1) bias h b out remaining)
+      else if c > n then encode-pass rest n delta bias h b out remaining
+      else
+        let digits = encode-digits delta 36 bias out in
+        encode-pass rest n 0 (adapt delta (h + 1) (h == b)) (h + 1) b digits (minus remaining 1)
+
+  -- | The variable-length digits of q (reversed onto the output).
+  encode-digits :: Nat -> Nat -> Nat -> List Nat -> List Nat
+  encode-digits q k bias out =
+    let t = threshold k bias in
+    if q < t then Cons (digit-char q) out
+    else encode-digits (div0 (minus q t) (minus 36 t)) (k + 36) bias (Cons (digit-char (t + rem0 (minus q t) (minus 36 t))) out)
+
+  -- | Decode a label (without the "xn--" prefix).
+  punycode-decode :: String -> Result PunycodeError String
+  punycode-decode label =
+    let b = string-to-bytes label in
+    let split = last-hyphen b 0 None in
+    let basic-end = (case split of
+      Some i -> i
+      None -> 0) in
+    let start = (case split of
+      Some i -> i + 1
+      None -> 0) in
+    if not (all-basic b 0 basic-end) then Err PunycodeBadInput
+    else case decode-from b start (prefix-points b 0 basic-end Nil) 128 0 72 of
+      Err e -> Err e
+      Ok points -> Ok (utf8 points)
+
+  -- | The last hyphen's index.
+  last-hyphen :: Bytes -> Nat -> Option Nat -> Option Nat
+  last-hyphen b i found = if i >= bytes-len b then found else last-hyphen b (i + 1) (if bytes-get b i == 45 then Some i else found)
+
+  -- | Whether bytes before end are ASCII.
+  all-basic :: Bytes -> Nat -> Nat -> Bool
+  all-basic b i end = if i >= end then True else at b i < 128 && all-basic b (i + 1) end
+
+  -- | The code points before end, in order.
+  prefix-points :: Bytes -> Nat -> Nat -> List Nat -> List Nat
+  prefix-points b i end acc = if i >= end then reverse acc else prefix-points b (i + 1) end (Cons (at b i) acc)
+
+  -- | Decode insertions from position pos into the code points so far.
+  decode-from :: Bytes -> Nat -> List Nat -> Nat -> Nat -> Nat -> Result PunycodeError (List Nat)
+  decode-from b pos points n i bias =
+    if pos >= bytes-len b then Ok points
+    else case decode-delta b pos i 1 36 bias of
+      Err e -> Err e
+      Ok got -> (case got of
+        (pos2, i2) ->
+          let size = list-length points + 1 in
+          let n2 = n + div0 i2 size in
+          let i3 = rem0 i2 size in
+          if n2 > 1114111 then Err PunycodeBadInput
+          else decode-from b pos2 (insert-at points i3 n2) n2 (i3 + 1) (adapt (minus i2 i) size (i == 0)))
+
+  -- | One variable-length delta from pos added to i with weight w at digit position k. Returns the next position
+  -- and the new i.
+  decode-delta :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Result PunycodeError (Nat, Nat)
+  decode-delta b pos i w k bias =
+    if pos >= bytes-len b then Err PunycodeBadInput
+    else
+      let digit = char-digit (at b pos) in
+      if digit >= 36 then Err PunycodeBadDigit
+      else
+        let i2 = i + digit * w in
+        if i2 > max-int then Err PunycodeOverflow
+        else
+          let t = threshold k bias in
+          if digit < t then Ok (pos + 1, i2)
+          else if w * minus 36 t > max-int then Err PunycodeOverflow
+          else decode-delta b (pos + 1) i2 (w * minus 36 t) (k + 36) bias
+
+  -- | Insert a value at an index.
+  insert-at :: List Nat -> Nat -> Nat -> List Nat
+  insert-at l i v = if i == 0 then Cons v l else case l of
+    Nil -> Cons v Nil
+    Cons x rest -> Cons x (insert-at rest (minus i 1) v)
+
+  -- | A host name with every non-ASCII label encoded as "xn--" and its Punycode.
+  punycode-to-ascii :: String -> Result PunycodeError String
+  punycode-to-ascii host =
+    let b = string-to-bytes host in
+    if all-basic b 0 (bytes-len b) then Ok host
+    else labels b 0 0 ""
+
+  -- | Labels from start (scanning at i), joined onto the output so far.
+  labels :: Bytes -> Nat -> Nat -> String -> Result PunycodeError String
+  labels b start i acc =
+    if i >= bytes-len b || at b i == 46 then
+      (case convert-label (slice b start (minus i start)) of
+        Err e -> Err e
+        Ok label ->
+          let joined = if start == 0 then label else string-concat acc (string-concat "." label) in
+          if i >= bytes-len b then Ok joined else labels b (i + 1) (i + 1) joined)
+    else labels b start (i + 1) acc
+
+  -- | One label: unchanged when ASCII, otherwise "xn--" and its encoding.
+  convert-label :: Bytes -> Result PunycodeError String
+  convert-label label =
+    let text = (case string-from-bytes label of
+      Some s -> s
+      None -> "") in
+    if all-basic label 0 (bytes-len label) then Ok text
+    else case punycode-encode text of
+      Ok e -> Ok (string-concat "xn--" e)
+      Err e -> Err e
+
+  -- | n bytes from an offset, copied.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b o n = let out = bytes-new n in let c = (if o + n <= bytes-len b then bytes-copy-range out b 0 o n else ()) in out

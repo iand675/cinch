@@ -1,0 +1,872 @@
+-- | Internet mail messages (RFC 5322): header blocks, mailbox addresses and dates.
+-- Addresses parse as RFC 5322 address lists, including groups, comments,
+-- quoted strings, domain literals holding IP addresses, UTF-8 text (RFC 6532)
+-- and RFC 2047 encoded words in display names (UTF-8, ISO-8859-1 and US-ASCII
+-- charsets). An address is tried first as a bare addr-spec, optionally followed
+-- by a comment that becomes its display name, then as a phrase and an angle
+-- address. Empty list entries are skipped, as the obsolete syntax permits.
+-- Formatting quotes local parts and display names only where needed and encodes
+-- non-ASCII names as encoded words. Runs of atom and quoted-string text are
+-- scanned sixteen bytes at a time; non-ASCII bytes fall to a scalar path that
+-- validates UTF-8. Header blocks are read without the stricter field-name rules
+-- of HTTP, and dates accept the obsolete forms of RFC 5322.
+module Text.Mail where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.IpAddr
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Data.Time.Offset
+  import Data.Time.Timestamp
+  import Text.Mime
+  import Text.TextProto
+  import Text.Show (nat-to-string)
+  import Text.Time.Rfc2822
+
+  export MailError, MailNoAddress, MailExpectedComma, MailExpectedSingleAddress, MailEmptyGroup, MailGroupWithMultipleAddresses
+  export MailMissingAtOrAngleAddress, MailNoAngleAddress, MailUnclosedAngleAddress, MailBadComment, MailNoAddrSpec
+  export MailEmptyQuotedLocalPart, MailMissingAtInAddrSpec, MailNoDomain, MailInvalidAtom, MailLeadingDot, MailDoubleDot
+  export MailTrailingDot, MailInvalidUtf8, MailUnclosedQuotedString, MailBadQuotedCharacter, MailUnclosedDomainLiteral
+  export MailBadDomainLiteralCharacter, MailInvalidDomainLiteral, MailMissingWordInPhrase, MailUnknownCharset
+  export MailHeaderNotPresent, MailMalformedInitialLine, MailMalformedHeaderLine, MailEmptyMessage, MailBareCarriageReturn
+  export MailDateSyntax, mail-error-message
+  export MailAddress, mail-address, mail-address-name, mail-address-spec, mail-address-to-string
+  export mail-parse-address, mail-parse-address-list, mail-parse-address-bytes, mail-parse-address-list-bytes, mail-parse-date
+  export MailMessage, mail-read-message, mail-message-header, mail-message-body
+  export mail-header-get, mail-header-date, mail-header-address-list
+
+  -- ---------------------------------------------------------------------
+  -- Errors.
+  -- ---------------------------------------------------------------------
+
+  -- | Why an address, header block or date was rejected.
+  data MailError where
+    -- | Nothing but white space where an address was expected.
+    MailNoAddress :: MailError
+    -- | An address is followed by something other than a comma.
+    MailExpectedComma :: MailError
+    -- | A single address was expected but more input follows it.
+    MailExpectedSingleAddress :: MailError
+    -- | A single address was expected but the input is an empty group.
+    MailEmptyGroup :: MailError
+    -- | A single address was expected but the input is a group of several.
+    MailGroupWithMultipleAddresses :: MailError
+    -- | A dot-atom with neither an @ nor an angle address (perhaps a missing domain).
+    MailMissingAtOrAngleAddress :: MailError
+    -- | A display name not followed by an angle address.
+    MailNoAngleAddress :: MailError
+    -- | An angle address without its closing ">".
+    MailUnclosedAngleAddress :: MailError
+    -- | A parenthesized comment is not closed.
+    MailBadComment :: MailError
+    -- | An addr-spec was expected but the input ended.
+    MailNoAddrSpec :: MailError
+    -- | The quoted local part is empty or malformed.
+    MailEmptyQuotedLocalPart :: MailError
+    -- | The local part is not followed by an @.
+    MailMissingAtInAddrSpec :: MailError
+    -- | The @ is not followed by a domain.
+    MailNoDomain :: MailError
+    -- | An atom was expected but none of its characters are present.
+    MailInvalidAtom :: MailError
+    -- | A dot-atom begins with a dot.
+    MailLeadingDot :: MailError
+    -- | A dot-atom holds two dots in a row.
+    MailDoubleDot :: MailError
+    -- | A dot-atom ends with a dot.
+    MailTrailingDot :: MailError
+    -- | The text is not valid UTF-8 at this byte offset.
+    MailInvalidUtf8 :: Nat -> MailError
+    -- | A quoted string is not closed.
+    MailUnclosedQuotedString :: MailError
+    -- | A quoted string holds a character it may not, at this byte offset.
+    MailBadQuotedCharacter :: Nat -> MailError
+    -- | A domain literal is not closed.
+    MailUnclosedDomainLiteral :: MailError
+    -- | A domain literal holds a character it may not, at this byte offset.
+    MailBadDomainLiteralCharacter :: Nat -> MailError
+    -- | A domain literal does not hold an IPv4 or IPv6 address.
+    MailInvalidDomainLiteral :: MailError
+    -- | A display name was expected; the error that stopped its first word.
+    MailMissingWordInPhrase :: MailError -> MailError
+    -- | An encoded word names a charset this module does not convert.
+    MailUnknownCharset :: String -> MailError
+    -- | The requested header field is absent or empty.
+    MailHeaderNotPresent :: MailError
+    -- | The header block begins with a continuation line.
+    MailMalformedInitialLine :: MailError
+    -- | A header line has no colon; its byte offset.
+    MailMalformedHeaderLine :: Nat -> MailError
+    -- | The input ends before a header field or the blank line that ends the header block.
+    MailEmptyMessage :: MailError
+    -- | A date holds a carriage return not followed by a line feed.
+    MailBareCarriageReturn :: MailError
+    -- | A date does not parse.
+    MailDateSyntax :: Rfc2822Error -> MailError
+
+  -- | Render an error.
+  mail-error-message :: MailError -> String
+  mail-error-message error = case error of
+    MailNoAddress -> "mail: no address"
+    MailExpectedComma -> "mail: expected comma"
+    MailExpectedSingleAddress -> "mail: expected a single address"
+    MailEmptyGroup -> "mail: empty group"
+    MailGroupWithMultipleAddresses -> "mail: group with multiple addresses"
+    MailMissingAtOrAngleAddress -> "mail: missing '@' or angle-addr"
+    MailNoAngleAddress -> "mail: no angle-addr"
+    MailUnclosedAngleAddress -> "mail: unclosed angle-addr"
+    MailBadComment -> "mail: misformatted parenthetical comment"
+    MailNoAddrSpec -> "mail: no addr-spec"
+    MailEmptyQuotedLocalPart -> "mail: empty quoted-string in addr-spec"
+    MailMissingAtInAddrSpec -> "mail: missing @ in addr-spec"
+    MailNoDomain -> "mail: no domain in addr-spec"
+    MailInvalidAtom -> "mail: invalid string"
+    MailLeadingDot -> "mail: leading dot in atom"
+    MailDoubleDot -> "mail: double dot in atom"
+    MailTrailingDot -> "mail: trailing dot in atom"
+    MailInvalidUtf8 at -> string-concat "mail: invalid utf-8 at byte " (nat-to-string at)
+    MailUnclosedQuotedString -> "mail: unclosed quoted-string"
+    MailBadQuotedCharacter at -> string-concat "mail: bad character in quoted-string at byte " (nat-to-string at)
+    MailUnclosedDomainLiteral -> "mail: unclosed domain-literal"
+    MailBadDomainLiteralCharacter at -> string-concat "mail: bad character in domain-literal at byte " (nat-to-string at)
+    MailInvalidDomainLiteral -> "mail: invalid IP address in domain-literal"
+    MailMissingWordInPhrase cause -> string-concat "mail: missing word in phrase: " (mail-error-message cause)
+    MailUnknownCharset name -> string-concat "mail: unhandled charset " name
+    MailHeaderNotPresent -> "mail: header not in message"
+    MailMalformedInitialLine -> "mail: malformed initial line"
+    MailMalformedHeaderLine at -> string-concat "mail: malformed header line at byte " (nat-to-string at)
+    MailEmptyMessage -> "mail: empty message"
+    MailBareCarriageReturn -> "mail: header has a CR without LF"
+    MailDateSyntax cause -> "mail: header could not be parsed"
+
+  -- ---------------------------------------------------------------------
+  -- Addresses.
+  -- ---------------------------------------------------------------------
+
+  -- | A mailbox: a display name (possibly empty) and an addr-spec "local@domain".
+  data MailAddress where
+    -- | The display name, then the addr-spec.
+    MailAddress :: String -> String -> MailAddress
+
+  -- | Make an address from a display name and an addr-spec.
+  mail-address :: String -> String -> MailAddress
+  mail-address name addr = MailAddress name addr
+
+  -- | The display name, empty when there is none.
+  mail-address-name :: MailAddress -> String
+  mail-address-name a = case a of MailAddress name addr -> name
+
+  -- | The addr-spec.
+  mail-address-spec :: MailAddress -> String
+  mail-address-spec a = case a of MailAddress name addr -> addr
+
+  -- | Parse exactly one address (a group is accepted when it holds exactly one).
+  mail-parse-address :: String -> Result MailError MailAddress
+  mail-parse-address text = mail-parse-address-bytes (string-to-bytes text)
+
+  -- | Parse exactly one address from raw header bytes, which need not be valid UTF-8 (invalid sequences are errors).
+  mail-parse-address-bytes :: Bytes -> Result MailError MailAddress
+  mail-parse-address-bytes s = case address s 0 True of
+    Err error -> Err error
+    Ok (found, next) -> case skip-cfws s next of
+      None -> Err MailBadComment
+      Some rest ->
+        if rest < bytes-len s then Err MailExpectedSingleAddress
+        else case found of
+          Nil -> Err MailEmptyGroup
+          Cons one more -> case more of Nil -> Ok one; Cons two others -> Err MailGroupWithMultipleAddresses
+
+  -- | Parse a comma-separated address list; groups contribute their members.
+  mail-parse-address-list :: String -> Result MailError (List MailAddress)
+  mail-parse-address-list text = mail-parse-address-list-bytes (string-to-bytes text)
+
+  -- | Parse an address list from raw header bytes, which need not be valid UTF-8 (invalid sequences are errors).
+  mail-parse-address-list-bytes :: Bytes -> Result MailError (List MailAddress)
+  mail-parse-address-list-bytes s = case address-list s 0 Nil of
+    Err error -> Err error
+    Ok found -> Ok (reverse found)
+
+  -- | Addresses until the input ends; the accumulator is in reverse.
+  address-list :: Bytes -> Nat -> List MailAddress -> Result MailError (List MailAddress)
+  address-list s i acc =
+    let j = skip-space s i in
+    if at s j == 44 && j < bytes-len s then address-list s (j + 1) acc
+    else case address s j True of
+      Err error -> Err error
+      Ok (found, next) -> case skip-cfws s next of
+        None -> Err MailBadComment
+        Some k ->
+          if k >= bytes-len s then Ok (prepend found acc)
+          else if not (at s k == 44) then Err MailExpectedComma
+          else
+            let after = skip-commas s k in
+            if after >= bytes-len s then Ok (prepend found acc) else address-list s after (prepend found acc)
+
+  -- | Skip commas and the white space after each.
+  skip-commas :: Bytes -> Nat -> Nat
+  skip-commas s i = if i < bytes-len s && at s i == 44 then skip-commas s (skip-space s (i + 1)) else i
+
+  -- | Push addresses onto a reversed accumulator.
+  prepend :: List MailAddress -> List MailAddress -> List MailAddress
+  prepend found acc = case found of Nil -> acc; Cons a rest -> prepend rest (Cons a acc)
+
+  -- | One address: a bare addr-spec with an optional comment name, or a phrase followed by a group
+  -- (when groups are allowed) or an angle address.
+  address :: Bytes -> Nat -> Bool -> Result MailError (List MailAddress, Nat)
+  address s i groups =
+    let j = skip-space s i in
+    if j >= bytes-len s then Err MailNoAddress
+    else case addr-spec s j of
+      Ok (addr, next) -> bare-address s addr (skip-space s next)
+      Err ignored -> named-address s j groups
+
+  -- | A bare addr-spec, named by a following comment when there is one.
+  bare-address :: Bytes -> Bytes -> Nat -> Result MailError (List MailAddress, Nat)
+  bare-address s addr j =
+    if j < bytes-len s && at s j == 40 then (case comment s (j + 1) of
+      None -> Err MailBadComment
+      Some (text, next) -> case comment-name text of
+        Err error -> Err error
+        Ok name -> Ok (Cons (MailAddress (text-of name) (text-of addr)) Nil, next))
+    else Ok (Cons (MailAddress empty-string (text-of addr)) Nil, j)
+
+  -- | A display name, then a group or an angle address.
+  named-address :: Bytes -> Nat -> Bool -> Result MailError (List MailAddress, Nat)
+  named-address s j groups =
+    if at s j == 60 then angle-address s (bytes-new 0) (j + 1)
+    else case phrase s j of
+      Err error -> Err error
+      Ok (name, after) ->
+        let k = skip-space s after in
+        if groups && k < bytes-len s && at s k == 58 then group-list s (k + 1)
+        else if k < bytes-len s && at s k == 60 then angle-address s name (k + 1)
+        else if all-atext name then Err MailMissingAtOrAngleAddress
+        else Err MailNoAngleAddress
+
+  -- | The addr-spec of an angle address and its closing bracket.
+  angle-address :: Bytes -> Bytes -> Nat -> Result MailError (List MailAddress, Nat)
+  angle-address s name i = case addr-spec s i of
+    Err error -> Err error
+    Ok (addr, next) ->
+      if next < bytes-len s && at s next == 62 then Ok (Cons (MailAddress (text-of name) (text-of addr)) Nil, next + 1)
+      else Err MailUnclosedAngleAddress
+
+  -- | The members of a group after its colon, through the closing semicolon; groups do not nest.
+  group-list :: Bytes -> Nat -> Result MailError (List MailAddress, Nat)
+  group-list s i =
+    let j = skip-space s i in
+    if j < bytes-len s && at s j == 59 then (case skip-cfws s (j + 1) of None -> Err MailBadComment; Some k -> Ok (Nil, k))
+    else group-members s j Nil
+
+  -- | Members separated by commas; the accumulator is in reverse.
+  group-members :: Bytes -> Nat -> List MailAddress -> Result MailError (List MailAddress, Nat)
+  group-members s i acc = case address s (skip-space s i) False of
+    Err error -> Err error
+    Ok (found, next) -> case skip-cfws s next of
+      None -> Err MailBadComment
+      Some k ->
+        if k < bytes-len s && at s k == 59 then (case skip-cfws s (k + 1) of
+          None -> Err MailBadComment
+          Some done -> Ok (reverse (prepend found acc), done))
+        else if k < bytes-len s && at s k == 44 then group-members s (k + 1) (prepend found acc)
+        else Err MailExpectedComma
+
+  -- | An addr-spec: a dot-atom or quoted local part, "@", then a dot-atom or domain literal.
+  addr-spec :: Bytes -> Nat -> Result MailError (Bytes, Nat)
+  addr-spec s i =
+    let j = skip-space s i in
+    if j >= bytes-len s then Err MailNoAddrSpec
+    else case local-part s j of
+      Err error -> Err error
+      Ok (local, next) ->
+        if not (next < bytes-len s && at s next == 64) then Err MailMissingAtInAddrSpec
+        else
+          let k = skip-space s (next + 1) in
+          if k >= bytes-len s then Err MailNoDomain
+          else case domain s k of
+            Err error -> Err error
+            Ok (name, after) -> Ok (bytes-concat [local, bytes-from-u8s [64], name], after)
+
+  -- | A quoted local part (which must be non-empty and well formed) or a strict dot-atom.
+  local-part :: Bytes -> Nat -> Result MailError (Bytes, Nat)
+  local-part s j =
+    if at s j == 34 then (case quoted s (j + 1) Nil of
+      Err error -> Err MailEmptyQuotedLocalPart
+      Ok (text, next) -> if bytes-len text == 0 then Err MailEmptyQuotedLocalPart else Ok (text, next))
+    else atom s j True False
+
+  -- | A domain literal or a strict dot-atom.
+  domain :: Bytes -> Nat -> Result MailError (Bytes, Nat)
+  domain s k = if at s k == 91 then domain-literal s (k + 1) (k + 1) else atom s k True False
+
+  -- | Domain-literal text through "]", which must spell an IPv4 or IPv6 address.
+  domain-literal :: Bytes -> Nat -> Nat -> Result MailError (Bytes, Nat)
+  domain-literal s start i =
+    if i >= bytes-len s then Err MailUnclosedDomainLiteral
+    else if at s i == 93 then
+      (let inner = slice s start i in
+      case ip-parse (text-of inner) of
+        Some ip -> Ok (bytes-concat [bytes-from-u8s [91], inner, bytes-from-u8s [93]], i + 1)
+        None -> Err MailInvalidDomainLiteral)
+    else
+      let n = rune-size s i in
+      if n == 0 then Err (MailInvalidUtf8 i)
+      else if n == 1 && not (dtext (at s i)) then Err (MailBadDomainLiteralCharacter i)
+      else domain-literal s start (i + n)
+
+  -- | An atom (or dot-atom); strict atoms reject leading, trailing and doubled dots.
+  atom :: Bytes -> Nat -> Bool -> Bool -> Result MailError (Bytes, Nat)
+  atom s i dot permissive = case atom-end s i dot of
+    Err error -> Err error
+    Ok end ->
+      if end == i then Err MailInvalidAtom
+      else
+        let text = slice s i end in
+        if permissive then Ok (text, end)
+        else if at text 0 == 46 then Err MailLeadingDot
+        else if has-double-dot text 0 then Err MailDoubleDot
+        else if at text (minus (bytes-len text) 1) == 46 then Err MailTrailingDot
+        else Ok (text, end)
+
+  -- | Whether two dots are adjacent.
+  has-double-dot :: Bytes -> Nat -> Bool
+  has-double-dot text i = if i + 1 >= bytes-len text then False else if at text i == 46 && at text (i + 1) == 46 then True else has-double-dot text (i + 1)
+
+  -- | The end of an atext run: sixteen ASCII bytes per step, then single bytes, validating any UTF-8 sequence.
+  atom-end :: Bytes -> Nat -> Bool -> Result MailError Nat
+  atom-end s i dot =
+    if i + 16 <= bytes-len s then
+      (let k = hold s (atext-span (bytes-data s) (nat-to-i64 i) (if dot then (0 :: I64) else 46)) in
+      if k == 16 then atom-end s (i + 16) dot else atom-step s (i + i64-to-nat k) dot)
+    else atom-step s i dot
+
+  -- | One byte (or UTF-8 sequence) of an atext run.
+  atom-step :: Bytes -> Nat -> Bool -> Result MailError Nat
+  atom-step s i dot =
+    if i >= bytes-len s then Ok i
+    else
+      let b = at s i in
+      if b < 128 then (if atext b dot then atom-end s (i + 1) dot else Ok i)
+      else
+        let n = rune-size s i in
+        if n == 0 then Err (MailInvalidUtf8 i) else atom-end s (i + n) dot
+
+  -- | Quoted-string content after the opening quote, unescaped, with the position after the closing quote.
+  -- Pieces gather in reverse.
+  quoted :: Bytes -> Nat -> List Bytes -> Result MailError (Bytes, Nat)
+  quoted s i pieces =
+    let j = qtext-end s i in
+    let gathered = if j > i then Cons (slice s i j) pieces else pieces in
+    if j >= bytes-len s then Err MailUnclosedQuotedString
+    else
+      let b = at s j in
+      if b == 34 then Ok (bytes-concat (reverse gathered), j + 1)
+      else if b == 92 then escaped s (j + 1) gathered
+      else if b >= 128 then
+        (let n = rune-size s j in
+        if n == 0 then Err (MailInvalidUtf8 j) else quoted s (j + n) (Cons (slice s j (j + n)) gathered))
+      else Err (MailBadQuotedCharacter j)
+
+  -- | The character after a backslash: any visible character or white space.
+  escaped :: Bytes -> Nat -> List Bytes -> Result MailError (Bytes, Nat)
+  escaped s i pieces =
+    if i >= bytes-len s then Err MailUnclosedQuotedString
+    else
+      let n = rune-size s i in
+      if n == 0 then Err (MailInvalidUtf8 i)
+      else if n == 1 && not (vchar (at s i) || wsp (at s i)) then Err (MailBadQuotedCharacter i)
+      else quoted s (i + n) (Cons (slice s i (i + n)) pieces)
+
+  -- | The end of a run of ASCII qtext and white space: sixteen bytes per step, then single bytes.
+  qtext-end :: Bytes -> Nat -> Nat
+  qtext-end s i =
+    if i + 16 <= bytes-len s then
+      (let k = hold s (qtext-span (bytes-data s) (nat-to-i64 i) 0) in
+      if k == 16 then qtext-end s (i + 16) else i + i64-to-nat k)
+    else if i < bytes-len s && (qtext (at s i) || wsp (at s i)) then qtext-end s (i + 1)
+    else i
+
+  -- | A phrase: words (atoms, quoted strings or encoded words) with comments allowed between them.
+  -- Adjacent encoded words join without a space; other words join with one.
+  phrase :: Bytes -> Nat -> Result MailError (Bytes, Nat)
+  phrase s i = phrase-words s i Nil False
+
+  -- | Phrase words so far (reversed) and whether the last one was an encoded word.
+  phrase-words :: Bytes -> Nat -> List Bytes -> Bool -> Result MailError (Bytes, Nat)
+  phrase-words s i words encoded = case (if is-nil words then Some i else skip-cfws s i) of
+    None -> Err MailBadComment
+    Some at-word ->
+      let j = skip-space s at-word in
+      if j >= bytes-len s then end-phrase words (Ok j) j
+      else case word s j of
+        Err error -> end-phrase words (Err error) j
+        Ok (text, decoded, next) ->
+          if encoded && decoded then phrase-words s next (join-last words text) True
+          else phrase-words s next (Cons text words) decoded
+
+  -- | Finish a phrase at the first word that does not parse; with no words the failure is the result.
+  end-phrase :: List Bytes -> Result MailError Nat -> Nat -> Result MailError (Bytes, Nat)
+  end-phrase words stop j = case words of
+    Nil -> (case stop of Err error -> Err (MailMissingWordInPhrase error); Ok end -> Err (MailMissingWordInPhrase MailInvalidAtom))
+    Cons last rest -> Ok (bytes-join (reverse words) (bytes-from-u8s [32]), j)
+
+  -- | Append text to the most recent word.
+  join-last :: List Bytes -> Bytes -> List Bytes
+  join-last words text = case words of Nil -> Cons text Nil; Cons last rest -> Cons (bytes-concat [last, text]) rest
+
+  -- | Whether a list is empty.
+  is-nil :: List Bytes -> Bool
+  is-nil xs = case xs of Nil -> True; Cons x rest -> False
+
+  -- | One phrase word: its text, whether it was an encoded word, and the position after it.
+  word :: Bytes -> Nat -> Result MailError (Bytes, Bool, Nat)
+  word s j =
+    if at s j == 34 then (case quoted s (j + 1) Nil of Err error -> Err error; Ok (text, next) -> Ok (text, False, next))
+    else case atom s j True True of
+      Err error -> Err error
+      Ok (text, next) -> case encoded-word text of
+        Err error -> Err error
+        Ok (decoded, was) -> Ok (decoded, was, next)
+
+  -- | Decode an RFC 2047 encoded word. Text that is not one is returned unchanged; an unknown charset is an error.
+  encoded-word :: Bytes -> Result MailError (Bytes, Bool)
+  encoded-word text = case mime-word-token text of
+    Err error -> Ok (text, False)
+    Ok token -> case mime-convert-known-charset (mime-word-token-charset token) (mime-word-token-content token) of
+      None -> Err (MailUnknownCharset (text-of (mime-word-token-charset token)))
+      Some decoded -> case string-from-bytes decoded of
+        Some valid -> Ok (decoded, True)
+        None -> Ok (text, False)
+
+  -- | A display name taken from a comment: its blank-separated words, each decoded when encoded, joined by spaces.
+  comment-name :: Bytes -> Result MailError Bytes
+  comment-name text = case decode-fields (fields text 0 0 Nil) Nil of
+    Err error -> Err error
+    Ok words -> Ok (bytes-join words (bytes-from-u8s [32]))
+
+  -- | Decode each field, keeping order.
+  decode-fields :: List Bytes -> List Bytes -> Result MailError (List Bytes)
+  decode-fields words acc = case words of
+    Nil -> Ok (reverse acc)
+    Cons w rest -> case encoded-word w of
+      Err error -> Err error
+      Ok (decoded, was) -> decode-fields rest (Cons decoded acc)
+
+  -- | Split on spaces and tabs, dropping empty fields; fields gather in reverse and are returned in order.
+  fields :: Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  fields text start i acc =
+    if i >= bytes-len text then reverse (if i > start then Cons (slice text start i) acc else acc)
+    else if wsp (at text i) then fields text (i + 1) (i + 1) (if i > start then Cons (slice text start i) acc else acc)
+    else fields text start (i + 1) acc
+
+  -- | Skip spaces and tabs.
+  skip-space :: Bytes -> Nat -> Nat
+  skip-space s i = if i < bytes-len s && wsp (at s i) then skip-space s (i + 1) else i
+
+  -- | Skip white space and comments; None when a comment is not closed.
+  skip-cfws :: Bytes -> Nat -> Option Nat
+  skip-cfws s i =
+    let j = skip-space s i in
+    if j < bytes-len s && at s j == 40 then (case comment s (j + 1) of None -> None; Some (text, next) -> skip-cfws s next)
+    else Some j
+
+  -- | A comment's text after its opening parenthesis, through the matching close; nested parentheses
+  -- stay in the text, and a backslash keeps the next byte literally.
+  comment :: Bytes -> Nat -> Option (Bytes, Nat)
+  comment s i = comment-from s i 1 Nil
+
+  -- | Comment bytes at a nesting depth; kept bytes gather in reverse.
+  comment-from :: Bytes -> Nat -> Nat -> List Nat -> Option (Bytes, Nat)
+  comment-from s i depth kept =
+    if depth == 0 then Some (bytes-from-list-nat (reverse kept), i)
+    else if i >= bytes-len s then None
+    else
+      let b = at s i in
+      if b == 92 && i + 1 < bytes-len s then comment-from s (i + 2) depth (Cons (at s (i + 1)) kept)
+      else if b == 40 then comment-from s (i + 1) (depth + 1) (Cons b kept)
+      else if b == 41 then comment-from s (i + 1) (depth - 1) (if depth > 1 then Cons b kept else kept)
+      else comment-from s (i + 1) depth (Cons b kept)
+
+  -- | Bytes from a list of byte values.
+  bytes-from-list-nat :: List Nat -> Bytes
+  bytes-from-list-nat values = let out = bytes-new (list-length values) in let filled = fill-list out 0 values in out
+
+  -- | Store byte values in order.
+  fill-list :: Bytes -> Nat -> List Nat -> Unit
+  fill-list out i values = case values of Nil -> (); Cons v rest -> let w = put out i v in fill-list out (i + 1) rest
+
+  -- ---------------------------------------------------------------------
+  -- Formatting.
+  -- ---------------------------------------------------------------------
+
+  -- | Format an address as "<local@domain>" or "name <local@domain>". The local part is quoted unless it is
+  -- a valid dot-atom; a printable ASCII name is quoted, and any other name becomes UTF-8 encoded words
+  -- (Base64 when the name holds characters an encoded word in a phrase may not, Q encoding otherwise).
+  mail-address-to-string :: MailAddress -> String
+  mail-address-to-string a = case a of
+    MailAddress name addr ->
+      let s = string-to-bytes addr in
+      let split = last-at s (bytes-len s) in
+      let local = slice s 0 split in
+      let domain = if split < bytes-len s then slice s (split + 1) (bytes-len s) else bytes-new 0 in
+      let shown = if needs-quote local 0 then quote local else local in
+      let angle = bytes-concat [bytes-from-u8s [60], shown, bytes-from-u8s [64], domain, bytes-from-u8s [62]] in
+      let n = string-to-bytes name in
+      if bytes-len n == 0 then text-of angle
+      else text-of (bytes-concat [display n, bytes-from-u8s [32], angle])
+
+  -- | The display-name form of a name.
+  display :: Bytes -> Bytes
+  display n =
+    if all-printable n 0 then quote n
+    else if any-of n (string-to-bytes "\"#$%&'(),.:;<>@[]^`{|}~") 0 then encode mime-b-encoding n
+    else encode mime-q-encoding n
+
+  -- | UTF-8 encoded words for a name.
+  encode :: MimeWordEncoder -> Bytes -> Bytes
+  encode encoder n = mime-word-encode-bytes encoder (string-to-bytes "utf-8") n
+
+  -- | The offset of the last "@", or the length when there is none.
+  last-at :: Bytes -> Nat -> Nat
+  last-at s i = if i == 0 then bytes-len s else if at s (i - 1) == 64 then i - 1 else last-at s (i - 1)
+
+  -- | Whether a local part must be quoted: some character is not atext, other than a dot between two non-dots.
+  needs-quote :: Bytes -> Nat -> Bool
+  needs-quote local i =
+    if i >= bytes-len local then False
+    else
+      let b = at local i in
+      if b >= 128 || atext b False then needs-quote local (i + 1)
+      else if b == 46 && i > 0 && not (at local (i - 1) == 46) && i + 1 < bytes-len local then needs-quote local (i + 1)
+      else True
+
+  -- | A quoted string: qtext and white space as they are, other visible characters escaped, controls dropped.
+  quote :: Bytes -> Bytes
+  quote text = bytes-concat [bytes-from-u8s [34], bytes-from-list-nat (quote-bytes text 0 Nil), bytes-from-u8s [34]]
+
+  -- | Quoted bytes in reverse, reversed at the end.
+  quote-bytes :: Bytes -> Nat -> List Nat -> List Nat
+  quote-bytes text i acc =
+    if i >= bytes-len text then reverse acc
+    else
+      let b = at text i in
+      if b >= 128 || qtext b || wsp b then quote-bytes text (i + 1) (Cons b acc)
+      else if vchar b then quote-bytes text (i + 1) (Cons b (Cons 92 acc))
+      else quote-bytes text (i + 1) acc
+
+  -- | Whether every byte is printable ASCII or white space.
+  all-printable :: Bytes -> Nat -> Bool
+  all-printable n i = if i >= bytes-len n then True else let b = at n i in if b < 128 && (vchar b || wsp b) then all-printable n (i + 1) else False
+
+  -- | Whether any byte of text is one of the given bytes.
+  any-of :: Bytes -> Bytes -> Nat -> Bool
+  any-of text set i = if i >= bytes-len text then False else if member set (at text i) 0 then True else any-of text set (i + 1)
+
+  -- | Whether a byte occurs in a set.
+  member :: Bytes -> Nat -> Nat -> Bool
+  member set b i = if i >= bytes-len set then False else if at set i == b then True else member set b (i + 1)
+
+  -- ---------------------------------------------------------------------
+  -- Dates.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse a header date: line breaks (CR LF) are removed first, a lone CR is rejected, and the date may use
+  -- the obsolete forms (comments, two- and three-digit years, North American zone names).
+  mail-parse-date :: String -> Result MailError (Timestamp, Offset)
+  mail-parse-date text =
+    let s = string-to-bytes text in
+    let unfolded = bytes-from-list-nat (unfold s 0 Nil) in
+    if member unfolded 13 0 then Err MailBareCarriageReturn
+    else case timestamp-from-rfc2822-lenient (text-of unfolded) of
+      Ok found -> Ok found
+      Err error -> Err (MailDateSyntax error)
+
+  -- | The bytes without CR LF pairs, in order.
+  unfold :: Bytes -> Nat -> List Nat -> List Nat
+  unfold s i acc =
+    if i >= bytes-len s then reverse acc
+    else if at s i == 13 && i + 1 < bytes-len s && at s (i + 1) == 10 then unfold s (i + 2) acc
+    else unfold s (i + 1) (Cons (at s i) acc)
+
+  -- ---------------------------------------------------------------------
+  -- Messages.
+  -- ---------------------------------------------------------------------
+
+  -- | A message: its header fields and the body bytes after the blank line.
+  data MailMessage where
+    -- | The header, then the body.
+    MailMessage :: MimeHeader -> Bytes -> MailMessage
+
+  -- | The header fields.
+  mail-message-header :: MailMessage -> MimeHeader
+  mail-message-header m = case m of MailMessage header body -> header
+
+  -- | The body bytes.
+  mail-message-body :: MailMessage -> Bytes
+  mail-message-body m = case m of MailMessage header body -> body
+
+  -- | Read a message: header lines (folded continuation lines joined by one space) up to a blank line or the
+  -- end of the input, then the body. Input that ends before any field or blank line is an empty message. Field names are canonicalized but not otherwise restricted; a field with
+  -- an empty name is skipped, and leading blanks are removed from values.
+  mail-read-message :: Bytes -> Result MailError MailMessage
+  mail-read-message input =
+    if bytes-len input == 0 then Err MailEmptyMessage
+    else if wsp (at input 0) then Err MailMalformedInitialLine
+    else header-lines input 0 mime-header
+
+  -- | Header-reading state: at the start of a logical line with the fields so far.
+  header-lines :: Bytes -> Nat -> MimeHeader -> Result MailError MailMessage
+  header-lines input i fields =
+    if i >= bytes-len input then (case header-keys fields of Nil -> Err MailEmptyMessage; Cons key rest -> Ok (MailMessage fields (bytes-new 0)))
+    else
+      let end = line-end input i in
+      let first = trim (slice input i (content-end input i end)) in
+      if bytes-len first == 0 then Ok (MailMessage fields (slice input (next-line input end) (bytes-len input)))
+      else continued input (next-line input end) (Cons first Nil) i fields
+
+  -- | Header-reading state: gathering continuation lines (those starting with a blank) of a field begun at start.
+  continued :: Bytes -> Nat -> List Bytes -> Nat -> MimeHeader -> Result MailError MailMessage
+  continued input i parts start fields =
+    if i < bytes-len input && wsp (at input i) then
+      (let end = line-end input i in
+      continued input (next-line input end) (Cons (trim (slice input i (content-end input i end))) parts) start fields)
+    else
+      let line = bytes-join (reverse parts) (bytes-from-u8s [32]) in
+      let colon = first-colon line 0 in
+      if colon >= bytes-len line then Err (MailMalformedHeaderLine start)
+      else
+        let key = canonical-header-key (slice line 0 colon) in
+        if bytes-len key == 0 then header-lines input i fields
+        else header-lines input i (header-add fields key (trim-left (slice line (colon + 1) (bytes-len line)) 0))
+
+  -- | The offset of the line feed ending a line, or the input length.
+  line-end :: Bytes -> Nat -> Nat
+  line-end input i = if i >= bytes-len input || at input i == 10 then i else line-end input (i + 1)
+
+  -- | The line's content end: before a CR that precedes the line feed.
+  content-end :: Bytes -> Nat -> Nat -> Nat
+  content-end input start end = if end > start && end < bytes-len input && at input (end - 1) == 13 then end - 1 else end
+
+  -- | The start of the next line.
+  next-line :: Bytes -> Nat -> Nat
+  next-line input end = if end < bytes-len input then end + 1 else end
+
+  -- | The offset of the first colon, or the length.
+  first-colon :: Bytes -> Nat -> Nat
+  first-colon line i = if i >= bytes-len line || at line i == 58 then i else first-colon line (i + 1)
+
+  -- | Remove leading and trailing spaces, tabs, CRs and LFs.
+  trim :: Bytes -> Bytes
+  trim b = let start = trim-start b 0 in slice b start (trim-end b (bytes-len b) start)
+
+  -- | The first offset that is not a blank.
+  trim-start :: Bytes -> Nat -> Nat
+  trim-start b i = if i < bytes-len b && blank (at b i) then trim-start b (i + 1) else i
+
+  -- | The end after dropping trailing blanks, not before start.
+  trim-end :: Bytes -> Nat -> Nat -> Nat
+  trim-end b end start = if end > start && blank (at b (end - 1)) then trim-end b (end - 1) start else end
+
+  -- | Remove leading spaces and tabs.
+  trim-left :: Bytes -> Nat -> Bytes
+  trim-left b i = if i < bytes-len b && wsp (at b i) then trim-left b (i + 1) else slice b i (bytes-len b)
+
+  -- | The first value of a header field, empty when absent.
+  mail-header-get :: MailMessage -> String -> String
+  mail-header-get m key = case header-get (mail-message-header m) (string-to-bytes key) of
+    Some value -> text-of value
+    None -> empty-string
+
+  -- | The message's Date field, parsed.
+  mail-header-date :: MailMessage -> Result MailError (Timestamp, Offset)
+  mail-header-date m =
+    let value = mail-header-get m "Date" in
+    if string-byte-length value == 0 then Err MailHeaderNotPresent else mail-parse-date value
+
+  -- | A field's value parsed as an address list.
+  mail-header-address-list :: MailMessage -> String -> Result MailError (List MailAddress)
+  mail-header-address-list m key =
+    let value = mail-header-get m key in
+    if string-byte-length value == 0 then Err MailHeaderNotPresent else mail-parse-address-list value
+
+  -- ---------------------------------------------------------------------
+  -- Characters and bytes.
+  -- ---------------------------------------------------------------------
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at s i = if i < bytes-len s then bytes-get s i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Store a byte when it fits.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | A copy of s[a, b).
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice s a b =
+    let n = minus b a in
+    let out = bytes-new n in
+    if a + n <= bytes-len s then let copied = bytes-copy-range out s 0 a n in out else out
+
+  -- | Bytes as a string; invalid UTF-8 (which the parser never produces) becomes empty.
+  text-of :: Bytes -> String
+  text-of b = case string-from-bytes b of Some t -> t; None -> empty-string
+
+  -- | Visible ASCII.
+  vchar :: Nat -> Bool
+  vchar b = b >= 33 && b <= 126
+
+  -- | Space or tab.
+  wsp :: Nat -> Bool
+  wsp b = b == 32 || b == 9
+
+  -- | Space, tab, CR or LF.
+  blank :: Nat -> Bool
+  blank b = b == 32 || b == 9 || b == 13 || b == 10
+
+  -- | ASCII atext: visible, not a special; the dot only when dots are allowed.
+  atext :: Nat -> Bool -> Bool
+  atext b dot =
+    if b == 46 then dot
+    else vchar b && not (b == 40 || b == 41 || b == 60 || b == 62 || b == 91 || b == 93 || b == 58 || b == 59 || b == 64 || b == 92 || b == 44 || b == 34)
+
+  -- | ASCII qtext: visible except the quote and backslash.
+  qtext :: Nat -> Bool
+  qtext b = vchar b && not (b == 34 || b == 92)
+
+  -- | ASCII dtext: visible except brackets and backslash.
+  dtext :: Nat -> Bool
+  dtext b = vchar b && not (b == 91 || b == 93 || b == 92)
+
+  -- | Whether every byte of a display name is atext with dots (non-ASCII counts).
+  all-atext :: Bytes -> Bool
+  all-atext b = all-atext-from b 0
+
+  -- | All-atext from an offset.
+  all-atext-from :: Bytes -> Nat -> Bool
+  all-atext-from b i = if i >= bytes-len b then True else let c = at b i in if c >= 128 || atext c True then all-atext-from b (i + 1) else False
+
+  -- | The length of the valid UTF-8 sequence at i (1 to 4), or 0 when the bytes there are not one:
+  -- overlong forms, surrogates and values above U+10FFFF are invalid.
+  rune-size :: Bytes -> Nat -> Nat
+  rune-size s i =
+    let b = at s i in
+    if i >= bytes-len s then 0
+    else if b < 128 then 1
+    else if b >= 194 && b <= 223 then (if cont (at s (i + 1)) && i + 1 < bytes-len s then 2 else 0)
+    else if b >= 224 && b <= 239 then three s i b
+    else if b >= 240 && b <= 244 then four s i b
+    else 0
+
+  -- | A three-byte sequence, excluding overlong forms and surrogates.
+  three :: Bytes -> Nat -> Nat -> Nat
+  three s i b =
+    let c = at s (i + 1) in
+    let low = if b == 224 then (160 :: Nat) else 128 in
+    let high = if b == 237 then (159 :: Nat) else 191 in
+    if i + 2 < bytes-len s && c >= low && c <= high && cont (at s (i + 2)) then 3 else 0
+
+  -- | A four-byte sequence, excluding overlong forms and values above U+10FFFF.
+  four :: Bytes -> Nat -> Nat -> Nat
+  four s i b =
+    let c = at s (i + 1) in
+    let low = if b == 240 then (144 :: Nat) else 128 in
+    let high = if b == 244 then (143 :: Nat) else 191 in
+    if i + 3 < bytes-len s && c >= low && c <= high && cont (at s (i + 2)) && cont (at s (i + 3)) then 4 else 0
+
+  -- | A UTF-8 continuation byte.
+  cont :: Nat -> Bool
+  cont b = b >= 128 && b <= 191
+
+  -- | Keep a buffer alive until a raw load has completed.
+  hold :: forall a. Bytes -> a -> a
+  hold b value = case bytes-len b of
+    _ -> value
+
+  -- | A small machine count as a natural number.
+  i64-to-nat :: I64 -> Nat
+  i64-to-nat k = if 0 <= k then nat-from-i64 k else 0
+
+
+  -- | Leading ASCII atext bytes among the sixteen at base + offset (16 when all are). Stops at controls,
+  -- space, DEL, non-ASCII bytes, the RFC 5322 specials and one extra byte (the dot, or 0 for none). Lane
+  -- order is memory order on every target, and the first stop is an unsigned minimum over lane indices.
+  prim atext-span :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %v = load <16 x i8>, ptr %at, align 1
+      %e8 = trunc i64 %2 to i8
+      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
+      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
+      %s0 = icmp eq <16 x i8> %v, %extra
+      %t1 = icmp ule <16 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %s1 = or <16 x i1> %s0, %t1
+      %t2 = icmp uge <16 x i8> %v, <i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127>
+      %s2 = or <16 x i1> %s1, %t2
+      %t3 = icmp eq <16 x i8> %v, <i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40>
+      %s3 = or <16 x i1> %s2, %t3
+      %t4 = icmp eq <16 x i8> %v, <i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41>
+      %s4 = or <16 x i1> %s3, %t4
+      %t5 = icmp eq <16 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
+      %s5 = or <16 x i1> %s4, %t5
+      %t6 = icmp eq <16 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
+      %s6 = or <16 x i1> %s5, %t6
+      %t7 = icmp eq <16 x i8> %v, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
+      %s7 = or <16 x i1> %s6, %t7
+      %t8 = icmp eq <16 x i8> %v, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
+      %s8 = or <16 x i1> %s7, %t8
+      %t9 = icmp eq <16 x i8> %v, <i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58>
+      %s9 = or <16 x i1> %s8, %t9
+      %t10 = icmp eq <16 x i8> %v, <i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59>
+      %s10 = or <16 x i1> %s9, %t10
+      %t11 = icmp eq <16 x i8> %v, <i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64>
+      %s11 = or <16 x i1> %s10, %t11
+      %t12 = icmp eq <16 x i8> %v, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %s12 = or <16 x i1> %s11, %t12
+      %t13 = icmp eq <16 x i8> %v, <i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44>
+      %s13 = or <16 x i1> %s12, %t13
+      %t14 = icmp eq <16 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %s14 = or <16 x i1> %s13, %t14
+      %pick = select <16 x i1> %s14, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
+      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
+      %r = zext i8 %first to i64
+      ret i64 %r
+    }
+
+  -- | Leading ASCII quoted-string text bytes (qtext, space or tab) among the sixteen at base + offset (16 when
+  -- all are). Stops at controls other than tab, DEL, non-ASCII bytes, the quote, the backslash and one extra
+  -- byte (0 for none), found the same way as atext-span.
+  prim qtext-span :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %base = inttoptr i64 %0 to ptr
+      %at = getelementptr i8, ptr %base, i64 %1
+      %v = load <16 x i8>, ptr %at, align 1
+      %e8 = trunc i64 %2 to i8
+      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
+      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
+      %s0 = icmp eq <16 x i8> %v, %extra
+      %low = icmp ult <16 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
+      %tab = icmp eq <16 x i8> %v, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
+      %ntab = xor <16 x i1> %tab, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
+      %ctl = and <16 x i1> %low, %ntab
+      %s1 = or <16 x i1> %s0, %ctl
+      %t2 = icmp uge <16 x i8> %v, <i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127>
+      %s2 = or <16 x i1> %s1, %t2
+      %t3 = icmp eq <16 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
+      %s3 = or <16 x i1> %s2, %t3
+      %t4 = icmp eq <16 x i8> %v, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
+      %s4 = or <16 x i1> %s3, %t4
+      %pick = select <16 x i1> %s4, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
+      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
+      %r = zext i8 %first to i64
+      ret i64 %r
+    }

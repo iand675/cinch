@@ -287,4 +287,4 @@ named error. The child inherits this process's environment plus
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Process.cinch`. Source SHA-256: `08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Process.cinch`. Source SHA-256: `57c8c854e61afb03d242709696cda431007cd423220e4e69bbaf112422eaf37b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -282,4 +282,4 @@ written.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Prim/Sys/Linux.cinch`. Source SHA-256: `9cb26e9419f1e5d39ad1f9f7d72b03a30cf463f216e8b26536a802cc3c8839fd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Prim/Sys/Linux.cinch`. Source SHA-256: `cf0a9233c9c21c13faa3f5978d0787dd8cfefe0bc5f47b054997800408670a4d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

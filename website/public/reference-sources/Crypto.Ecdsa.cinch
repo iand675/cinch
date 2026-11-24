@@ -1,0 +1,183 @@
+-- | ECDSA signatures over P-256 (FIPS 186-5), with deterministic nonces (RFC 6979) and DER encoding.
+-- A signature over a message digest is the pair (r, s): r is the x-coordinate
+-- of k * G reduced modulo n and s = (e + r * d) / k modulo n, where e is the
+-- digest's leftmost 256 bits. The nonce k comes from the RFC 6979 HMAC-DRBG
+-- over the private key and digest (HMAC-SHA-256), optionally hedged with extra
+-- entropy; Effect.Crypto supplies fresh entropy for randomized signing.
+-- Verification checks both values are in [1, n - 1] and that the x-coordinate of
+-- (e / s) * G + (r / s) * Q matches r. Signatures are 64 fixed-length bytes
+-- (r || s) or a DER SEQUENCE of two INTEGERs, parsed strictly.
+module Crypto.Ecdsa where
+
+  import Crypto.Hmac
+  import Crypto.P256
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export EcdsaError, EcdsaInvalidSignature, ecdsa-error-message
+  export ecdsa-sign, ecdsa-sign-hedged, ecdsa-verify, ecdsa-sign-der, ecdsa-sign-der-hedged, ecdsa-verify-der, ecdsa-rfc6979-nonce
+
+  -- | A signature that cannot be produced or parsed.
+  data EcdsaError where
+    -- | A malformed signature encoding, or a nonce that yielded a zero component.
+    EcdsaInvalidSignature :: EcdsaError
+
+  -- | Render an error.
+  ecdsa-error-message :: EcdsaError -> String
+  ecdsa-error-message e = case e of EcdsaInvalidSignature -> "ecdsa: invalid signature"
+
+  -- | Sign a digest with a deterministic RFC 6979 nonce: 64 bytes r || s.
+  ecdsa-sign :: P256PrivateKey -> Bytes -> Result EcdsaError Bytes
+  ecdsa-sign key digest = ecdsa-sign-hedged key digest (bytes-new 0)
+
+  -- | Sign with the RFC 6979 nonce hedged by extra entropy (section 3.6); empty entropy gives ecdsa-sign.
+  ecdsa-sign-hedged :: P256PrivateKey -> Bytes -> Bytes -> Result EcdsaError Bytes
+  ecdsa-sign-hedged key digest entropy =
+    let k = ecdsa-rfc6979-nonce key digest entropy in
+    let d = p256-private-scalar key in
+    let e = p256-scalar-reduce digest in
+    case p256-point-x-scalar (p256-base-mult k) of
+      None -> Err EcdsaInvalidSignature
+      Some r ->
+        let s = p256-scalar-mul (p256-scalar-inverse k) (p256-scalar-add e (p256-scalar-mul r d)) in
+        if p256-scalar-is-zero r || p256-scalar-is-zero s then Err EcdsaInvalidSignature
+        else Ok (bytes-concat [p256-scalar-bytes r, p256-scalar-bytes s])
+
+  -- | Verify a 64-byte r || s signature over a digest.
+  ecdsa-verify :: P256PublicKey -> Bytes -> Bytes -> Bool
+  ecdsa-verify key digest sig =
+    if not (bytes-len sig == 64) then False
+    else case (p256-scalar (slice sig 0 32), p256-scalar (slice sig 32 64)) of
+      (Ok r, Ok s) ->
+        if p256-scalar-is-zero r || p256-scalar-is-zero s then False
+        else
+          let w = p256-scalar-inverse s in
+          let u1 = p256-scalar-mul (p256-scalar-reduce digest) w in
+          let u2 = p256-scalar-mul r w in
+          let point = p256-point-add (p256-base-mult u1) (p256-point-mult u2 (p256-public-point key)) in
+          (case p256-point-x-scalar point of Some x -> p256-scalar-bytes x == p256-scalar-bytes r; None -> False)
+      other -> False
+
+  -- | Sign and DER-encode: SEQUENCE { INTEGER r, INTEGER s }.
+  ecdsa-sign-der :: P256PrivateKey -> Bytes -> Result EcdsaError Bytes
+  ecdsa-sign-der key digest = case ecdsa-sign key digest of Err e -> Err e; Ok rs -> Ok (to-der rs)
+
+  -- | Hedged signing, DER-encoded.
+  ecdsa-sign-der-hedged :: P256PrivateKey -> Bytes -> Bytes -> Result EcdsaError Bytes
+  ecdsa-sign-der-hedged key digest entropy = case ecdsa-sign-hedged key digest entropy of Err e -> Err e; Ok rs -> Ok (to-der rs)
+
+  -- | Verify a DER signature; any encoding that is not strict DER fails.
+  ecdsa-verify-der :: P256PublicKey -> Bytes -> Bytes -> Bool
+  ecdsa-verify-der key digest der = case from-der der of Some rs -> ecdsa-verify key digest rs; None -> False
+
+  -- | The RFC 6979 nonce for a key and digest with HMAC-SHA-256, with optional extra entropy appended to the seed.
+  ecdsa-rfc6979-nonce :: P256PrivateKey -> Bytes -> Bytes -> P256Scalar
+  ecdsa-rfc6979-nonce key digest entropy =
+    let x = p256-private-key-bytes key in
+    let h = p256-scalar-bytes (p256-scalar-reduce digest) in
+    let v0 = bytes-repeat 32 (bytes-from-u8s [1]) in
+    let k0 = bytes-new 32 in
+    let k1 = mac k0 (bytes-concat [v0, bytes-from-u8s [0], x, h, entropy]) in
+    let v1 = mac k1 v0 in
+    let k2 = mac k1 (bytes-concat [v1, bytes-from-u8s [1], x, h, entropy]) in
+    let v2 = mac k2 v1 in
+    draw-nonce k2 v2
+
+  -- | Draw candidates until one lies in [1, n - 1].
+  draw-nonce :: Bytes -> Bytes -> P256Scalar
+  draw-nonce k v =
+    let t = mac k v in
+    case p256-scalar t of
+      Ok s -> if p256-scalar-is-zero s then retry k t else s
+      Err e -> retry k t
+
+  -- | Reseed after a rejected candidate.
+  retry :: Bytes -> Bytes -> P256Scalar
+  retry k v = let k2 = mac k (bytes-concat [v, bytes-from-u8s [0]]) in draw-nonce k2 (mac k2 v)
+
+  -- | HMAC-SHA-256.
+  mac :: Bytes -> Bytes -> Bytes
+  mac key message = hmac-tag (hmac-key HmacSha256 key) message
+
+  -- | r || s as DER.
+  to-der :: Bytes -> Bytes
+  to-der rs =
+    let body = bytes-concat [der-integer (slice rs 0 32), der-integer (slice rs 32 64)] in
+    bytes-concat [bytes-from-u8s [48], der-length (bytes-len body), body]
+
+  -- | A non-negative big-endian integer as a minimal DER INTEGER.
+  der-integer :: Bytes -> Bytes
+  der-integer value =
+    let trimmed = trim-zeros value 0 in
+    let content = if bytes-len trimmed == 0 then bytes-from-u8s [0] else if at trimmed 0 >= 128 then bytes-concat [bytes-from-u8s [0], trimmed] else trimmed in
+    bytes-concat [bytes-from-u8s [2], der-length (bytes-len content), content]
+
+  -- | Leading zero bytes removed.
+  trim-zeros :: Bytes -> Nat -> Bytes
+  trim-zeros b i = if i < bytes-len b && at b i == 0 then trim-zeros b (i + 1) else slice b i (bytes-len b)
+
+  -- | A DER length (short form below 128, else one length byte, as signatures need).
+  der-length :: Nat -> Bytes
+  der-length n = if n < 128 then one n else bytes-concat [bytes-from-u8s [129], one n]
+
+  -- | Parse strict DER back to r || s.
+  from-der :: Bytes -> Option Bytes
+  from-der der =
+    if bytes-len der < 8 || not (at der 0 == 48) then None
+    else case read-length der 1 of
+      None -> None
+      Some (n, start) ->
+        if not (start + n == bytes-len der) then None
+        else case read-integer der start of
+          None -> None
+          Some (r, next) -> case read-integer der next of
+            None -> None
+            Some (s, done) -> if done == bytes-len der then Some (bytes-concat [r, s]) else None
+
+  -- | A DER length at an offset (short form, or long form with one minimal byte): the length and the offset after it.
+  read-length :: Bytes -> Nat -> Option (Nat, Nat)
+  read-length der i =
+    let b = at der i in
+    if i >= bytes-len der then None
+    else if b < 128 then Some (b, i + 1)
+    else if b == 129 && at der (i + 1) >= 128 && i + 1 < bytes-len der then Some (at der (i + 1), i + 2)
+    else None
+
+  -- | A positive minimal DER INTEGER of at most 32 value bytes, as 32 big-endian bytes.
+  read-integer :: Bytes -> Nat -> Option (Bytes, Nat)
+  read-integer der i =
+    if not (at der i == 2) || i >= bytes-len der then None
+    else case read-length der (i + 1) of
+      None -> None
+      Some (n, start) ->
+        if n == 0 || start + n > bytes-len der then None
+        else
+          let first = at der start in
+          if first >= 128 then None
+          else if first == 0 && (n == 1 || at der (start + 1) < 128) then None
+          else
+            let value = trim-zeros (slice der start (start + n)) 0 in
+            if bytes-len value > 32 then None else Some (left-pad value 32, start + n)
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | One byte.
+  one :: Nat -> Bytes
+  one v = let out = bytes-new 1 in let w = if v < 256 then bytes-set out 0 v else () in out
+
+  -- | A fresh copy of b[x, y).
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b x y =
+    let n = if x <= y then y - x else 0 in
+    let out = bytes-new n in
+    if x + n <= bytes-len b then let c = bytes-copy-range out b 0 x n in out else out
+
+  -- | Left-pad with zeros to n bytes.
+  left-pad :: Bytes -> Nat -> Bytes
+  left-pad b n = if bytes-len b >= n then b else bytes-concat [bytes-new (n - bytes-len b), b]
