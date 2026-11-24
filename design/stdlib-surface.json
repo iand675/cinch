@@ -1936,17 +1936,14 @@
     },
     {
       "reference_package": "math/rand/v2",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
         "Data.ChaCha8",
+        "Data.Rand",
+        "Effect.Rand",
         "Effect.Random"
       ],
-      "remaining": [
-        "Generic explicit sources and state capabilities",
-        "Bounded and scalar distributions, normal/exponential/Zipf samplers",
-        "Permutations/shuffling and concurrent adaptations",
-        "PCG source in the production prelude"
-      ],
+      "remaining": [],
       "reference_declarations": 60,
       "candidate_modules": [
         {
@@ -1955,13 +1952,21 @@
           "availability": "Isolated immutable PCG state/draw/snapshot candidate; absent from production prelude."
         }
       ],
-      "review": "Data.ChaCha8 reproduces the reference ChaCha8 generator: four word-interleaved eight-round blocks per call run as <4 x i32> lanes in generated kernels checked against a scalar model, with the four-block reseed period that withholds the last four outputs as the next seed. Scripted draws, byte reads across partial values, encodings and restored generators match the reference output for output, and malformed encodings are refused with its messages. States are immutable values. The isolated PCG candidate is still outside the production prelude, and the generic Rand distributions and permutations remain open.",
+      "review": "Data.Rand models sources as values: the Source signature yields a 64-bit draw and the next source, with PCG (128-bit LCG with the DXSM output, one i128 multiply-add per draw) and ChaCha8 as instances, so streams are deterministic, replayable and independent. Bounded draws use Lemire's multiply-and-reject with the 64-bit host's choices, floats take 53 and 24 bits, permutations and shuffles apply the reference's Fisher-Yates swaps to an index buffer, normal and exponential variates use the 128- and 256-strip ziggurats (tables generated from the Marsaglia-Tsang recurrences through the bit-exact exp/log models, and equal to the reference's), and Zipf uses rejection-inversion. Scripts over three PCG seeds and a ChaCha8 seed reproduce the reference draw for draw for every method, encodings round-trip and refusals match. Effect.Rand seeds sources from operating-system entropy for the top-level functions. Cost: the current compiler boxes the returned source, so a raw draw is about 25 ns against the reference's 2 ns.",
       "tests": [
+        "lib_rand",
         "lib_chacha8"
       ],
       "capability_mapping": {
-        "ChaCha8/NewChaCha8/Uint64/Read/Seed": "Data.ChaCha8: chacha8-new, chacha8-uint64 and chacha8-read return the next state; chacha8-reseed",
-        "ChaCha8 MarshalBinary/AppendBinary/UnmarshalBinary": "chacha8-marshal and chacha8-unmarshal with the same encoding, unread partial-read bytes included"
+        "Source/New/Rand": "the Source signature (a draw and the next source); every Rand method is a function over any source returning the next source",
+        "PCG/NewPCG/Seed/Uint64/MarshalBinary/AppendBinary/UnmarshalBinary": "Pcg: pcg-new, pcg-seed, pcg-uint64, pcg-marshal, pcg-unmarshal (reference encoding and error)",
+        "Uint64/Int64/Uint32/Int32/Uint/Int": "rand-uint64, rand-int64, rand-uint32, rand-int32 (Uint and Int are the 64-bit forms)",
+        "Uint64N/Int64N/Uint32N/Int32N/UintN/IntN/N": "rand-uint64-n, rand-int64-n, rand-uint32-n, rand-int32-n: None for an empty bound where the reference panics; the generic N is the typed forms",
+        "Float64/Float32": "rand-float64, rand-float32",
+        "Perm/Shuffle": "rand-perm (List I64) and rand-shuffle (a list in the order the same swaps give)",
+        "NormFloat64/ExpFloat64": "rand-norm-float64, rand-exp-float64 (ziggurat tables derived from the construction)",
+        "Zipf/NewZipf/Zipf.Uint64": "zipf-new (None for s <= 1 or v < 1) and zipf-uint64 over any source",
+        "top-level functions": "Effect.Rand: random-pcg and random-chacha8 seed a source from operating-system entropy; draw from it with the functions above"
       }
     },
     {

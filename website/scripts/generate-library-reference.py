@@ -287,6 +287,8 @@ DESCRIPTIONS = {
 'Data.CookieJar':'An RFC 6265 cookie jar as an immutable value: store the cookies responses set and choose the cookies a request sends.',
 'Text.Punycode':'Punycode (RFC 3492) encoding and decoding, and ASCII-compatible host names with xn-- labels.',
 'Data.Float':'Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target.',
+'Data.Rand':'Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf.',
+'Effect.Rand':'Pseudorandom sources seeded from operating-system entropy.',
 'Text.Lzw':'Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.',
 'Text.Tar':'Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.',
 'Text.TextProto':'Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail.',

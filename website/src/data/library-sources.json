@@ -747,6 +747,14 @@
       "public_methods": 0
     },
     {
+      "module": "Data.Rand",
+      "path": "seed/prelude/Data/Rand.cinch",
+      "sha256": "36b9fee50dbb6086e686f303683d130764dd167aec5cd48dfb2efe3682677c53",
+      "embedded": false,
+      "values": 22,
+      "public_methods": 1
+    },
+    {
       "module": "Data.Rational",
       "path": "seed/prelude/Data/Rational.cinch",
       "sha256": "87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac",
@@ -1320,6 +1328,14 @@
       "sha256": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97",
       "embedded": false,
       "values": 10,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Rand",
+      "path": "seed/prelude/Effect/Rand.cinch",
+      "sha256": "1849a085f5e7c61bd4d30491b389f120737eeaee6049ff0839e428e717b7efdf",
+      "embedded": false,
+      "values": 2,
       "public_methods": 0
     },
     {

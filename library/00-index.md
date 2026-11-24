@@ -160,6 +160,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Ordering](Data.Ordering.md) | Embedded | The LT, EQ, and GT comparison result vocabulary and its instances. |
 | [Data.Path](Data.Path.md) | Embedded | Platform path values and composition/conversion operations used by filesystem and process APIs. |
 | [Data.Producer](Data.Producer.md) | Embedded | Partial producer vocabulary, distinct from codata whose next observation is guaranteed productive. |
+| [Data.Rand](Data.Rand.md) | Ship source | Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf. |
 | [Data.Rational](Data.Rational.md) | Ship source | Rational numbers with explicit denominator/error policy and arithmetic operations. |
 | [Data.Result](Data.Result.md) | Embedded | Success and named failure values, error-aware transformations, partitioning, and sequencing instances. |
 | [Data.Search](Data.Search.md) | Ship source | Indexed binary search with monotone predicates, insertion positions and effectful three-way comparisons. |
@@ -324,6 +325,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Process](Effect.Process.md) | Embedded | One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments. |
 | [Effect.Pty](Effect.Pty.md) | Ship source | Pseudo-terminal-backed child processes, terminal I/O, and lifecycle operations. |
 | [Effect.QuotedPrintable](Effect.QuotedPrintable.md) | Ship source | Incremental quoted-printable readers and writers with explicit binary policy, partial progress and sticky errors. |
+| [Effect.Rand](Effect.Rand.md) | Ship source | Pseudorandom sources seeded from operating-system entropy. |
 | [Effect.Random](Effect.Random.md) | Ship source | Runtime entropy/random utilities with explicit effectful access. |
 | [Effect.Resolv](Effect.Resolv.md) | Ship source | Hostname/address resolution through the runtime, with named failure results. |
 | [Effect.Scanner.Split](Effect.Scanner.Split.md) | Ship source | Byte-preserving token splitters with explicit absent, empty and final token states. |
@@ -363,7 +365,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **286 source modules**: **66 embedded** and **220 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **288 source modules**: **66 embedded** and **222 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

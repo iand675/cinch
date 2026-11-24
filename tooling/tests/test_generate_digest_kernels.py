@@ -28,7 +28,7 @@ class DigestKernelGeneration(unittest.TestCase):
 
     def test_generated_suffixes_are_current(self) -> None:
         """Every generator's --check mode accepts the committed module."""
-        for script in ("generate_sha512_kernels.py", "generate_sha1_md5_kernels.py", "generate_sha3_kernels.py", "generate_aes_kernels.py", "generate_des_kernels.py", "generate_xml_kernels.py", "generate_mlkem_kernels.py", "generate_p256_kernels.py", "generate_jpeg_kernels.py", "generate_chacha_kernels.py", "generate_chacha8_kernels.py", "generate_float_kernels.py"):
+        for script in ("generate_sha512_kernels.py", "generate_sha1_md5_kernels.py", "generate_sha3_kernels.py", "generate_aes_kernels.py", "generate_des_kernels.py", "generate_xml_kernels.py", "generate_mlkem_kernels.py", "generate_p256_kernels.py", "generate_jpeg_kernels.py", "generate_chacha_kernels.py", "generate_chacha8_kernels.py", "generate_float_kernels.py", "generate_rand_kernels.py"):
             with self.subTest(script=script):
                 result = subprocess.run([sys.executable, str(ROOT / "tooling" / script), "--check"], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -91,6 +91,17 @@ class AesKernelGeneration(unittest.TestCase):
     def test_float_kernel_models_match_the_reference_vectors(self) -> None:
         """The binary64 kernels, run as Python models, reproduce every reference result bit for bit."""
         float_kernels.verify()
+
+    def test_ziggurat_tables_follow_their_recurrences(self) -> None:
+        """Edge densities fall from 1 and strip widths grow outward, as the construction requires; thresholds fit the
+        31-bit (normal) or 32-bit (exponential) position, with strip 1 never accepted outright."""
+        import generate_rand_kernels as rand_kernels
+        for (k, w, f), bits in ((rand_kernels.normal_tables(), 31), (rand_kernels.exp_tables(), 32)):
+            self.assertEqual(f[0], 1.0)
+            self.assertTrue(all(a >= b for a, b in zip(f, f[1:])))
+            self.assertTrue(all(a <= b for a, b in zip(w[1:], w[2:])))
+            self.assertEqual(k[1], 0)
+            self.assertTrue(all(0 <= v < 2**bits for v in k))
 
 
 if __name__ == "__main__":
