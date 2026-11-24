@@ -1,0 +1,707 @@
+/* Hackage-style standard library (`stdlib`) pages inside PlatformLayout.
+   Uses PlatformLayout's light/dark variables (--platform-*) so light, dark,
+   and system themes stay uniform across /packages/, /packages/stdlib/,
+   /packages/stdlib/<Module>/, and /packages/search/. */
+
+:root.cinch-platform {
+  --stdlib-tok-comment: #6e735c;
+  --stdlib-tok-keyword: #98532d;
+  --stdlib-tok-type: #3e5b34;
+  --stdlib-tok-string: #4d6738;
+  --stdlib-tok-number: #8d5524;
+  --stdlib-tok-operator: #70644e;
+}
+
+:root.cinch-platform[data-theme='dark'] {
+  --stdlib-tok-comment: #96a085;
+  --stdlib-tok-keyword: #f0ac78;
+  --stdlib-tok-type: #d6c993;
+  --stdlib-tok-string: #bacb9b;
+  --stdlib-tok-number: #f1ce94;
+  --stdlib-tok-operator: #c5c3ac;
+}
+
+/* Package workspace topbar & 3-column layout (fixes standalone use outside .preview-note) */
+.stdlib-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.3rem;
+  padding: 1.1rem 4.5%;
+  border-bottom: 1px solid var(--platform-rule);
+  font-size: 0.76rem;
+  color: var(--platform-muted);
+}
+.stdlib-topbar > div {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.stdlib-topbar a {
+  text-decoration: none;
+  color: inherit;
+}
+.stdlib-topbar a:hover {
+  color: var(--platform-accent);
+}
+
+.stdlib-workspace {
+  display: grid;
+  grid-template-columns: 245px minmax(0, 1fr) 170px;
+  gap: 2.5rem;
+  padding: 2.2rem 4.5% 4.5rem;
+  max-width: 1720px;
+  margin: auto;
+  align-items: start;
+}
+.stdlib-workspace--overview {
+  grid-template-columns: 245px minmax(0, 1fr);
+}
+
+/* Left sidebar: family-grouped module explorer */
+.stdlib-nav {
+  position: sticky;
+  top: 1.6rem;
+  max-height: calc(100vh - 3.2rem);
+  overflow-y: auto;
+  border-top: 3px double var(--platform-rule);
+  padding-top: 1.1rem;
+  padding-right: 0.4rem;
+  min-width: 0;
+}
+.stdlib-nav-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+.stdlib-nav-home {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  text-decoration: none;
+  color: var(--platform-ink);
+}
+.stdlib-nav-home:hover,
+.stdlib-nav-home[aria-current='page'] {
+  color: var(--platform-accent);
+}
+.stdlib-nav-ver {
+  font: 0.72rem 'IBM Plex Mono', monospace;
+  color: var(--platform-muted);
+}
+.stdlib-nav-search-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid var(--platform-rule);
+  border-radius: 3px 16px 16px 3px;
+  background: var(--platform-panel);
+  font: 0.74rem 'IBM Plex Mono', monospace;
+  text-decoration: none;
+  color: var(--platform-ink);
+}
+.stdlib-nav-search-link:hover {
+  border-color: var(--platform-accent);
+  color: var(--platform-accent);
+}
+.stdlib-nav-filter {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.9rem;
+  border: 1px solid var(--platform-rule);
+  border-radius: 3px 14px 3px 3px;
+  background: var(--platform-control);
+  color: var(--platform-ink);
+  font: 0.76rem 'IBM Plex Mono', monospace;
+}
+.stdlib-nav-filter::placeholder {
+  color: var(--platform-muted);
+}
+.stdlib-nav-family {
+  margin-bottom: 0.35rem;
+}
+.stdlib-nav-family > summary {
+  cursor: pointer;
+  padding: 0.38rem 0.4rem;
+  font: 600 0.72rem 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--platform-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  list-style: none;
+}
+.stdlib-nav-family > summary::-webkit-details-marker {
+  display: none;
+}
+.stdlib-nav-family > summary:hover {
+  color: var(--platform-ink);
+}
+.stdlib-nav-family > summary .fam-count {
+  font-weight: 400;
+  opacity: 0.8;
+}
+.stdlib-nav-family ul {
+  list-style: none;
+  margin: 0.15rem 0 0.55rem;
+  padding: 0;
+}
+.stdlib-nav-family li {
+  border-left: 1px solid var(--platform-rule);
+}
+.stdlib-nav-family li a {
+  display: block;
+  padding: 0.34rem 0.65rem;
+  font: 0.73rem/1.45 'IBM Plex Mono', monospace;
+  text-decoration: none;
+  color: var(--platform-ink);
+  overflow-wrap: anywhere;
+}
+.stdlib-nav-family li a:hover {
+  background: var(--platform-hover);
+  color: var(--platform-accent);
+}
+.stdlib-nav-family li a[aria-current='page'] {
+  border-left: 2px solid var(--platform-accent);
+  background: var(--platform-active);
+  color: var(--platform-accent);
+  font-weight: 600;
+  border-radius: 0 14px 14px 0;
+}
+.stdlib-nav-back {
+  display: inline-block;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--platform-rule);
+  width: 100%;
+  font: 0.74rem 'IBM Plex Mono', monospace;
+  color: var(--platform-muted);
+  text-decoration: none;
+}
+.stdlib-nav-back:hover {
+  color: var(--platform-accent);
+}
+
+/* Right sidebar: On this page */
+.stdlib-toc {
+  position: sticky;
+  top: 1.6rem;
+  border-top: 1px solid var(--platform-rule);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font: 0.74rem/1.45 'IBM Plex Mono', monospace;
+}
+.stdlib-toc > span {
+  color: var(--platform-muted);
+  font-size: 0.72rem;
+  margin-bottom: 0.3rem;
+}
+.stdlib-toc a {
+  text-decoration: none;
+  color: var(--platform-secondary);
+}
+.stdlib-toc a:hover {
+  color: var(--platform-accent);
+}
+.stdlib-toc-sep {
+  border: 0;
+  border-top: 1px solid var(--platform-rule);
+  margin: 0.45rem 0;
+}
+
+/* Main article header */
+.stdlib-article {
+  min-width: 0;
+}
+.stdlib-header {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--platform-rule);
+}
+.stdlib-header .platform-eyebrow {
+  color: var(--platform-muted);
+  margin-bottom: 1rem;
+  font-size: var(--label);
+}
+.stdlib-header h1 {
+  font-size: clamp(2.1rem, 3.6vw, 3.4rem);
+  margin: 0 0 0.85rem;
+  overflow-wrap: anywhere;
+}
+.stdlib-header > p {
+  color: var(--platform-muted);
+  font-size: 1rem;
+  max-width: 78ch;
+  margin: 0 0 1.15rem;
+}
+.stdlib-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.4rem;
+  font-size: var(--label);
+  color: var(--platform-muted);
+  margin-bottom: 1rem;
+}
+.stdlib-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.4rem;
+  font: 0.76rem 'IBM Plex Mono', monospace;
+}
+.stdlib-actions a {
+  color: var(--platform-accent);
+  text-decoration: none;
+}
+.stdlib-actions a:hover {
+  text-decoration: underline;
+}
+
+/* Support tags (Embedded / Ship source) */
+.support-tag {
+  display: inline-block;
+  font: 600 0.72rem/1.3 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.support-tag--current {
+  color: var(--platform-olive);
+  background: color-mix(in srgb, var(--platform-olive) 14%, transparent);
+}
+.support-tag--source {
+  color: var(--platform-accent);
+  background: color-mix(in srgb, var(--platform-accent) 14%, transparent);
+}
+
+/* Rendered Hackage module body */
+.stdlib-doc-body {
+  margin-top: 1.5rem;
+  font-size: 0.96rem;
+  line-height: 1.75;
+}
+.stdlib-doc-body h2 {
+  font-size: 1.55rem;
+  margin: 2.4rem 0 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--platform-rule);
+  scroll-margin-top: 4rem;
+}
+.stdlib-doc-body h3 {
+  font-size: 1.15rem;
+  margin: 1.5rem 0 0.65rem;
+}
+.stdlib-doc-body p {
+  margin: 0.65rem 0;
+  max-width: 82ch;
+}
+.stdlib-doc-body a {
+  color: var(--platform-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.stdlib-doc-body code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85em;
+  background: var(--platform-panel);
+  padding: 0.12rem 0.35rem;
+  border-radius: 3px;
+}
+.stdlib-doc-body pre {
+  margin: 1rem 0;
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--platform-rule);
+  border-radius: 4px 18px 4px 4px;
+  background: var(--platform-panel);
+  overflow-x: auto;
+  font: 0.8rem/1.6 'IBM Plex Mono', monospace;
+}
+.stdlib-doc-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+.stdlib-doc-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.86rem;
+}
+.stdlib-doc-body th,
+.stdlib-doc-body td {
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--platform-rule);
+  vertical-align: top;
+}
+.stdlib-doc-body th {
+  font: 600 0.72rem 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--platform-muted);
+}
+
+/* Collapsible Synopsis & Ship-source Closure */
+.stdlib-doc-body .doc-synopsis,
+.stdlib-doc-body .doc-closure {
+  margin: 1.2rem 0 1.6rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--platform-rule);
+  border-radius: 4px 22px 4px 4px;
+  background: var(--platform-panel);
+}
+.stdlib-doc-body .doc-synopsis > summary,
+.stdlib-doc-body .doc-closure > summary {
+  cursor: pointer;
+  font: 600 0.76rem 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--platform-ink);
+}
+.stdlib-doc-body .doc-synopsis-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.8rem 0 0;
+  display: grid;
+  gap: 0.28rem;
+}
+.stdlib-doc-body .doc-synopsis-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--platform-rule) 45%, transparent);
+  overflow-x: auto;
+}
+.stdlib-doc-body .doc-synopsis-list li.syn-sub {
+  padding-inline-start: 1.15rem;
+}
+.stdlib-doc-body .doc-synopsis-list .syn-name {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+.stdlib-doc-body .doc-synopsis-list .syn-sig {
+  background: transparent;
+  padding: 0;
+  font-size: 0.76rem;
+  white-space: nowrap;
+  color: var(--platform-muted);
+}
+
+/* Hackage Declaration Entries */
+.stdlib-doc-body .doc-entry {
+  margin: 1.35rem 0 1.7rem;
+  scroll-margin-top: 5rem;
+}
+.stdlib-doc-body .doc-sig-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.65rem 0.95rem;
+  border: 1px solid var(--platform-rule);
+  border-inline-start: 3px solid var(--platform-accent);
+  border-radius: 3px 16px 3px 3px;
+  background: var(--platform-panel);
+  overflow-x: auto;
+}
+.stdlib-doc-body .doc-sig {
+  background: transparent;
+  padding: 0;
+  font: 0.83rem/1.55 'IBM Plex Mono', monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--platform-ink);
+}
+.stdlib-doc-body .doc-decl-name {
+  font-weight: 700;
+}
+.stdlib-doc-body .doc-sig-links {
+  display: flex;
+  gap: 0.7rem;
+  flex-shrink: 0;
+  font: 0.72rem 'IBM Plex Mono', monospace;
+  white-space: nowrap;
+}
+.stdlib-doc-body .doc-sig-links a {
+  text-decoration: none;
+}
+.stdlib-doc-body .doc-sig-links a:hover {
+  text-decoration: underline;
+}
+.stdlib-doc-body .doc-body {
+  padding: 0.55rem 0.25rem 0 1.05rem;
+}
+.stdlib-doc-body .doc-body > p:first-child {
+  margin-top: 0.25rem;
+}
+.stdlib-doc-body .doc-children {
+  margin-top: 0.75rem;
+}
+.stdlib-doc-body .doc-children h4 {
+  font: 600 0.72rem 'IBM Plex Mono', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--platform-muted);
+  margin: 0.4rem 0 0.45rem;
+}
+.stdlib-doc-body .doc-children ul,
+.stdlib-doc-body .doc-module-instances {
+  list-style: none;
+  padding: 0 0 0 0.9rem;
+  margin: 0;
+  border-inline-start: 2px solid var(--platform-rule);
+  display: grid;
+  gap: 0.5rem;
+}
+.stdlib-doc-body .doc-children li,
+.stdlib-doc-body .doc-module-instances li {
+  font-size: 0.86rem;
+  scroll-margin-top: 5rem;
+}
+.stdlib-doc-body .doc-children li > code,
+.stdlib-doc-body .doc-method-row > code,
+.stdlib-doc-body .doc-module-instances li > code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.stdlib-doc-body .doc-method-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+.stdlib-doc-body .doc-child-prose {
+  font-size: 0.88rem;
+  color: var(--platform-muted);
+  margin-top: 0.2rem;
+}
+.stdlib-doc-body .doc-instances {
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--platform-rule);
+  background: var(--platform-panel);
+  border-radius: 3px 14px 3px 3px;
+}
+.stdlib-doc-body .doc-instances summary {
+  cursor: pointer;
+  font: 600 0.74rem 'IBM Plex Mono', monospace;
+  color: var(--platform-muted);
+}
+.stdlib-doc-body .doc-instances ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.55rem 0 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.stdlib-doc-body .doc-instances li {
+  font-size: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.4rem 1rem;
+}
+.stdlib-doc-body .doc-instances li > code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.78rem;
+}
+.stdlib-doc-body .doc-inst-meta {
+  font: 0.72rem 'IBM Plex Mono', monospace;
+  color: var(--platform-muted);
+}
+
+/* Syntax tokens & clickable type links */
+.stdlib-doc-body .doc-type-link {
+  color: var(--stdlib-tok-type);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+.stdlib-doc-body .doc-type-link:hover {
+  color: var(--platform-accent);
+  border-bottom-style: solid;
+}
+.stdlib-doc-body .tok-comment { color: var(--stdlib-tok-comment); }
+.stdlib-doc-body .tok-keyword { color: var(--stdlib-tok-keyword); font-weight: 500; }
+.stdlib-doc-body .tok-constructor,
+.stdlib-doc-body .tok-type { color: var(--stdlib-tok-type); }
+.stdlib-doc-body .tok-string,
+.stdlib-doc-body .tok-char { color: var(--stdlib-tok-string); }
+.stdlib-doc-body .tok-number { color: var(--stdlib-tok-number); }
+.stdlib-doc-body .tok-operator { color: var(--stdlib-tok-operator); }
+
+/* Overview page family grid & Hoogle box */
+.stdlib-hoogle-box {
+  margin: 1.5rem 0 2rem;
+  padding: 1.15rem 1.3rem;
+  border: 1px solid var(--platform-rule);
+  border-radius: 4px 26px 4px 4px;
+  background: var(--platform-panel);
+}
+.stdlib-hoogle-box label {
+  display: block;
+  margin-bottom: 0.55rem;
+  font: 600 0.72rem 'IBM Plex Mono', monospace;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--platform-muted);
+}
+.stdlib-hoogle-row {
+  display: flex;
+  gap: 0.65rem;
+  align-items: stretch;
+}
+.stdlib-hoogle-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--platform-rule);
+  border-radius: 4px 18px 18px 4px;
+  background: var(--platform-paper);
+  color: var(--platform-ink);
+  font: 0.86rem 'IBM Plex Mono', monospace;
+}
+.stdlib-hoogle-row button {
+  padding: 0.65rem 1.15rem;
+  border: 1px solid var(--platform-accent);
+  border-radius: 4px 18px 18px 4px;
+  background: #d88549;
+  color: #1c1f17;
+  font: 600 0.78rem 'IBM Plex Mono', monospace;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stdlib-hoogle-row button:hover {
+  background: #eb9a5f;
+}
+.stdlib-hoogle-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+}
+.stdlib-hoogle-chips a {
+  padding: 0.24rem 0.65rem;
+  border: 1px solid var(--platform-rule);
+  border-radius: 3px 12px 12px 3px;
+  background: var(--platform-paper);
+  color: var(--platform-ink);
+  font: 0.72rem 'IBM Plex Mono', monospace;
+  text-decoration: none;
+}
+.stdlib-hoogle-chips a:hover {
+  border-color: var(--platform-accent);
+  color: var(--platform-accent);
+}
+
+.stdlib-family-section {
+  margin-top: 2.2rem;
+}
+.stdlib-family-section h2 {
+  font-size: 1.55rem;
+  margin: 0 0 0.9rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--platform-rule);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.stdlib-family-section h2 span {
+  font: 0.72rem 'IBM Plex Mono', monospace;
+  color: var(--platform-muted);
+}
+.stdlib-mod-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+.stdlib-mod-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) 1fr auto;
+  gap: 0.6rem 1.25rem;
+  align-items: baseline;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--platform-rule);
+  border-radius: 3px 16px 3px 3px;
+  background: var(--platform-panel);
+  text-decoration: none;
+  color: inherit;
+}
+.stdlib-mod-row:hover {
+  border-color: var(--platform-accent);
+  background: var(--platform-hover);
+}
+.stdlib-mod-name {
+  font: 600 0.86rem 'IBM Plex Mono', monospace;
+  color: var(--platform-accent);
+  overflow-wrap: anywhere;
+}
+.stdlib-mod-desc {
+  font-size: 0.86rem;
+  color: var(--platform-secondary);
+  line-height: 1.55;
+}
+.stdlib-mod-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font: 0.72rem 'IBM Plex Mono', monospace;
+  color: var(--platform-muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 1120px) {
+  .stdlib-workspace {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 2rem;
+  }
+  .stdlib-toc {
+    display: none;
+  }
+}
+@media (max-width: 820px) {
+  .stdlib-workspace,
+  .stdlib-workspace--overview {
+    display: block;
+    padding: 1.5rem 5% 3rem;
+  }
+  .stdlib-nav {
+    position: static;
+    max-height: none;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    border: 1px solid var(--platform-rule);
+    border-radius: 4px 20px 4px 4px;
+    background: var(--platform-panel);
+  }
+  .stdlib-mod-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .stdlib-hoogle-row {
+    flex-direction: column;
+  }
+  .stdlib-doc-body .doc-sig-bar {
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  .stdlib-doc-body .doc-body {
+    padding-inline-start: 0.35rem;
+  }
+}

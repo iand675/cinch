@@ -302,37 +302,39 @@ DESCRIPTIONS = {
 }
 
 SUMMARIES={}
-SEARCH_INDEX = ROOT / 'website/public/library-search-index.json'
+STDLIB_BASE = '/packages/stdlib'
+SEARCH_URL = '/packages/search/'
+SEARCH_INDEX = ROOT / 'website/public/stdlib-search-index.json'
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cinch_type_format as ctf
 
 BUILTIN_TYPE_LINKS = {
-    'Int': '/library/Data.Int/',
-    'Nat': '/library/Data.Nat/',
-    'Bool': '/library/Data.Bool/',
-    'Char': '/library/Data.Char/',
-    'String': '/library/Data.String/',
-    'Bytes': '/library/Data.Bytes/',
-    'Array': '/library/Data.Array/',
-    'Ordering': '/library/Data.Ordering/',
-    'Sym': '/library/Data.Sym/',
-    'Path': '/library/Data.Path/',
-    'Json': '/library/Data.Json/',
-    'I8': '/library/Data.Machine/',
-    'I16': '/library/Data.Machine/',
-    'I32': '/library/Data.Machine/',
-    'I64': '/library/Data.Machine/',
-    'Isize': '/library/Data.Machine/',
-    'U8': '/library/Data.Machine/',
-    'U16': '/library/Data.Machine/',
-    'U32': '/library/Data.Machine/',
-    'U64': '/library/Data.Machine/',
-    'Usize': '/library/Data.Machine/',
-    'F32': '/library/Data.Machine/',
-    'F64': '/library/Data.Machine/',
-    'I128': '/library/Data.Wide/',
-    'U128': '/library/Data.Wide/',
+    'Int': f'{STDLIB_BASE}/Data.Int/',
+    'Nat': f'{STDLIB_BASE}/Data.Nat/',
+    'Bool': f'{STDLIB_BASE}/Data.Bool/',
+    'Char': f'{STDLIB_BASE}/Data.Char/',
+    'String': f'{STDLIB_BASE}/Data.String/',
+    'Bytes': f'{STDLIB_BASE}/Data.Bytes/',
+    'Array': f'{STDLIB_BASE}/Data.Array/',
+    'Ordering': f'{STDLIB_BASE}/Data.Ordering/',
+    'Sym': f'{STDLIB_BASE}/Data.Sym/',
+    'Path': f'{STDLIB_BASE}/Data.Path/',
+    'Json': f'{STDLIB_BASE}/Data.Json/',
+    'I8': f'{STDLIB_BASE}/Data.Machine/',
+    'I16': f'{STDLIB_BASE}/Data.Machine/',
+    'I32': f'{STDLIB_BASE}/Data.Machine/',
+    'I64': f'{STDLIB_BASE}/Data.Machine/',
+    'Isize': f'{STDLIB_BASE}/Data.Machine/',
+    'U8': f'{STDLIB_BASE}/Data.Machine/',
+    'U16': f'{STDLIB_BASE}/Data.Machine/',
+    'U32': f'{STDLIB_BASE}/Data.Machine/',
+    'U64': f'{STDLIB_BASE}/Data.Machine/',
+    'Usize': f'{STDLIB_BASE}/Data.Machine/',
+    'F32': f'{STDLIB_BASE}/Data.Machine/',
+    'F64': f'{STDLIB_BASE}/Data.Machine/',
+    'I128': f'{STDLIB_BASE}/Data.Wide/',
+    'U128': f'{STDLIB_BASE}/Data.Wide/',
     'Unit': '/reference/04-types-and-kinds/',
     'Io': '/reference/09-effects-and-capabilities/',
     'IO': '/reference/09-effects-and-capabilities/',
@@ -342,9 +344,9 @@ BUILTIN_TYPE_LINKS = {
     'Async': '/reference/13-concurrency-and-runtime/',
     'Cancel': '/reference/13-concurrency-and-runtime/',
     'Scope': '/reference/13-concurrency-and-runtime/',
-    'STM': '/library/Effect.Stm/',
-    'TVar': '/library/Effect.Stm/',
-    'MVar': '/library/Effect.Concurrent.MVar/',
+    'STM': f'{STDLIB_BASE}/Effect.Stm/',
+    'TVar': f'{STDLIB_BASE}/Effect.Stm/',
+    'MVar': f'{STDLIB_BASE}/Effect.Concurrent.MVar/',
 }
 
 
@@ -541,7 +543,7 @@ def build_global_maps(all_sources, interfaces):
             if ty.get('kind') == 'signature':
                 continue
             aid = anchor('type', ty['name'])
-            href = f'/library/{mod}/#{aid}'
+            href = f'{STDLIB_BASE}/{mod}/#{aid}'
             ident = ty.get('identity', f'{mod}.{ty["name"]}')
             # Prefer public home (e.g. Data.Result for Data.Core.Result)
             if mod != 'Prelude':
@@ -553,7 +555,7 @@ def build_global_maps(all_sources, interfaces):
                 symbol_links.setdefault(ty['name'], href)
             for ctor in ty.get('ctors', []):
                 caid = anchor('ctor', ctor['name'])
-                chref = f'/library/{mod}/#{caid}'
+                chref = f'{STDLIB_BASE}/{mod}/#{caid}'
                 cid = f'{mod}.{ty["name"]}.{ctor["name"]}'
                 if mod != 'Prelude':
                     symbol_links.setdefault(cid, chref)
@@ -562,7 +564,7 @@ def build_global_maps(all_sources, interfaces):
             if not (public_class(sig) or any(m.get('exports') for m in sig['methods'])):
                 continue
             aid = anchor('class', sig['name'])
-            href = f'/library/{mod}/#{aid}'
+            href = f'{STDLIB_BASE}/{mod}/#{aid}'
             ident = sig.get('identity', f'{mod}.{sig["name"]}')
             if mod != 'Prelude':
                 type_links.setdefault(ident, href)
@@ -575,7 +577,7 @@ def build_global_maps(all_sources, interfaces):
                 if not method.get('exports'):
                     continue
                 maid = anchor('method', f'{sig["name"]}-{method["name"]}')
-                mhref = f'/library/{mod}/#{maid}'
+                mhref = f'{STDLIB_BASE}/{mod}/#{maid}'
                 if mod != 'Prelude':
                     symbol_links.setdefault(f'{ident}.{method["name"]}', mhref)
                     symbol_links.setdefault(f'{mod}.{method["name"]}', mhref)
@@ -583,7 +585,7 @@ def build_global_maps(all_sources, interfaces):
             if mod == 'Prelude':
                 continue
             aid = anchor('value', val['name'])
-            href = f'/library/{mod}/#{aid}'
+            href = f'{STDLIB_BASE}/{mod}/#{aid}'
             sym = val.get('symbol', f'{mod}.{val["name"]}')
             symbol_links.setdefault(sym, href)
             symbol_links.setdefault(f'{mod}.{val["name"]}', href)
@@ -627,7 +629,7 @@ def render_instances_drawer(rows, type_links):
         mod = row['module']
         items.append(
             f'<li><code>{linked_target}</code> '
-            f'<span class="doc-inst-meta">{res} · <a href="/library/{esc_html(mod)}/#instances">{esc_html(mod)}</a></span></li>'
+            f'<span class="doc-inst-meta">{res} · <a href="{STDLIB_BASE}/{esc_html(mod)}/#instances">{esc_html(mod)}</a></span></li>'
         )
     return (
         f'<details class="doc-instances">'
@@ -640,7 +642,7 @@ def render_instances_drawer(rows, type_links):
 def render_entry_block(aid, sig_html, body_md, src_mod, line, extra_html=''):
     links = [f'<a href="#{esc_html(aid)}" title="Permalink">#</a>']
     if src_mod:
-        src_href = f'/library/source/{esc_html(src_mod)}/' + (f'#L{line}' if line else '')
+        src_href = f'{STDLIB_BASE}/{esc_html(src_mod)}/source/' + (f'#L{line}' if line else '')
         src_title = f'View source at line {line}' if line else 'View source'
         links.append(f'<a href="{src_href}" title="{src_title}">Source</a>')
     sig_bar = (
@@ -793,10 +795,10 @@ def generate(ifaces, compiler):
             f'<div class="doc-mod-bar">'
             f'<div class="doc-mod-bar-primary">{badge_html} {import_note}</div>'
             f'<div class="doc-mod-bar-links">'
-            f'<a href="/library/source/{esc_html(name)}/">View source</a>'
-            f'<a href="/library/search/?q=%2B{esc_html(name)}">Search module</a>'
+            f'<a href="{STDLIB_BASE}/{esc_html(name)}/source/">View source</a>'
+            f'<a href="{SEARCH_URL}?q=%2B{esc_html(name)}">Search module</a>'
             f'<a href="/reference-sources/{esc_html(name)}.cinch" download="{esc_html(name)}.cinch">Download .cinch</a>'
-            f'<a href="/library/00-index/">All modules</a>'
+            f'<a href="{STDLIB_BASE}/">All stdlib modules</a>'
             f'</div></div>'
         )
 
@@ -965,7 +967,7 @@ def generate(ifaces, compiler):
                 )
                 m_info = info(f'{ident}.{method["name"]}', method['name'], src_mod)
                 m_line = m_info.get('line', 0) or item.get('line', 0)
-                m_src = f'/library/source/{esc_html(src_mod)}/' + (f'#L{m_line}' if m_line else '')
+                m_src = f'{STDLIB_BASE}/{esc_html(src_mod)}/source/' + (f'#L{m_line}' if m_line else '')
                 m_doc = m_info.get('doc', '').strip()
                 m_doc_html = f'<div class="doc-child-prose">{esc_html(summarize(m_doc))}</div>' if m_doc else ''
                 method_lis.append(
@@ -1064,7 +1066,7 @@ def generate(ifaces, compiler):
             lines += [
                 '# Re-exported values',
                 '',
-                'Prelude re-exports a curated subset of the standard library. Follow the defining module link for documentation, or use [API Search](/library/search/) to query by type signature. Compiler-installed forms such as `ioWrite` are documented in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
+                'Prelude re-exports a curated subset of the standard library. Follow the defining module link for documentation, or use [API Search](/packages/search/) to query by type signature. Compiler-installed forms such as `ioWrite` are documented in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
                 '',
                 '| Value | Signature | Defining module |',
                 '| --- | --- | --- |',
@@ -1126,25 +1128,38 @@ def generate(ifaces, compiler):
         lines += [
             '# Reference provenance',
             '',
-            f'Generated from checked `.cinchif` exports and [`seed/prelude/{path.relative_to(PRELUDE)}`](/library/source/{name}/). Source SHA-256: `{digest(path)}`.',
+            f'Generated from checked `.cinchif` exports and [`seed/prelude/{path.relative_to(PRELUDE)}`]({STDLIB_BASE}/{name}/source/). Source SHA-256: `{digest(path)}`.',
             '',
         ]
         (OUTPUT / (name + '.md')).write_text(highlighted_markdown(compiler, '\n'.join(lines)))
+        pub_sigs = sum(1 for s in export['signatures'] if public_class(s) or any(m.get('exports') for m in s['methods']))
         entries.append({
             'module': name,
+            'family': name.split('.')[0],
+            'description': describe(name),
             'path': str(path.relative_to(ROOT)),
             'sha256': digest(path),
             'embedded': embedded_here,
+            'imports': imports,
+            'non_embedded_deps': sorted(closure) if not embedded_here else [],
             'types': len(public_types),
+            'signatures': pub_sigs,
             'values': len(export['values']),
             'public_methods': sum(bool(m.get('exports')) for s in export['signatures'] for m in s['methods']),
+            'instances': len(export['instances']),
         })
 
-    manifest = {'format': 1, 'base_manifest_sha256': digest(PRELUDE / 'cinch-base.cinchpkg'), 'modules': entries}
+    manifest = {
+        'format': 2,
+        'base_manifest_sha256': digest(PRELUDE / 'cinch-base.cinchpkg'),
+        'search_entry_count': len(search_entries),
+        'modules': entries,
+    }
     MANIFEST.write_text(json.dumps(manifest, indent=2) + '\n')
 
     search_payload = {
         'schema': 1,
+        'package': 'stdlib',
         'moduleCount': len(entries),
         'typeLinks': type_links,
         'entries': search_entries,
@@ -1155,26 +1170,26 @@ def generate(ifaces, compiler):
     source_count = sum(not e['embedded'] for e in entries)
 
     hoogle_widget = (
-        '<form class="doc-hoogle-box" action="/library/search/" method="get" role="search">\n'
+        f'<form class="doc-hoogle-box" action="{SEARCH_URL}" method="get" role="search">\n'
         '<label for="lib-index-search">Search by symbol name or type signature</label>\n'
         '<div class="doc-hoogle-row">\n'
         '<input id="lib-index-search" name="q" type="search" placeholder="e.g. (a -> b) -> List a -> List b, Result e a -> Option a, or +Data.Map" autocomplete="off" />\n'
         '<button type="submit">Search API</button>\n'
         '</div>\n'
         '<div class="doc-hoogle-chips">\n'
-        '<a href="/library/search/?q=%28a+-%3E+b%29+-%3E+List+a+-%3E+List+b">(a -&gt; b) -&gt; List a -&gt; List b</a>\n'
-        '<a href="/library/search/?q=Result+e+a+-%3E+Option+a">Result e a -&gt; Option a</a>\n'
-        '<a href="/library/search/?q=Ord+a+%3D%3E+List+a+-%3E+List+a">Ord a =&gt; List a -&gt; List a</a>\n'
-        '<a href="/library/search/?q=Bytes+-%3E+Result">Bytes -&gt; Result</a>\n'
-        '<a href="/library/search/?q=is%3Aclass">is:class</a>\n'
+        f'<a href="{SEARCH_URL}?q=%28a+-%3E+b%29+-%3E+List+a+-%3E+List+b">(a -&gt; b) -&gt; List a -&gt; List b</a>\n'
+        f'<a href="{SEARCH_URL}?q=Result+e+a+-%3E+Option+a">Result e a -&gt; Option a</a>\n'
+        f'<a href="{SEARCH_URL}?q=Ord+a+%3D%3E+List+a+-%3E+List+a">Ord a =&gt; List a -&gt; List a</a>\n'
+        f'<a href="{SEARCH_URL}?q=Bytes+-%3E+Result">Bytes -&gt; Result</a>\n'
+        f'<a href="{SEARCH_URL}?q=is%3Aclass">is:class</a>\n'
         '</div>\n'
         '</form>'
     )
 
     index = [
-        '# Built-in and shipped libraries',
+        '# Standard library (`stdlib`)',
         '',
-        f'Standard library API reference extracted from checked compiler interfaces across **{len(entries)} modules** (**{embedded_count} embedded** in the compiler, **{source_count} source-distributed**) and **{len(search_entries):,} indexed declarations**. Separate from the registry-backed [package catalogue](/packages/).',
+        f'Standard library API reference extracted from checked compiler interfaces across **{len(entries)} modules** (**{embedded_count} embedded** in the compiler, **{source_count} source-distributed**) and **{len(search_entries):,} indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).',
         '',
         hoogle_widget,
         '',
@@ -1247,8 +1262,8 @@ def main():
             assert entry['sha256'] == digest(actual[entry['module']]), f'{entry["module"]}: source changed; regenerate reference'
             assert (OUTPUT / (entry['module'] + '.md')).exists(), f'Missing module page: {entry["module"]}'
             assert (ROOT / 'website/public/reference-sources' / (entry['module'] + '.cinch')).read_bytes() == actual[entry['module']].read_bytes(), f'Stale source download: {entry["module"]}'
-        assert SEARCH_INDEX.exists(), 'Missing Hoogle search index: website/public/library-search-index.json'
-        print(f'Library reference matches all {len(actual)} module sources, base manifest, and Hoogle search index')
+        assert SEARCH_INDEX.exists(), 'Missing Hoogle search index: website/public/stdlib-search-index.json'
+        print(f'Standard library (stdlib) reference matches all {len(actual)} module sources, base manifest, and Hoogle search index')
         return
     compiler = options.compiler or shutil.which('cinch')
     if not compiler:

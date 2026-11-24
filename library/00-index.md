@@ -1,19 +1,19 @@
-# Built-in and shipped libraries
+# Standard library (`stdlib`)
 
-Standard library API reference extracted from checked compiler interfaces across **288 modules** (**66 embedded** in the compiler, **222 source-distributed**) and **7,907 indexed declarations**. Separate from the registry-backed [package catalogue](/packages/).
+Standard library API reference extracted from checked compiler interfaces across **288 modules** (**66 embedded** in the compiler, **222 source-distributed**) and **7,907 indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).
 
-<form class="doc-hoogle-box" action="/library/search/" method="get" role="search">
+<form class="doc-hoogle-box" action="/packages/search/" method="get" role="search">
 <label for="lib-index-search">Search by symbol name or type signature</label>
 <div class="doc-hoogle-row">
 <input id="lib-index-search" name="q" type="search" placeholder="e.g. (a -> b) -> List a -> List b, Result e a -> Option a, or +Data.Map" autocomplete="off" />
 <button type="submit">Search API</button>
 </div>
 <div class="doc-hoogle-chips">
-<a href="/library/search/?q=%28a+-%3E+b%29+-%3E+List+a+-%3E+List+b">(a -&gt; b) -&gt; List a -&gt; List b</a>
-<a href="/library/search/?q=Result+e+a+-%3E+Option+a">Result e a -&gt; Option a</a>
-<a href="/library/search/?q=Ord+a+%3D%3E+List+a+-%3E+List+a">Ord a =&gt; List a -&gt; List a</a>
-<a href="/library/search/?q=Bytes+-%3E+Result">Bytes -&gt; Result</a>
-<a href="/library/search/?q=is%3Aclass">is:class</a>
+<a href="/packages/search/?q=%28a+-%3E+b%29+-%3E+List+a+-%3E+List+b">(a -&gt; b) -&gt; List a -&gt; List b</a>
+<a href="/packages/search/?q=Result+e+a+-%3E+Option+a">Result e a -&gt; Option a</a>
+<a href="/packages/search/?q=Ord+a+%3D%3E+List+a+-%3E+List+a">Ord a =&gt; List a -&gt; List a</a>
+<a href="/packages/search/?q=Bytes+-%3E+Result">Bytes -&gt; Result</a>
+<a href="/packages/search/?q=is%3Aclass">is:class</a>
 </div>
 </form>
 

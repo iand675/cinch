@@ -24,7 +24,7 @@ export type CompactSearchEntry = {
   s: string;
   /** One-line plain summary */
   d: string;
-  /** Anchor fragment inside `/library/<m>/`, e.g. `v-either` */
+  /** Anchor fragment inside `/packages/stdlib/<m>/`, e.g. `v-either` */
   h: string;
   /** Source line number (0 if unknown) */
   l: number;

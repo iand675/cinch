@@ -1,0 +1,93 @@
+---
+import PlatformLayout from '../../../../layouts/PlatformLayout.astro';
+import StdlibNavigation from '../../../../components/catalogue/StdlibNavigation.astro';
+import {
+  loadStdlibManifest,
+  renderStdlibModule,
+  STDLIB_VERSION,
+  type StdlibModuleEntry,
+} from '../../../../lib/stdlib';
+import '../../../../styles/stdlib-docs.css';
+
+export async function getStaticPaths() {
+  const manifest = await loadStdlibManifest();
+  return manifest.modules.map((entry) => ({
+    params: { module: entry.module },
+    props: { entry, modules: manifest.modules },
+  }));
+}
+
+const { entry, modules } = Astro.props as {
+  entry: StdlibModuleEntry;
+  modules: StdlibModuleEntry[];
+};
+
+const { html, headings } = await renderStdlibModule(entry.module);
+const sourceUrl = `/packages/stdlib/${entry.module}/source/`;
+const rawDownloadUrl = `/reference-sources/${entry.module}.cinch`;
+const searchModuleUrl = `/packages/search/?q=${encodeURIComponent(`+${entry.module}`)}`;
+const exportCount = entry.types + entry.values + entry.public_methods;
+---
+<PlatformLayout
+  title={`${entry.module} · stdlib ${STDLIB_VERSION}`}
+  description={entry.description}
+  section="packages"
+  sample={false}
+>
+  <div class="stdlib-topbar">
+    <div>
+      <a href="/packages/">Packages</a>
+      <span>/</span>
+      <a href="/packages/stdlib/">stdlib</a>
+      <span>/</span>
+      <span>{entry.module}</span>
+    </div>
+    <span class="sample-badge">{entry.embedded ? 'EMBEDDED' : 'SHIP SOURCE'}</span>
+  </div>
+
+  <div class="stdlib-workspace">
+    <StdlibNavigation modules={modules} activeModule={entry.module} />
+
+    <article class="stdlib-article">
+      <header class="stdlib-header">
+        <div class="platform-eyebrow mono">
+          <span>STDLIB / {entry.family.toUpperCase()}</span>
+          <span>{entry.path}</span>
+        </div>
+        <h1>{entry.module}</h1>
+        <p>{entry.description}</p>
+        <div class="stdlib-facts mono">
+          <span class={`support-tag ${entry.embedded ? 'support-tag--current' : 'support-tag--source'}`}>
+            {entry.embedded ? 'Embedded' : 'Ship source'}
+          </span>
+          {entry.module === 'Prelude' ? (
+            <span>Implicitly in scope</span>
+          ) : (
+            <code>import {entry.module}</code>
+          )}
+          <span>{exportCount} exports</span>
+          {entry.instances > 0 && <span>{entry.instances} {entry.instances === 1 ? 'instance' : 'instances'}</span>}
+        </div>
+        <div class="stdlib-actions">
+          <a href={sourceUrl}>View source ↗</a>
+          <a href={searchModuleUrl}>Search module</a>
+          <a href={rawDownloadUrl} download={`${entry.module}.cinch`}>Download .cinch ↓</a>
+          <a href="/packages/stdlib/">All stdlib modules</a>
+        </div>
+      </header>
+
+      <div class="stdlib-doc-body" set:html={html} />
+    </article>
+
+    <aside class="stdlib-toc" aria-label="On this page">
+      <span>ON THIS PAGE</span>
+      {headings.map((h) => (
+        <a href={`#${h.slug}`}>{h.text}</a>
+      ))}
+      <hr class="stdlib-toc-sep" />
+      <a href={sourceUrl}>Module source ↗</a>
+      <a href={searchModuleUrl}>Search symbols</a>
+      <a href={rawDownloadUrl} download={`${entry.module}.cinch`}>Raw .cinch ↓</a>
+    </aside>
+  </div>
+</PlatformLayout>

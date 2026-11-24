@@ -3,18 +3,18 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
 ---
 <PlatformLayout
   title="API Search"
-  description="Search Cinch's built-in and shipped standard library by symbol name, type signature, module, or kind."
+  description="Search Cinch's stdlib package by symbol name, type signature, module, or kind."
   section="search"
   sample={false}
 >
   <section class="platform-banner catalogue-banner hoogle-banner">
     <div class="platform-eyebrow mono">
-      <span>STANDARD LIBRARY INDEX</span>
+      <span>PACKAGES / STDLIB API INDEX</span>
       <span class="sample-badge" id="hoogle-index-badge">CHECKED INTERFACES</span>
     </div>
     <h1>API Search.</h1>
-    <p>Search by name or type signature across every checked standard-library module.<br />Follow any type in a signature straight to its definition or source line.</p>
-    <form class="catalogue-search" role="search" action="/library/search/" id="hoogle-form">
+    <p>Search by name or type signature across every checked module in <code>stdlib</code>.<br />Follow any type in a signature straight to its definition or source line.</p>
+    <form class="catalogue-search" role="search" action="/packages/search/" id="hoogle-form">
       <label for="hoogle-input" class="mono">NAME, TYPE SIGNATURE, +MODULE, OR IS:KIND (PRESS / TO FOCUS)</label>
       <div>
         <span aria-hidden="true">⌕</span>
@@ -41,7 +41,8 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
     <div class="catalogue-counts mono" id="hoogle-counts">
       <span data-count-modules>Loading index…</span>
       <span data-count-entries></span>
-      <a href="/library/00-index/" class="hoogle-dir-link">Browse module directory ↗</a>
+      <a href="/packages/stdlib/" class="hoogle-dir-link">Browse stdlib modules ↗</a>
+      <a href="/packages/" class="hoogle-dir-link">All packages ↗</a>
     </div>
   </section>
 
@@ -247,10 +248,9 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
   }
 
   function renderSignatureHtml(entry: SearchHit['entry'], typeLinks: Record<string, string>): string {
-    const modHref = `/library/${encodeURIComponent(entry.m)}/#${encodeURIComponent(entry.h)}`;
+    const modHref = `/packages/stdlib/${encodeURIComponent(entry.m)}/#${encodeURIComponent(entry.h)}`;
     const sig = entry.s || entry.n;
 
-    // Split leading declaration name if present (`name :: ...`)
     let prefixHtml = '';
     let rest = sig;
     const colonIdx = sig.indexOf('::');
@@ -268,7 +268,6 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
       }
     }
 
-    // Link uppercase type / signature tokens inside the rest of the signature
     const linkedRest = rest.replace(/\b[A-Z][A-Za-z0-9_']*(?:\.[A-Z][A-Za-z0-9_']*)*\b/g, (tok) => {
       const short = tok.includes('.') ? tok.slice(tok.lastIndexOf('.') + 1) : tok;
       const href = typeLinks[tok] ?? typeLinks[short];
@@ -291,10 +290,10 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
 
     resultsEl.innerHTML = shown
       .map(({ entry }) => {
-        const modHref = `/library/${encodeURIComponent(entry.m)}/`;
+        const modHref = `/packages/stdlib/${encodeURIComponent(entry.m)}/`;
         const entryHref = `${modHref}#${encodeURIComponent(entry.h)}`;
         const srcMod = entry.sm || entry.m;
-        const srcHref = `/library/source/${encodeURIComponent(srcMod)}/${entry.l > 0 ? `#L${entry.l}` : ''}`;
+        const srcHref = `/packages/stdlib/${encodeURIComponent(srcMod)}/source/${entry.l > 0 ? `#L${entry.l}` : ''}`;
         const sigHtml = renderSignatureHtml(entry, typeLinks);
         return `
           <article class="hoogle-hit">
@@ -350,7 +349,7 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
       currentHits = [];
       resultsEl.innerHTML = '';
       emptyEl.hidden = true;
-      statusEl.textContent = `Ready — ${payload.entries.length.toLocaleString()} indexed declarations across ${payload.moduleCount} modules. Type a name or signature above.`;
+      statusEl.textContent = `Ready — ${payload.entries.length.toLocaleString()} indexed declarations across ${payload.moduleCount} stdlib modules. Type a name or signature above.`;
       return;
     }
 
@@ -423,14 +422,14 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
 
   async function init(): Promise<void> {
     try {
-      const res = await fetch('/library-search-index.json');
+      const res = await fetch('/stdlib-search-index.json');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       payload = (await res.json()) as SearchIndexPayload;
-      countModsEl.textContent = `${payload.moduleCount} MODULES`;
+      countModsEl.textContent = `${payload.moduleCount} STDLIB MODULES`;
       countEntriesEl.textContent = `${payload.entries.length.toLocaleString()} DECLARATIONS`;
       readUrl();
     } catch (err) {
-      statusEl.textContent = `Could not load library search index (${err instanceof Error ? err.message : String(err)}).`;
+      statusEl.textContent = `Could not load stdlib search index (${err instanceof Error ? err.message : String(err)}).`;
     }
   }
 

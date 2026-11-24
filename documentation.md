@@ -33,11 +33,11 @@ The complete reference manual in 29 chapters: CLI commands, lexical and expressi
 | Use the REPL, LSP, docs, or packages | [REPL](reference/26-repl.md), [Language server](reference/27-language-server.md), [Documentation tools](reference/28-documentation.md), [Package management](reference/29-package-management.md) |
 | Check feature support status | [Support matrix](reference/16-support-and-roadmap.md) |
 
-# Standard library & API search
+# Standard library (`stdlib`) & API search
 
-[**Search APIs by name or type signature →**](/library/search/) · [**Browse module directory →**](library/00-index.md)
+[**Search APIs by name or type signature →**](/packages/search/) · [**Browse `stdlib` modules →**](library/00-index.md)
 
-Every standard library module is extracted from checked compiler interfaces (`.cinchif`) with pretty-printed, cross-linked type signatures, collapsible synopses, cross-module instance lists, and line-numbered source views. Use [**API Search**](/library/search/) for Hoogle-style queries such as `(a -> b) -> List a -> List b`, `Result e a -> Option a`, `+Data.Map`, or `is:class`.
+Every standard library module is published under [`/packages/stdlib/`](/packages/stdlib/) from checked compiler interfaces (`.cinchif`) with pretty-printed, cross-linked type signatures, collapsible synopses, cross-module instance lists, and line-numbered source views. Use [**API Search**](/packages/search/) for Hoogle-style queries such as `(a -> b) -> List a -> List b`, `Result e a -> Option a`, `+Data.Map`, or `is:class`.
 
 - [**Packages**](/packages/) — Registry-backed package catalogue (or the latest cached snapshot when offline).
 - [**Downloads**](/downloads/) — Nightly standalone Stage 3 compiler binaries for Linux (x86-64, ARM64) and macOS (Apple Silicon), with SHA-256 verification.

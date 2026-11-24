@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
+import { loadStdlibPackage } from './stdlib';
 
 /**
  * Build-time catalogue loader.
@@ -7,11 +8,8 @@ import { readFile } from 'node:fs/promises';
  * Astro builds this site statically, so every registry request happens once
  * during `npm run build`. Nothing in this module runs in a browser.
  *
- * The loader reads public releases from the v0 registry API, groups them by
- * package name, and fetches each release manifest. Declaration signatures are
- * not part of a registry release, so modules start with an empty declaration
- * list. Pages render the facts that exist and say where generated `.cinchdoc`
- * data would come from.
+ * The loader combines the bundled standard library (`stdlib`, extracted from
+ * checked `.cinchif` interfaces) with public releases from the v0 registry API.
  */
 
 export type DeclarationKind = 'type' | 'function' | 'class';
@@ -40,6 +38,9 @@ export type LibraryModule = {
   imports: string[];
   declarations: Declaration[];
   source?: string[];
+  embedded?: boolean;
+  family?: string;
+  exportCount?: number;
 };
 
 export type LibraryRelease = {
@@ -74,7 +75,8 @@ export type LibraryPackage = {
   readme: string[];
   packageId: string;
   registry: string;
-  sourceKind: 'registry';
+  sourceKind: 'registry' | 'stdlib';
+  declarationCount?: number;
   releases: LibraryRelease[];
 };
 
@@ -396,8 +398,9 @@ async function loadSnapshot(registry: string, reason: string): Promise<Catalogue
 
 async function buildCatalogue(): Promise<Catalogue> {
   const builtAt = new Date().toISOString();
+  const stdlib = await loadStdlibPackage();
   if (catalogueOffline()) {
-    return { registry: null, builtAt, offline: true, fallback: false, packages: [] };
+    return { registry: null, builtAt, offline: true, fallback: false, packages: [stdlib] };
   }
 
   const registry = catalogueRegistry();
@@ -426,27 +429,38 @@ async function buildCatalogue(): Promise<Catalogue> {
       loadPackage(registry, name, group, builtAt),
     );
     packages.sort((a, b) => a.name.localeCompare(b.name));
-    return { registry, builtAt, offline: false, fallback: false, packages };
+    return { registry, builtAt, offline: false, fallback: false, packages: [stdlib, ...packages] };
   } catch (error) {
-    return loadSnapshot(registry, message(error));
+    const snapshot = await loadSnapshot(registry, message(error));
+    const registryOnly = snapshot.packages.filter((p) => p.sourceKind !== 'stdlib' && p.name !== 'stdlib');
+    return { ...snapshot, packages: [stdlib, ...registryOnly] };
   }
 }
 
-export type PublicModule = LibraryModule;
+export type PublicModule = LibraryModule & {
+  url: string;
+  sourceUrl: string;
+};
 export type PublicRelease = Omit<LibraryRelease, 'modules'> & { modules: PublicModule[] };
 export type PublicPackage = Omit<LibraryPackage, 'modules' | 'releases'> & {
+  url: string;
   modules: PublicModule[];
   releases: PublicRelease[];
 };
 
-function publicModule(module: LibraryModule): PublicModule {
+function publicModule(pkg: LibraryPackage, module: LibraryModule, version = pkg.version): PublicModule {
   return {
     name: module.name,
     path: module.path,
     description: module.description,
     imports: module.imports,
     declarations: module.declarations,
-    source: module.source,
+    ...(pkg.sourceKind === 'stdlib' ? {} : { source: module.source }),
+    ...(module.embedded !== undefined ? { embedded: module.embedded } : {}),
+    ...(module.family !== undefined ? { family: module.family } : {}),
+    ...(module.exportCount !== undefined ? { exportCount: module.exportCount } : {}),
+    url: moduleUrl(pkg, module, version),
+    sourceUrl: moduleSourceUrl(pkg, module, version),
   };
 }
 
@@ -483,11 +497,13 @@ export function publicCatalogue(catalogue: Catalogue): {
       maintainer: pkg.maintainer,
       updated: pkg.updated,
       dependencies: pkg.dependencies,
-      modules: pkg.modules.map(publicModule),
+      modules: pkg.modules.map((m) => publicModule(pkg, m, pkg.version)),
       readme: pkg.readme,
       packageId: pkg.packageId,
       registry: pkg.registry,
       sourceKind: pkg.sourceKind,
+      ...(pkg.declarationCount !== undefined ? { declarationCount: pkg.declarationCount } : {}),
+      url: packageUrl(pkg),
       releases: pkg.releases.map((release) => ({
         version: release.version,
         packageId: release.packageId,
@@ -499,16 +515,19 @@ export function publicCatalogue(catalogue: Catalogue): {
         maintainer: release.maintainer,
         updated: release.updated,
         dependencies: release.dependencies,
-        modules: release.modules.map(publicModule),
+        modules: release.modules.map((m) => publicModule(pkg, m, release.version)),
         readme: release.readme,
       })),
     })),
   };
 }
 
-export const packageUrl = (p: LibraryPackage, version = p.version) => `/packages/${p.name}/${version}/`;
+export const packageUrl = (p: LibraryPackage, version = p.version) =>
+  p.sourceKind === 'stdlib' ? '/packages/stdlib/' : `/packages/${p.name}/${version}/`;
 export const moduleUrl = (p: LibraryPackage, m: LibraryModule, version = p.version) =>
-  `${packageUrl(p, version)}${m.name}/`;
+  p.sourceKind === 'stdlib' ? `/packages/stdlib/${m.name}/` : `${packageUrl(p, version)}${m.name}/`;
+export const moduleSourceUrl = (p: LibraryPackage, m: LibraryModule, version = p.version) =>
+  `${moduleUrl(p, m, version)}source/`;
 export const symbolId = (name: string) => `decl-${encodeURIComponent(name).replace(/%/g, '_')}`;
 export const compareVersions = (a: string, b: string) => {
   const x = a.split('.').map(Number);

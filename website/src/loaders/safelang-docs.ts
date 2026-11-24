@@ -8,10 +8,10 @@ const REPO_ROOT = path.dirname(SITE_ROOT);
 
 /**
  * Directories of the documentation set, relative to the repository root.
- * Only active reader documentation is published to the website; historical
- * design specs and notes remain in the repository but are not built as pages.
+ * Only the tutorial and compiler user's guide are served via Starlight;
+ * standard library API docs are published under `/packages/stdlib/`.
  */
-const DOC_DIRS = ['', 'learn', 'reference', 'library'];
+const DOC_DIRS = ['', 'learn', 'reference'];
 
 type PageSource = {
   /** Path used to resolve links between pages, relative to the repository root. */
@@ -116,8 +116,9 @@ function parsePage(raw: string, relPath: string): { meta: PageMeta; body: string
 /**
  * Prepare a page body for the site.
  *
- * Sibling Markdown links become site routes; links that already point at a URL,
- * an anchor, or anything that is not a documentation page are left untouched.
+ * Sibling Markdown links become site routes; links to `library/*.md` route to
+ * `/packages/stdlib/`; links that already point at a URL, an anchor, or
+ * anything outside the documentation set are left untouched.
  * Every heading is demoted one level, because the documents use `#` for
  * numbered sections while the site renders the page title as the only `h1`.
  * Fenced code blocks are skipped so their contents never change.
@@ -173,6 +174,13 @@ function transformBody(
 
           const resolved = path.posix.normalize(path.posix.join(dir, pathPart));
           const asMarkdown = resolved.endsWith('.md') ? resolved : `${resolved}.md`;
+          if (asMarkdown === 'library/00-index.md') {
+            return `${open}/packages/stdlib/${hash}${close}`;
+          }
+          if (asMarkdown.startsWith('library/') && asMarkdown.endsWith('.md')) {
+            const modName = asMarkdown.slice('library/'.length, -3);
+            return `${open}/packages/stdlib/${modName}/${hash}${close}`;
+          }
           if (knownPages.has(asMarkdown)) {
             return `${open}${routeFor(asMarkdown)}${hash}${close}`;
           }

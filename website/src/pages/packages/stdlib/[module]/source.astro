@@ -1,31 +1,23 @@
 ---
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import PlatformLayout from '../../../layouts/PlatformLayout.astro';
-import librarySources from '../../../data/library-sources.json';
-
-type ModuleRecord = {
-  module: string;
-  path: string;
-  sha256: string;
-  embedded: boolean;
-  values: number;
-  public_methods: number;
-};
+import PlatformLayout from '../../../../layouts/PlatformLayout.astro';
+import {
+  loadStdlibManifest,
+  readStdlibSource,
+  STDLIB_VERSION,
+  type StdlibModuleEntry,
+} from '../../../../lib/stdlib';
+import '../../../../styles/stdlib-docs.css';
 
 export async function getStaticPaths() {
-  return (librarySources.modules as ModuleRecord[]).map((entry) => ({
+  const manifest = await loadStdlibManifest();
+  return manifest.modules.map((entry) => ({
     params: { module: entry.module },
     props: { entry },
   }));
 }
 
-const { entry } = Astro.props as { entry: ModuleRecord };
-const SITE_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const REPO_ROOT = path.dirname(SITE_ROOT);
-const sourcePath = path.join(REPO_ROOT, entry.path);
-const raw = await readFile(sourcePath, 'utf8');
+const { entry } = Astro.props as { entry: StdlibModuleEntry };
+const raw = await readStdlibSource(entry.path);
 const lines = raw.replace(/\r\n/g, '\n').split('\n');
 if (lines.length > 0 && lines[lines.length - 1] === '') {
   lines.pop();
@@ -111,19 +103,21 @@ function highlightLine(line: string): string {
 }
 
 const highlightedLines = lines.map(highlightLine);
-const moduleDocUrl = `/library/${entry.module}/`;
+const moduleDocUrl = `/packages/stdlib/${entry.module}/`;
 const rawDownloadUrl = `/reference-sources/${entry.module}.cinch`;
-const searchModuleUrl = `/library/search/?q=${encodeURIComponent(`+${entry.module}`)}`;
+const searchModuleUrl = `/packages/search/?q=${encodeURIComponent(`+${entry.module}`)}`;
 ---
 <PlatformLayout
-  title={`${entry.module} · Source`}
+  title={`${entry.module} · Source · stdlib ${STDLIB_VERSION}`}
   description={`Exact source listing for Cinch standard library module ${entry.module}.`}
-  section="docs"
+  section="packages"
   sample={false}
 >
-  <div class="package-topbar">
+  <div class="stdlib-topbar">
     <div>
-      <a href="/library/00-index/">Libraries</a>
+      <a href="/packages/">Packages</a>
+      <span>/</span>
+      <a href="/packages/stdlib/">stdlib</a>
       <span>/</span>
       <a href={moduleDocUrl}>{entry.module}</a>
       <span>/</span>

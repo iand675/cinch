@@ -72,15 +72,11 @@ export default defineConfig({
         { label: 'Documentation home', link: '/documentation/' },
         { label: '01 / Language tutorial', items: pagesIn('learn') },
         { label: '02 / Compiler user’s guide', items: pagesIn('reference'), collapsed: true },
-        { label: '03 / Built-in and shipped libraries', items: [
-          { label: 'API Search (Hoogle)', link: '/library/search/' },
-          { label: 'Library directory', link: '/library/00-index/' },
-          ...['Prelude', 'Algebra', 'Category', 'Relation', 'Function', 'Crypto', 'Data', 'Text', 'Effect', 'Image', 'Prim'].map((family) => ({
-            label: family,
-            collapsed: true,
-            items: pagesIn('library').filter((page) => page.label.split('.')[0] === family),
-          })),
-        ], collapsed: true },
+        { label: '03 / Standard library & packages', items: [
+          { label: 'stdlib (Standard library)', link: '/packages/stdlib/' },
+          { label: 'API Search (Hoogle)', link: '/packages/search/' },
+          { label: 'Package catalogue', link: '/packages/' },
+        ] },
       ],
     }),
   ],

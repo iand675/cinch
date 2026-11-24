@@ -138,7 +138,7 @@ Type search normalizes `forall` binders and module qualifiers, matches alpha-ren
 | `--json` | Emit ranked matches as canonical JSON |
 | `--strict-comments` | Exclude legacy `--` comments when scanning sources |
 
-On the web, [**API Search**](/library/search/) provides the same Hoogle-style query engine over all checked standard-library interfaces with clickable type links and line-anchored source views.
+On the web, [**API Search**](/packages/search/) provides the same Hoogle-style query engine over all checked `stdlib` interfaces with clickable type links and line-anchored source views.
 
 ## Exact lookup and indexing (`lookup`, `index`)
 
