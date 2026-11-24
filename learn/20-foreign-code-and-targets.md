@@ -14,7 +14,7 @@ A `foreign import ccall "symbol"` binds a C symbol to a Cinch type. These declar
 
 The effect row is not decoration. The result arrow's row must name at least one boundary, `IO`, `Global`, `Blocking`, `Diverge`, `Fail`, `Reentrant`, or `ThreadAffine`, because an external function is not pure just because its C signature has no explicit state parameter. `Foreign Clock` names the boundary this call belongs to; `IO` says the call observes the world.
 
-The embedded library declares the same two clock words itself, in `Effect/Clock.cinch`. Its form is worth copying because the refinement carries the runtime's own guarantee:
+The standard library declares the same two clock words itself, in `Effect/Clock.cinch`. Its form is worth copying because the refinement carries the runtime's own guarantee:
 
 ```text
   foreign import ccall "cinch_clock_monotonic_ns" raw-monotonic-ns :: forall r. Unit ->{IO r} InRange 0 9223372036854775807 I64

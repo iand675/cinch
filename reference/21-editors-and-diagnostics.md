@@ -57,7 +57,7 @@ Because the parser runs before name or type resolution, it names unexpected toke
 | Application | `cannot apply a value of type Int` | Non-function value in callee position. |
 | Unknown name | `unknown name quad` | Identifier is not declared or imported in scope. |
 | Unknown type | `unknown type Nope` | Type constructor is not declared or imported in scope. |
-| Missing module | `module Nonexistent.Module is imported, but Nonexistent.Module.cinch does not exist` | Import cannot be resolved in sibling files, packages, or the embedded standard library. |
+| Missing module | `module Nonexistent.Module is imported, but Nonexistent.Module.cinch does not exist` | Import cannot be resolved in sibling files, vendored packages, or `cinch/stdlib`. |
 | Missing instance | `no instance for Pretty Color` | Required type-class constraint has no matching instance in scope. |
 | Effect row | `effect rows do not match: {} vs {IO r#844 \| ?r894}` | Expression performs effects not permitted by its declared effect row. |
 | Multiplicity | `multiplicity %1: x must be used exactly once on every path, but is never used` | Linear (`%1`) or affine (`%aff`) usage count violated. |
@@ -149,7 +149,7 @@ main = 0
 cinch: module Nonexistent.Module is imported, but Nonexistent.Module.cinch does not exist and no other source file beside the entry declares `module Nonexistent.Module`
 ```
 
-Standard-library modules are embedded in the compiler; any other imported module must exist as a sibling `.cinch` file or come from an installed package.
+All `cinch/stdlib` modules resolve automatically through the toolchain's package manifest; any other imported module must exist as a sibling `.cinch` file or come from an installed package under `vendor/`.
 
 ## Non-exhaustive pattern match
 

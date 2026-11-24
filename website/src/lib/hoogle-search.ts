@@ -7,8 +7,7 @@
  * - Combined queries: `map :: (a -> b) -> List a -> List b`
  * - Name & text queries: `partition-results`, `base64 decode`
  * - Module scoping: `+Data.List`, `module:Text.Json`, `-Crypto`
- * - Kind & distribution filters: `is:type`, `is:value`, `is:class`, `is:method`,
- *   `is:ctor`, `is:instance`, `in:embedded`, `in:source`
+ * - Kind filters: `is:type`, `is:value`, `is:class`, `is:method`, `is:ctor`, `is:instance`
  */
 
 export type IndexKindCode = 't' | 'k' | 'c' | 'm' | 'v' | 'i';
@@ -24,18 +23,17 @@ export type CompactSearchEntry = {
   s: string;
   /** One-line plain summary */
   d: string;
-  /** Anchor fragment inside `/library/<m>/`, e.g. `v-either` */
+  /** Anchor fragment inside `/packages/stdlib/<m>/`, e.g. `v-either` */
   h: string;
   /** Source line number (0 if unknown) */
   l: number;
   /** Source module if different from `m` (e.g. `Data.Core`) */
   sm?: string;
-  /** 1 if embedded in compiler, 0 if ship-source */
-  e: 0 | 1;
 };
 
 export type SearchIndexPayload = {
   schema: number;
+  package?: string;
   moduleCount: number;
   typeLinks: Record<string, string>;
   entries: CompactSearchEntry[];
@@ -43,7 +41,6 @@ export type SearchIndexPayload = {
 
 export type SearchFilters = {
   kind?: string;
-  dist?: 'all' | 'embedded' | 'source';
 };
 
 export type SearchHit = {
@@ -724,8 +721,7 @@ function scoreNameMatch(query: string, entry: CompactSearchEntry): number | null
   }
 
   if (entry.m === 'Prelude') score += 12;
-  else if (entry.e === 1 && entry.m !== 'Data.Core') score += 8;
-  else if (!entry.m.includes('.Internal')) score += 4;
+  else if (entry.m !== 'Data.Core' && !entry.m.includes('.Internal')) score += 6;
   return score;
 }
 
@@ -756,7 +752,6 @@ export function runHoogleSearch(
   const includeModules: string[] = [];
   const excludeModules: string[] = [];
   const kindFilters: IndexKindCode[] = [];
-  let distFilter: 'all' | 'embedded' | 'source' = filters.dist ?? 'all';
   const restTokens: string[] = [];
 
   if (filters.kind && filters.kind !== 'all') {
@@ -775,10 +770,6 @@ export function runHoogleSearch(
       const k = word.slice(word.indexOf(':') + 1).toLowerCase();
       const mapped = KIND_MAP.get(k);
       if (mapped) kindFilters.push(...mapped);
-    } else if (word === 'in:embedded') {
-      distFilter = 'embedded';
-    } else if (word === 'in:source') {
-      distFilter = 'source';
     } else {
       restTokens.push(word);
     }
@@ -802,7 +793,7 @@ export function runHoogleSearch(
     nameQuery = remainder;
   }
 
-  const hasFilters = includeModules.length > 0 || excludeModules.length > 0 || kindFilters.length > 0 || distFilter !== 'all';
+  const hasFilters = includeModules.length > 0 || excludeModules.length > 0 || kindFilters.length > 0;
   if (!nameQuery && !typeQuery && !hasFilters) {
     return [];
   }
@@ -810,9 +801,6 @@ export function runHoogleSearch(
   const hits: SearchHit[] = [];
 
   for (const entry of entries) {
-    if (distFilter === 'embedded' && entry.e !== 1) continue;
-    if (distFilter === 'source' && entry.e !== 0) continue;
-
     const mlc = entry.m.toLowerCase();
     if (includeModules.length > 0 && !includeModules.some((m) => mlc === m || mlc.startsWith(`${m}.`) || mlc.includes(m))) {
       continue;

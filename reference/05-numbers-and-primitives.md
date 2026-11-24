@@ -354,7 +354,7 @@ Symbols are opaque identities: their addresses are never exposed, and they suppo
 
 # Exact Rationals and BigDecimals
 
-[Data.Rational](../library/Data.Rational.md) and [Data.BigDecimal](../library/Data.BigDecimal.md) provide exact arbitrary-precision fractions and base-10 decimals. Both are source-distributed modules: importing them requires `Data.Rational.cinch` or `Data.BigDecimal.cinch` beside the entry module (otherwise compilation fails with `module Data.Rational is imported, but Data.Rational.cinch does not exist`).
+[Data.Rational](../library/Data.Rational.md) and [Data.BigDecimal](../library/Data.BigDecimal.md) provide exact arbitrary-precision fractions and base-10 decimals from `cinch/stdlib` (`import Data.Rational` or `import Data.BigDecimal`).
 
 - **`Rational`** maintains a normalized coprime `Int` pair with a strictly positive denominator behind a private constructor, so `rational 1 2` and `rational 2 4` produce equal values. Construction via `rational :: Int -> Int -> Result RationalError Rational` rejects zero denominators (`ZeroDenominator`); `div` rejects division by zero (`DivideByZero`); `add`, `sub`, `mul`, `from-int`, `numerator`, and `denominator` are total; `to-f64` explicitly rounds to `F64`.
 - **`BigDecimal`** pairs an unscaled `Int` mantissa with an `Int` base-10 exponent: `big-decimal :: Int -> Int -> BigDecimal`, observed with `unscaled` and `exponent`, and parsed via `from-string :: String -> Result BigDecimalError BigDecimal`. `add`, `sub`, `mul`, `abs`, and `neg` are total; `round :: Nat -> Rounding -> BigDecimal -> BigDecimal` and `div :: Nat -> Rounding -> BigDecimal -> BigDecimal -> Option BigDecimal` require an explicit `Rounding` mode so quotients are never silently rounded.

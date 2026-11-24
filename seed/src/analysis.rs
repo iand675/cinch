@@ -342,6 +342,10 @@ impl Analysis {
         let mut seen: BTreeSet<String> = BTreeSet::new();
         let mut loaded: Vec<String> = Vec::new();
         let prelude_names = driver::prelude_module_names();
+        let stdlib_modules = driver::stdlib_module_map(&driver::TargetFacts::of(
+            &crate::core::TargetProfile::native(),
+        ))
+        .unwrap_or_default();
         while let Some(path) = queue.pop() {
             let key = self.rel_path(&path);
             if !seen.insert(key.clone()) {
@@ -373,6 +377,10 @@ impl Analysis {
                     match candidates.len() {
                         1 => queue.push(candidates.into_iter().next().expect("one")),
                         0 => {
+                            if let Some(stdlib_path) = stdlib_modules.get(imp) {
+                                queue.push(stdlib_path.clone());
+                                continue;
+                            }
                             return Err(format!(
                                 "module {imp} is imported, but no source file beside the entry declares it"
                             ))

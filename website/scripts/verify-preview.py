@@ -49,36 +49,42 @@ assert catalogue['sample'] is False, 'the catalogue must not advertise sample da
 assert isinstance(catalogue.get('builtAt'), str) and catalogue['builtAt'], 'build time is required'
 assert isinstance(catalogue.get('offline'), bool)
 
+stdlib_packages = [p for p in catalogue['packages'] if p.get('sourceKind') == 'stdlib']
+registry_packages = [p for p in catalogue['packages'] if p.get('sourceKind') != 'stdlib']
+assert len(stdlib_packages) == 1 and stdlib_packages[0]['name'] == 'stdlib', 'catalogue must include bundled stdlib package'
+assert (root/'packages/stdlib/index.html').exists(), 'stdlib package overview page missing'
+assert (root/'packages/search/index.html').exists(), 'API search page missing'
+for mod in stdlib_packages[0]['modules']:
+    assert (root/'packages/stdlib'/mod['name']/'index.html').exists(), ('stdlib', mod['name'], 'module page missing')
+    assert (root/'packages/stdlib'/mod['name']/'source'/'index.html').exists(), ('stdlib', mod['name'], 'source page missing')
+
 if catalogue['offline']:
-    assert catalogue['packages'] == [], 'offline builds must not carry package data'
+    assert registry_packages == [], 'offline builds must not carry external registry package data'
     assert catalogue.get('registry') is None, 'offline builds have no registry source'
     index_html = (root/'packages/index.html').read_text().lower()
     assert 'offline catalogue' in index_html, 'the offline page must say the catalogue is offline'
     assert 'sample data' not in index_html
-    print(f'Checked {len(pages)} package/download pages and {links} local links for an offline catalogue.')
+    print(f'Checked {len(pages)} package/download pages and {links} local links for an offline catalogue (stdlib only).')
 elif catalogue.get('fallback'):
     assert isinstance(catalogue.get('warning'), str) and catalogue['warning'], 'a fallback must explain the missing registry'
     index_html = (root/'packages/index.html').read_text().lower()
     assert 'cached catalogue' in index_html, 'the fallback page must say it used a cached catalogue'
     assert 'sample data' not in index_html, 'the fallback page must not advertise sample data'
-    packages = catalogue['packages']
-    assert isinstance(packages, list)
-    for package in packages:
+    for package in registry_packages:
         for release in package['releases']:
             base = root/'packages'/package['name']/release['version']
             assert (base/'index.html').exists(), (package['name'], release['version'], 'fallback package page missing')
-    print(f'Checked {len(pages)} package/download pages and {links} local links for a cached catalogue.')
+    print(f'Checked {len(pages)} package/download pages and {links} local links for stdlib + cached catalogue.')
 else:
     registry = catalogue.get('registry')
     assert isinstance(registry, str) and registry, 'a live catalogue must name its registry'
-    packages = catalogue['packages']
-    assert packages, 'a live catalogue must contain at least one public release'
+    assert registry_packages, 'a live catalogue must contain at least one public release'
     index_html = (root/'packages/index.html').read_text()
     assert registry in index_html, 'the catalogue index does not name its registry'
     assert 'sample data' not in index_html.lower(), 'the live catalogue index still says sample data'
     assert 'name="robots"' not in index_html, 'the live catalogue index must be indexable'
-    expected_pages = 0
-    for package in packages:
+    expected_pages = 1 + len(stdlib_packages[0]['modules']) * 2
+    for package in registry_packages:
         assert package['registry'] == registry, (package['name'], 'registry mismatch')
         assert package['releases'], (package['name'], 'no releases')
         for release in package['releases']:
@@ -104,7 +110,7 @@ else:
                     assert '.cinchdoc' in module_html, (module['name'], 'page must explain generated declaration data')
                 assert 'sample listing' not in source_page.read_text().lower()
     built_pages = len(list((root/'packages').rglob('*.html')))
-    assert built_pages >= expected_pages + 2, (built_pages, expected_pages, 'missing catalogue routes')
+    assert built_pages >= expected_pages + 3, (built_pages, expected_pages, 'missing catalogue routes')
 
 downloads = (root/'downloads/index.html').read_text()
 assert 'sample bundle' not in downloads.lower(), 'downloads must not advertise sample bundles'

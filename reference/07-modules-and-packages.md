@@ -161,13 +161,14 @@ module Greeting where
 
 ## Module resolution
 
-When resolving `import Mod`, the loader searches three sources in order and stops at the first match:
+When resolving `import Mod`, the loader searches four sources in order and stops at the first match:
 
 1. A module already loaded in the current compilation, including one declared earlier in the same file.
 2. A file named `Mod.cinch` beside the entry file.
 3. A unique `module Mod` declaration in any `.cinch` file recursively under the entry file's parent directory (skipping `.git`, `target`, `build`, and `node_modules`).
+4. The toolchain's `cinch/stdlib` package (declared in its `.cinchpkg` manifest, overridable via `CINCH_STDLIB`), resolved on demand with its transitive interface closure.
 
-Step 3 is how vendored packages under `vendor/` and modules whose filenames differ from their module names are discovered. Because recursive search inspects the entry path's parent directory, invoking `cinch check Main.cinch` leaves the search directory empty and skips step 3; pass `./Main.cinch` or a path with an explicit directory component when importing modules declared in differently named files or subdirectories.
+Step 3 is how vendored packages under `vendor/` and modules whose filenames differ from their module names are discovered. Because recursive search inspects the entry path's parent directory, invoking `cinch check Main.cinch` leaves the search directory empty and skips step 3; pass `./Main.cinch` or a path with an explicit directory component when importing modules declared in differently named files or subdirectories. Standard library modules in step 4 resolve regardless of working directory.
 
 Missing and ambiguous modules produce distinct errors:
 
@@ -490,9 +491,9 @@ The build manifest records the converter, file path, and a 64-bit FNV-1a digest 
 
 # Packages
 
-A package pairs a `.cinchpkg` manifest with a tree of module sources. The standard library ships embedded as `cinch-base`; third-party and workspace packages are installed into `vendor/` with `cinch pkg install`, which writes a lockfile and source tree resolved automatically by step 3 of [module resolution](#module-resolution).
+A package pairs a `.cinchpkg` manifest with a tree of module sources, checked `.cinchif`/`.cpk` interfaces, and linkable package objects (`package.o`). The standard library ships with the toolchain as the `cinch/stdlib` package (inspectable via `cinch pkg info cinch/stdlib`); third-party and workspace packages are installed into `vendor/` with `cinch pkg install`, which writes a lockfile and source tree resolved automatically by step 3 of [module resolution](#module-resolution).
 
-The implicit `Prelude` is a curated facade re-exporting core definitions rather than the entire standard library. Placing a source module with the same name beside your entry file shadows the embedded copy. For manifests, lockfiles, and registry publishing, see [packages, manifests, and the registry](29-package-management.md).
+The implicit `Prelude` is a curated facade re-exporting core definitions rather than the entire standard library. Placing a source module with the same name beside your entry file overrides the toolchain copy. For manifests, lockfiles, and registry publishing, see [packages, manifests, and the registry](29-package-management.md).
 
 # Current boundaries
 

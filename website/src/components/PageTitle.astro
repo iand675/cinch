@@ -6,9 +6,7 @@ const section = id.startsWith('learn/')
   ? 'Language tutorial'
   : id.startsWith('reference/')
     ? 'Compiler user’s guide'
-    : id.startsWith('library/')
-      ? 'Library reference'
-      : 'Documentation';
+    : 'Documentation';
 const { source, exported, added } = data as {
   source?: string;
   exported?: string;
