@@ -75,6 +75,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | Module | Distribution | Purpose |
 | --- | --- | --- |
 | [Crypto.Aes](Crypto.Aes.md) | Ship source | AES-128/192/256 with AES-NI or ARMv8 instructions after detection and a constant-time, table-free SIMD fallback. |
+| [Crypto.ChaCha20Poly1305](Crypto.ChaCha20Poly1305.md) | Ship source | ChaCha20 and XChaCha20 streams, Poly1305 and the ChaCha20-Poly1305 and XChaCha20-Poly1305 AEADs with vector row kernels. |
 | [Crypto.Cipher](Crypto.Cipher.md) | Ship source | CTR, OFB, CFB, CBC and GCM over any 128-bit block cipher, with constant-time or carry-less-instruction GHASH and constant-time tag checks. |
 | [Crypto.ConstantTime](Crypto.ConstantTime.md) | Ship source | Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors. |
 | [Crypto.Des](Crypto.Des.md) | Ship source | DES and Triple DES block ciphers with ECB, CBC and CTR for legacy interoperation, from a generated straight-line round kernel. |
@@ -82,6 +83,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Crypto.Ed25519](Crypto.Ed25519.md) | Ship source | Deterministic Ed25519 signatures with constant-time signing and strict verification. |
 | [Crypto.Field25519](Crypto.Field25519.md) | Ship source | Constant-time arithmetic modulo 2^255 - 19 with 128-bit column products, shared by X25519 and Ed25519. |
 | [Crypto.Hmac](Crypto.Hmac.md) | Ship source | Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification. |
+| [Crypto.Hpke](Crypto.Hpke.md) | Ship source | Hybrid public key encryption (RFC 9180) over DHKEM X25519 and P-256, HKDF and AES-GCM or ChaCha20-Poly1305, in all four modes. |
 | [Crypto.Kdf](Crypto.Kdf.md) | Ship source | HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256. |
 | [Crypto.MlKem](Crypto.MlKem.md) | Ship source | ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels. |
 | [Crypto.P256](Crypto.P256.md) | Ship source | Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels. |
@@ -354,7 +356,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **277 source modules**: **66 embedded** and **211 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **279 source modules**: **66 embedded** and **213 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

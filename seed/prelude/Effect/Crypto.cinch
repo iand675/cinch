@@ -1,5 +1,5 @@
 -- | Key generation and randomized encryption over the operating system's cryptographic random source.
--- The pure modules Crypto.Ed25519, Crypto.X25519, Crypto.P256, Crypto.Ecdsa, Crypto.MlKem, Crypto.Aes and Crypto.Cipher take
+-- The pure modules Crypto.Ed25519, Crypto.X25519, Crypto.P256, Crypto.Ecdsa, Crypto.MlKem, Crypto.Hpke, Crypto.Aes and Crypto.Cipher take
 -- their secret material as arguments; this module draws it from Effect.Random so
 -- callers never construct keys or nonces from predictable values. Random-nonce
 -- GCM prepends a fresh nonce to every sealed message, which makes nonce reuse
@@ -14,11 +14,12 @@ module Effect.Crypto where
   import Crypto.P256
   import Crypto.Ecdsa
   import Crypto.X25519
+  import Crypto.Hpke
   import Data.Bytes
   import Data.Bytes.Build
   import Data.Result
 
-  export ed25519-generate, x25519-generate, p256-generate, ecdsa-sign-random, mlkem-generate, mlkem-encapsulate, aes-generate-key, gcm-seal-random, gcm-open-random
+  export ed25519-generate, x25519-generate, p256-generate, ecdsa-sign-random, hpke-generate, hpke-setup-sender-random, hpke-seal-random, mlkem-generate, mlkem-encapsulate, aes-generate-key, gcm-seal-random, gcm-open-random
 
   -- | A new Ed25519 private key from a fresh 32-byte random seed.
   ed25519-generate :: forall r. using (io :: Io r) => Unit ->{IO r} Ed25519PrivateKey
@@ -41,6 +42,20 @@ module Effect.Crypto where
   -- | Sign a digest with an RFC 6979 nonce hedged by 32 fresh random bytes (DER encoding).
   ecdsa-sign-random :: forall r. using (io :: Io r) => P256PrivateKey -> Bytes ->{IO r} Result EcdsaError Bytes
   ecdsa-sign-random key digest = ecdsa-sign-der-hedged key digest (random-bytes 32)
+
+  -- | A new HPKE key pair for a KEM, derived from 32 fresh random bytes.
+  hpke-generate :: forall r. using (io :: Io r) => HpkeKem ->{IO r} HpkePrivateKey
+  hpke-generate kem = case hpke-derive-key-pair kem (random-bytes 32) of
+    Ok key -> key
+    Err error -> hpke-generate kem
+
+  -- | Set up an HPKE sender context with a fresh ephemeral key: the encapsulated key and the context.
+  hpke-setup-sender-random :: forall r. using (io :: Io r) => HpkeSuite -> HpkePublicKey -> Bytes -> Option HpkePrivateKey -> Option (Bytes, Bytes) ->{IO r} Result HpkeError (Bytes, HpkeContext)
+  hpke-setup-sender-random s recipient info sender psk = hpke-setup-sender s recipient info sender psk (hpke-generate (hpke-suite-kem s))
+
+  -- | Single-shot HPKE sealing with a fresh ephemeral key: the encapsulated key and the ciphertext.
+  hpke-seal-random :: forall r. using (io :: Io r) => HpkeSuite -> HpkePublicKey -> Bytes -> Bytes -> Bytes ->{IO r} Result HpkeError (Bytes, Bytes)
+  hpke-seal-random s recipient info aad plaintext = hpke-seal-once s recipient info aad plaintext None None (hpke-generate (hpke-suite-kem s))
 
   -- | A new ML-KEM decapsulation key from a fresh 64-byte random seed.
   mlkem-generate :: forall r. using (io :: Io r) => MlKemParameters ->{IO r} MlKemDecapsulationKey

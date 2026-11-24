@@ -1,0 +1,606 @@
+-- | Hybrid public key encryption (RFC 9180): a key encapsulation, a key schedule and an AEAD combined into
+-- contexts that seal or open a sequence of messages and export secrets.
+--
+-- Suites combine DHKEM(X25519, HKDF-SHA256) or DHKEM(P-256, HKDF-SHA256); HKDF-SHA256, HKDF-SHA384 or
+-- HKDF-SHA512; and AES-128-GCM, AES-256-GCM, ChaCha20-Poly1305 or export-only. All four modes are
+-- supported: base, PSK (a pre-shared key and its identifier), auth (the sender's static key) and auth-PSK.
+-- Key pairs derive deterministically from input keying material, and the sender's ephemeral key is an
+-- explicit argument (Effect.Crypto supplies fresh ones), so every operation here is pure and repeatable.
+--
+-- A context is an immutable value: sealing or opening returns the next context with the sequence number
+-- advanced, so a retained context can never reuse a nonce by accident. Opening never releases plaintext
+-- before the AEAD tag verifies.
+module Crypto.Hpke where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Crypto.Kdf
+  import Crypto.Hmac
+  import Crypto.X25519
+  import Crypto.P256
+  import Crypto.Aes
+  import Crypto.Cipher
+  import Crypto.ChaCha20Poly1305
+  import Text.Sha512 (sha384-sum)
+
+  export HpkeKem, HpkeDhkemX25519, HpkeDhkemP256, HpkeKdf, HpkeHkdfSha256, HpkeHkdfSha384, HpkeHkdfSha512
+  export HpkeAead, HpkeAes128Gcm, HpkeAes256Gcm, HpkeChaCha20Poly1305, HpkeExportOnly
+  export HpkeSuite, hpke-suite, hpke-suite-kem, hpke-suite-kdf, hpke-suite-aead
+  export HpkeError, HpkeInvalidKey, HpkeInvalidEncapsulation, HpkeDerivationFailed, HpkeInconsistentPsk
+  export HpkeExportOnlyAead, HpkeOpenFailed, HpkeMessageLimit, HpkeExportTooLong, HpkeKeyMismatch, hpke-error-message
+  export HpkePrivateKey, HpkePublicKey, hpke-derive-key-pair, hpke-private-key, hpke-public-key, hpke-public-key-of
+  export hpke-private-key-bytes, hpke-public-key-bytes, hpke-key-kem
+  export HpkeContext, hpke-setup-sender, hpke-setup-recipient, hpke-seal, hpke-open, hpke-export, hpke-sequence
+  export hpke-seal-once, hpke-open-once, hpke-kem-id, hpke-kdf-id, hpke-aead-id, hpke-enc-size
+
+  -- ---------------------------------------------------------------------
+  -- Vocabulary.
+  -- ---------------------------------------------------------------------
+
+  -- | A key encapsulation mechanism.
+  data HpkeKem where
+    -- | DHKEM(X25519, HKDF-SHA256), identifier 0x0020.
+    HpkeDhkemX25519 :: HpkeKem
+    -- | DHKEM(P-256, HKDF-SHA256), identifier 0x0010.
+    HpkeDhkemP256 :: HpkeKem
+
+  -- | A key derivation function.
+  data HpkeKdf where
+    -- | HKDF-SHA256, identifier 1.
+    HpkeHkdfSha256 :: HpkeKdf
+    -- | HKDF-SHA384, identifier 2.
+    HpkeHkdfSha384 :: HpkeKdf
+    -- | HKDF-SHA512, identifier 3.
+    HpkeHkdfSha512 :: HpkeKdf
+
+  -- | An authenticated cipher.
+  data HpkeAead where
+    -- | AES-128-GCM, identifier 1.
+    HpkeAes128Gcm :: HpkeAead
+    -- | AES-256-GCM, identifier 2.
+    HpkeAes256Gcm :: HpkeAead
+    -- | ChaCha20-Poly1305, identifier 3.
+    HpkeChaCha20Poly1305 :: HpkeAead
+    -- | No cipher: contexts only export secrets, identifier 0xFFFF.
+    HpkeExportOnly :: HpkeAead
+
+  -- | A cipher suite.
+  data HpkeSuite where
+    -- | KEM, KDF and AEAD.
+    HpkeSuite :: HpkeKem -> HpkeKdf -> HpkeAead -> HpkeSuite
+
+  -- | Combine algorithms into a suite.
+  hpke-suite :: HpkeKem -> HpkeKdf -> HpkeAead -> HpkeSuite
+  hpke-suite kem kdf aead = HpkeSuite kem kdf aead
+
+  -- | The suite's KEM.
+  hpke-suite-kem :: HpkeSuite -> HpkeKem
+  hpke-suite-kem s = case s of HpkeSuite kem kdf aead -> kem
+
+  -- | The suite's KDF.
+  hpke-suite-kdf :: HpkeSuite -> HpkeKdf
+  hpke-suite-kdf s = case s of HpkeSuite kem kdf aead -> kdf
+
+  -- | The suite's AEAD.
+  hpke-suite-aead :: HpkeSuite -> HpkeAead
+  hpke-suite-aead s = case s of HpkeSuite kem kdf aead -> aead
+
+  -- | Why an HPKE operation failed.
+  data HpkeError where
+    -- | A key's encoding is invalid for its KEM.
+    HpkeInvalidKey :: HpkeError
+    -- | The encapsulated key is invalid, or the Diffie-Hellman result is degenerate.
+    HpkeInvalidEncapsulation :: HpkeError
+    -- | Key derivation found no valid key (P-256 after 256 candidates) or the KDF refused a length.
+    HpkeDerivationFailed :: HpkeError
+    -- | A pre-shared key was given without an identifier, or the other way round.
+    HpkeInconsistentPsk :: HpkeError
+    -- | The suite's AEAD is export-only, so it cannot seal or open.
+    HpkeExportOnlyAead :: HpkeError
+    -- | The ciphertext or its additional data does not authenticate.
+    HpkeOpenFailed :: HpkeError
+    -- | The context's sequence number is exhausted.
+    HpkeMessageLimit :: HpkeError
+    -- | The requested export is longer than 255 hash outputs.
+    HpkeExportTooLong :: HpkeError
+    -- | A key belongs to a different KEM than the suite's.
+    HpkeKeyMismatch :: HpkeError
+
+  -- | A readable description of an error.
+  hpke-error-message :: HpkeError -> String
+  hpke-error-message e = case e of
+    HpkeInvalidKey -> "hpke: invalid key encoding"
+    HpkeInvalidEncapsulation -> "hpke: invalid encapsulated key"
+    HpkeDerivationFailed -> "hpke: key derivation failed"
+    HpkeInconsistentPsk -> "hpke: a pre-shared key and its identifier must be given together"
+    HpkeExportOnlyAead -> "hpke: the export-only AEAD cannot seal or open"
+    HpkeOpenFailed -> "hpke: message authentication failed"
+    HpkeMessageLimit -> "hpke: message limit reached"
+    HpkeExportTooLong -> "hpke: export length too large"
+    HpkeKeyMismatch -> "hpke: key does not belong to the suite's KEM"
+
+  -- | A private key: its KEM and serialized form (32 bytes).
+  data HpkePrivateKey where
+    -- | KEM and serialized key.
+    HpkePrivateKey :: HpkeKem -> Bytes -> HpkePrivateKey
+
+  -- | A public key: its KEM and serialized form (32 bytes for X25519, 65 uncompressed bytes for P-256).
+  data HpkePublicKey where
+    -- | KEM and serialized key.
+    HpkePublicKey :: HpkeKem -> Bytes -> HpkePublicKey
+
+  -- | A context: suite, AEAD key, base nonce, exporter secret and the next sequence number.
+  data HpkeContext where
+    -- | Fields in the order listed above.
+    HpkeContext :: HpkeSuite -> Bytes -> Bytes -> Bytes -> Nat -> HpkeContext
+
+  -- ---------------------------------------------------------------------
+  -- Identifiers and sizes.
+  -- ---------------------------------------------------------------------
+
+  -- | The KEM identifier.
+  hpke-kem-id :: HpkeKem -> Nat
+  hpke-kem-id kem = case kem of
+    HpkeDhkemX25519 -> 32
+    HpkeDhkemP256 -> 16
+
+  -- | The KDF identifier.
+  hpke-kdf-id :: HpkeKdf -> Nat
+  hpke-kdf-id kdf = case kdf of
+    HpkeHkdfSha256 -> 1
+    HpkeHkdfSha384 -> 2
+    HpkeHkdfSha512 -> 3
+
+  -- | The AEAD identifier.
+  hpke-aead-id :: HpkeAead -> Nat
+  hpke-aead-id aead = case aead of
+    HpkeAes128Gcm -> 1
+    HpkeAes256Gcm -> 2
+    HpkeChaCha20Poly1305 -> 3
+    HpkeExportOnly -> 65535
+
+  -- | The encapsulated (and serialized public) key size.
+  hpke-enc-size :: HpkeKem -> Nat
+  hpke-enc-size kem = case kem of
+    HpkeDhkemX25519 -> 32
+    HpkeDhkemP256 -> 65
+
+  -- | The AEAD key size.
+  key-size :: HpkeAead -> Nat
+  key-size aead = case aead of
+    HpkeAes128Gcm -> 16
+    HpkeAes256Gcm -> 32
+    HpkeChaCha20Poly1305 -> 32
+    HpkeExportOnly -> 0
+
+  -- | The AEAD nonce size.
+  nonce-size :: HpkeAead -> Nat
+  nonce-size aead = case aead of
+    HpkeExportOnly -> 0
+    other -> 12
+
+  -- | The KDF output size.
+  hash-size :: HpkeKdf -> Nat
+  hash-size kdf = case kdf of
+    HpkeHkdfSha256 -> 32
+    HpkeHkdfSha384 -> 48
+    HpkeHkdfSha512 -> 64
+
+  -- | Whether two KEMs are the same.
+  same-kem :: HpkeKem -> HpkeKem -> Bool
+  same-kem a b = hpke-kem-id a == hpke-kem-id b
+
+  -- ---------------------------------------------------------------------
+  -- Labeled HKDF.
+  -- ---------------------------------------------------------------------
+
+  -- | HMAC-SHA-384 (key then message), from the SHA-384 digest with 128-byte blocks.
+  hmac-sha384 :: Bytes -> Bytes -> Bytes
+  hmac-sha384 key message =
+    let k = if bytes-len key > 128 then sha384-sum key else key in
+    let inner = pad k 54 in
+    let outer = pad k 92 in
+    sha384-sum (bytes-concat [outer, sha384-sum (bytes-concat [inner, message])])
+
+  -- | A 128-byte block of the key (zero-padded) with every byte XORed with a constant.
+  pad :: Bytes -> Nat -> Bytes
+  pad key c =
+    let out = bytes-new 128 in
+    let filled = pad-from key c out 0 in
+    out
+
+  -- | Pad bytes i onwards.
+  pad-from :: Bytes -> Nat -> Bytes -> Nat -> Unit
+  pad-from key c out i = if i >= 128 then ()
+    else
+      let v = u8-to-nat (bit-xor-u8 (byte (at key i)) (byte c)) in
+      let s = if i < bytes-len out then bytes-set out i v else () in
+      pad-from key c out (i + 1)
+
+  -- | A number below 256 as a byte.
+  byte :: Nat -> U8
+  byte n = if n < 256 then wrapping-i64-to-u8 (nat-to-i64 n) else 0
+
+  -- | The byte at an offset, zero outside the buffer.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | HMAC-SHA-512 (key then message).
+  hmac-sha512 :: Bytes -> Bytes -> Bytes
+  hmac-sha512 key message = hmac-tag (hmac-key HmacSha512 key) message
+
+  -- | The HKDF pseudorandom function of a KDF.
+  prf-of :: HpkeKdf -> KdfPrf
+  prf-of kdf = case kdf of
+    HpkeHkdfSha256 -> kdf-hmac-sha256
+    HpkeHkdfSha384 -> or-sha256 (kdf-prf 48 hmac-sha384)
+    HpkeHkdfSha512 -> or-sha256 (kdf-prf 64 hmac-sha512)
+
+  -- | A constructed PRF (construction only fails for a zero width, which never occurs here).
+  or-sha256 :: Option KdfPrf -> KdfPrf
+  or-sha256 p = case p of
+    Some prf -> prf
+    None -> kdf-hmac-sha256
+
+  -- | n as a big-endian integer of width bytes.
+  i2osp :: Nat -> Nat -> Bytes
+  i2osp n width =
+    let out = bytes-new width in
+    let filled = i2osp-from out n width in
+    out
+
+  -- | Fill the last i bytes of out with the low bytes of n.
+  i2osp-from :: Bytes -> Nat -> Nat -> Unit
+  i2osp-from out n i = if i == 0 then ()
+    else
+      let j = minus i 1 in
+      let s = if j < bytes-len out then bytes-set out j (nat-rem n 256) else () in
+      i2osp-from out (nat-div n 256) j
+
+  -- | The KEM's suite identifier: "KEM" and its identifier.
+  kem-suite :: HpkeKem -> Bytes
+  kem-suite kem = bytes-concat [string-to-bytes "KEM", i2osp (hpke-kem-id kem) 2]
+
+  -- | The full suite identifier: "HPKE" and the three identifiers.
+  hpke-suite-id :: HpkeSuite -> Bytes
+  hpke-suite-id s = case s of
+    HpkeSuite kem kdf aead -> bytes-concat [string-to-bytes "HPKE", i2osp (hpke-kem-id kem) 2, i2osp (hpke-kdf-id kdf) 2, i2osp (hpke-aead-id aead) 2]
+
+  -- | LabeledExtract: HKDF-Extract of "HPKE-v1", the suite identifier, the label and the input.
+  labeled-extract :: KdfPrf -> Bytes -> Bytes -> String -> Bytes -> Result HpkeError Bytes
+  labeled-extract prf suite salt label ikm =
+    case hkdf-extract prf (bytes-concat [string-to-bytes "HPKE-v1", suite, string-to-bytes label, ikm]) salt of
+      Ok prk -> Ok prk
+      Err e -> Err HpkeDerivationFailed
+
+  -- | LabeledExpand: HKDF-Expand with the length, "HPKE-v1", the suite identifier, the label and the info.
+  labeled-expand :: KdfPrf -> Bytes -> Bytes -> String -> Bytes -> Nat -> Result HpkeError Bytes
+  labeled-expand prf suite prk label info size =
+    case hkdf-expand prf prk (bytes-concat [i2osp size 2, string-to-bytes "HPKE-v1", suite, string-to-bytes label, info]) size of
+      Ok out -> Ok out
+      Err e -> Err HpkeDerivationFailed
+
+  -- ---------------------------------------------------------------------
+  -- Keys.
+  -- ---------------------------------------------------------------------
+
+  -- | Derive a key pair from input keying material (DeriveKeyPair): X25519 expands the private key directly;
+  -- P-256 tries up to 256 candidates until one lies in [1, n).
+  hpke-derive-key-pair :: HpkeKem -> Bytes -> Result HpkeError HpkePrivateKey
+  hpke-derive-key-pair kem ikm =
+    let suite = kem-suite kem in
+    case labeled-extract kdf-hmac-sha256 suite (bytes-new 0) "dkp_prk" ikm of
+      Err e -> Err e
+      Ok prk -> (case kem of
+        HpkeDhkemX25519 -> (case labeled-expand kdf-hmac-sha256 suite prk "sk" (bytes-new 0) 32 of
+          Ok sk -> Ok (HpkePrivateKey kem sk)
+          Err e -> Err e)
+        HpkeDhkemP256 -> candidates suite prk 0)
+
+  -- | P-256 candidates from a counter onwards.
+  candidates :: Bytes -> Bytes -> Nat -> Result HpkeError HpkePrivateKey
+  candidates suite prk counter =
+    if counter > 255 then Err HpkeDerivationFailed
+    else case labeled-expand kdf-hmac-sha256 suite prk "candidate" (i2osp counter 1) 32 of
+      Err e -> Err e
+      Ok sk -> (case p256-private-key sk of
+        Ok k -> Ok (HpkePrivateKey HpkeDhkemP256 sk)
+        Err e -> candidates suite prk (counter + 1))
+
+  -- | A private key from its serialized form.
+  hpke-private-key :: HpkeKem -> Bytes -> Result HpkeError HpkePrivateKey
+  hpke-private-key kem sk = case kem of
+    HpkeDhkemX25519 -> (case x25519-private-key sk of
+      Ok k -> Ok (HpkePrivateKey kem (bytes-clone sk))
+      Err e -> Err HpkeInvalidKey)
+    HpkeDhkemP256 -> (case p256-private-key sk of
+      Ok k -> Ok (HpkePrivateKey kem (bytes-clone sk))
+      Err e -> Err HpkeInvalidKey)
+
+  -- | A public key from its serialized form (P-256 keys must be uncompressed).
+  hpke-public-key :: HpkeKem -> Bytes -> Result HpkeError HpkePublicKey
+  hpke-public-key kem pk = case kem of
+    HpkeDhkemX25519 -> if bytes-len pk == 32 then Ok (HpkePublicKey kem (bytes-clone pk)) else Err HpkeInvalidKey
+    HpkeDhkemP256 -> if bytes-len pk == 65 && at pk 0 == 4 then (case p256-public-key pk of
+      Ok q -> Ok (HpkePublicKey kem (bytes-clone pk))
+      Err e -> Err HpkeInvalidKey) else Err HpkeInvalidKey
+
+  -- | The public key of a private key.
+  hpke-public-key-of :: HpkePrivateKey -> HpkePublicKey
+  hpke-public-key-of k = case k of
+    HpkePrivateKey kem sk -> HpkePublicKey kem (public-bytes kem sk)
+
+  -- | The serialized public key of a valid serialized private key.
+  public-bytes :: HpkeKem -> Bytes -> Bytes
+  public-bytes kem sk = case kem of
+    HpkeDhkemX25519 -> (case x25519-private-key sk of
+      Ok k -> x25519-public-key k
+      Err e -> bytes-new 32)
+    HpkeDhkemP256 -> (case p256-private-key sk of
+      Ok k -> p256-public-key-bytes (p256-public-key-of k)
+      Err e -> bytes-new 65)
+
+  -- | The serialized private key.
+  hpke-private-key-bytes :: HpkePrivateKey -> Bytes
+  hpke-private-key-bytes k = case k of HpkePrivateKey kem sk -> bytes-clone sk
+
+  -- | The serialized public key.
+  hpke-public-key-bytes :: HpkePublicKey -> Bytes
+  hpke-public-key-bytes k = case k of HpkePublicKey kem pk -> bytes-clone pk
+
+  -- | The KEM a private key belongs to.
+  hpke-key-kem :: HpkePrivateKey -> HpkeKem
+  hpke-key-kem k = case k of HpkePrivateKey kem sk -> kem
+
+  -- | Diffie-Hellman between a serialized private key and a serialized public key of one KEM.
+  dh :: HpkeKem -> Bytes -> Bytes -> Result HpkeError Bytes
+  dh kem sk pk = case kem of
+    HpkeDhkemX25519 -> (case x25519-private-key sk of
+      Ok k -> (case x25519-shared k pk of
+        Ok shared -> Ok shared
+        Err e -> Err HpkeInvalidEncapsulation)
+      Err e -> Err HpkeInvalidKey)
+    HpkeDhkemP256 -> (case (p256-private-key sk, p256-public-key pk) of
+      (Ok k, Ok q) -> (case p256-ecdh k q of
+        Ok shared -> Ok shared
+        Err e -> Err HpkeInvalidEncapsulation)
+      other -> Err HpkeInvalidEncapsulation)
+
+  -- | ExtractAndExpand: the KEM shared secret from the Diffie-Hellman output and the KEM context.
+  kem-secret :: HpkeKem -> Bytes -> Bytes -> Result HpkeError Bytes
+  kem-secret kem shared context =
+    let suite = kem-suite kem in
+    case labeled-extract kdf-hmac-sha256 suite (bytes-new 0) "eae_prk" shared of
+      Err e -> Err e
+      Ok prk -> labeled-expand kdf-hmac-sha256 suite prk "shared_secret" context 32
+
+  -- | Encapsulate to a recipient with an ephemeral key, optionally authenticated by a sender key: the encapsulated
+  -- key and the shared secret.
+  encap :: HpkeKem -> Bytes -> Bytes -> Option HpkePrivateKey -> Result HpkeError (Bytes, Bytes)
+  encap kem pkr ske sender =
+    let enc = public-bytes kem ske in
+    case dh kem ske pkr of
+      Err e -> Err e
+      Ok d1 -> (case sender of
+        None -> (case kem-secret kem d1 (bytes-concat [enc, pkr]) of
+          Ok s -> Ok (enc, s)
+          Err e -> Err e)
+        Some k -> (case k of
+          HpkePrivateKey skem sks -> (case dh kem sks pkr of
+            Err e -> Err e
+            Ok d2 -> (case kem-secret kem (bytes-concat [d1, d2]) (bytes-concat [enc, pkr, public-bytes kem sks]) of
+              Ok s -> Ok (enc, s)
+              Err e -> Err e))))
+
+  -- | Decapsulate with the recipient's key, optionally checking a sender key: the shared secret.
+  decap :: HpkeKem -> Bytes -> Bytes -> Option HpkePublicKey -> Result HpkeError Bytes
+  decap kem skr enc sender =
+    let pkr = public-bytes kem skr in
+    case dh kem skr enc of
+      Err e -> Err e
+      Ok d1 -> (case sender of
+        None -> kem-secret kem d1 (bytes-concat [enc, pkr])
+        Some k -> (case k of
+          HpkePublicKey skem pks -> (case dh kem skr pks of
+            Err e -> Err e
+            Ok d2 -> kem-secret kem (bytes-concat [d1, d2]) (bytes-concat [enc, pkr, pks]))))
+
+  -- ---------------------------------------------------------------------
+  -- Key schedule and contexts.
+  -- ---------------------------------------------------------------------
+
+  -- | The mode number: base 0, PSK 1, auth 2, auth-PSK 3.
+  mode-of :: Bool -> Option (Bytes, Bytes) -> Nat
+  mode-of auth psk = (if auth then (2 :: Nat) else (0 :: Nat)) + (case psk of
+    Some p -> (1 :: Nat)
+    None -> (0 :: Nat))
+
+  -- | The pre-shared key and identifier (empty for none), checked for consistency.
+  psk-parts :: Option (Bytes, Bytes) -> Result HpkeError (Bytes, Bytes)
+  psk-parts psk = case psk of
+    None -> Ok (bytes-new 0, bytes-new 0)
+    Some p -> (case p of
+      (key, id) -> if bytes-len key == 0 || bytes-len id == 0 then Err HpkeInconsistentPsk else Ok (key, id))
+
+  -- | KeySchedule: the context for a shared secret, info and pre-shared key in a mode.
+  key-schedule :: HpkeSuite -> Nat -> Bytes -> Bytes -> Bytes -> Bytes -> Result HpkeError HpkeContext
+  key-schedule s mode shared info psk psk-id = case s of
+    HpkeSuite kem kdf aead ->
+      let prf = prf-of kdf in
+      let suite = hpke-suite-id s in
+      let empty = bytes-new 0 in
+      case (labeled-extract prf suite empty "psk_id_hash" psk-id, labeled-extract prf suite empty "info_hash" info) of
+        (Ok pid, Ok ih) ->
+          let context = bytes-concat [i2osp mode 1, pid, ih] in
+          (case labeled-extract prf suite shared "secret" psk of
+            Err e -> Err e
+            Ok secret -> (case (labeled-expand prf suite secret "key" context (key-size aead), labeled-expand prf suite secret "base_nonce" context (nonce-size aead), labeled-expand prf suite secret "exp" context (hash-size kdf)) of
+              (Ok key, Ok nonce, Ok exporter) -> Ok (HpkeContext s key nonce exporter 0)
+              other -> Err HpkeDerivationFailed))
+        other -> Err HpkeDerivationFailed
+
+  -- | Set up a sender context to a recipient's public key with an ephemeral private key; a sender key selects an
+  -- authenticated mode and a (key, identifier) pair a PSK mode. Returns the encapsulated key and the context.
+  hpke-setup-sender :: HpkeSuite -> HpkePublicKey -> Bytes -> Option HpkePrivateKey -> Option (Bytes, Bytes) -> HpkePrivateKey -> Result HpkeError (Bytes, HpkeContext)
+  hpke-setup-sender s recipient info sender psk ephemeral = case (recipient, ephemeral) of
+    (HpkePublicKey rkem pkr, HpkePrivateKey ekem ske) ->
+      if not (same-kem rkem (hpke-suite-kem s)) || not (same-kem ekem (hpke-suite-kem s)) || not (sender-matches s sender) then Err HpkeKeyMismatch
+      else case psk-parts psk of
+        Err e -> Err e
+        Ok parts -> (case parts of
+          (key, id) -> (case encap (hpke-suite-kem s) pkr ske sender of
+            Err e -> Err e
+            Ok made -> (case made of
+              (enc, shared) -> (case key-schedule s (mode-of (is-some sender) psk) shared info key id of
+                Ok ctx -> Ok (enc, ctx)
+                Err e -> Err e))))
+
+  -- | Set up a recipient context from the encapsulated key; a sender public key selects an authenticated mode and
+  -- a (key, identifier) pair a PSK mode.
+  hpke-setup-recipient :: HpkeSuite -> HpkePrivateKey -> Bytes -> Bytes -> Option HpkePublicKey -> Option (Bytes, Bytes) -> Result HpkeError HpkeContext
+  hpke-setup-recipient s recipient enc info sender psk = case recipient of
+    HpkePrivateKey rkem skr ->
+      if not (same-kem rkem (hpke-suite-kem s)) || not (public-matches s sender) then Err HpkeKeyMismatch
+      else if not (bytes-len enc == hpke-enc-size rkem) then Err HpkeInvalidEncapsulation
+      else case psk-parts psk of
+        Err e -> Err e
+        Ok parts -> (case parts of
+          (key, id) -> (case decap rkem skr enc sender of
+            Err e -> Err e
+            Ok shared -> key-schedule s (mode-of (is-some-public sender) psk) shared info key id))
+
+  -- | Whether an optional sender key belongs to the suite's KEM.
+  sender-matches :: HpkeSuite -> Option HpkePrivateKey -> Bool
+  sender-matches s sender = case sender of
+    None -> True
+    Some k -> same-kem (hpke-key-kem k) (hpke-suite-kem s)
+
+  -- | Whether an optional sender public key belongs to the suite's KEM.
+  public-matches :: HpkeSuite -> Option HpkePublicKey -> Bool
+  public-matches s sender = case sender of
+    None -> True
+    Some k -> (case k of HpkePublicKey kem pk -> same-kem kem (hpke-suite-kem s))
+
+  -- | Whether a sender key is present.
+  is-some :: Option HpkePrivateKey -> Bool
+  is-some k = case k of
+    Some x -> True
+    None -> False
+
+  -- | Whether a sender public key is present.
+  is-some-public :: Option HpkePublicKey -> Bool
+  is-some-public k = case k of
+    Some x -> True
+    None -> False
+
+  -- | The sequence number of the next message.
+  hpke-sequence :: HpkeContext -> Nat
+  hpke-sequence ctx = case ctx of HpkeContext s key nonce exporter seq -> seq
+
+  -- | The nonce for a sequence number: the base nonce XOR its big-endian encoding.
+  nonce-for :: Bytes -> Nat -> Bytes
+  nonce-for base seq =
+    let n = bytes-len base in
+    let counter = i2osp seq n in
+    let out = bytes-new n in
+    let filled = xor-into out base counter 0 in
+    out
+
+  -- | XOR bytes i onwards.
+  xor-into :: Bytes -> Bytes -> Bytes -> Nat -> Unit
+  xor-into out a b i = if i >= bytes-len out then ()
+    else
+      let v = u8-to-nat (bit-xor-u8 (byte (at a i)) (byte (at b i))) in
+      let s = bytes-set out i v in
+      xor-into out a b (i + 1)
+
+  -- | The largest sequence number a nonce of n bytes allows (2^(8n) - 1).
+  seq-limit :: Nat -> Nat
+  seq-limit n = if n == 0 then 0 else minus (256 * seq-limit-from n) 1
+
+  -- | 256^(n - 1).
+  seq-limit-from :: Nat -> Nat
+  seq-limit-from n = if n <= 1 then 1 else 256 * seq-limit-from (minus n 1)
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Seal the next message: the ciphertext (with tag) and the context for the message after it.
+  hpke-seal :: HpkeContext -> Bytes -> Bytes -> Result HpkeError (Bytes, HpkeContext)
+  hpke-seal ctx aad plaintext = case ctx of
+    HpkeContext s key base exporter seq ->
+      if seq >= seq-limit (bytes-len base) then (case hpke-suite-aead s of
+        HpkeExportOnly -> Err HpkeExportOnlyAead
+        other -> Err HpkeMessageLimit)
+      else case aead-seal (hpke-suite-aead s) key (nonce-for base seq) plaintext aad of
+        Ok ct -> Ok (ct, HpkeContext s key base exporter (seq + 1))
+        Err e -> Err e
+
+  -- | Open the next message: the plaintext and the context for the message after it.
+  hpke-open :: HpkeContext -> Bytes -> Bytes -> Result HpkeError (Bytes, HpkeContext)
+  hpke-open ctx aad ciphertext = case ctx of
+    HpkeContext s key base exporter seq ->
+      if seq >= seq-limit (bytes-len base) then (case hpke-suite-aead s of
+        HpkeExportOnly -> Err HpkeExportOnlyAead
+        other -> Err HpkeMessageLimit)
+      else case aead-open (hpke-suite-aead s) key (nonce-for base seq) ciphertext aad of
+        Ok pt -> Ok (pt, HpkeContext s key base exporter (seq + 1))
+        Err e -> Err e
+
+  -- | AEAD sealing with a key and nonce.
+  aead-seal :: HpkeAead -> Bytes -> Bytes -> Bytes -> Bytes -> Result HpkeError Bytes
+  aead-seal aead key nonce plaintext aad = case aead of
+    HpkeExportOnly -> Err HpkeExportOnlyAead
+    HpkeChaCha20Poly1305 -> (case chacha20poly1305-seal key nonce plaintext aad of
+      Ok ct -> Ok ct
+      Err e -> Err HpkeMessageLimit)
+    other -> (case aes-key key of
+      Err e -> Err HpkeInvalidKey
+      Ok k -> (case gcm-seal (gcm (aes-cipher k)) nonce plaintext aad of
+        Ok ct -> Ok ct
+        Err e -> Err HpkeMessageLimit))
+
+  -- | AEAD opening with a key and nonce.
+  aead-open :: HpkeAead -> Bytes -> Bytes -> Bytes -> Bytes -> Result HpkeError Bytes
+  aead-open aead key nonce ciphertext aad = case aead of
+    HpkeExportOnly -> Err HpkeExportOnlyAead
+    HpkeChaCha20Poly1305 -> (case chacha20poly1305-open key nonce ciphertext aad of
+      Ok pt -> Ok pt
+      Err e -> Err HpkeOpenFailed)
+    other -> (case aes-key key of
+      Err e -> Err HpkeInvalidKey
+      Ok k -> (case gcm-open (gcm (aes-cipher k)) nonce ciphertext aad of
+        Ok pt -> Ok pt
+        Err e -> Err HpkeOpenFailed))
+
+  -- | Export a secret of a length for an exporter context (at most 255 hash outputs).
+  hpke-export :: HpkeContext -> Bytes -> Nat -> Result HpkeError Bytes
+  hpke-export ctx context size = case ctx of
+    HpkeContext s key base exporter seq ->
+      if size > 255 * hash-size (hpke-suite-kdf s) then Err HpkeExportTooLong
+      else labeled-expand (prf-of (hpke-suite-kdf s)) (hpke-suite-id s) exporter "sec" context size
+
+  -- | Single-shot sealing: set up a sender context and seal one message; the encapsulated key and ciphertext.
+  hpke-seal-once :: HpkeSuite -> HpkePublicKey -> Bytes -> Bytes -> Bytes -> Option HpkePrivateKey -> Option (Bytes, Bytes) -> HpkePrivateKey -> Result HpkeError (Bytes, Bytes)
+  hpke-seal-once s recipient info aad plaintext sender psk ephemeral = case hpke-setup-sender s recipient info sender psk ephemeral of
+    Err e -> Err e
+    Ok setup -> (case setup of
+      (enc, ctx) -> (case hpke-seal ctx aad plaintext of
+        Ok sealed -> (case sealed of
+          (ct, next) -> Ok (enc, ct))
+        Err e -> Err e))
+
+  -- | Single-shot opening: set up a recipient context and open one message.
+  hpke-open-once :: HpkeSuite -> HpkePrivateKey -> Bytes -> Bytes -> Bytes -> Bytes -> Option HpkePublicKey -> Option (Bytes, Bytes) -> Result HpkeError Bytes
+  hpke-open-once s recipient enc info aad ciphertext sender psk = case hpke-setup-recipient s recipient enc info sender psk of
+    Err e -> Err e
+    Ok ctx -> (case hpke-open ctx aad ciphertext of
+      Ok opened -> (case opened of
+        (pt, next) -> Ok pt)
+      Err e -> Err e)

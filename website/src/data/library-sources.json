@@ -171,6 +171,14 @@
       "public_methods": 0
     },
     {
+      "module": "Crypto.Hpke",
+      "path": "seed/prelude/Crypto/Hpke.cinch",
+      "sha256": "02fa628f945bc098ffe21f179980f676c0862c2c3a6f1f8e3655bdd89d116abd",
+      "embedded": false,
+      "values": 24,
+      "public_methods": 0
+    },
+    {
       "module": "Crypto.Kdf",
       "path": "seed/prelude/Crypto/Kdf.cinch",
       "sha256": "ee877d5b4b05c5425637d29b05dd35b3012f291e16bb67d159fe820484033291",
@@ -1149,9 +1157,9 @@
     {
       "module": "Effect.Crypto",
       "path": "seed/prelude/Effect/Crypto.cinch",
-      "sha256": "f544e591ac1f264030d3b0cfbf1839a67d7c918acf3c356088e5beb283d6a7c9",
+      "sha256": "957cd112fcd28d0fe72c0849c395aae3e32851e4d48bfac1fa232562ee006725",
       "embedded": false,
-      "values": 9,
+      "values": 12,
       "public_methods": 0
     },
     {

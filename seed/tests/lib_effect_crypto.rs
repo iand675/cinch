@@ -1,6 +1,6 @@
 //! Randomized key generation and random-nonce GCM: generated keys sign, verify and agree,
 //! ML-KEM keys encapsulate and decapsulate to the same shared key, hedged P-256 signatures verify
-//! and differ, independent generations
+//! and differ, HPKE messages sealed to generated keys with fresh ephemeral keys open, independent generations
 //! differ, and random-nonce messages open and reject tampering.
 mod common;
 
@@ -20,6 +20,9 @@ fn generated_keys_and_random_nonces_work_end_to_end() {
         ("Crypto.P256.cinch", include_str!("../prelude/Crypto/P256.cinch")),
         ("Crypto.Ecdsa.cinch", include_str!("../prelude/Crypto/Ecdsa.cinch")),
         ("Crypto.Hmac.cinch", include_str!("../prelude/Crypto/Hmac.cinch")),
+        ("Crypto.Hpke.cinch", include_str!("../prelude/Crypto/Hpke.cinch")),
+        ("Crypto.ChaCha20Poly1305.cinch", include_str!("../prelude/Crypto/ChaCha20Poly1305.cinch")),
+        ("Crypto.Kdf.cinch", include_str!("../prelude/Crypto/Kdf.cinch")),
         ("Text.Digest.cinch", include_str!("../prelude/Text/Digest.cinch")),
         ("Crypto.ConstantTime.cinch", include_str!("../prelude/Crypto/ConstantTime.cinch")),
         ("Text.Sha3.cinch", include_str!("../prelude/Text/Sha3.cinch")),
@@ -48,6 +51,7 @@ module Main where
   import Crypto.MlKem
   import Crypto.P256
   import Crypto.Ecdsa
+  import Crypto.Hpke
   -- | Byte equality.
   same :: Bytes -> Bytes -> Bool
   same a b = eq-i64 (bytes-compare a b) 0
@@ -64,6 +68,12 @@ module Main where
   signs-twice pk a b message = case (a, b) of
     (Ok s1, Ok s2) -> ecdsa-verify-der (p256-public-key-of pk) message s1 && ecdsa-verify-der (p256-public-key-of pk) message s2 && not (same s1 s2)
     other -> False
+  -- | A random HPKE seal opens under the recipient key, and two seals of one message differ.
+  hpke-ok :: HpkeSuite -> HpkePrivateKey -> Result HpkeError (Bytes, Bytes) -> Result HpkeError (Bytes, Bytes) -> Bytes -> Bool
+  hpke-ok s recipient a c message = case (a, c) of
+    (Ok x, Ok y) -> (case (x, y) of
+      ((e1, c1), (e2, c2)) -> not (same e1 e2) && (case hpke-open-once s recipient e1 (bytes-new 0) (bytes-new 0) c1 None None of Ok p -> same p message; Err e -> False))
+    other -> False
   -- | Run the checks.
   main :: Unit ->{IO r} Int
   main unit = with (io = newIO ()) in
@@ -79,6 +89,9 @@ module Main where
     let pk = p256-generate () in
     let pk2 = p256-generate () in
     let ecdsa-ok = signs-twice pk (ecdsa-sign-random pk message) (ecdsa-sign-random pk message) message && not (same (p256-private-key-bytes pk) (p256-private-key-bytes pk2)) in
+    let hs = hpke-suite HpkeDhkemX25519 HpkeHkdfSha256 HpkeChaCha20Poly1305 in
+    let hr = hpke-generate HpkeDhkemX25519 in
+    let hpke = hpke-ok hs hr (hpke-seal-random hs (hpke-public-key-of hr) (bytes-new 0) (bytes-new 0) message) (hpke-seal-random hs (hpke-public-key-of hr) (bytes-new 0) (bytes-new 0) message) message in
     let kem = kem-ok dk (mlkem-encapsulate (mlkem-encapsulation-key-of dk)) && not (same (mlkem-decapsulation-key-bytes dk) (mlkem-decapsulation-key-bytes other)) in
     case aes-generate-key 32 of
       Err e -> 3
@@ -89,6 +102,6 @@ module Main where
             let opened = case gcm-open-random g a (bytes-new 2) of Ok out -> same out message; Err e -> False in
             let distinct = not (same a b) && bytes-len a == 12 + bytes-len message + 16 in
             let rejected = case gcm-open-random g a (bytes-new 3) of Err AuthenticationFailed -> True; other -> False in
-            if signed && agreed && kem && ecdsa-ok && opened && distinct && rejected then 0 else 1
+            if signed && agreed && kem && ecdsa-ok && hpke && opened && distinct && rejected then 0 else 1
           other -> 2)
 "#;

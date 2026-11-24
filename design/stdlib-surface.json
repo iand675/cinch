@@ -345,6 +345,7 @@
       "reference_package": "crypto/cipher",
       "status": "partial",
       "cinch_modules": [
+        "Crypto.ChaCha20Poly1305",
         "Crypto.Cipher",
         "Effect.Crypto"
       ],
@@ -355,7 +356,8 @@
       "reference_declarations": 37,
       "tests": [
         "lib_aes",
-        "lib_effect_crypto"
+        "lib_effect_crypto",
+        "lib_chacha"
       ],
       "capability_mapping": {
         "Block": "BlockCipher packages forward and inverse U128 block functions; block-cipher builds one from any 128-bit cipher",
@@ -534,10 +536,29 @@
     },
     {
       "reference_package": "crypto/hpke",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 51
+      "status": "partial",
+      "cinch_modules": [
+        "Crypto.ChaCha20Poly1305",
+        "Crypto.Hpke",
+        "Effect.Crypto"
+      ],
+      "remaining": [
+        "DHKEM(P-384) and DHKEM(P-521)",
+        "ML-KEM and hybrid post-quantum KEMs"
+      ],
+      "reference_declarations": 51,
+      "tests": [
+        "lib_hpke",
+        "lib_chacha",
+        "lib_effect_crypto"
+      ],
+      "capability_mapping": {
+        "KEM/KDF/AEAD identifiers": "HpkeKem (DHKEM X25519 and P-256), HpkeKdf (HKDF-SHA256/384/512) and HpkeAead (AES-128-GCM, AES-256-GCM, ChaCha20-Poly1305, export-only) with their RFC 9180 identifiers",
+        "Sender/Recipient setup in all modes": "hpke-setup-sender and hpke-setup-recipient; a sender key selects auth, a (PSK, identifier) pair selects PSK, both auth-PSK",
+        "Seal/Open/Export": "hpke-seal and hpke-open return the next context; hpke-export; hpke-seal-once and hpke-open-once",
+        "Key generation and parsing": "hpke-derive-key-pair, hpke-private-key, hpke-public-key, Effect.Crypto.hpke-generate, hpke-setup-sender-random and hpke-seal-random"
+      },
+      "review": "RFC 9180 with DHKEM(X25519) and DHKEM(P-256) over the existing curve modules, labeled HKDF with SHA-256, SHA-384 (a local HMAC over the SHA-384 digest) and SHA-512, and AES-GCM or the new ChaCha20-Poly1305. Fifty-five suite and mode combinations from an independent implementation match derived keys, encapsulated keys, three sequential seals and two exports each; recipient contexts open every seal, refuse tampered additional data and export the same secrets. Contexts are immutable values whose seal and open return the next context. The post-quantum KEMs and the larger NIST curves remain."
     },
     {
       "reference_package": "crypto/md5",
