@@ -2056,10 +2056,20 @@
       "reference_package": "net/http",
       "status": "partial",
       "cinch_modules": [
-        "Effect.Http"
+        "Effect.Http",
+        "Text.Cookie"
       ],
-      "remaining": [],
-      "reference_declarations": 505
+      "remaining": [
+        "Server, handler and transport APIs beyond Effect.Http's plaintext client",
+        "Client cookie-jar wiring and request/response cookie helpers in Effect.Http",
+        "HTTP/2, TLS and multipart"
+      ],
+      "reference_declarations": 505,
+      "capability_mapping": {
+        "Cookie/SameSite/ParseSetCookie/ParseCookie": "Text.Cookie: Cookie with every reference field, SameSite, cookie-parse-set and cookie-parse with the reference errors",
+        "Request.Cookies/CookiesNamed/Cookie": "cookie-read line filter (lenient Cookie header reading)",
+        "Cookie.String/Cookie.Valid": "cookie-string and cookie-valid with the reference sanitizing, Expires formatting and messages"
+      }
     },
     {
       "reference_package": "net/http/cgi",
@@ -2070,10 +2080,24 @@
     },
     {
       "reference_package": "net/http/cookiejar",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Data.CookieJar",
+        "Text.Cookie",
+        "Text.Punycode"
+      ],
       "remaining": [],
-      "reference_declarations": 9
+      "reference_declarations": 9,
+      "tests": [
+        "lib_cookie"
+      ],
+      "capability_mapping": {
+        "New/Options/PublicSuffixList": "cookie-jar-new (Option (String -> String)): the public suffix list is its PublicSuffix function; String() is only used for diagnostics there",
+        "Jar.SetCookies": "jar-set-cookies-url jar url cookies now (or jar-set-cookies with scheme, host and path) returns the next jar",
+        "Jar.Cookies": "jar-cookies-url jar url now returns the cookies to send and the jar after expiry and access bookkeeping",
+        "Jar": "CookieJar, an immutable value: domain groups keyed by registrable domain, entries with creation order and sequence numbers; time is an explicit Unix-seconds argument"
+      },
+      "review": "Data.CookieJar reproduces the reference jar's RFC 6265 storage model: canonical hosts (ports, trailing dots, Punycode labels via Text.Punycode, ASCII lower case), registrable-domain keys with or without a public suffix function (broken suffix answers fall back to the host), host-only and domain cookies, IP-address hosts, default paths and path matching, Secure over HTTPS only, Max-Age over Expires, deletion by negative Max-Age or past Expires, expiry on lookup, replacement that keeps creation order, and the reference's send order. Ten scripted scenarios across hosts, ports, schemes, paths, time, replacement, public suffixes, IP addresses, illegal domains and internationalized hosts send the same cookies in the same order as the reference jar driven at the same instants, both from URL fields and from URLs parsed by Text.Url. The jar is a value rather than a locked shared object, so concurrent clients thread it explicitly."
     },
     {
       "reference_package": "net/http/fcgi",

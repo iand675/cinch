@@ -1,0 +1,719 @@
+-- | HTTP cookies (RFC 6265): parsing Set-Cookie and Cookie header lines, serializing a cookie as a
+-- Set-Cookie value, and validating cookies.
+--
+-- A cookie's name must be an HTTP token. Its value may be double-quoted (the quotes are remembered and
+-- restored) and may hold any printable ASCII except double quote, semicolon and backslash. Set-Cookie
+-- attributes are matched case-insensitively; values that are not valid cookie values, unknown attributes
+-- and unreadable Max-Age or Expires values are kept as unparsed text. Max-Age zero or negative means delete
+-- now (recorded as -1). Expires accepts "Mon, 02 Jan 2006 15:04:05 GMT" and the hyphenated
+-- "Mon, 02-Jan-2006 15:04:05 GMT" forms; the zone must be well formed but the clock reading counts as UTC.
+-- Times are Unix seconds. Serialization drops bytes that cannot appear in a value or path, drops an invalid
+-- Domain, and writes Expires only for years from 1601.
+module Text.Cookie where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Show (nat-to-string)
+
+  export Cookie, cookie-new, cookie-name, cookie-value, cookie-quoted, cookie-path, cookie-domain, cookie-expires
+  export cookie-raw-expires, cookie-max-age, cookie-secure, cookie-http-only, cookie-same-site, cookie-partitioned
+  export cookie-raw, cookie-unparsed
+  export SameSite, SameSiteUnset, SameSiteDefault, SameSiteLax, SameSiteStrict, SameSiteNone
+  export CookieError, CookieBlank, CookieNoEquals, CookieBadName, CookieBadValue, CookieInvalid, cookie-error-message
+  export cookie-parse-set, cookie-parse, cookie-read, cookie-string, cookie-valid
+  export cookie-domain-valid, cookie-is-ipv4, cookie-time-format, cookie-time-parse, cookie-ascii-lower
+
+  -- ---------------------------------------------------------------------
+  -- Vocabulary.
+  -- ---------------------------------------------------------------------
+
+  -- | The SameSite attribute.
+  data SameSite where
+    -- | Not given.
+    SameSiteUnset :: SameSite
+    -- | Given without a recognized value.
+    SameSiteDefault :: SameSite
+    -- | Lax.
+    SameSiteLax :: SameSite
+    -- | Strict.
+    SameSiteStrict :: SameSite
+    -- | None.
+    SameSiteNone :: SameSite
+
+  -- | A cookie: name, value, whether the value was quoted, path, domain, expiry (Unix seconds), the raw Expires
+  -- text, Max-Age (0 for none, -1 for delete), Secure, HttpOnly, SameSite, Partitioned, the raw Set-Cookie line
+  -- and the attributes that were not understood.
+  data Cookie where
+    -- | Fields in the order listed above.
+    Cookie :: String -> String -> Bool -> String -> String -> Option Int -> String -> Int -> Bool -> Bool -> SameSite -> Bool -> String -> List String -> Cookie
+
+  -- | A cookie with only a name and value.
+  cookie-new :: String -> String -> Cookie
+  cookie-new name value = Cookie name value False "" "" None "" 0 False False SameSiteUnset False "" Nil
+
+  -- | The name.
+  cookie-name :: Cookie -> String
+  cookie-name c = case c of Cookie n v q p d e re m s h ss pt r u -> n
+
+  -- | The value.
+  cookie-value :: Cookie -> String
+  cookie-value c = case c of Cookie n v q p d e re m s h ss pt r u -> v
+
+  -- | Whether the value was quoted.
+  cookie-quoted :: Cookie -> Bool
+  cookie-quoted c = case c of Cookie n v q p d e re m s h ss pt r u -> q
+
+  -- | The Path attribute.
+  cookie-path :: Cookie -> String
+  cookie-path c = case c of Cookie n v q p d e re m s h ss pt r u -> p
+
+  -- | The Domain attribute.
+  cookie-domain :: Cookie -> String
+  cookie-domain c = case c of Cookie n v q p d e re m s h ss pt r u -> d
+
+  -- | The expiry in Unix seconds.
+  cookie-expires :: Cookie -> Option Int
+  cookie-expires c = case c of Cookie n v q p d e re m s h ss pt r u -> e
+
+  -- | The raw Expires text.
+  cookie-raw-expires :: Cookie -> String
+  cookie-raw-expires c = case c of Cookie n v q p d e re m s h ss pt r u -> re
+
+  -- | Max-Age: positive seconds, 0 for none, -1 for delete now.
+  cookie-max-age :: Cookie -> Int
+  cookie-max-age c = case c of Cookie n v q p d e re m s h ss pt r u -> m
+
+  -- | The Secure attribute.
+  cookie-secure :: Cookie -> Bool
+  cookie-secure c = case c of Cookie n v q p d e re m s h ss pt r u -> s
+
+  -- | The HttpOnly attribute.
+  cookie-http-only :: Cookie -> Bool
+  cookie-http-only c = case c of Cookie n v q p d e re m s h ss pt r u -> h
+
+  -- | The SameSite attribute.
+  cookie-same-site :: Cookie -> SameSite
+  cookie-same-site c = case c of Cookie n v q p d e re m s h ss pt r u -> ss
+
+  -- | The Partitioned attribute.
+  cookie-partitioned :: Cookie -> Bool
+  cookie-partitioned c = case c of Cookie n v q p d e re m s h ss pt r u -> pt
+
+  -- | The raw Set-Cookie line.
+  cookie-raw :: Cookie -> String
+  cookie-raw c = case c of Cookie n v q p d e re m s h ss pt r u -> r
+
+  -- | The attributes that were not understood, in order.
+  cookie-unparsed :: Cookie -> List String
+  cookie-unparsed c = case c of Cookie n v q p d e re m s h ss pt r u -> u
+
+  -- | Why a cookie line or cookie was refused.
+  data CookieError where
+    -- | The line is blank.
+    CookieBlank :: CookieError
+    -- | A name-value pair has no "=".
+    CookieNoEquals :: CookieError
+    -- | The name is not an HTTP token.
+    CookieBadName :: CookieError
+    -- | The value holds a byte a cookie value cannot.
+    CookieBadValue :: CookieError
+    -- | A cookie failed validation; the text says why.
+    CookieInvalid :: String -> CookieError
+
+  -- | A readable description of an error.
+  cookie-error-message :: CookieError -> String
+  cookie-error-message e = case e of
+    CookieBlank -> "http: blank cookie"
+    CookieNoEquals -> "http: '=' not found in cookie"
+    CookieBadName -> "http: invalid cookie name"
+    CookieBadValue -> "http: invalid cookie value"
+    CookieInvalid text -> text
+
+  -- ---------------------------------------------------------------------
+  -- Bytes and text.
+  -- ---------------------------------------------------------------------
+
+  -- | The byte at an offset, zero outside the buffer.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | n bytes from an offset, copied.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b o n = let out = bytes-new n in let c = (if o + n <= bytes-len b then bytes-copy-range out b 0 o n else ()) in out
+
+  -- | Bytes as text (empty when not UTF-8).
+  text :: Bytes -> String
+  text b = case string-from-bytes b of
+    Some s -> s
+    None -> ""
+
+  -- | Whether a byte is ASCII white space (space, tab, LF, CR).
+  space :: Nat -> Bool
+  space c = c == 32 || c == 9 || c == 10 || c == 13
+
+  -- | Trim ASCII white space from both ends.
+  trim :: String -> String
+  trim s =
+    let b = string-to-bytes s in
+    let start = skip-space b 0 in
+    let end = back-space b (bytes-len b) start in
+    text (slice b start (minus end start))
+
+  -- | The first non-space index from i.
+  skip-space :: Bytes -> Nat -> Nat
+  skip-space b i = if i < bytes-len b && space (at b i) then skip-space b (i + 1) else i
+
+  -- | The end after dropping trailing spaces, not before start.
+  back-space :: Bytes -> Nat -> Nat -> Nat
+  back-space b end start = if end > start && space (at b (minus end 1)) then back-space b (minus end 1) start else end
+
+  -- | Split at every occurrence of a byte, in order.
+  split :: String -> Nat -> List String
+  split s sep = split-from (string-to-bytes s) sep 0 0 Nil
+
+  -- | Pieces from start, scanning at i.
+  split-from :: Bytes -> Nat -> Nat -> Nat -> List String -> List String
+  split-from b sep start i acc =
+    if i >= bytes-len b then reverse (Cons (text (slice b start (minus i start))) acc)
+    else if at b i == sep then split-from b sep (i + 1) (i + 1) (Cons (text (slice b start (minus i start))) acc)
+    else split-from b sep start (i + 1) acc
+
+  -- | Cut at the first "=": (before, after, found).
+  cut-equals :: String -> (String, String, Bool)
+  cut-equals s =
+    let b = string-to-bytes s in
+    case find-byte b 61 0 of
+      Some i -> (text (slice b 0 i), text (slice b (i + 1) (minus (bytes-len b) (i + 1))), True)
+      None -> (s, "", False)
+
+  -- | The first index of a byte from i.
+  find-byte :: Bytes -> Nat -> Nat -> Option Nat
+  find-byte b v i = if i >= bytes-len b then None else if at b i == v then Some i else find-byte b v (i + 1)
+
+  -- | ASCII lower case, or None when the text has a non-ASCII byte.
+  cookie-ascii-lower :: String -> Option String
+  cookie-ascii-lower s =
+    let b = string-to-bytes s in
+    if not (all-ascii b 0) then None
+    else
+      let out = bytes-new (bytes-len b) in
+      let filled = lower-from b out 0 in
+      Some (text out)
+
+  -- | Whether bytes from i are ASCII.
+  all-ascii :: Bytes -> Nat -> Bool
+  all-ascii b i = if i >= bytes-len b then True else at b i < 128 && all-ascii b (i + 1)
+
+  -- | Lower-case bytes from i.
+  lower-from :: Bytes -> Bytes -> Nat -> Unit
+  lower-from b out i = if i >= bytes-len b || i >= bytes-len out then ()
+    else
+      let c = at b i in
+      let v = if c >= 65 && c <= 90 then c + 32 else c in
+      let s = if v < 256 then bytes-set out i v else () in
+      lower-from b out (i + 1)
+
+  -- | Whether a byte is an HTTP token character.
+  token-byte :: Nat -> Bool
+  token-byte c =
+    (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
+    || c == 33 || c == 35 || c == 36 || c == 37 || c == 38 || c == 39 || c == 42 || c == 43 || c == 45 || c == 46
+    || c == 94 || c == 95 || c == 96 || c == 124 || c == 126
+
+  -- | Whether a name is a non-empty HTTP token.
+  valid-name :: String -> Bool
+  valid-name s = let b = string-to-bytes s in bytes-len b > 0 && all-of b 0 0
+
+  -- | Whether every byte from i satisfies a test (0 token, 1 value, 2 path).
+  all-of :: Bytes -> Nat -> Nat -> Bool
+  all-of b kind i = if i >= bytes-len b then True else byte-ok kind (at b i) && all-of b kind (i + 1)
+
+  -- | Whether a byte passes a test (0 token, 1 value, 2 path).
+  byte-ok :: Nat -> Nat -> Bool
+  byte-ok kind c = if kind == 0 then token-byte c else if kind == 1 then value-byte c else path-byte c
+
+  -- | Whether a byte may appear in a cookie value.
+  value-byte :: Nat -> Bool
+  value-byte c = c >= 32 && c < 127 && not (c == 34) && not (c == 59) && not (c == 92)
+
+  -- | Whether a byte may appear in a cookie path.
+  path-byte :: Nat -> Bool
+  path-byte c = c >= 32 && c < 127 && not (c == 59)
+
+  -- | A raw value: (value, quoted, ok); surrounding double quotes are removed when allowed.
+  parse-value :: String -> Bool -> (String, Bool, Bool)
+  parse-value raw quotes =
+    let b = string-to-bytes raw in
+    let strip = quotes && bytes-len b > 1 && at b 0 == 34 && at b (minus (bytes-len b) 1) == 34 in
+    let inner = if strip then slice b 1 (minus (bytes-len b) 2) else b in
+    if all-of inner 1 0 then (text inner, strip, True) else ("", strip, False)
+
+  -- ---------------------------------------------------------------------
+  -- Parsing.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse a Cookie header line into its name-value pairs; any malformed pair refuses the line.
+  cookie-parse :: String -> Result CookieError (List Cookie)
+  cookie-parse line =
+    let parts = split (trim line) 59 in
+    case parts of
+      Cons p Nil -> if p == "" then Err CookieBlank else pairs parts Nil
+      other -> pairs parts Nil
+
+  -- | Name-value pairs, in order.
+  pairs :: List String -> List Cookie -> Result CookieError (List Cookie)
+  pairs parts acc = case parts of
+    Nil -> Ok (reverse acc)
+    Cons part rest -> (case cut-equals (trim part) of
+      (name, raw, found) ->
+        if not found then Err CookieNoEquals
+        else if not (valid-name name) then Err CookieBadName
+        else (case parse-value raw True of
+          (value, quoted, ok) -> if not ok then Err CookieBadValue else pairs rest (Cons (with-value (cookie-new name value) quoted) acc)))
+
+  -- | A cookie with its quoted flag set.
+  with-value :: Cookie -> Bool -> Cookie
+  with-value c quoted = case c of Cookie n v q p d e re m s h ss pt r u -> Cookie n v quoted p d e re m s h ss pt r u
+
+  -- | Read a Cookie header line leniently: malformed pairs are skipped; a non-empty filter keeps only that name.
+  cookie-read :: String -> String -> List Cookie
+  cookie-read line filter = read-pairs (split (trim line) 59) filter Nil
+
+  -- | The pairs that parse, in order.
+  read-pairs :: List String -> String -> List Cookie -> List Cookie
+  read-pairs parts filter acc = case parts of
+    Nil -> reverse acc
+    Cons part rest ->
+      let p = trim part in
+      if p == "" then read-pairs rest filter acc
+      else (case cut-equals p of
+        (raw-name, raw, found) ->
+          let name = trim raw-name in
+          if not (valid-name name) || (not (filter == "") && not (filter == name)) then read-pairs rest filter acc
+          else (case parse-value raw True of
+            (value, quoted, ok) -> if ok then read-pairs rest filter (Cons (with-value (cookie-new name value) quoted) acc) else read-pairs rest filter acc))
+
+  -- | Parse a Set-Cookie header line.
+  cookie-parse-set :: String -> Result CookieError Cookie
+  cookie-parse-set line =
+    let parts = split (trim line) 59 in
+    case parts of
+      Nil -> Err CookieBlank
+      Cons first rest ->
+        if first == "" && is-nil rest then Err CookieBlank
+        else (case cut-equals (trim first) of
+          (raw-name, raw, found) ->
+            let name = trim raw-name in
+            if not found then Err CookieNoEquals
+            else if not (valid-name name) then Err CookieBadName
+            else (case parse-value raw True of
+              (value, quoted, ok) ->
+                if not ok then Err CookieBadValue
+                else Ok (attributes rest (Cookie name value quoted "" "" None "" 0 False False SameSiteUnset False line Nil))))
+
+  -- | Whether a list is empty.
+  is-nil :: List String -> Bool
+  is-nil l = case l of
+    Nil -> True
+    Cons x r -> False
+
+  -- | Apply attributes in order.
+  attributes :: List String -> Cookie -> Cookie
+  attributes parts c = case parts of
+    Nil -> finish-unparsed c
+    Cons raw-part rest ->
+      let part = trim raw-part in
+      if part == "" then attributes rest c
+      else (case cut-equals part of
+        (attr, raw, found) -> (case cookie-ascii-lower attr of
+          None -> attributes rest c
+          Some lower -> (case parse-value raw False of
+            (value, q, ok) -> if not ok then attributes rest (unparsed c part) else attributes rest (attribute c lower value part))))
+
+  -- | Reverse the unparsed list into order.
+  finish-unparsed :: Cookie -> Cookie
+  finish-unparsed c = case c of Cookie n v q p d e re m s h ss pt r u -> Cookie n v q p d e re m s h ss pt r (reverse u)
+
+  -- | Record an attribute as unparsed (newest first until finished).
+  unparsed :: Cookie -> String -> Cookie
+  unparsed c part = case c of Cookie n v q p d e re m s h ss pt r u -> Cookie n v q p d e re m s h ss pt r (Cons part u)
+
+  -- | Apply one attribute with a valid value.
+  attribute :: Cookie -> String -> String -> String -> Cookie
+  attribute c lower value part = case c of
+    Cookie n v q p d e re m s h ss pt r u ->
+      if lower == "samesite" then Cookie n v q p d e re m s h (same-site-of value) pt r u
+      else if lower == "secure" then Cookie n v q p d e re m True h ss pt r u
+      else if lower == "httponly" then Cookie n v q p d e re m s True ss pt r u
+      else if lower == "domain" then Cookie n v q p value e re m s h ss pt r u
+      else if lower == "max-age" then (case max-age-of value of
+        Some secs -> Cookie n v q p d e re secs s h ss pt r u
+        None -> unparsed c part)
+      else if lower == "expires" then (case cookie-time-parse value of
+        Some t -> Cookie n v q p d (Some t) value m s h ss pt r u
+        None -> unparsed (Cookie n v q p d None value m s h ss pt r u) part)
+      else if lower == "path" then Cookie n v q value d e re m s h ss pt r u
+      else if lower == "partitioned" then Cookie n v q p d e re m s h ss True r u
+      else unparsed c part
+
+  -- | The SameSite mode of a value.
+  same-site-of :: String -> SameSite
+  same-site-of value = case cookie-ascii-lower value of
+    None -> SameSiteDefault
+    Some v -> if v == "lax" then SameSiteLax else if v == "strict" then SameSiteStrict else if v == "none" then SameSiteNone else SameSiteDefault
+
+  -- | A Max-Age value: an optionally signed decimal without a leading zero (unless zero); zero and negative
+  -- values mean delete (-1).
+  max-age-of :: String -> Option Int
+  max-age-of value =
+    let b = string-to-bytes value in
+    let signed = bytes-len b > 0 && (at b 0 == 43 || at b 0 == 45) in
+    let digits = if signed then slice b 1 (minus (bytes-len b) 1) else b in
+    if bytes-len digits == 0 || bytes-len digits > 18 || not (all-digits digits 0) then None
+    else
+      let n = decimal digits 0 0 in
+      if not (n == 0) && at b 0 == 48 then None
+      else if n == 0 || at b 0 == 45 then Some (0 - 1)
+      else Some (nat-to-int n)
+
+  -- | Whether bytes from i are decimal digits.
+  all-digits :: Bytes -> Nat -> Bool
+  all-digits b i = if i >= bytes-len b then True else at b i >= 48 && at b i <= 57 && all-digits b (i + 1)
+
+  -- | The decimal value of bytes from i.
+  decimal :: Bytes -> Nat -> Nat -> Nat
+  decimal b i acc = if i >= bytes-len b then acc else decimal b (i + 1) (10 * acc + minus (at b i) 48)
+
+  -- ---------------------------------------------------------------------
+  -- Times.
+  -- ---------------------------------------------------------------------
+
+  -- | Seconds from 0000-03-01 to 1970-01-01.
+  epoch-shift :: Nat
+  epoch-shift = 62162035200
+
+  -- | Days since 0000-03-01 of a civil date (years from 0, months 1-12).
+  days-of :: Nat -> Nat -> Nat -> Nat
+  days-of y m d =
+    let y1 = y + 400 in
+    let yy = if m <= 2 then minus y1 1 else y1 in
+    let era = nat-div yy 400 in
+    let yoe = minus yy (400 * era) in
+    let mp = if m > 2 then minus m 3 else m + 9 in
+    let doy = nat-div (153 * mp + 2) 5 + minus d 1 in
+    let doe = minus (365 * yoe + nat-div yoe 4 + doy) (nat-div yoe 100) in
+    minus (146097 * era + doe) 146097
+
+  -- | The civil date (year, month, day) of a day count since 0000-03-01.
+  civil :: Nat -> (Nat, Nat, Nat)
+  civil z =
+    let era = nat-div z 146097 in
+    let doe = minus z (146097 * era) in
+    let yoe = nat-div (minus (doe + nat-div doe 36524) (nat-div doe 1460 + nat-div doe 146096)) 365 in
+    let doy = minus doe (minus (365 * yoe + nat-div yoe 4) (nat-div yoe 100)) in
+    let mp = nat-div (5 * doy + 2) 153 in
+    let d = minus doy (nat-div (153 * mp + 2) 5) + 1 in
+    let m = if mp < 10 then mp + 3 else minus mp 9 in
+    (yoe + 400 * era + (if m <= 2 then (1 :: Nat) else (0 :: Nat)), m, d)
+
+  -- | Days in a month.
+  month-days :: Nat -> Nat -> Nat
+  month-days y m =
+    if m == 2 then (if (nat-rem y 4 == 0 && not (nat-rem y 100 == 0)) || nat-rem y 400 == 0 then (29 :: Nat) else (28 :: Nat))
+    else if m == 4 || m == 6 || m == 9 || m == 11 then (30 :: Nat) else (31 :: Nat)
+
+  -- | The month names.
+  months :: List String
+  months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+  -- | The day names, Sunday first.
+  days :: List String
+  days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+  -- | The name at an index.
+  name-at :: List String -> Nat -> String
+  name-at names i = case nth i names of
+    Some s -> s
+    None -> ""
+
+  -- | The index (from i) of a name matching three bytes case-insensitively.
+  name-index :: List String -> String -> Nat -> Option Nat
+  name-index names s i = case names of
+    Nil -> None
+    Cons n rest -> if lower-or n == lower-or s then Some i else name-index rest s (i + 1)
+
+  -- | ASCII lower case (non-ASCII text gives a string no name matches).
+  lower-or :: String -> String
+  lower-or s = case cookie-ascii-lower s of
+    Some l -> l
+    None -> "#"
+
+  -- | Unix seconds as "Mon, 02 Jan 2006 15:04:05 GMT".
+  cookie-time-format :: Int -> String
+  cookie-time-format t =
+    let s = shifted t in
+    let day = nat-div s 86400 in
+    let secs = nat-rem s 86400 in
+    case civil day of
+      (y, m, d) -> string-concat-all [name-at days (nat-rem (day + 3) 7), ", ", two d, " ", name-at months (minus m 1), " ", four y, " ",
+        two (nat-div secs 3600), ":", two (nat-rem (nat-div secs 60) 60), ":", two (nat-rem secs 60), " GMT"]
+
+  -- | Unix seconds as seconds since 0000-03-01 (clamped at zero).
+  shifted :: Int -> Nat
+  shifted t = nat-from-int-or (t + nat-to-int epoch-shift)
+
+  -- | A non-negative integer as a natural number (zero for negatives).
+  nat-from-int-or :: Int -> Nat
+  nat-from-int-or i = if 0 <= i then nat-from-int i else 0
+
+  -- | Two digits.
+  two :: Nat -> String
+  two n = if n < 10 then string-concat "0" (nat-to-string n) else nat-to-string n
+
+  -- | Four digits.
+  four :: Nat -> String
+  four n = if n < 10 then string-concat "000" (nat-to-string n) else if n < 100 then string-concat "00" (nat-to-string n) else if n < 1000 then string-concat "0" (nat-to-string n) else nat-to-string n
+
+  -- | Parse "Mon, 02 Jan 2006 15:04:05 MST" or "Mon, 02-Jan-2006 15:04:05 MST" to Unix seconds.
+  cookie-time-parse :: String -> Option Int
+  cookie-time-parse value =
+    let b = string-to-bytes value in
+    if bytes-len b < 25 then None
+    else case name-index days (text (slice b 0 3)) 0 of
+      None -> None
+      Some wd ->
+        if not (at b 3 == 44 && at b 4 == 32 && digit-at b 5 && digit-at b 6) then None
+        else
+          let sep = at b 7 in
+          if not (sep == 32 || sep == 45) || not (at b 11 == sep) then None
+          else case name-index months (text (slice b 8 3)) 0 of
+            None -> None
+            Some mi ->
+              if not (all-digits (slice b 12 4) 0) || not (at b 16 == 32) then None
+              else clock b (decimal (slice b 5 2) 0 0) (mi + 1) (decimal (slice b 12 4) 0 0) 17
+
+  -- | Whether the byte at an index is a digit.
+  digit-at :: Bytes -> Nat -> Bool
+  digit-at b i = at b i >= 48 && at b i <= 57
+
+  -- | The time of day from i (hour of one or two digits, minutes and seconds of two), an optional fraction, a
+  -- space and a zone, for a date.
+  clock :: Bytes -> Nat -> Nat -> Nat -> Nat -> Option Int
+  clock b day month year i =
+    let hour-width = if digit-at b (i + 1) then (2 :: Nat) else (1 :: Nat) in
+    let j = i + hour-width in
+    if not (digit-at b i) || not (at b j == 58) || not (digit-at b (j + 1) && digit-at b (j + 2)) || not (at b (j + 3) == 58) || not (digit-at b (j + 4) && digit-at b (j + 5)) then None
+    else
+      let hour = decimal (slice b i hour-width) 0 0 in
+      let minute = decimal (slice b (j + 1) 2) 0 0 in
+      let second = decimal (slice b (j + 4) 2) 0 0 in
+      let k = skip-fraction b (j + 6) in
+      if hour > 23 || minute > 59 || second > 59 || day < 1 || day > month-days year month || not (at b k == 32) then None
+      else if not (zone-valid (slice b (k + 1) (minus (bytes-len b) (k + 1)))) then None
+      else Some (nat-to-int (86400 * days-of year month day + 3600 * hour + 60 * minute + second) - nat-to-int epoch-shift)
+
+  -- | Skip a fraction of a second ("." or "," and digits) at i.
+  skip-fraction :: Bytes -> Nat -> Nat
+  skip-fraction b i = if (at b i == 46 || at b i == 44) && digit-at b (i + 1) then skip-digits b (i + 1) else i
+
+  -- | The index after digits from i.
+  skip-digits :: Bytes -> Nat -> Nat
+  skip-digits b i = if digit-at b i then skip-digits b (i + 1) else i
+
+  -- | Whether text is a complete zone: UTC, GMT optionally followed by a signed hour of at most 23, a signed hour
+  -- of at most 23, ChST, MeST, or three upper-case letters, four ending in T (or WITA), five ending in T. The
+  -- zone never shifts the instant: the clock reading counts as UTC.
+  zone-valid :: Bytes -> Bool
+  zone-valid z =
+    let n = bytes-len z in
+    if n < 3 then False
+    else if eq-i64 (bytes-compare (slice z 0 3) (string-to-bytes "UTC")) 0 then n == 3
+    else if n >= 4 && (eq-i64 (bytes-compare (slice z 0 4) (string-to-bytes "ChST")) 0 || eq-i64 (bytes-compare (slice z 0 4) (string-to-bytes "MeST")) 0) then n == 4
+    else if eq-i64 (bytes-compare (slice z 0 3) (string-to-bytes "GMT")) 0 then n == 3 || signed-hour (slice z 3 (minus n 3))
+    else if at z 0 == 43 || at z 0 == 45 then signed-hour z
+    else
+      let upper = upper-run z 0 in
+      if upper == 3 then n == 3
+      else if upper == 4 then n == 4 && (at z 3 == 84 || eq-i64 (bytes-compare z (string-to-bytes "WITA")) 0)
+      else if upper == 5 then n == 5 && at z 4 == 84
+      else False
+
+  -- | The count of leading upper-case ASCII letters from i, stopping at six.
+  upper-run :: Bytes -> Nat -> Nat
+  upper-run b i = if i >= 6 || i >= bytes-len b || at b i < 65 || at b i > 90 then i else upper-run b (i + 1)
+
+  -- | Whether text is a sign followed only by digits whose value is at most 23.
+  signed-hour :: Bytes -> Bool
+  signed-hour z =
+    let n = bytes-len z in
+    n >= 2 && (at z 0 == 43 || at z 0 == 45) && all-digits (slice z 1 (minus n 1)) 0 && n <= 20 && decimal (slice z 1 (minus n 1)) 0 0 <= 23
+
+  -- ---------------------------------------------------------------------
+  -- Serialization and validation.
+  -- ---------------------------------------------------------------------
+
+  -- | Whether a domain is a valid cookie domain: a host name (letters, digits, hyphens, labels of 1 to 63 bytes,
+  -- at least one letter, at most 255 bytes, an optional leading dot) or an IPv4 address.
+  cookie-domain-valid :: String -> Bool
+  cookie-domain-valid v = domain-name (string-to-bytes v) || cookie-is-ipv4 v
+
+  -- | The host-name test.
+  domain-name :: Bytes -> Bool
+  domain-name b0 =
+    if bytes-len b0 == 0 || bytes-len b0 > 255 then False
+    else
+      let b = if at b0 0 == 46 then slice b0 1 (minus (bytes-len b0) 1) else b0 in
+      labels b 0 46 False 0
+
+  -- | Scan labels from i: last byte, whether a letter was seen, the current label length.
+  labels :: Bytes -> Nat -> Nat -> Bool -> Nat -> Bool
+  labels b i last letter part =
+    if i >= bytes-len b then not (last == 45) && part <= 63 && letter
+    else
+      let c = at b i in
+      if (c >= 97 && c <= 122) || (c >= 65 && c <= 90) then labels b (i + 1) c True (part + 1)
+      else if c >= 48 && c <= 57 then labels b (i + 1) c letter (part + 1)
+      else if c == 45 then (if last == 46 then False else labels b (i + 1) c letter (part + 1))
+      else if c == 46 then (if last == 46 || last == 45 || part > 63 || part == 0 then False else labels b (i + 1) c letter 0)
+      else False
+
+  -- | Whether text is a dotted-decimal IPv4 address (four fields of 0 to 255 without leading zeros).
+  cookie-is-ipv4 :: String -> Bool
+  cookie-is-ipv4 s = case split s 46 of
+    Cons a (Cons b (Cons c (Cons d Nil))) -> octet a && octet b && octet c && octet d
+    other -> False
+
+  -- | One IPv4 field.
+  octet :: String -> Bool
+  octet s = let b = string-to-bytes s in bytes-len b >= 1 && bytes-len b <= 3 && all-digits b 0 && not (bytes-len b > 1 && at b 0 == 48) && decimal b 0 0 <= 255
+
+  -- | Keep only the bytes that pass a test (1 value, 2 path).
+  keep-valid :: String -> Nat -> String
+  keep-valid s kind =
+    let b = string-to-bytes s in
+    if all-of b kind 0 then s else text (bytes-concat (kept b kind 0 Nil))
+
+  -- | The passing bytes from i, as one-byte buffers.
+  kept :: Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  kept b kind i acc = if i >= bytes-len b then reverse acc else kept b kind (i + 1) (if byte-ok kind (at b i) then Cons (slice b i 1) acc else acc)
+
+  -- | The value as written: invalid bytes dropped, quoted when it was quoted or holds a space or comma.
+  write-value :: String -> Bool -> String
+  write-value v quoted =
+    let clean = keep-valid v 1 in
+    let b = string-to-bytes clean in
+    if bytes-len b == 0 then clean
+    else if quoted || has-byte b 32 0 || has-byte b 44 0 then string-concat-all ["\"", clean, "\""]
+    else clean
+
+  -- | Whether a byte occurs from i.
+  has-byte :: Bytes -> Nat -> Nat -> Bool
+  has-byte b v i = if i >= bytes-len b then False else at b i == v || has-byte b v (i + 1)
+
+  -- | The cookie as a Set-Cookie value (empty when the name is invalid).
+  cookie-string :: Cookie -> String
+  cookie-string c = case c of
+    Cookie n v q p d e re m s h ss pt r u ->
+      if not (valid-name n) then ""
+      else string-concat-all [n, "=", write-value v q,
+        (if p == "" then "" else string-concat "; Path=" (keep-valid p 2)),
+        write-domain d, write-expires e,
+        (if m > 0 then string-concat "; Max-Age=" (int-text m) else if m < 0 then "; Max-Age=0" else ""),
+        (if h then "; HttpOnly" else ""), (if s then "; Secure" else ""), same-site-text ss, (if pt then "; Partitioned" else "")]
+
+  -- | A positive integer in decimal.
+  int-text :: Int -> String
+  int-text i = nat-to-string (nat-from-int-or i)
+
+  -- | The Domain attribute when valid (without a leading dot).
+  write-domain :: String -> String
+  write-domain d =
+    if d == "" || not (cookie-domain-valid d) then ""
+    else
+      let b = string-to-bytes d in
+      string-concat "; Domain=" (if at b 0 == 46 then text (slice b 1 (minus (bytes-len b) 1)) else d)
+
+  -- | The Expires attribute for years from 1601.
+  write-expires :: Option Int -> String
+  write-expires e = case e of
+    None -> ""
+    Some t -> if expires-valid t then string-concat "; Expires=" (cookie-time-format t) else ""
+
+  -- | Whether an expiry's year is at least 1601.
+  expires-valid :: Int -> Bool
+  expires-valid t = t >= 0 - 11644473600
+
+  -- | The SameSite attribute text.
+  same-site-text :: SameSite -> String
+  same-site-text ss = case ss of
+    SameSiteNone -> "; SameSite=None"
+    SameSiteLax -> "; SameSite=Lax"
+    SameSiteStrict -> "; SameSite=Strict"
+    other -> ""
+
+  -- | Check a cookie: a token name, an expiry from 1601 when set, value and path bytes, a valid domain, and Secure
+  -- when Partitioned.
+  cookie-valid :: Cookie -> Result CookieError Unit
+  cookie-valid c = case c of
+    Cookie n v q p d e re m s h ss pt r u ->
+      if not (valid-name n) then Err (CookieInvalid "http: invalid Cookie.Name")
+      else if not (expiry-ok e) then Err (CookieInvalid "http: invalid Cookie.Expires")
+      else case first-bad (string-to-bytes v) 1 0 of
+        Some x -> Err (CookieInvalid (string-concat-all ["http: invalid byte ", quote-byte x, " in Cookie.Value"]))
+        None -> (case first-bad (string-to-bytes p) 2 0 of
+          Some x -> Err (CookieInvalid (string-concat-all ["http: invalid byte ", quote-byte x, " in Cookie.Path"]))
+          None ->
+            if not (d == "") && not (cookie-domain-valid d) then Err (CookieInvalid "http: invalid Cookie.Domain")
+            else if pt && not s then Err (CookieInvalid "http: partitioned cookies must be set with Secure")
+            else Ok ())
+
+  -- | Whether an optional expiry is acceptable.
+  expiry-ok :: Option Int -> Bool
+  expiry-ok e = case e of
+    None -> True
+    Some t -> expires-valid t
+
+  -- | The first byte from i that fails a test.
+  first-bad :: Bytes -> Nat -> Nat -> Option Nat
+  first-bad b kind i = if i >= bytes-len b then None else if byte-ok kind (at b i) then first-bad b kind (i + 1) else Some (at b i)
+
+  -- | A byte as a quoted character literal of its Latin-1 code point ('x', '\'', '\\', '\n', '\x01', '\u0080', 'é').
+  quote-byte :: Nat -> String
+  quote-byte c =
+    if c == 39 then "'\\''"
+    else if c == 92 then "'\\\\'"
+    else if c == 7 then "'\\a'"
+    else if c == 8 then "'\\b'"
+    else if c == 12 then "'\\f'"
+    else if c == 10 then "'\\n'"
+    else if c == 13 then "'\\r'"
+    else if c == 9 then "'\\t'"
+    else if c == 11 then "'\\v'"
+    else if c >= 32 && c < 127 then string-concat-all ["'", text (one c), "'"]
+    else if c < 128 then string-concat-all ["'\\x", hex2 c, "'"]
+    else if c < 161 || c == 173 then string-concat-all ["'\\u00", hex2 c, "'"]
+    else string-concat-all ["'", text (latin1 c), "'"]
+
+  -- | A Latin-1 code point (128 to 255) as UTF-8.
+  latin1 :: Nat -> Bytes
+  latin1 c = bytes-concat [one (192 + nat-div c 64), one (128 + nat-rem c 64)]
+
+  -- | A single byte.
+  one :: Nat -> Bytes
+  one c = let out = bytes-new 1 in let s = (if c < 256 then bytes-set out 0 c else ()) in out
+
+  -- | Two lower-case hex digits.
+  hex2 :: Nat -> String
+  hex2 c = string-concat (hex-digit (nat-div c 16)) (hex-digit (nat-rem c 16))
+
+  -- | One lower-case hex digit.
+  hex-digit :: Nat -> String
+  hex-digit d = text (one (if d < 10 then 48 + d else 87 + d))

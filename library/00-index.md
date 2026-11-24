@@ -116,6 +116,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Complex](Data.Complex.md) | Ship source | Complex values and numeric operations using the module's current floating representation. |
 | [Data.Compose](Data.Compose.md) | Embedded | Composition of higher-kinded containers with the admitted generic instances. |
 | [Data.Const](Data.Const.md) | Embedded | A constant container that retains its first parameter while ignoring the mapped value parameter. |
+| [Data.CookieJar](Data.CookieJar.md) | Ship source | An RFC 6265 cookie jar as an immutable value: store the cookies responses set and choose the cookies a request sends. |
 | [Data.Core](Data.Core.md) | Embedded | Shared declarations for List, Option, and Result. Their public homes add operations and instances; this module breaks declaration-order cycles. |
 | [Data.Date](Data.Date.md) | Ship source | Civil date values, validation, parsing/formatting, and calendar calculations. |
 | [Data.Enum](Data.Enum.md) | Embedded | Finite enumeration and the class behind inclusive range literals, including an explicit next element for a step. |
@@ -212,6 +213,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Bzip2](Text.Bzip2.md) | Ship source | Decompress concatenated bzip2 streams with table-driven Huffman decoding and verified block and stream CRCs. |
 | [Text.Checksum](Text.Checksum.md) | Ship source | Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials. |
 | [Text.Codec](Text.Codec.md) | Embedded | Encoding/decoding signatures and codec helpers with explicit failure results. |
+| [Text.Cookie](Text.Cookie.md) | Ship source | HTTP cookies: parse Set-Cookie and Cookie header lines, serialize cookies as Set-Cookie values and validate them. |
 | [Text.Crc32](Text.Crc32.md) | Ship source | Prepared reflected polynomial tables, persistent CRC-32 states and table-checked binary checkpoints. |
 | [Text.Crc64](Text.Crc64.md) | Ship source | Immutable SIMD-built polynomial tables, slicing-by-eight CRC-64, persistent states, network-order digests and table-checked checkpoints. |
 | [Text.Csv.Record](Text.Csv.Record.md) | Ship source | Configurable Unicode-delimited and lossless byte CSV records, checked partial results, positions and incremental parser state. |
@@ -240,6 +242,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Parse](Text.Parse.md) | Ship source | A source-distributed parser toolkit over the lexer/scanner vocabulary. |
 | [Text.Path](Text.Path.md) | Ship source | Portable slash-path lexical operations and checked shell patterns with reusable compiled matchers and exact SIMD scans. |
 | [Text.Pem](Text.Pem.md) | Ship source | Owned byte-preserving envelope blocks, persistent headers, exact malformed-input recovery and bounded payload encoding. |
+| [Text.Punycode](Text.Punycode.md) | Ship source | Punycode (RFC 3492) encoding and decoding, and ASCII-compatible host names with xn-- labels. |
 | [Text.QuotedPrintable](Text.QuotedPrintable.md) | Ship source | Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies. |
 | [Text.Regex](Text.Regex.md) | Ship source | Regular-expression parsing/matching and replacement under the module's admitted regex language. |
 | [Text.Scan](Text.Scan.md) | Ship source | Scanning primitives over input text and the shared position/error vocabulary. |
@@ -359,7 +362,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **282 source modules**: **66 embedded** and **216 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **285 source modules**: **66 embedded** and **219 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

@@ -1,0 +1,416 @@
+-- | A cookie jar (RFC 6265 storage model): it stores the cookies servers set and answers which to send with
+-- a request.
+--
+-- Cookies are grouped by the request host's registrable domain: one label more than the public suffix when
+-- a public suffix function is given, otherwise the last two labels (IP addresses group by themselves). A
+-- Domain attribute must cover the request host and, with a public suffix function, must not be a public
+-- suffix itself (unless it equals the host, which makes the cookie host-only). A cookie without a Domain is
+-- host-only. Paths default to the request path's directory; Max-Age wins over Expires; a cookie whose
+-- Max-Age is negative or whose Expires has passed deletes the stored cookie with the same domain, path and
+-- name. Session cookies never expire. Hosts are lower-cased, lose a trailing dot and any port, and have
+-- non-ASCII labels Punycode-encoded.
+--
+-- A jar is an immutable value: setting cookies returns the next jar, and reading cookies returns them (longest
+-- path first by text order, then oldest, then first set) with the jar that has dropped expired cookies and
+-- recorded the access. Times are Unix seconds and are passed in, so the jar is deterministic.
+module Data.CookieJar where
+
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Cookie
+  import Text.Punycode (punycode-to-ascii)
+  import Text.Url (Url, url-scheme, url-host, url-path)
+
+  export CookieJar, cookie-jar-new, jar-set-cookies, jar-cookies, jar-set-cookies-url, jar-cookies-url, jar-size
+
+  -- | A stored cookie: name, value, whether quoted, domain, path, SameSite text, Secure, HttpOnly, whether it
+  -- persists, whether it is host-only, expiry, creation time, last access time and creation sequence number.
+  data Entry where
+    -- | Fields in the order listed above.
+    Entry :: String -> String -> Bool -> String -> String -> String -> Bool -> Bool -> Bool -> Bool -> Int -> Int -> Int -> Nat -> Entry
+
+  -- | A jar: the public suffix function, entries grouped by registrable domain, and the next sequence number.
+  data CookieJar where
+    -- | Fields in the order listed above.
+    CookieJar :: Option (String -> String) -> List (String, List Entry) -> Nat -> CookieJar
+
+  -- | An empty jar, optionally with a public suffix function (domain to its public suffix).
+  cookie-jar-new :: Option (String -> String) -> CookieJar
+  cookie-jar-new psl = CookieJar psl Nil 0
+
+  -- | How many cookies the jar holds.
+  jar-size :: CookieJar -> Nat
+  jar-size jar = case jar of CookieJar psl groups seq -> count-groups groups 0
+
+  -- | Entries across groups.
+  count-groups :: List (String, List Entry) -> Nat -> Nat
+  count-groups groups acc = case groups of
+    Nil -> acc
+    Cons g rest -> (case g of (k, es) -> count-groups rest (acc + list-length es))
+
+  -- ---------------------------------------------------------------------
+  -- Hosts and domains.
+  -- ---------------------------------------------------------------------
+
+  -- | The byte at an offset, zero outside the buffer.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | n bytes from an offset, copied.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b o n = let out = bytes-new n in let c = (if o + n <= bytes-len b then bytes-copy-range out b 0 o n else ()) in out
+
+  -- | Bytes as text (empty when not UTF-8).
+  text :: Bytes -> String
+  text b = case string-from-bytes b of
+    Some s -> s
+    None -> ""
+
+  -- | Occurrences of a byte from i.
+  count-byte :: Bytes -> Nat -> Nat -> Nat -> Nat
+  count-byte b v i acc = if i >= bytes-len b then acc else count-byte b v (i + 1) (if at b i == v then acc + 1 else acc)
+
+  -- | The first index of a byte from i.
+  index-of :: Bytes -> Nat -> Nat -> Option Nat
+  index-of b v i = if i >= bytes-len b then None else if at b i == v then Some i else index-of b v (i + 1)
+
+  -- | The last index of a byte before end.
+  last-of :: Bytes -> Nat -> Nat -> Option Nat
+  last-of b v end = if end == 0 then None else if at b (minus end 1) == v then Some (minus end 1) else last-of b v (minus end 1)
+
+  -- | Whether bytes from i hold "]:".
+  has-bracket-colon :: Bytes -> Nat -> Bool
+  has-bracket-colon b i = if i + 1 >= bytes-len b then False else (at b i == 93 && at b (i + 1) == 58) || has-bracket-colon b (i + 1)
+
+  -- | Whether a host carries a port.
+  has-port :: Bytes -> Bool
+  has-port b =
+    let colons = count-byte b 58 0 0 in
+    if colons == 0 then False else if colons == 1 then True else at b 0 == 91 && has-bracket-colon b 0
+
+  -- | The host of host:port, or None when the form is malformed.
+  split-host :: Bytes -> Option Bytes
+  split-host b = case last-of b 58 (bytes-len b) of
+    None -> None
+    Some i ->
+      if at b 0 == 91 then
+        (case index-of b 93 0 of
+          None -> None
+          Some end -> if end + 1 == i && no-byte (slice b (end + 1) (minus (bytes-len b) (end + 1))) 93 && no-byte (slice b 1 (minus (bytes-len b) 1)) 91 then Some (slice b 1 (minus end 1)) else None)
+      else
+        let host = slice b 0 i in
+        if no-byte host 58 && no-byte b 91 && no-byte b 93 then Some host else None
+
+  -- | Whether a byte is absent.
+  no-byte :: Bytes -> Nat -> Bool
+  no-byte b v = case index-of b v 0 of
+    None -> True
+    Some i -> False
+
+  -- | The canonical host: port removed, trailing dot removed, Punycode labels, ASCII lower case.
+  canonical-host :: String -> Option String
+  canonical-host host =
+    let b0 = string-to-bytes host in
+    let b1 = if has-port b0 then split-host b0 else Some b0 in
+    case b1 of
+      None -> None
+      Some b ->
+        let trimmed = if bytes-len b > 0 && at b (minus (bytes-len b) 1) == 46 then slice b 0 (minus (bytes-len b) 1) else b in
+        (case punycode-to-ascii (text trimmed) of
+          Err e -> None
+          Ok ascii -> (case cookie-ascii-lower ascii of
+            Some lower -> Some lower
+            None -> Some ""))
+
+  -- | Whether a host is an IP address (anything with ":" or "%", or dotted-decimal IPv4).
+  is-ip :: String -> Bool
+  is-ip host = let b = string-to-bytes host in not (no-byte b 58) || not (no-byte b 37) || cookie-is-ipv4 host
+
+  -- | Whether s ends with "." and the suffix (and is longer than it).
+  dot-suffix :: String -> String -> Bool
+  dot-suffix s suffix =
+    let b = string-to-bytes s in
+    let x = string-to-bytes suffix in
+    bytes-len b > bytes-len x && at b (minus (bytes-len b) (bytes-len x + 1)) == 46
+      && eq-i64 (bytes-compare (slice b (minus (bytes-len b) (bytes-len x)) (bytes-len x)) x) 0
+
+  -- | The group key of a host: its registrable domain, or the host itself for IP addresses and suffixes.
+  jar-key :: String -> Option (String -> String) -> String
+  jar-key host psl =
+    if is-ip host then host
+    else
+      let b = string-to-bytes host in
+      case psl of
+        None -> (case last-of b 46 (bytes-len b) of
+          None -> host
+          Some i -> if i == 0 then host else key-before b i)
+        Some f ->
+          let suffix = f host in
+          if suffix == host then host
+          else
+            let i = minus (bytes-len b) (bytes-len (string-to-bytes suffix)) in
+            if i == 0 || not (at b (minus i 1) == 46) then host else key-before b i
+
+  -- | The text after the dot before position i - 1.
+  key-before :: Bytes -> Nat -> String
+  key-before b i = case last-of b 46 (minus i 1) of
+    None -> text b
+    Some d -> text (slice b (d + 1) (minus (bytes-len b) (d + 1)))
+
+  -- | The default path of a request path: its directory, or "/".
+  default-path :: String -> String
+  default-path path =
+    let b = string-to-bytes path in
+    if bytes-len b == 0 || not (at b 0 == 47) then "/"
+    else case last-of b 47 (bytes-len b) of
+      Some i -> if i == 0 then "/" else text (slice b 0 i)
+      None -> "/"
+
+  -- | The cookie domain and whether it is host-only, or None when the Domain attribute is refused.
+  domain-and-type :: Option (String -> String) -> String -> String -> Option (String, Bool)
+  domain-and-type psl host domain =
+    if domain == "" then Some (host, True)
+    else if is-ip host then (if host == domain then Some (host, True) else None)
+    else
+      let b0 = string-to-bytes domain in
+      let b = if at b0 0 == 46 then slice b0 1 (minus (bytes-len b0) 1) else b0 in
+      if bytes-len b == 0 || at b 0 == 46 then None
+      else case cookie-ascii-lower (text b) of
+        None -> None
+        Some d ->
+          let db = string-to-bytes d in
+          if at db (minus (bytes-len db) 1) == 46 then None
+          else if public-suffix-blocks psl d then (if host == d then Some (host, True) else None)
+          else if not (host == d) && not (dot-suffix host d) then None
+          else Some (d, False)
+
+  -- | Whether a domain is itself a public suffix (or covers one).
+  public-suffix-blocks :: Option (String -> String) -> String -> Bool
+  public-suffix-blocks psl d = case psl of
+    None -> False
+    Some f -> let ps = f d in not (ps == "") && not (dot-suffix d ps)
+
+  -- ---------------------------------------------------------------------
+  -- Entries.
+  -- ---------------------------------------------------------------------
+
+  -- | The end of time for session cookies (9999-12-31T23:59:59Z).
+  end-of-time :: Int
+  end-of-time = 253402300799
+
+  -- | An entry's identity: domain, path and name.
+  entry-id :: Entry -> String
+  entry-id e = case e of Entry n v q d p ss s h ps ho ex cr la sq -> string-concat-all [d, ";", p, ";", n]
+
+  -- | What a Set-Cookie does: store an entry, delete the entry with an identity, or nothing.
+  data Change where
+    -- | Store this entry.
+    Store :: Entry -> Change
+    -- | Remove the entry with this identity.
+    Remove :: String -> Change
+    -- | Ignore the cookie.
+    Skip :: Change
+
+  -- | The change a cookie makes for a host at a time.
+  change-of :: Option (String -> String) -> Cookie -> Int -> String -> String -> Change
+  change-of psl c now def-path host =
+    let cp = string-to-bytes (cookie-path c) in
+    let path = if bytes-len cp == 0 || not (at cp 0 == 47) then def-path else cookie-path c in
+    case domain-and-type psl host (cookie-domain c) of
+      None -> Skip
+      Some dt -> (case dt of
+        (domain, host-only) ->
+          let id = string-concat-all [domain, ";", path, ";", cookie-name c] in
+          let make = Entry (cookie-name c) (cookie-value c) (cookie-quoted c) domain path (same-site-text (cookie-same-site c)) (cookie-secure c) (cookie-http-only c) in
+          if cookie-max-age c < 0 then Remove id
+          else if cookie-max-age c > 0 then Store (make True host-only (now + cookie-max-age c) 0 0 0)
+          else (case cookie-expires c of
+            None -> Store (make False host-only end-of-time 0 0 0)
+            Some t -> if t <= now then Remove id else Store (make True host-only t 0 0 0)))
+
+  -- | The SameSite text an entry records.
+  same-site-text :: SameSite -> String
+  same-site-text ss = case ss of
+    SameSiteDefault -> "SameSite"
+    SameSiteStrict -> "SameSite=Strict"
+    SameSiteLax -> "SameSite=Lax"
+    other -> ""
+
+  -- | Whether an entry should be sent to a host and path over a scheme.
+  should-send :: Entry -> Bool -> String -> String -> Bool
+  should-send e https host path = case e of
+    Entry n v q d p ss s h ps ho ex cr la sq -> (d == host || (not ho && dot-suffix host d)) && path-match p path && (https || not s)
+
+  -- | Whether a cookie path matches a request path.
+  path-match :: String -> String -> Bool
+  path-match cookie-path request =
+    if request == cookie-path then True
+    else
+      let c = string-to-bytes cookie-path in
+      let r = string-to-bytes request in
+      bytes-len c > 0 && bytes-len r > bytes-len c && eq-i64 (bytes-compare (slice r 0 (bytes-len c)) c) 0
+        && (at c (minus (bytes-len c) 1) == 47 || at r (bytes-len c) == 47)
+
+  -- ---------------------------------------------------------------------
+  -- Setting and reading.
+  -- ---------------------------------------------------------------------
+
+  -- | Store the cookies a response to scheme://host/path set at a time.
+  jar-set-cookies :: CookieJar -> String -> String -> String -> List Cookie -> Int -> CookieJar
+  jar-set-cookies jar scheme host path cookies now = case cookies of
+    Nil -> jar
+    other ->
+      if not (scheme == "http" || scheme == "https") then jar
+      else case canonical-host host of
+        None -> jar
+        Some h -> (case jar of
+          CookieJar psl groups seq ->
+            let key = jar-key h psl in
+            (case apply-all psl cookies now (default-path path) h (group-of groups key) seq of
+              (entries, next) -> CookieJar psl (put-group groups key entries) next))
+
+  -- | Apply cookies in order to a group's entries.
+  apply-all :: Option (String -> String) -> List Cookie -> Int -> String -> String -> List Entry -> Nat -> (List Entry, Nat)
+  apply-all psl cookies now def-path host entries seq = case cookies of
+    Nil -> (entries, seq)
+    Cons c rest -> (case change-of psl c now def-path host of
+      Skip -> apply-all psl rest now def-path host entries seq
+      Remove id -> apply-all psl rest now def-path host (remove-id entries id) seq
+      Store e -> (case find-id entries (entry-id e) of
+        Some old -> apply-all psl rest now def-path host (replace-id entries (inherit e old now)) seq
+        None -> apply-all psl rest now def-path host (Cons (stamp e now seq) entries) (seq + 1)))
+
+  -- | An entry created now with a sequence number.
+  stamp :: Entry -> Int -> Nat -> Entry
+  stamp e now seq = case e of Entry n v q d p ss s h ps ho ex cr la sq -> Entry n v q d p ss s h ps ho ex now now seq
+
+  -- | A replacement keeping the old entry's creation time and sequence number.
+  inherit :: Entry -> Entry -> Int -> Entry
+  inherit e old now = case (e, old) of
+    (Entry n v q d p ss s h ps ho ex cr la sq, Entry n2 v2 q2 d2 p2 ss2 s2 h2 ps2 ho2 ex2 cr2 la2 sq2) -> Entry n v q d p ss s h ps ho ex cr2 now sq2
+
+  -- | The entry with an identity.
+  find-id :: List Entry -> String -> Option Entry
+  find-id entries id = case entries of
+    Nil -> None
+    Cons e rest -> if entry-id e == id then Some e else find-id rest id
+
+  -- | Entries without an identity.
+  remove-id :: List Entry -> String -> List Entry
+  remove-id entries id = case entries of
+    Nil -> Nil
+    Cons e rest -> if entry-id e == id then remove-id rest id else Cons e (remove-id rest id)
+
+  -- | Entries with the one sharing the new entry's identity replaced.
+  replace-id :: List Entry -> Entry -> List Entry
+  replace-id entries e = case entries of
+    Nil -> Nil
+    Cons x rest -> if entry-id x == entry-id e then Cons e rest else Cons x (replace-id rest e)
+
+  -- | A group's entries (empty when absent).
+  group-of :: List (String, List Entry) -> String -> List Entry
+  group-of groups key = case groups of
+    Nil -> Nil
+    Cons g rest -> (case g of (k, es) -> if k == key then es else group-of rest key)
+
+  -- | Groups with one group replaced (removed when it is empty).
+  put-group :: List (String, List Entry) -> String -> List Entry -> List (String, List Entry)
+  put-group groups key entries =
+    let others = drop-group groups key in
+    case entries of
+      Nil -> others
+      other -> Cons (key, entries) others
+
+  -- | Groups without a key.
+  drop-group :: List (String, List Entry) -> String -> List (String, List Entry)
+  drop-group groups key = case groups of
+    Nil -> Nil
+    Cons g rest -> (case g of (k, es) -> if k == key then drop-group rest key else Cons g (drop-group rest key))
+
+  -- | The cookies to send with a request to scheme://host/path at a time, and the jar after dropping expired
+  -- cookies and recording the access.
+  jar-cookies :: CookieJar -> String -> String -> String -> Int -> (List Cookie, CookieJar)
+  jar-cookies jar scheme host path now =
+    if not (scheme == "http" || scheme == "https") then (Nil, jar)
+    else case canonical-host host of
+      None -> (Nil, jar)
+      Some h -> (case jar of
+        CookieJar psl groups seq ->
+          let key = jar-key h psl in
+          let request-path = if path == "" then "/" else path in
+          let live = alive (group-of groups key) now in
+          let touched = touch live (scheme == "https") h request-path now in
+          let chosen = sort-entries (selected live (scheme == "https") h request-path) Nil in
+          (to-cookies chosen, CookieJar psl (put-group groups key touched) seq))
+
+  -- | Entries that have not expired.
+  alive :: List Entry -> Int -> List Entry
+  alive entries now = case entries of
+    Nil -> Nil
+    Cons e rest -> (case e of
+      Entry n v q d p ss s h ps ho ex cr la sq -> if ps && ex <= now then alive rest now else Cons e (alive rest now))
+
+  -- | Entries with the last access recorded for those sent.
+  touch :: List Entry -> Bool -> String -> String -> Int -> List Entry
+  touch entries https host path now = case entries of
+    Nil -> Nil
+    Cons e rest -> Cons (if should-send e https host path then accessed e now else e) (touch rest https host path now)
+
+  -- | An entry accessed at a time.
+  accessed :: Entry -> Int -> Entry
+  accessed e now = case e of Entry n v q d p ss s h ps ho ex cr la sq -> Entry n v q d p ss s h ps ho ex cr now sq
+
+  -- | The entries to send.
+  selected :: List Entry -> Bool -> String -> String -> List Entry
+  selected entries https host path = case entries of
+    Nil -> Nil
+    Cons e rest -> if should-send e https host path then Cons e (selected rest https host path) else selected rest https host path
+
+  -- | Insertion sort into sending order.
+  sort-entries :: List Entry -> List Entry -> List Entry
+  sort-entries entries acc = case entries of
+    Nil -> acc
+    Cons e rest -> sort-entries rest (insert-entry e acc)
+
+  -- | Insert an entry before the first that should come after it.
+  insert-entry :: Entry -> List Entry -> List Entry
+  insert-entry e sorted = case sorted of
+    Nil -> Cons e Nil
+    Cons x rest -> if before e x then Cons e sorted else Cons x (insert-entry e rest)
+
+  -- | Whether a comes before b: greater path text first, then earlier creation, then lower sequence number.
+  before :: Entry -> Entry -> Bool
+  before a b = case (a, b) of
+    (Entry n v q d p ss s h ps ho ex cr la sq, Entry n2 v2 q2 d2 p2 ss2 s2 h2 ps2 ho2 ex2 cr2 la2 sq2) ->
+      let order = bytes-compare (string-to-bytes p2) (string-to-bytes p) in
+      if lt-i64 order 0 then True
+      else if lt-i64 0 order then False
+      else if cr < cr2 then True
+      else if cr2 < cr then False
+      else sq < sq2
+
+  -- | Entries as request cookies (name, value and quoting).
+  to-cookies :: List Entry -> List Cookie
+  to-cookies entries = case entries of
+    Nil -> Nil
+    Cons e rest -> (case e of
+      Entry n v q d p ss s h ps ho ex cr la sq -> Cons (quoted-cookie n v q) (to-cookies rest))
+
+  -- | A request cookie.
+  quoted-cookie :: String -> String -> Bool -> Cookie
+  quoted-cookie n v q = Cookie n v q "" "" None "" 0 False False SameSiteUnset False "" Nil
+
+  -- | Store the cookies a response from a URL set at a time.
+  jar-set-cookies-url :: CookieJar -> Url -> List Cookie -> Int -> CookieJar
+  jar-set-cookies-url jar u cookies now = jar-set-cookies jar (text (url-scheme u)) (text (url-host u)) (text (url-path u)) cookies now
+
+  -- | The cookies to send with a request to a URL at a time, and the next jar.
+  jar-cookies-url :: CookieJar -> Url -> Int -> (List Cookie, CookieJar)
+  jar-cookies-url jar u now = jar-cookies jar (text (url-scheme u)) (text (url-host u)) (text (url-path u)) now
