@@ -49,6 +49,13 @@ the output directory. Pushes to `deploy/cinch-site` create production deployment
 The lockfile uses the public npm registry so builds need no private network access.
 Include source files outside the root directory: the docs
 loader and navigation read Markdown from the repository's parent directories.
+`website/vercel.json` sets `ignoreCommand` to `bash scripts/vercel-ignore.sh`,
+which skips Vercel deployments whenever no Astro source, published doc (`documentation.md`,
+`learn/`, `reference/`, `library/`), stdlib `.cinch` source (`seed/prelude/**/*.cinch`), or
+TextMate grammar (`tooling/editors/vscode/syntaxes/cinch.tmLanguage.json`) changed since
+`VERCEL_GIT_PREVIOUS_SHA` (while still building explicit same-commit redeploys and failing
+open if the previous deployment falls outside Vercel's shallow clone). Verify the script
+locally with `bash website/scripts/test-vercel-ignore.sh`.
 Cloudflare remains the authoritative DNS provider; web records point to the
 project-specific DNS target returned by Vercel with proxying disabled.
 
