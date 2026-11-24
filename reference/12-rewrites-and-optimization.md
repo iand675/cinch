@@ -408,4 +408,4 @@ The `fuel` and `measure` limits come from the active target profile (`8` and `8`
 
 <span class="support-tag support-tag--planned">Coming soon</span> **Handler-vtable specialization and step certificates.** Statically known `handle` clauses are not yet specialized to direct calls across `do` and task boundaries. Independently checkable per-step optimization certificates (above `trust.level = 2`) are also planned.
 
-See [supercompilation and JIT specification](../specifications/supercompilation-and-jit-specification.md), [modules and compilation specification](../specifications/modules-and-compilation-specification.md) §5, and the [rewrites and performance tutorial](../learn/19-rewrites-and-performance.md).
+For a guided walkthrough, see the [rewrites and performance tutorial](../learn/19-rewrites-and-performance.md).

@@ -383,4 +383,4 @@ For finite or bounded stream pipelines, prefer `Data.Producer` (`Done`, `Skip st
 | Explicit `destroy` primitive for thunks | Not provided; unforced affine thunks are released automatically by ownership rules. |
 | Coinductive bisimulation as built-in conversion | Not implemented; rewrites over streams require explicit evidence ([Chapter 12](12-rewrites-and-optimization.md)). |
 
-Normative details are in the [laziness and reclamation specification](../specifications/lazy-computation-and-reclamation-specification.md) and the [codata guardedness design note](../design/codata-guardedness.md).
+For guided walkthroughs, see [productive streams and partial producers](../learn/15-streams-and-producers.md) and [explicit laziness](../learn/16-explicit-laziness.md).

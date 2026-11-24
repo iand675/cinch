@@ -1,6 +1,6 @@
 # Types, kinds, declarations, and inference
 
-Cinch shares a single term syntax across values, types, and kinds: indexed types such as `Vec (n + 1) a` and dependent arrows such as `(x :: a) -> a` are elaborated from one grammar rather than parsed by a separate type-only language. This chapter specifies function arrows, type application, universes and kinds, quantifiers, higher-rank polymorphism, type declarations, inference boundaries, and module interface contracts. See [surface syntax and grammar](../specifications/surface-syntax-and-grammar.md) and [core language specification](../specifications/core-language-specification.md) for the formal specifications.
+Cinch shares a single term syntax across values, types, and kinds: indexed types such as `Vec (n + 1) a` and dependent arrows such as `(x :: a) -> a` are elaborated from one grammar rather than parsed by a separate type-only language. This chapter specifies function arrows, type application, universes and kinds, quantifiers, higher-rank polymorphism, type declarations, inference boundaries, and module interface contracts.
 
 # Function arrows, effects, and multiplicities
 

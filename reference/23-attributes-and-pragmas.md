@@ -577,8 +577,8 @@ These constructs look similar to attributes in other languages (Haskell pragmas,
 
 | Design spelling | Intended role | Design document |
 | --- | --- | --- |
-| `#[global-allocator]` | Program-wide custom allocator selection | [Allocators](../design/allocators.md) |
-| `#[fip]` | Fully-in-place update and reuse verification | [Allocators](../design/allocators.md) |
-| `#[alloc("bounded(n)")]` | Proved allocation-count bounds beyond `"once"` | [Allocators](../design/allocators.md) |
+| `#[global-allocator]` | Program-wide custom allocator selection | [Allocators](25-allocators.md) |
+| `#[fip]` | Fully-in-place update and reuse verification | [Allocators](25-allocators.md) |
+| `#[alloc("bounded(n)")]` | Proved allocation-count bounds beyond `"once"` | [Allocators](25-allocators.md) |
 
-`#[may-fault]` appears only as a rejected discussion alternative in [no-faults](../design/no-faults.md) and is not a planned attribute.
+`#[may-fault]` is not a planned attribute.

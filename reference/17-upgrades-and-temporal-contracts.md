@@ -232,4 +232,4 @@ Non-structural and unbounded temporal claims always receive a named check-time r
 
 <span class="support-tag support-tag--planned">Coming soon</span> **Unbounded temporal reasoning.** Simulation-based refinement, divergence-sensitive liveness, and proofs over arbitrary concurrent process trees are specified but not yet implemented.
 
-See the [runtime evolution specification](../specifications/runtime-evolution-specification.md), [core language specification](../specifications/core-language-specification.md) §10, and the [upgrades and contracts tutorial](../learn/21-upgrades-and-contracts.md).
+For a guided walkthrough, see the [upgrades and contracts tutorial](../learn/21-upgrades-and-contracts.md).

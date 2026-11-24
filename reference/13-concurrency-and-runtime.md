@@ -315,7 +315,7 @@ Standard transactional data structures ship as library modules over `TVar`:
 
 STM does not promise fairness or bounded retries: a long transaction can be repeatedly invalidated by short conflicting ones, and a `retry` whose read set is never written waits forever (hence `Diverge` on `atomically`). Memory allocated by an aborted attempt is reclaimed cleanly, and external I/O must happen after `atomically` commits.
 
-The implementation uses versioned write locks with a global version clock (TL2); see [the STM design note](../design/stm.md) for the commit protocol and reference-counting rules.
+The implementation uses versioned write locks with a global version clock (TL2) integrated with Cinch's reference-counting runtime.
 
 ## What a transaction may not do
 
@@ -376,4 +376,4 @@ module Main where
 - <span class="support-tag support-tag--planned">Coming soon</span> **Supervision and deterministic scheduling.** Long-lived supervision trees, restart policies, and deterministic schedule exploration / cancellation injection are planned beyond the current structured-task API.
 - <span class="support-tag support-tag--planned">Coming soon</span> **Service launcher and runtime supervision CLI.** The CLI ([Chapter 01](01-using-the-compiler.md#commands)) covers building, running, and inspecting artifacts, but does not yet provide a service supervisor or rolling-update launcher.
 
-See the [concurrency specification](../specifications/concurrency-specification.md), [green threads design note](../design/green-threads.md), and [structured concurrency tutorial](../learn/17-structured-concurrency.md).
+For a guided walkthrough, see the [structured concurrency tutorial](../learn/17-structured-concurrency.md).

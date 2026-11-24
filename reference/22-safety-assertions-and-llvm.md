@@ -233,4 +233,4 @@ Beyond explicit safety assertions, the backend lowers verified compiler analyses
 
 These LLVM names are backend outputs derived from checked invariants—they are **not** Cinch source attributes (writing `#[nonnull]` or `#[willreturn]` in source is an unknown-attribute error). Fast-math reassociation is never enabled by default, and `unsafe prim` bodies retain their explicit trust boundary rather than inheriting unproved guarantees.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **Broader primitive semantic proofs and solver coverage.** Planned verification of primitive bodies and expanded automated proof discharge are tracked in the [verified primitives](../design/verified-primitives.md) and [proof automation](../design/proof-automation.md) designs.
+<span class="support-tag support-tag--planned">Coming soon</span> **Broader primitive semantic proofs and solver coverage.** Planned verification of primitive bodies and expanded automated proof discharge will continue to require independently checkable evidence.

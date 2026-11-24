@@ -8,17 +8,17 @@ const REPO_ROOT = path.dirname(SITE_ROOT);
 
 /**
  * Directories of the documentation set, relative to the repository root.
- * Every Markdown file in them becomes a page and the route is its path without
- * the extension; the overview is served at /overview/.
+ * Only active reader documentation is published to the website; historical
+ * design specs and notes remain in the repository but are not built as pages.
  */
-const DOC_DIRS = ['', 'learn', 'reference', 'library', 'specifications', 'tutorials', 'design', 'examples', 'context'];
+const DOC_DIRS = ['', 'learn', 'reference', 'library'];
 
 type PageSource = {
   /** Path used to resolve links between pages, relative to the repository root. */
   relPath: string;
   /** Absolute path of the Markdown file. */
   file: string;
-  /** Route id: the path without its extension, including `overview` for the design overview. */
+  /** Route id: the path without its extension. */
   id: string;
 };
 
@@ -55,8 +55,8 @@ async function collectSources(): Promise<PageSource[]> {
 
   for (const dir of DOC_DIRS) {
     for (const name of await markdownFiles(REPO_ROOT, dir)) {
-      // The repository root also holds README.md; only the overview is a page.
-      if (dir === '' && !['overview.md', 'documentation.md'].includes(name)) continue;
+      // Only documentation.md from the repository root is published as a page.
+      if (dir === '' && name !== 'documentation.md') continue;
       const relPath = dir === '' ? name : `${dir}/${name}`;
       sources.push({
         relPath,
@@ -193,6 +193,12 @@ export function safelangDocs(): Loader {
     name: 'safelang-docs',
     async load({ store, logger, watcher, parseData, renderMarkdown, generateDigest }) {
       const sources = await collectSources();
+      const currentIds = new Set(sources.map((source) => source.id));
+      for (const existingId of store.keys()) {
+        if (!currentIds.has(existingId)) {
+          store.delete(existingId);
+        }
+      }
       const knownPages = new Set(sources.map((source) => source.relPath));
       // Rendered HTML contains Expressive Code's token colours and hashed asset
       // URLs. A content-only digest would retain stale HTML after a theme/config

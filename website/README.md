@@ -1,6 +1,6 @@
 # Cinch documentation site
 
-Astro + Starlight documentation for the Rust Cinch compiler. `/documentation/` is the reader entry point: `learn/` is the ordered language tutorial, `reference/` is the compiler user’s guide, and `library/` is generated from real checked library interfaces. The original `overview.md`, `specifications/`, `tutorials/`, `design/`, `examples/`, and `context/` remain at their existing routes as the design archive. Markdown stays in the repository and the site reads it directly.
+Astro + Starlight documentation for the Rust Cinch compiler. `/documentation/` is the reader entry point: `learn/` is the ordered language tutorial, `reference/` is the compiler user’s guide, and `library/` is generated from real checked library interfaces. Historical design specs and notes (`overview.md`, `specifications/`, `tutorials/`, `design/`, `examples/`, `context/`) remain in the repository and are not published on the website. Markdown stays in the repository and the site reads it directly.
 
 ## Commands
 
@@ -22,7 +22,7 @@ Enter `devenv shell` from the repository root to use the public npm registry and
 
 Future site work starts with [AGENTS.md](AGENTS.md), [the design handbook](design/design-handbook.md), and [the inspiration atlas](design/inspiration-atlas.md). These preserve the design rules, the user's original images and source links, the reasoning behind the materials and ornament, and the directions that were tried and rejected. Exact attachment copies and their provenance manifest live in `design/references/`, outside the public site assets.
 
-The landing page is `src/pages/index.astro`. It introduces the language and links into the original documentation, which lives at `/overview/` and its existing chapter routes. New readers enter through `/documentation/`; links to `overview.md` still resolve to `/overview/`.
+The landing page is `src/pages/index.astro`. It introduces the language and links directly into `/documentation/`, `/learn/`, `/reference/`, and `/library/`.
 
 The landing page uses a cassette-futurist direction: large Momo Trust Display typography, full-width ink/ivory/orange fields, subtle static surface grain, sculpted section transitions, curved equipment-bay links, circular index plates, and an orange instrument faceplate with an inset olive display. The console includes a length gauge, casing seams, and fasteners; page details remain static and decorative. DM Sans handles reading text; IBM Plex Mono handles code and labels. The vector-length control in `src/components/ContractConsole.astro` illustrates the nonempty-input contract for `first`; it does not execute a compiler. The mascot is retained as an asset but is not displayed on the landing page. The documentation theme pairs ink, warm ivory, and ember orange. Fonts are self-hosted in `public/fonts/`; the supplied wordmark and mascot are optimized WebP assets in `public/brand/`. Shared documentation styles are in `src/styles/custom.css`; the landing page composition is in `src/styles/landing.css`. Reading pages support light, dark, and system themes.
 
@@ -33,7 +33,7 @@ The landing page uses a cassette-futurist direction: large Momo Trust Display ty
 - takes the first `# Heading` as the page title and removes it from the body, because Starlight renders the title itself;
 - lifts `Source:`, `Exported:` and `Added:` lines into page metadata, rendered under the title by `src/components/PageTitle.astro`;
 - demotes every remaining heading one level, so numbered `# N` sections become `h2` and appear in the table of contents;
-- rewrites links to sibling Markdown files into site routes, so `](core-language-specification.md)` and `](../overview.md)` both work;
+- rewrites links to sibling Markdown files into site routes, so `](04-types-and-kinds.md)` and `](../documentation.md)` both work;
 - maps fence languages the highlighter does not know (`ebnf`) to plain text;
 - renders the Markdown with the site's Markdown pipeline.
 
@@ -151,7 +151,7 @@ checksums, incomplete publications and repository URL boundaries.
 
 ## Reader documentation and verification
 
-The Rust implementation is the current behaviour authority. The tutorial and guide mark specified but unavailable behaviour with visible **Coming soon** tags, distinguish partial support and API-only mechanisms, and link to the intended design. `/reference/16-support-and-roadmap/` maps all specification areas to their reader guides. Original design pages carry an archive notice without changing their body text or heading anchors.
+The Rust implementation is the current behaviour authority. The tutorial and guide mark specified but unavailable behaviour with visible **Coming soon** tags and distinguish partial support and API-only mechanisms. `/reference/16-support-and-roadmap/` summarizes current support and planned features across the compiler.
 
 `learn/` has the tutorial contents and 22 chapters. `reference/` has the guide contents and 29 subject pages, including dedicated attributes, type layout, allocator, REPL, language server, documentation, and package management references. The tooling chapters distinguish available frontends from remaining intended work with support labels and explicit current implementation tables. `library/` has the directory, one Hackage-style generated page for each real source module, a Hoogle-style API search page (`/library/search/`), and line-numbered source views (`/library/source/<Module>/`). The sidebar groups library modules by namespace. Hand-written pages use the editor TextMate grammar; generated library pages carry compiler tree-sitter token spans.
 
@@ -165,7 +165,7 @@ npm run verify:docs
 npm run verify:examples -- --compiler /absolute/path/to/rust-built/cinch
 ```
 
-`verify:docs` checks source drift plus built reader-page links/anchors, source downloads, archive routes, status labels, and code rendering. `verify:examples` extracts marked complete examples from the tutorial/guide, checks them, builds and executes positive programs, checks exact exit/stdout expectations, and checks named negative diagnostics. It uses temporary projects and a private store. Explanatory fragments are unmarked; every complete module must have a marker. Multi-file examples use `cinch:project` markers. This is meaningful executable documentation coverage, not a claim that every compiler test or library operation was rerun.
+`verify:docs` checks source drift plus built reader-page links/anchors, source downloads, Hoogle search index, excluded archive routes, status labels, and code rendering. `verify:examples` extracts marked complete examples from the tutorial/guide, checks them, builds and executes positive programs, checks exact exit/stdout expectations, and checks named negative diagnostics. It uses temporary projects and a private store. Explanatory fragments are unmarked; every complete module must have a marker. Multi-file examples use `cinch:project` markers. This is meaningful executable documentation coverage, not a claim that every compiler test or library operation was rerun.
 
 Regenerate the library after changing source or public exports:
 

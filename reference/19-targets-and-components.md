@@ -150,7 +150,7 @@ signature SumProofs where
 
 Under the current backend, `simd-sum-wrap32` lowers to the equivalent scalar loop and `detect-vec-u32` returns `None`, so runtime `case` dispatch always takes the scalar fallback. The optimizer preserves the dispatch boundary rather than folding it away, keeping the scalar fallback and instruction-equivalence proof obligation (`SumProofs.scalar-to-simd`) explicit in the checked program and manifest.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **Vector instruction selection and runtime feature dispatch.** The capability evidence types and equivalence obligations are checked today; hardware vector instruction emission and CPUID/feature probing are specified in the [platform proofs and SIMD specification](../specifications/platform-proofs-and-simd-specification.md) (sections 3–8).
+<span class="support-tag support-tag--planned">Coming soon</span> **Vector instruction selection and runtime feature dispatch.** The capability evidence types and equivalence obligations are checked today; hardware vector instruction emission and CPUID/feature probing are planned.
 
 # Library object artifacts
 
@@ -239,7 +239,7 @@ WASI streams and futures are modeled as external handles—not productive codata
 
 End-of-stream, scheduling, and decode errors are therefore explicit values the caller handles rather than hidden runtime faults.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **Component-model wrapping and execution.** The WIT parser, canonical-ABI planner, and core-module adapter emission work under `--target wasm32-unknown-unknown`, producing a core `.wasm` module linked by `wasm-ld`. Component packaging (`.wasm` component binary emission and component instantiation) is specified in the [WebAssembly and WASI specification](../specifications/webassembly-and-wasi-specification.md) (sections 2 and 8–10).
+<span class="support-tag support-tag--planned">Coming soon</span> **Component-model wrapping and execution.** The WIT parser, canonical-ABI planner, and core-module adapter emission work under `--target wasm32-unknown-unknown`, producing a core `.wasm` module linked by `wasm-ld`. Component packaging (`.wasm` component binary emission and component instantiation) is planned.
 
 # Target-IR backend families
 

@@ -536,4 +536,4 @@ See [allocators and heap customization](25-allocators.md#environment-variables) 
 
 # Planned extensions
 
-<span class="support-tag support-tag--planned">Coming soon</span> Replaceable allocators, scoped arenas, functional-in-place (`#[fip]`) reuse guarantees, and statically proven allocation bounds are described in [the allocator design](../design/allocators.md) and [layouts and specialization](../design/layouts-and-specialization.md). For currently available layout attributes and safety assertions, see [type layout](24-type-layout.md) and [safety assertions](22-safety-assertions-and-llvm.md).
+<span class="support-tag support-tag--planned">Coming soon</span> Replaceable allocators, scoped arenas, functional-in-place (`#[fip]`) reuse guarantees, and statically proven allocation bounds are planned (see [allocators](25-allocators.md)). For currently available layout attributes and safety assertions, see [type layout](24-type-layout.md) and [safety assertions](22-safety-assertions-and-llvm.md).

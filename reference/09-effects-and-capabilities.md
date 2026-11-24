@@ -476,7 +476,7 @@ Executable entry points admit exactly two signatures—`main :: Int` (pure) and 
 
 Compile-time staging runs with its own recorded capabilities rather than ambient runtime I/O (see [staging and macros](14-staging-and-macros.md)).
 
-- <span class="support-tag support-tag--planned">Coming soon</span> **`Comp {e} a` and resource-safe effectful pull streams.** Packaging an effectful unit closure as `Comp {e} a` (with `suspend :: (Unit ->{e} a) -> Comp {e} a` and `run :: Comp {e} a ->{e} a`) in `Effect.Comp` is planned ([computation-type design](../design/comp-computation-type.md)); until it ships, store explicit effectful closures or use `Thunk {e} a` and `codata`.
+- <span class="support-tag support-tag--planned">Coming soon</span> **`Comp {e} a` and resource-safe effectful pull streams.** Packaging an effectful unit closure as `Comp {e} a` (with `suspend :: (Unit ->{e} a) -> Comp {e} a` and `run :: Comp {e} a ->{e} a`) in `Effect.Comp` is planned; until it ships, store explicit effectful closures or use `Thunk {e} a` and `codata`.
 - <span class="support-tag support-tag--planned">Coming soon</span> **Handler specialization.** Handlers are represented as clause-closure dictionaries at runtime; specializing statically known handlers is a planned optimization that does not change typing rules.
 
-For guided walkthroughs, see [effects and I/O](../learn/10-effects-and-io.md) and [handlers and sequencing](../learn/11-handlers-and-sequencing.md). Normative details are in the [runtime capabilities, effects, and sequencing specification](../specifications/runtime-capabilities-effects-and-sequencing.md).
+For guided walkthroughs, see [effects and I/O](../learn/10-effects-and-io.md) and [handlers and sequencing](../learn/11-handlers-and-sequencing.md).

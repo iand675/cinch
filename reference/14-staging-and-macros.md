@@ -313,4 +313,4 @@ Each data import is recorded in `build/<entry>.manifest.json` with its module, b
 
 <span class="support-tag support-tag--planned">Coming soon</span> **Cross-stage lifting beyond primitive scalars.** Only `quoteNat`, `quoteInt`, and `quoteBool` currently transport compile-time values into `Code`. Lifting `String`, `Bytes`, records, and higher-order values with explicit serialization and provenance rules is planned.
 
-See [modules and compilation specification](../specifications/modules-and-compilation-specification.md) §§7–11, [surface syntax and grammar](../specifications/surface-syntax-and-grammar.md), and the [compile-time code tutorial](../learn/18-staging-and-macros.md).
+For a guided walkthrough, see the [compile-time code tutorial](../learn/18-staging-and-macros.md).

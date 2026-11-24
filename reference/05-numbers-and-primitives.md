@@ -2,7 +2,7 @@
 
 Cinch separates unbounded mathematical integers (`Nat`, `Int`) from fixed-width machine scalars (`I8`–`I64`, `U8`–`U64`, `F32`, `F64`, `Isize`, `Usize`, `Char`), UTF-8 text (`String`), byte buffers (`Bytes`), and interned symbols (`Sym`). There are no implicit numeric coercions and no implicit overflow policies: every conversion is explicit, and the operation family you call determines how overflow is handled.
 
-The normative specification is [primitive types](../specifications/primitive-types-specification.md). Full export lists live in [Data.Machine](../library/Data.Machine.md), [Data.Nat](../library/Data.Nat.md), [Data.Int](../library/Data.Int.md), [Data.NonZero](../library/Data.NonZero.md), [Data.Bytes](../library/Data.Bytes.md), [Data.String](../library/Data.String.md), [Data.Char](../library/Data.Char.md), and [Data.Sym](../library/Data.Sym.md).
+Full export lists live in [Data.Machine](../library/Data.Machine.md), [Data.Nat](../library/Data.Nat.md), [Data.Int](../library/Data.Int.md), [Data.NonZero](../library/Data.NonZero.md), [Data.Bytes](../library/Data.Bytes.md), [Data.String](../library/Data.String.md), [Data.Char](../library/Data.Char.md), and [Data.Sym](../library/Data.Sym.md).
 
 # Builtin primitive types
 
@@ -248,7 +248,7 @@ module Main where
        else 3
 ```
 
-<span class="support-tag support-tag--planned">Coming soon</span> Refined floating-point contracts (finiteness, range proofs, and opt-in unsafe IEEE instances) are designed in [float refinements](../design/float-refinements.md).
+<span class="support-tag support-tag--planned">Coming soon</span> Refined floating-point contracts (finiteness, range proofs, and opt-in unsafe IEEE instances) are planned.
 
 # Characters and UTF-8 text
 

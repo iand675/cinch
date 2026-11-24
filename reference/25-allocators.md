@@ -165,7 +165,7 @@ Because the 40-bit count can represent more references than the heap cap can hol
 
 # Planned: replaceable program allocators
 
-<span class="support-tag support-tag--planned">Coming soon</span> The [allocator design](../design/allocators.md) defines a replaceable global allocator architecture. None of the following is shipped yet:
+<span class="support-tag support-tag--planned">Coming soon</span> A replaceable global allocator architecture is planned. None of the following is shipped yet:
 
 | Planned facility | Intended behaviour | Current status |
 | --- | --- | --- |

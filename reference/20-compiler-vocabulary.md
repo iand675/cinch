@@ -36,7 +36,7 @@ When a `.wit` adapter is generated, the compiler additionally synthesizes `WasiS
 | --- | --- | --- | --- | --- |
 | `True`, `False` | 0 | `Bool` | pure | Boolean constructors. |
 | `newIO` (`Runtime.newIO`) | 1 | `Unit -> Io r` | pure | Mints a fresh `Io r` capability token with a fresh region identity. |
-| `eval` | 1 | `forall a. Code a -> a` | pure | Evaluates a typed quotation. Requires a target profile with `allow_eval` (see [supercompilation and JIT](../specifications/supercompilation-and-jit-specification.md) section 7). |
+| `eval` | 1 | `forall a. Code a -> a` | pure | Evaluates a typed quotation. Requires a target profile with `allow_eval` (see [targets and components](19-targets-and-components.md)). |
 
 ## Index and evidence values
 

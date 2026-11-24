@@ -2,7 +2,7 @@
 
 A refinement constrains a carrier type with a decidable predicate. Because the proof witness lives in `Prop` and is erased before code generation, a refined value has the exact runtime representation and cost of its carrier: `NonZero Nat` is a `Nat` at runtime. Refinements restrict which operations may be called. Any operation with a `using` precondition demands evidence at each call site, and the checker either discharges it automatically, accepts evidence from control flow or `decide`, or rejects the program naming the missing or disproved fact.
 
-For general `Prop` proofs, `refl`, and indexed families, see [dependent types and proofs](08-dependent-types-and-proofs.md). For turning boundary checks into asserted LLVM contracts with `#[checked-params]`, see [safety assertions and LLVM contracts](22-safety-assertions-and-llvm.md). The formal design is in [core language specification](../specifications/core-language-specification.md) §5 and [refinement types](../design/refinement-types.md).
+For general `Prop` proofs, `refl`, and indexed families, see [dependent types and proofs](08-dependent-types-and-proofs.md). For turning boundary checks into asserted LLVM contracts with `#[checked-params]`, see [safety assertions and LLVM contracts](22-safety-assertions-and-llvm.md).
 
 # Declaring a refinement
 
@@ -500,5 +500,5 @@ By contrast, [Data.NonZero](../library/Data.NonZero.md) defines `Monoid (NonZero
 
 - **No general SMT solver or refinement inference.** Automated discharge covers the implication table, difference logic, and bounded linear arithmetic over exact `Nat` and `Int` (each emitting a certificate re-checked by an independent kernel checker). Nonlinear arithmetic and propositions outside this fragment require explicit proof terms or restructuring.
 - **Wrapping machine integers do not linearize.** Because fixed-width arithmetic can wrap, `i < n` does not entail `i + 1 <= n` over machine integers; exact `Nat` and `Int` arithmetic does linearize.
-- **Floating-point refinements.** Declarations such as `type Probability = refine (x :: F64) with 0 <= x && x <= 1` are accepted, though floating-point literals are not part of surface syntax and NaN/finiteness predicates are part of the planned [float refinements](../design/float-refinements.md) design.
-- <span class="support-tag support-tag--planned">Coming soon</span> **Broader proof automation.** Expanded solver coverage, a tactic surface, and richer certificate formats are designed in [proof automation](../design/proof-automation.md).
+- **Floating-point refinements.** Declarations such as `type Probability = refine (x :: F64) with 0 <= x && x <= 1` are accepted, though floating-point literals are not part of surface syntax and NaN/finiteness predicates are planned.
+- <span class="support-tag support-tag--planned">Coming soon</span> **Broader proof automation.** Expanded solver coverage, a tactic surface, and richer certificate formats are planned.

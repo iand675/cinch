@@ -653,7 +653,7 @@ record Sample where
 
 # Planned representation facilities
 
-<span class="support-tag support-tag--planned">Coming soon</span> The [layout and specialization design](../design/layouts-and-specialization.md) outlines further representation controls not yet implemented in the compiler:
+<span class="support-tag support-tag--planned">Coming soon</span> Further representation controls are planned and not yet implemented in the compiler:
 
 | Planned facility | Intended behaviour | Current status |
 | --- | --- | --- |

@@ -53,9 +53,3 @@ Every standard library module is extracted from checked compiler interfaces (`.c
 | Split a project into modules | [Modules](learn/08-modules.md) | [Modules and packages](reference/07-modules-and-packages.md) |
 | Publish or verify a package | [Package management](reference/29-package-management.md) | [Artifacts and incremental builds](reference/18-artifacts-and-incremental.md) |
 | Inspect Core or LLVM IR | [Using the compiler](reference/01-using-the-compiler.md#core-output) | [Rewrites and optimization](reference/12-rewrites-and-optimization.md), [Type layout](reference/24-type-layout.md) |
-
-# Design archive
-
-[**Language design overview →**](overview.md)
-
-The original language specifications, design tutorials, examples, and decision records live at their historical routes. They document the full intended language and its design rationale; use the [support matrix](reference/16-support-and-roadmap.md) to map design specifications to current compiler support.

@@ -99,7 +99,6 @@
 [data-has-sidebar] .sl-markdown-content h3 { margin-top: 2rem; font-size: 1.3rem; }
 [data-has-sidebar] .sl-markdown-content p, [data-has-sidebar] .sl-markdown-content li { font-size: .97rem; }
 [data-has-sidebar] .sl-markdown-content p { line-height: 1.9; }
-[data-has-sidebar] .sl-markdown-content > p:first-child a[href='/overview/'] { font: .61rem 'IBM Plex Mono',monospace; color: var(--cinch-doc-muted); }
 [data-has-sidebar] .sl-markdown-content .cinch-highlight {
   margin-block: 1.5rem;
   padding: 1.4rem;

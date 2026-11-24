@@ -2,7 +2,7 @@
 
 Cinch keeps API documentation beside declarations in structured comments. The `cinch doc` toolchain extracts canonical `.cinchdoc` JSON, renders Hackage-style Markdown and standalone HTML documentation sites, runs Hoogle-style name and type-signature searches, and executes embedded `cinch test` examples.
 
-Documentation is excluded from checked module contracts: editing comments never changes `iface_hash`, invalidates a `.cinchif` interface, or triggers downstream recompilation. The full schema is specified in [documentation comments](../specifications/documentation-comments-specification.md).
+Documentation is excluded from checked module contracts: editing comments never changes `iface_hash`, invalidates a `.cinchif` interface, or triggers downstream recompilation.
 
 # Comment markers
 

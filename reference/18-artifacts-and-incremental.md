@@ -340,7 +340,7 @@ The compiler includes a three-layer incremental engine used in-process by `cinch
 
 Two boundaries apply today:
 
-- **Whole-program LLVM emission:** Code generation still emits a single LLVM module per program before extracting units for the object cache; per-unit LLVM emission is planned work tracked in the [incremental recompilation design note](../design/incremental-recompilation.md).
+- **Whole-program LLVM emission:** Code generation still emits a single LLVM module per program before extracting units for the object cache; per-unit LLVM emission is planned.
 - **No CLI watch daemon:** Batch commands (`cinch check`, `cinch build`, `cinch run`) always run once and exit. In-process incremental rechecking runs inside `cinch lsp` and `cinch repl`.
 
 # Diagnosing a stale build

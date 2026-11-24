@@ -2,7 +2,7 @@
 
 Cinch's type checker sits on a small, predicative dependent core: stratified universes, dependent function (Pi) and pair (`Sigma`) types, indexed algebraic families, an erased proposition universe `Prop` with `%0` multiplicity enforcement, and a term-level proof kernel (`refl`, `congr`, and structural induction). Definitional equality and proof checking are intentionally bounded and predictable—every unsupported obligation is rejected explicitly rather than guessed or silently assumed.
 
-For predicate refinements over value carriers and flow-sensitive narrowing, see [refinements, narrowing, and proof obligations](06-refinements.md). Normative rules live in the [core language specification](../specifications/core-language-specification.md), [the dependent core kernel](../design/dependent-core-kernel.md), and [proof automation](../design/proof-automation.md).
+For predicate refinements over value carriers and flow-sensitive narrowing, see [refinements, narrowing, and proof obligations](06-refinements.md).
 
 # Universes
 
@@ -413,4 +413,4 @@ module Main where
 - **Universe cumulativity and eta rules.** `Type 0 : Type 1 : ...` is enforced without implicit universe cumulativity; definitional eta equivalence for records and `Unit` is not yet finalized.
 - **Executable recursion and `Diverge`.** Totality is strictly checked for `spec` and `proof` declarations. Requiring explicit `Diverge` annotations on arbitrary recursive executable functions is deferred, so ordinary recursive definitions are not currently proved total by the compiler.
 - **Proof terms and laws.** Proofs are explicit terms (`refl`, `congr`, structural `case`, `decide`, and named evidence) with no tactic engine. A `rewrite ... justify` citing a class law records an explicit assumption in the build manifest without extending definitional equality.
-- <span class="support-tag support-tag--planned">Coming soon</span> **Expanded proof automation and verified primitives.** Broader automated decision procedures and primitive proof certificates are described in [proof automation](../design/proof-automation.md) and [verified primitives](../design/verified-primitives.md); unsupported propositions will continue to be rejected explicitly rather than assumed.
+- <span class="support-tag support-tag--planned">Coming soon</span> **Expanded proof automation and verified primitives.** Broader automated decision procedures and primitive proof certificates are planned; unsupported propositions will continue to be rejected explicitly rather than assumed.

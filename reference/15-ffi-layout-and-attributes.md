@@ -329,4 +329,4 @@ Non-`unsafe` inline bodies are parsed and validated before code generation to pr
 
 Body selection decisions and their reasons are recorded in `build/<entry>.manifest.json`.
 
-See the [FFI specification](../specifications/foreign-function-interface-specification.md) §§1–4, [attribute annotations specification](../specifications/attribute-annotations-specification.md), [inline target IR specification](../specifications/primitive-operations-and-inline-target-ir-specification.md), and the [LLVM contract attributes design note](../design/llvm-contract-attributes.md).
+See [attributes and pragmas](23-attributes-and-pragmas.md), [type layout](24-type-layout.md), [safety assertions and LLVM contracts](22-safety-assertions-and-llvm.md), and the [foreign code and targets tutorial](../learn/20-foreign-code-and-targets.md).

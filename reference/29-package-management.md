@@ -6,7 +6,7 @@ Keep three components distinct when working with packages:
 
 - **`cinch pkg`** in the compiler CLI: resolves closures, vendors sources, compiles objects and interfaces, writes `.cinchlock`, and verifies integrity locally.
 - **`registry/`**: a runnable v0 HTTP registry prototype (Node 24 + built-in SQLite + content-addressed blob store).
-- **The [package management design](../design/package-management.md)**: the full target design for provenance policy, withdrawal propagation, and release compatibility.
+- **Planned extensions**: provenance policy enforcement, withdrawal propagation, and release compatibility checks (marked <span class="support-tag support-tag--planned">Coming soon</span> below).
 
 # The manifest (`.cinchpkg`)
 

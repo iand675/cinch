@@ -406,4 +406,4 @@ module Main where
       else 1
 ```
 
-See [expressions, bindings, and patterns](03-expressions-and-patterns.md) for expression grammar and `let`/`in` scoping, and [surface syntax and grammar](../specifications/surface-syntax-and-grammar.md) for the formal grammar specification.
+See [expressions, bindings, and patterns](03-expressions-and-patterns.md) for expression grammar and `let`/`in` scoping.
