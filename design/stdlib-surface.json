@@ -1666,10 +1666,24 @@
     },
     {
       "reference_package": "image/jpeg",
-      "status": "unreviewed",
-      "cinch_modules": [],
+      "status": "complete",
+      "cinch_modules": [
+        "Image.Jpeg",
+        "Image.Raster"
+      ],
       "remaining": [],
-      "reference_declarations": 15
+      "reference_declarations": 15,
+      "tests": [
+        "lib_jpeg"
+      ],
+      "capability_mapping": {
+        "Decode": "jpeg-decode returning JpegGray, JpegYcbcr (planes with the chroma ratio), JpegRgb or JpegCmyk, and jpeg-to-raster for a Gray8 or Rgb8 raster",
+        "DecodeConfig": "jpeg-decode-config: colour model, width and height, stopping where the reference stops",
+        "Encode/Options/DefaultQuality": "jpeg-encode quality raster (Gray8 as one component, every other format premultiplied and coded as YCbCr 4:2:0), jpeg-encode-ycbcr for planes, jpeg-default-quality 75",
+        "FormatError/UnsupportedError": "JpegFormatError and JpegUnsupported with the same rule names; JpegTruncated for data that ends early; JpegTooLarge",
+        "Reader": "decoding takes the whole file as bytes"
+      },
+      "review": "Baseline, extended and progressive Huffman decoding with restart intervals, non-interleaved scans, every supported chroma ratio, Adobe CMYK, YCCK and RGB-coded files, and baseline encoding. 238 decoding rows (files from an independent libjpeg encoder, the SDK's own JPEG test images, 72 truncations and 120 corruptions in all) give identical samples, RGB conversions, configurations and error messages; 57 rasters of nine pixel formats and YCbCr planes of six ratios encode to the reference's exact bytes at qualities 1 to 100. Dequantization with the integer IDCT, the FDCT with rounding quantization, Huffman resolution, AC run decoding, zig-zag scanning, entropy-segment scanning and colour conversion run in generated vector kernels whose lane programs are checked against the scalar definitions. At --opt-level 3 a 1920x1080 4:2:0 baseline file decodes in about 85 ms and encodes in about 120 ms (the reference takes 44 and 77 ms), with per-byte stores dominating what remains; its progressive form decodes in about 230 ms (reference 80 ms) because refinement scans still walk bits in natural-number arithmetic."
     },
     {
       "reference_package": "image/png",

@@ -277,6 +277,7 @@ DESCRIPTIONS = {
 'Image.Draw':'Composite rasters with Src and Over, masks and uniform colors, and dither onto palettes, with a vector Over kernel.',
 'Crypto.P256':'Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels.',
 'Crypto.Ecdsa':'Deterministic (RFC 6979) and hedged P-256 ECDSA signatures in raw and DER form with strict verification.',
+'Image.Jpeg':'Baseline and progressive JPEG decoding to YCbCr, gray, RGB or CMYK planes, and baseline encoding, with vector IDCT, FDCT, Huffman and colour kernels.',
 'Text.Lzw':'Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.',
 'Text.Tar':'Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.',
 'Text.TextProto':'Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail.',

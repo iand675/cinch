@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "tooling"))
 import des_reference as des  # noqa: E402
 import generate_mlkem_kernels as mlkem  # noqa: E402
 import generate_p256_kernels as p256  # noqa: E402
+import generate_jpeg_kernels as jpeg  # noqa: E402
 import generate_aes_kernels as aes  # noqa: E402
 import generate_sha1_md5_kernels as sha1_md5  # noqa: E402
 import generate_sha3_kernels as sha3  # noqa: E402
@@ -24,7 +25,7 @@ class DigestKernelGeneration(unittest.TestCase):
 
     def test_generated_suffixes_are_current(self) -> None:
         """Every generator's --check mode accepts the committed module."""
-        for script in ("generate_sha512_kernels.py", "generate_sha1_md5_kernels.py", "generate_sha3_kernels.py", "generate_aes_kernels.py", "generate_des_kernels.py", "generate_xml_kernels.py", "generate_mlkem_kernels.py", "generate_p256_kernels.py"):
+        for script in ("generate_sha512_kernels.py", "generate_sha1_md5_kernels.py", "generate_sha3_kernels.py", "generate_aes_kernels.py", "generate_des_kernels.py", "generate_xml_kernels.py", "generate_mlkem_kernels.py", "generate_p256_kernels.py", "generate_jpeg_kernels.py"):
             with self.subTest(script=script):
                 result = subprocess.run([sys.executable, str(ROOT / "tooling" / script), "--check"], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -71,6 +72,10 @@ class AesKernelGeneration(unittest.TestCase):
     def test_p256_montgomery_schedules_match_modular_arithmetic(self) -> None:
         """The generated field and scalar Montgomery products, sums and differences agree with integer arithmetic."""
         p256.verify()
+
+    def test_jpeg_lane_programs_match_the_scalar_codec_arithmetic(self) -> None:
+        """The transform, colour, quantization and chroma lane programs reproduce the scalar integer definitions."""
+        jpeg.verify()
 
 
 if __name__ == "__main__":
