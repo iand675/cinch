@@ -57,7 +57,7 @@
   line-height: 1.08;
   margin: 0;
 }
-.cinch-landing :is(h1, h2, h3, p, figure) {
+:where(.cinch-landing) :where(h1, h2, h3, p, figure) {
   margin: 0;
 }
 .cinch-landing em {
