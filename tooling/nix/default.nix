@@ -144,15 +144,16 @@ let
   '';
 
   # Only what the pins and their driver read.
-  pinSources = select [
-      (src + "/tooling/bootstrap.py") (src + "/tooling/bootstrap_objects.py")
-      (src + "/tooling/bootstrap_interfaces.py") (src + "/tooling/build_slots.py")
-      (src + "/tooling/pack_interfaces.py")
-      (src + "/tooling/pgo.py") (src + "/tooling/shard_ir.py")
-      (src + "/compiler/pins/stage0.lock.json") (src + "/compiler/pins/library-provider.lock.json")
-      (src + "/compiler/pins/library-object-roots.json") (src + "/compiler/seed")
-      (src + "/compiler/Bootstrap.RuntimeAbi.cinch")
+  pinSourceFiles = [
+    (src + "/tooling/bootstrap.py") (src + "/tooling/bootstrap_objects.py")
+    (src + "/tooling/bootstrap_interfaces.py") (src + "/tooling/build_slots.py")
+    (src + "/tooling/pack_interfaces.py")
+    (src + "/tooling/pgo.py") (src + "/tooling/shard_ir.py")
+    (src + "/compiler/pins/stage0.lock.json") (src + "/compiler/pins/library-provider.lock.json")
+    (src + "/compiler/pins/library-object-roots.json") (src + "/compiler/seed")
+    (src + "/compiler/Bootstrap.RuntimeAbi.cinch")
   ];
+  pinSources = select pinSourceFiles;
 
   pins = pkgs.stdenv.mkDerivation {
     pname = "cinch-bootstrap-pins";
@@ -172,11 +173,23 @@ let
     '';
   };
 
-  # What `bootstrap.py check` reads from the tree.
-  ladderSources = select [
-    (src + "/tooling") (src + "/compiler") (src + "/seed/prelude")
+  # Only what `bootstrap.py check` reads from the tree, so docs, repros,
+  # editor grammars, and unrelated prelude modules do not invalidate Cachix.
+  ladderSources = select (pinSourceFiles ++ [
+    (lib.fileset.fileFilter
+      (file: lib.hasPrefix "Bootstrap." file.name && file.hasExt "cinch")
+      (src + "/compiler"))
+    (src + "/compiler/programs/Run.Pipeline.cinch")
+    (src + "/seed/prelude/Text/Lex.cinch")
+    (src + "/seed/prelude/Text/Scan.cinch")
+    (src + "/seed/prelude/Text/Parse.cinch")
+    (src + "/seed/prelude/Text/Json.cinch")
+    (src + "/seed/prelude/Text/Builder.cinch")
+    (src + "/seed/prelude/Text/Fnv.cinch")
+    (src + "/seed/prelude/Data/Array.cinch")
+    (src + "/seed/prelude/Data/Bytes/Word.cinch")
     (src + "/examples/compiler/fib.cinch")
-  ];
+  ]);
 
   ladder = pkgs.stdenv.mkDerivation {
     pname = "cinch-bootstrap-ladder";
