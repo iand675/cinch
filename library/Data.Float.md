@@ -1,6 +1,6 @@
 # Data.Float
 
-Binary64 mathematics: exact roundings and splitting, roots, exponentials, logarithms, powers and trigonometric and hyperbolic functions as branch-free kernels, bit-identical on every target.
+Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -23,6 +23,13 @@ are the classic ones: argument reduction by a split ln 2 with minimax polynomial
 log1p; rational approximations after reduction by a three-part pi/4 for the trigonometric functions, with
 Payne-Hanek reduction against a 1216-bit 4/pi from 2^29 up; rational approximations for the arctangent and
 the hyperbolic functions; and exact bit manipulation for frexp, ldexp, modf, nextafter and the roundings.
+The special functions follow the same lineage: rational approximations for erf and erfc over five
+intervals, the inverse error function by three rational fits, Gamma by its rational form on [2, 3) with
+recurrence, Stirling's series and reflection, lgamma by interval polynomials and the reflection through
+sin(pi x), Bessel functions of orders 0 and 1 by polynomials near zero and Hankel asymptotic forms beyond 2,
+and of order n by forward recurrence, a continued fraction with backward recurrence, or the large-argument
+form (J1 stays odd for tiny arguments: J1(x) = x/2 below 2^-27 for either sign). FMA is computed exactly in
+128-bit integer arithmetic and rounded once.
 Special values follow the C99 conventions: signed zeros are preserved, NaN propagates, and infinities and
 poles are exact.
 
@@ -47,7 +54,7 @@ This module exports no type declarations.
 
 The arccosine, in [0, pi]; NaN outside [-1, 1].
 
-[Source](/reference-sources/Data.Float.cinch) · line 3055
+[Source](/reference-sources/Data.Float.cinch) · line 3252
 
 <a id="value-61636f73682d663634"></a>
 
@@ -57,7 +64,7 @@ The arccosine, in [0, pi]; NaN outside [-1, 1].
 
 The inverse hyperbolic cosine; NaN below 1.
 
-[Source](/reference-sources/Data.Float.cinch) · line 3834
+[Source](/reference-sources/Data.Float.cinch) · line 4031
 
 <a id="value-6173696e2d663634"></a>
 
@@ -67,7 +74,7 @@ The inverse hyperbolic cosine; NaN below 1.
 
 The arcsine, in [-pi/2, pi/2]; NaN outside [-1, 1].
 
-[Source](/reference-sources/Data.Float.cinch) · line 2987
+[Source](/reference-sources/Data.Float.cinch) · line 3184
 
 <a id="value-6173696e682d663634"></a>
 
@@ -77,7 +84,7 @@ The arcsine, in [-pi/2, pi/2]; NaN outside [-1, 1].
 
 The inverse hyperbolic sine.
 
-[Source](/reference-sources/Data.Float.cinch) · line 3577
+[Source](/reference-sources/Data.Float.cinch) · line 3774
 
 <a id="value-6174616e2d663634"></a>
 
@@ -87,7 +94,7 @@ The inverse hyperbolic sine.
 
 The arctangent, in [-pi/2, pi/2].
 
-[Source](/reference-sources/Data.Float.cinch) · line 2892
+[Source](/reference-sources/Data.Float.cinch) · line 3089
 
 <a id="value-6174616e322d663634"></a>
 
@@ -97,7 +104,7 @@ The arctangent, in [-pi/2, pi/2].
 
 The angle of the point (x, y) from the positive x axis, in [-pi, pi], with signed-zero and infinite cases resolved by quadrant.
 
-[Source](/reference-sources/Data.Float.cinch) · line 3124
+[Source](/reference-sources/Data.Float.cinch) · line 3321
 
 <a id="value-6174616e682d663634"></a>
 
@@ -107,7 +114,7 @@ The angle of the point (x, y) from the positive x axis, in [-pi, pi], with signe
 
 The inverse hyperbolic tangent; NaN outside [-1, 1].
 
-[Source](/reference-sources/Data.Float.cinch) · line 4088
+[Source](/reference-sources/Data.Float.cinch) · line 4285
 
 <a id="value-636272742d663634"></a>
 
@@ -117,7 +124,7 @@ The inverse hyperbolic tangent; NaN outside [-1, 1].
 
 The cube root, exact for perfect cubes of moderate size.
 
-[Source](/reference-sources/Data.Float.cinch) · line 573
+[Source](/reference-sources/Data.Float.cinch) · line 770
 
 <a id="value-6365696c2d663634"></a>
 
@@ -127,7 +134,7 @@ The cube root, exact for perfect cubes of moderate size.
 
 The least integer value not below x.
 
-[Source](/reference-sources/Data.Float.cinch) · line 207
+[Source](/reference-sources/Data.Float.cinch) · line 216
 
 <a id="value-636f70797369676e2d663634"></a>
 
@@ -137,7 +144,7 @@ The least integer value not below x.
 
 The magnitude of the first value with the sign of the second.
 
-[Source](/reference-sources/Data.Float.cinch) · line 193
+[Source](/reference-sources/Data.Float.cinch) · line 202
 
 <a id="value-636f732d663634"></a>
 
@@ -147,7 +154,7 @@ The magnitude of the first value with the sign of the second.
 
 The cosine.
 
-[Source](/reference-sources/Data.Float.cinch) · line 389
+[Source](/reference-sources/Data.Float.cinch) · line 398
 
 <a id="value-636f73682d663634"></a>
 
@@ -157,7 +164,7 @@ The cosine.
 
 The hyperbolic cosine.
 
-[Source](/reference-sources/Data.Float.cinch) · line 3384
+[Source](/reference-sources/Data.Float.cinch) · line 3581
 
 <a id="value-64696d2d663634"></a>
 
@@ -167,7 +174,7 @@ The hyperbolic cosine.
 
 The positive difference: x - y when positive, otherwise zero.
 
-[Source](/reference-sources/Data.Float.cinch) · line 286
+[Source](/reference-sources/Data.Float.cinch) · line 295
 
 <a id="value-652d663634"></a>
 
@@ -177,7 +184,47 @@ The positive difference: x - y when positive, otherwise zero.
 
 e, the base of natural logarithms.
 
-[Source](/reference-sources/Data.Float.cinch) · line 105
+[Source](/reference-sources/Data.Float.cinch) · line 114
+
+<a id="value-6572662d663634"></a>
+
+## `erf-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">erf-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The error function, 2/sqrt(pi) times the integral of exp(-t^2) from 0 to x.
+
+[Source](/reference-sources/Data.Float.cinch) · line 4471
+
+<a id="value-657266632d663634"></a>
+
+## `erfc-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">erfc-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The complementary error function, 1 - erf(x), accurate where erf(x) is near 1.
+
+[Source](/reference-sources/Data.Float.cinch) · line 4945
+
+<a id="value-65726663696e762d663634"></a>
+
+## `erfcinv-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">erfcinv-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The inverse complementary error function: erfinv(1 - x).
+
+[Source](/reference-sources/Data.Float.cinch) · line 5719
+
+<a id="value-657266696e762d663634"></a>
+
+## `erfinv-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">erfinv-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The inverse error function: the y with erf(y) = x, for x in (-1, 1).
+
+[Source](/reference-sources/Data.Float.cinch) · line 5424
 
 <a id="value-6578702d663634"></a>
 
@@ -187,7 +234,7 @@ e, the base of natural logarithms.
 
 The natural exponential, e to the power x.
 
-[Source](/reference-sources/Data.Float.cinch) · line 661
+[Source](/reference-sources/Data.Float.cinch) · line 858
 
 <a id="value-657870322d663634"></a>
 
@@ -197,7 +244,7 @@ The natural exponential, e to the power x.
 
 Two to the power x.
 
-[Source](/reference-sources/Data.Float.cinch) · line 734
+[Source](/reference-sources/Data.Float.cinch) · line 931
 
 <a id="value-6578706d312d663634"></a>
 
@@ -207,7 +254,7 @@ Two to the power x.
 
 e to the power x, minus one, accurate when x is near zero.
 
-[Source](/reference-sources/Data.Float.cinch) · line 798
+[Source](/reference-sources/Data.Float.cinch) · line 995
 
 <a id="value-6633322d62697473"></a>
 
@@ -217,7 +264,7 @@ e to the power x, minus one, accurate when x is near zero.
 
 The bit pattern of a binary32 value.
 
-[Source](/reference-sources/Data.Float.cinch) · line 50
+[Source](/reference-sources/Data.Float.cinch) · line 59
 
 <a id="value-6633322d66726f6d2d62697473"></a>
 
@@ -227,7 +274,7 @@ The bit pattern of a binary32 value.
 
 The binary32 value with a bit pattern.
 
-[Source](/reference-sources/Data.Float.cinch) · line 57
+[Source](/reference-sources/Data.Float.cinch) · line 66
 
 <a id="value-6636342d62697473"></a>
 
@@ -237,7 +284,7 @@ The binary32 value with a bit pattern.
 
 The bit pattern of a binary64 value.
 
-[Source](/reference-sources/Data.Float.cinch) · line 36
+[Source](/reference-sources/Data.Float.cinch) · line 45
 
 <a id="value-6636342d66726f6d2d62697473"></a>
 
@@ -247,7 +294,7 @@ The bit pattern of a binary64 value.
 
 The binary64 value with a bit pattern.
 
-[Source](/reference-sources/Data.Float.cinch) · line 43
+[Source](/reference-sources/Data.Float.cinch) · line 52
 
 <a id="value-666c6f6f722d663634"></a>
 
@@ -257,7 +304,17 @@ The binary64 value with a bit pattern.
 
 The greatest integer value not above x (exact; signed zeros, infinities and NaN unchanged).
 
-[Source](/reference-sources/Data.Float.cinch) · line 200
+[Source](/reference-sources/Data.Float.cinch) · line 209
+
+<a id="value-666d612d663634"></a>
+
+## `fma-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fma-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)))</code></pre>
+
+x * y + z computed exactly and rounded once (round to nearest, ties to even).
+
+[Source](/reference-sources/Data.Float.cinch) · line 13173
 
 <a id="value-66726578702d663634"></a>
 
@@ -268,7 +325,17 @@ The greatest integer value not above x (exact; signed zeros, infinities and NaN 
 The fraction in [1/2, 1) and exponent with x = fraction * 2^exponent; zeros, infinities and NaN return
 themselves with exponent 0.
 
-[Source](/reference-sources/Data.Float.cinch) · line 236
+[Source](/reference-sources/Data.Float.cinch) · line 245
+
+<a id="value-67616d6d612d663634"></a>
+
+## `gamma-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gamma-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The Gamma function; NaN at the negative integers and -Inf, signed infinities at the zeros.
+
+[Source](/reference-sources/Data.Float.cinch) · line 538
 
 <a id="value-6879706f742d663634"></a>
 
@@ -278,7 +345,7 @@ themselves with exponent 0.
 
 The length of the hypotenuse, sqrt(p*p + q*q), without undue overflow or underflow.
 
-[Source](/reference-sources/Data.Float.cinch) · line 630
+[Source](/reference-sources/Data.Float.cinch) · line 827
 
 <a id="value-696c6f67622d663634"></a>
 
@@ -289,7 +356,7 @@ The length of the hypotenuse, sqrt(p*p + q*q), without undue overflow or underfl
 The binary exponent of x as an integer: the least 32-bit integer for zero, the greatest for infinities
 and NaN.
 
-[Source](/reference-sources/Data.Float.cinch) · line 249
+[Source](/reference-sources/Data.Float.cinch) · line 258
 
 <a id="value-696e662d663634"></a>
 
@@ -299,7 +366,7 @@ and NaN.
 
 Positive infinity for a sign of zero or more, negative infinity otherwise.
 
-[Source](/reference-sources/Data.Float.cinch) · line 177
+[Source](/reference-sources/Data.Float.cinch) · line 186
 
 <a id="value-69732d696e662d663634"></a>
 
@@ -309,7 +376,7 @@ Positive infinity for a sign of zero or more, negative infinity otherwise.
 
 Whether a value is an infinity of a sign: positive for a sign above zero, negative below, either for zero.
 
-[Source](/reference-sources/Data.Float.cinch) · line 189
+[Source](/reference-sources/Data.Float.cinch) · line 198
 
 <a id="value-69732d6e616e2d663634"></a>
 
@@ -319,7 +386,37 @@ Whether a value is an infinity of a sign: positive for a sign above zero, negati
 
 Whether a value is NaN.
 
-[Source](/reference-sources/Data.Float.cinch) · line 185
+[Source](/reference-sources/Data.Float.cinch) · line 194
+
+<a id="value-6a302d663634"></a>
+
+## `j0-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">j0-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The Bessel function of the first kind of order zero.
+
+[Source](/reference-sources/Data.Float.cinch) · line 422
+
+<a id="value-6a312d663634"></a>
+
+## `j1-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">j1-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The Bessel function of the first kind of order one.
+
+[Source](/reference-sources/Data.Float.cinch) · line 426
+
+<a id="value-6a6e2d663634"></a>
+
+## `jn-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">jn-f64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
+
+The Bessel function of the first kind of integer order n.
+
+[Source](/reference-sources/Data.Float.cinch) · line 442
 
 <a id="value-6c646578702d663634"></a>
 
@@ -329,7 +426,17 @@ Whether a value is NaN.
 
 fraction * 2^exponent, rounded once (gradual underflow, overflow to infinity).
 
-[Source](/reference-sources/Data.Float.cinch) · line 240
+[Source](/reference-sources/Data.Float.cinch) · line 249
+
+<a id="value-6c67616d6d612d663634"></a>
+
+## `lgamma-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lgamma-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span>, <span class="tok-constructor">I64</span>))</code></pre>
+
+ln |Gamma(x)| and the sign of Gamma(x) (1 or -1); +Inf at zero and the non-positive integers.
+
+[Source](/reference-sources/Data.Float.cinch) · line 414
 
 <a id="value-6c6e31302d663634"></a>
 
@@ -339,7 +446,7 @@ fraction * 2^exponent, rounded once (gradual underflow, overflow to infinity).
 
 The natural logarithm of 10.
 
-[Source](/reference-sources/Data.Float.cinch) · line 137
+[Source](/reference-sources/Data.Float.cinch) · line 146
 
 <a id="value-6c6e322d663634"></a>
 
@@ -349,7 +456,7 @@ The natural logarithm of 10.
 
 The natural logarithm of 2.
 
-[Source](/reference-sources/Data.Float.cinch) · line 129
+[Source](/reference-sources/Data.Float.cinch) · line 138
 
 <a id="value-6c6f672d663634"></a>
 
@@ -359,7 +466,7 @@ The natural logarithm of 2.
 
 The natural logarithm.
 
-[Source](/reference-sources/Data.Float.cinch) · line 952
+[Source](/reference-sources/Data.Float.cinch) · line 1149
 
 <a id="value-6c6f6731302d652d663634"></a>
 
@@ -369,7 +476,7 @@ The natural logarithm.
 
 The decimal logarithm of e.
 
-[Source](/reference-sources/Data.Float.cinch) · line 141
+[Source](/reference-sources/Data.Float.cinch) · line 150
 
 <a id="value-6c6f6731302d663634"></a>
 
@@ -379,7 +486,7 @@ The decimal logarithm of e.
 
 The decimal logarithm.
 
-[Source](/reference-sources/Data.Float.cinch) · line 1029
+[Source](/reference-sources/Data.Float.cinch) · line 1226
 
 <a id="value-6c6f6731702d663634"></a>
 
@@ -389,7 +496,7 @@ The decimal logarithm.
 
 The natural logarithm of 1 + x, accurate when x is near zero.
 
-[Source](/reference-sources/Data.Float.cinch) · line 1216
+[Source](/reference-sources/Data.Float.cinch) · line 1413
 
 <a id="value-6c6f67322d652d663634"></a>
 
@@ -399,7 +506,7 @@ The natural logarithm of 1 + x, accurate when x is near zero.
 
 The binary logarithm of e.
 
-[Source](/reference-sources/Data.Float.cinch) · line 133
+[Source](/reference-sources/Data.Float.cinch) · line 142
 
 <a id="value-6c6f67322d663634"></a>
 
@@ -409,7 +516,7 @@ The binary logarithm of e.
 
 The binary logarithm, exact for powers of two.
 
-[Source](/reference-sources/Data.Float.cinch) · line 1107
+[Source](/reference-sources/Data.Float.cinch) · line 1304
 
 <a id="value-6c6f67622d663634"></a>
 
@@ -419,7 +526,7 @@ The binary logarithm, exact for powers of two.
 
 The binary exponent of x as a value: negative infinity for zero, positive infinity for infinities.
 
-[Source](/reference-sources/Data.Float.cinch) · line 256
+[Source](/reference-sources/Data.Float.cinch) · line 265
 
 <a id="value-6d61782d663332"></a>
 
@@ -429,7 +536,7 @@ The binary exponent of x as a value: negative infinity for zero, positive infini
 
 The largest finite binary32 value.
 
-[Source](/reference-sources/Data.Float.cinch) · line 153
+[Source](/reference-sources/Data.Float.cinch) · line 162
 
 <a id="value-6d61782d663634"></a>
 
@@ -439,7 +546,7 @@ The largest finite binary32 value.
 
 The largest finite binary64 value.
 
-[Source](/reference-sources/Data.Float.cinch) · line 145
+[Source](/reference-sources/Data.Float.cinch) · line 154
 
 <a id="value-6d61782d6f662d663634"></a>
 
@@ -449,7 +556,7 @@ The largest finite binary64 value.
 
 The larger value: positive infinity if either is, then NaN if either is; +0 beats -0.
 
-[Source](/reference-sources/Data.Float.cinch) · line 290
+[Source](/reference-sources/Data.Float.cinch) · line 299
 
 <a id="value-6d696e2d6f662d663634"></a>
 
@@ -459,7 +566,7 @@ The larger value: positive infinity if either is, then NaN if either is; +0 beat
 
 The smaller value: negative infinity if either is, then NaN if either is; -0 beats +0.
 
-[Source](/reference-sources/Data.Float.cinch) · line 298
+[Source](/reference-sources/Data.Float.cinch) · line 307
 
 <a id="value-6d6f642d663634"></a>
 
@@ -469,7 +576,7 @@ The smaller value: negative infinity if either is, then NaN if either is; -0 bea
 
 The remainder of x / y with the sign of x (truncated division); NaN when y is zero or x is infinite.
 
-[Source](/reference-sources/Data.Float.cinch) · line 310
+[Source](/reference-sources/Data.Float.cinch) · line 319
 
 <a id="value-6d6f64662d663634"></a>
 
@@ -479,7 +586,7 @@ The remainder of x / y with the sign of x (truncated division); NaN when y is ze
 
 The integer and fractional parts, both carrying the sign of x.
 
-[Source](/reference-sources/Data.Float.cinch) · line 244
+[Source](/reference-sources/Data.Float.cinch) · line 253
 
 <a id="value-6e616e2d663634"></a>
 
@@ -489,7 +596,7 @@ The integer and fractional parts, both carrying the sign of x.
 
 A quiet NaN.
 
-[Source](/reference-sources/Data.Float.cinch) · line 181
+[Source](/reference-sources/Data.Float.cinch) · line 190
 
 <a id="value-6e65787461667465722d663332"></a>
 
@@ -499,7 +606,7 @@ A quiet NaN.
 
 The next representable binary32 value after x toward y.
 
-[Source](/reference-sources/Data.Float.cinch) · line 273
+[Source](/reference-sources/Data.Float.cinch) · line 282
 
 <a id="value-6e65787461667465722d663634"></a>
 
@@ -509,7 +616,7 @@ The next representable binary32 value after x toward y.
 
 The next representable value after x toward y.
 
-[Source](/reference-sources/Data.Float.cinch) · line 264
+[Source](/reference-sources/Data.Float.cinch) · line 273
 
 <a id="value-7068692d663634"></a>
 
@@ -519,7 +626,7 @@ The next representable value after x toward y.
 
 The golden ratio.
 
-[Source](/reference-sources/Data.Float.cinch) · line 109
+[Source](/reference-sources/Data.Float.cinch) · line 118
 
 <a id="value-70692d663634"></a>
 
@@ -529,7 +636,7 @@ The golden ratio.
 
 pi, the nearest binary64 value.
 
-[Source](/reference-sources/Data.Float.cinch) · line 101
+[Source](/reference-sources/Data.Float.cinch) · line 110
 
 <a id="value-706f772d663634"></a>
 
@@ -540,7 +647,7 @@ pi, the nearest binary64 value.
 x to the power y, with the C99 special cases (pow(x, 0) = 1 and pow(1, y) = 1 even for NaN; negative
 bases need integer exponents; signed zeros and infinities by parity).
 
-[Source](/reference-sources/Data.Float.cinch) · line 346
+[Source](/reference-sources/Data.Float.cinch) · line 355
 
 <a id="value-706f7731302d663634"></a>
 
@@ -550,7 +657,7 @@ bases need integer exponents; signed zeros and infinities by parity).
 
 Ten to an integer power, from exact tables.
 
-[Source](/reference-sources/Data.Float.cinch) · line 1772
+[Source](/reference-sources/Data.Float.cinch) · line 1969
 
 <a id="value-72656d61696e6465722d663634"></a>
 
@@ -560,7 +667,7 @@ Ten to an integer power, from exact tables.
 
 The IEEE remainder x - n*y with n the integer nearest x / y (halves to even).
 
-[Source](/reference-sources/Data.Float.cinch) · line 328
+[Source](/reference-sources/Data.Float.cinch) · line 337
 
 <a id="value-726f756e642d663634"></a>
 
@@ -570,7 +677,7 @@ The IEEE remainder x - n*y with n the integer nearest x / y (halves to even).
 
 x rounded to the nearest integer value, halves away from zero.
 
-[Source](/reference-sources/Data.Float.cinch) · line 221
+[Source](/reference-sources/Data.Float.cinch) · line 230
 
 <a id="value-726f756e642d746f2d6576656e2d663634"></a>
 
@@ -580,7 +687,7 @@ x rounded to the nearest integer value, halves away from zero.
 
 x rounded to the nearest integer value, halves to even.
 
-[Source](/reference-sources/Data.Float.cinch) · line 228
+[Source](/reference-sources/Data.Float.cinch) · line 237
 
 <a id="value-73696e2d663634"></a>
 
@@ -590,7 +697,7 @@ x rounded to the nearest integer value, halves to even.
 
 The sine.
 
-[Source](/reference-sources/Data.Float.cinch) · line 385
+[Source](/reference-sources/Data.Float.cinch) · line 394
 
 <a id="value-73696e636f732d663634"></a>
 
@@ -600,7 +707,7 @@ The sine.
 
 The sine and cosine together, sharing one argument reduction.
 
-[Source](/reference-sources/Data.Float.cinch) · line 397
+[Source](/reference-sources/Data.Float.cinch) · line 406
 
 <a id="value-73696e682d663634"></a>
 
@@ -610,7 +717,7 @@ The sine and cosine together, sharing one argument reduction.
 
 The hyperbolic sine.
 
-[Source](/reference-sources/Data.Float.cinch) · line 3283
+[Source](/reference-sources/Data.Float.cinch) · line 3480
 
 <a id="value-736d616c6c6573742d663332"></a>
 
@@ -620,7 +727,7 @@ The hyperbolic sine.
 
 The smallest positive (subnormal) binary32 value.
 
-[Source](/reference-sources/Data.Float.cinch) · line 157
+[Source](/reference-sources/Data.Float.cinch) · line 166
 
 <a id="value-736d616c6c6573742d663634"></a>
 
@@ -630,7 +737,7 @@ The smallest positive (subnormal) binary32 value.
 
 The smallest positive (subnormal) binary64 value.
 
-[Source](/reference-sources/Data.Float.cinch) · line 149
+[Source](/reference-sources/Data.Float.cinch) · line 158
 
 <a id="value-737172742d652d663634"></a>
 
@@ -640,7 +747,7 @@ The smallest positive (subnormal) binary64 value.
 
 The square root of e.
 
-[Source](/reference-sources/Data.Float.cinch) · line 117
+[Source](/reference-sources/Data.Float.cinch) · line 126
 
 <a id="value-737172742d7068692d663634"></a>
 
@@ -650,7 +757,7 @@ The square root of e.
 
 The square root of the golden ratio.
 
-[Source](/reference-sources/Data.Float.cinch) · line 125
+[Source](/reference-sources/Data.Float.cinch) · line 134
 
 <a id="value-737172742d70692d663634"></a>
 
@@ -660,7 +767,7 @@ The square root of the golden ratio.
 
 The square root of pi.
 
-[Source](/reference-sources/Data.Float.cinch) · line 121
+[Source](/reference-sources/Data.Float.cinch) · line 130
 
 <a id="value-73717274322d663634"></a>
 
@@ -670,7 +777,7 @@ The square root of pi.
 
 The square root of 2.
 
-[Source](/reference-sources/Data.Float.cinch) · line 113
+[Source](/reference-sources/Data.Float.cinch) · line 122
 
 <a id="value-74616e2d663634"></a>
 
@@ -680,7 +787,7 @@ The square root of 2.
 
 The tangent.
 
-[Source](/reference-sources/Data.Float.cinch) · line 393
+[Source](/reference-sources/Data.Float.cinch) · line 402
 
 <a id="value-74616e682d663634"></a>
 
@@ -690,7 +797,7 @@ The tangent.
 
 The hyperbolic tangent.
 
-[Source](/reference-sources/Data.Float.cinch) · line 3465
+[Source](/reference-sources/Data.Float.cinch) · line 3662
 
 <a id="value-7472756e632d663634"></a>
 
@@ -700,8 +807,38 @@ The hyperbolic tangent.
 
 x rounded toward zero to an integer value.
 
-[Source](/reference-sources/Data.Float.cinch) · line 214
+[Source](/reference-sources/Data.Float.cinch) · line 223
+
+<a id="value-79302d663634"></a>
+
+## `y0-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">y0-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The Bessel function of the second kind of order zero; NaN for negative x, -Inf at zero.
+
+[Source](/reference-sources/Data.Float.cinch) · line 430
+
+<a id="value-79312d663634"></a>
+
+## `y1-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">y1-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The Bessel function of the second kind of order one; NaN for negative x, -Inf at zero.
+
+[Source](/reference-sources/Data.Float.cinch) · line 434
+
+<a id="value-796e2d663634"></a>
+
+## `yn-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yn-f64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
+
+The Bessel function of the second kind of integer order n; NaN for negative x.
+
+[Source](/reference-sources/Data.Float.cinch) · line 517
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Float.cinch`. Source SHA-256: `949fa82cf6b91e83172986fce7f9e44485a13d4acaf61532bd6638ac73fdd048`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Float.cinch`. Source SHA-256: `ed1856b6e134453e2e8b1efa30c70515d533ce4d2b4a5d6a981fe4d7c9777d1a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

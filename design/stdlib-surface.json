@@ -1850,32 +1850,23 @@
     },
     {
       "reference_package": "math",
-      "status": "partial",
+      "status": "complete",
       "cinch_modules": [
         "Data.Float",
         "Data.Machine"
       ],
-      "remaining": [
-        "Erf, Erfc, Erfinv and Erfcinv",
-        "Gamma and Lgamma",
-        "Bessel functions J0, J1, Jn, Y0, Y1 and Yn",
-        "FMA (exact fused multiply-add without a host libm)"
-      ],
+      "remaining": [],
       "reference_declarations": 133,
       "tests": [
         "lib_float"
       ],
       "capability_mapping": {
-        "Pi/E/Phi/Sqrt2/SqrtE/SqrtPi/SqrtPhi/Ln2/Log2E/Ln10/Log10E/MaxFloat64/SmallestNonzeroFloat64/MaxFloat32/SmallestNonzeroFloat32": "Data.Float constants (pi-f64 ... smallest-f32); integer limits are Data.Machine's bounds",
-        "Float64bits/Float64frombits/Float32bits/Float32frombits/Inf/NaN/IsNaN/IsInf/Signbit/Copysign/Abs/Sqrt": "f64-bits, f64-from-bits, f32-bits, f32-from-bits, inf-f64, nan-f64, is-nan-f64, is-inf-f64, Data.Machine sign-bit-f64, copysign-f64, abs-f64, sqrt-f64",
-        "Floor/Ceil/Trunc/Round/RoundToEven": "floor-f64, ceil-f64, trunc-f64, round-f64, round-to-even-f64 (LLVM rounding operations)",
-        "Frexp/Ldexp/Modf/Ilogb/Logb/Nextafter/Nextafter32": "frexp-f64, ldexp-f64, modf-f64, ilogb-f64, logb-f64, nextafter-f64, nextafter-f32",
-        "Mod/Remainder/Dim/Max/Min": "mod-f64, remainder-f64, dim-f64, max-of-f64, min-of-f64",
-        "Cbrt/Hypot/Exp/Exp2/Expm1/Log/Log2/Log10/Log1p/Pow/Pow10": "cbrt-f64, hypot-f64, exp-f64, exp2-f64, expm1-f64, log-f64, log2-f64, log10-f64, log1p-f64, pow-f64, pow10-f64",
-        "Sin/Cos/Tan/Sincos/Asin/Acos/Atan/Atan2": "sin-f64, cos-f64, tan-f64, sincos-f64, asin-f64, acos-f64, atan-f64, atan2-f64",
-        "Sinh/Cosh/Tanh/Asinh/Acosh/Atanh": "sinh-f64, cosh-f64, tanh-f64, asinh-f64, acosh-f64, atanh-f64"
+        "Erf/Erfc/Erfinv/Erfcinv": "erf-f64, erfc-f64, erfinv-f64, erfcinv-f64",
+        "Gamma/Lgamma": "gamma-f64 and lgamma-f64 (value and sign as a pair)",
+        "J0/J1/Jn/Y0/Y1/Yn": "j0-f64, j1-f64, jn-f64, y0-f64, y1-f64, yn-f64 (orders as I64)",
+        "FMA": "fma-f64: exact product and sum in 128-bit integer arithmetic, rounded once"
       },
-      "review": "Data.Float implements the binary64 elementary functions with the classic fdlibm and Cephes algorithms (split-ln2 reduction with minimax polynomials, three-part pi/4 reduction with Payne-Hanek reduction from 2^29, rational arctangent and hyperbolic approximations, bit-level frexp/ldexp/modf). The kernels are written once in a typed kernel language and generated as branch-free LLVM (every special case a compare and select) plus executable Python models; both reproduce the reference's portable implementations bit for bit on about 25,000 vectors (special values, thresholds, every binade, Payne-Hanek arguments). No host libm or fused multiply-add is used, so results are identical on every target. Throughput: log and sin match the reference on amd64; exp is within 1.3x of its hand-written assembly. The special functions and FMA remain."
+      "review": "Data.Float implements every reference math function for binary64: constants, classification, exact roundings, frexp/ldexp/modf, remainders, roots, exponentials, logarithms, powers, the trigonometric, inverse trigonometric and hyperbolic functions, erf/erfc and their inverses, Gamma and lgamma, Bessel functions of the first and second kinds, and FMA. The algorithms are the classic fdlibm and Cephes ones (split-ln2 and three-part pi/4 reduction, Payne-Hanek reduction from 2^29, interval rational approximations, Stirling and reflection for Gamma, Hankel asymptotics and continued fractions for Bessel functions, 128-bit integer FMA). The kernels are written once in a typed kernel language and generated as branch-free LLVM prims (every special case a compare and select) plus executable Python models; both reproduce the reference's portable implementations bit for bit on about 37,000 vectors, except that J1 keeps its odd symmetry below 2^-27 where the reference drops the sign. No host libm or fused multiply-add is used, so results are identical on every target. Throughput on amd64: log and sin match the reference, exp is within 1.3x of its hand-written assembly. Loops remain only in pow, mod, Gamma's recurrence and the order-n Bessel recurrences."
     },
     {
       "reference_package": "math/big",

@@ -15,7 +15,7 @@ Integer shifts follow the reference semantics: shifting by 64 or more yields zer
 shift); the LLVM backend guards variable shift amounts with ``select``. Builtins: ``bits`` (f to u), ``fbits``
 (u to f), ``itof``, ``utof``, ``ftoi``, ``ftou``, ``u_`` and ``i_`` (reinterpret), ``isnan``, ``sqrt``, ``fabs``,
 ``floor``, ``ceil``, ``trunc``, ``copysign``, ``clz``, ``mul`` (unsigned 64 by 64 to a (hi, lo) pair) and
-``pick(TABLE, index)`` for constant unsigned tables. Names not bound locally resolve to the constant table given to
+``pick(TABLE, index)`` for constant unsigned tables (``fpick`` reads the word as binary64). Names not bound locally resolve to the constant table given to
 the compiler. ``x: u = 0`` annotates a variable's type. ``round`` rounds halves away from zero and ``roundeven``
 to even.
 """
@@ -354,11 +354,12 @@ class LBody(Typing):
 
     def call(self, node, env, want):
         name = node.func.id
-        if name == "pick":
+        if name in ("pick", "fpick"):
             table = self.prog.tables[node.args[0].id]
             idx = self.expr(node.args[1], env, "u")
             vec = ", ".join(f"i64 {v}" for v in table)
-            return V("u", self.emit(f"extractelement <{len(table)} x i64> <{vec}>, i64 {idx.s}"))
+            word = self.emit(f"extractelement <{len(table)} x i64> <{vec}>, i64 {idx.s}")
+            return V("u", word) if name == "pick" else V("f", self.emit(f"bitcast i64 {word} to double"))
         if name in self.prog.kernels:
             fn = self.prog.kernels[name]
             args = [self.expr(a, env, t) for a, t in zip(node.args, fn.params)]
@@ -534,6 +535,8 @@ class PBody(Typing):
         name = node.func.id
         if name == "pick":
             return V("u", f"T_{node.args[0].id}[{self.expr(node.args[1], env, 'u').s}]")
+        if name == "fpick":
+            return V("f", f"_fbits(T_{node.args[0].id}[{self.expr(node.args[1], env, 'u').s}])")
         if name in self.prog.kernels:
             fn = self.prog.kernels[name]
             args = [self.expr(a, env, t) for a, t in zip(node.args, fn.params)]

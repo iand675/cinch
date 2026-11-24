@@ -97,7 +97,7 @@ retain the callback's actual effect-region identity; cross-runtime handles are
 rejected by negative tests.
 
 The machine-readable [surface inventory](stdlib-surface.json) covers all 180
-public packages in the pinned reference SDK. It currently records 33 functionally complete, 76 partial
+public packages in the pinned reference SDK. It currently records 34 functionally complete, 75 partial
 and 71 unreviewed packages. ASCII85, Base32, Base64, binary layouts, CSV, hexadecimal, HTML, paths, URLs, UTF-16, FNV, Adler-32, CRC-64, SHA-224/SHA-256 and word bit/arithmetic utilities have
 reviewed capability mappings, independent runtime fixtures and self-built
 compiler checks; completion does not assert matching allocation complexity or speed. Upstream mutable
@@ -276,7 +276,7 @@ cargo test --test lib_go_stdlib
 | `flag`, `log`, `testing` | `Text.OptionParser`, `Effect.Log`, `Effect.Test`, `Effect.Benchmark`, `Effect.Coverage` | Usability and integration audit |
 | `regexp`, `text/scanner` | `Text.Regex`, `Text.Lex`, `Text.Scan` | Syntax and resource-behavior audit |
 | Templates and HTML | None | HTML escaping first; templates with explicit escaping policy later |
-| `math`, `math/bits`, `math/big`, `math/cmplx` | [Data.Float](../library/Data.Float.md), `Data.Machine`, `Algebra.Bits`, `Data.Int`, `Data.Rational`, `Data.Complex` | Data.Float: constants, classification, exact roundings, frexp/ldexp/modf, remainders, roots, exponentials, logarithms, powers, trigonometric, inverse trigonometric and hyperbolic functions as generated branch-free kernels, bit-identical to the reference's portable algorithms on every target; erf, gamma, Bessel functions and FMA remain |
+| `math`, `math/bits`, `math/big`, `math/cmplx` | [Data.Float](../library/Data.Float.md), `Data.Machine`, `Algebra.Bits`, `Data.Int`, `Data.Rational`, `Data.Complex` | Data.Float: constants, classification, exact roundings, frexp/ldexp/modf, remainders, roots, exponentials, logarithms, powers, trigonometric, inverse trigonometric and hyperbolic functions, erf and its inverses, Gamma, lgamma, Bessel functions and FMA as generated branch-free kernels, bit-identical to the reference's portable algorithms on every target (math is complete; math/big and math/cmplx remain partial) |
 | `container/heap`, `container/list`, `container/ring` | `Data.List`, `Data.Mutable.Heap`, `Data.Mutable.Deque` | Audit priority queue, mutable sequence and ring capabilities against the reference operations |
 
 See the [checked library index](../library/00-index.md) for the existing

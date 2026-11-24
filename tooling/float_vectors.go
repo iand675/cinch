@@ -10,8 +10,8 @@
 //
 // Every list is hexadecimal little-endian 64-bit words: (input, result) for one-argument functions,
 // (x, y, result) for two, (x, fraction, exponent) for frexp, (x, integer, fraction) for modf,
-// (x, sin, cos) for sincos, (fraction, exponent, result) for ldexp, (x, result) for ilogb and (n, result)
-// for pow10.
+// (x, sin, cos) for sincos, (fraction, exponent, result) for ldexp, (x, result) for ilogb, (n, result)
+// for pow10, (x, value, sign) for lgamma, (n, x, result) for jn and yn and (x, y, z, result) for fma.
 package main
 
 import (
@@ -28,6 +28,26 @@ import (
 func hypot(p, q float64) float64
 
 var rng = rand.New(rand.NewPCG(1, 2))
+
+// oddJ1 is J1 with its odd symmetry kept for 0 < |x| < 2^-27, where the reference returns 0.5*|x| (dropping
+// the sign of a negative argument); Data.Float returns 0.5*x there.
+func oddJ1(x float64) float64 {
+	if x != 0 && math.Abs(x) < 0x1p-27 {
+		return 0.5 * x
+	}
+	return math.J1(x)
+}
+
+// oddJn is Jn with orders 1 and -1 reaching oddJ1.
+func oddJn(n int, x float64) float64 {
+	if (n == 1 || n == -1) && !math.IsNaN(x) && !math.IsInf(x, 0) && x != 0 {
+		if n == -1 {
+			x = -x
+		}
+		return oddJ1(x)
+	}
+	return math.Jn(n, x)
+}
 
 func words(ws ...uint64) []byte {
 	b := make([]byte, 0, 8*len(ws))
@@ -92,6 +112,7 @@ func nearMultiples(step float64, n int) []float64 {
 
 func main() {
 	generic := cat(specials, randoms(220, -1074, 1023, true), uniform(80, -10, 10))
+	bessel := cat(specials, uniform(150, 0, 30), randoms(80, -60, 1023, false), uniform(40, -10, 0), []float64{2, 2.8571, 4.5454, 8, 1 << 129, 1 << 130, 1 << 28, 1 << 29, 1e308})
 	unit := cat(specials, uniform(150, -1, 1), randoms(60, -60, 0, true))
 	positive := cat(specials, randoms(200, -1074, 1023, false), uniform(80, 0, 10))
 	trig := cat(specials, uniform(120, -10, 10), randoms(80, -40, 30, true), randoms(60, 29, 1023, true), nearMultiples(math.Pi/4, 24))
@@ -111,6 +132,11 @@ func main() {
 		"sinh": {math.Sinh, cat(expIn, uniform(60, -25, 25))}, "cosh": {math.Cosh, cat(expIn, uniform(60, -25, 25))},
 		"tanh": {math.Tanh, cat(generic, uniform(80, -50, 50))}, "asinh": {math.Asinh, generic},
 		"acosh": {math.Acosh, cat(positive, uniform(80, 1, 3))}, "atanh": {math.Atanh, unit},
+		"erf": {math.Erf, cat(generic, uniform(120, -7, 7))}, "erfc": {math.Erfc, cat(generic, uniform(120, -7, 30))},
+		"erfinv": {math.Erfinv, cat(unit, uniform(60, 0.99, 1), []float64{1 - 1e-10, 1 - 1e-15, 0.85, 0.8500000000000001})},
+		"erfcinv": {math.Erfcinv, cat(uniform(150, 0, 2), randoms(60, -60, 0, false), specials)},
+		"gamma": {math.Gamma, cat(generic, uniform(150, -40, 40), uniform(60, -200, 200), []float64{-1, -2, -0.5, 1e-10, -1e-10, 171.6, 171.7, 143, 144, 33, 34, -33.5, -34.5})},
+		"j0": {math.J0, bessel}, "j1": {oddJ1, bessel}, "y0": {math.Y0, bessel}, "y1": {math.Y1, bessel},
 	}
 	out := map[string]string{}
 	for name, u := range unary {
@@ -182,6 +208,45 @@ func main() {
 	for n := -330; n <= 315; n++ {
 		p10 = append(p10, words(uint64(int64(n)), f(math.Pow10(n)))...)
 	}
+	var lg, jn, yn, fm []byte
+	for _, x := range cat(generic, uniform(200, -30, 30), uniform(60, -1, 3), []float64{1.4616321449683622, 0.7316321449683622, 0.1916321449683622, 1.7316321449683623, 1.1916321449683622, 7.99, 8, 2.5e-21, -2.5e-21, 4503599627370496.5, -4503599627370495.5, -0.25, -1.25, -2.75}) {
+		v, s := math.Lgamma(x)
+		lg = append(lg, words(f(x), f(v), uint64(int64(s)))...)
+	}
+	for _, n := range []int{-5, -4, -2, -1, 0, 1, 2, 3, 5, 10, 33, 34, 60, 150} {
+		for _, x := range cat([]float64{0, math.Copysign(0, -1), math.Inf(1), math.Inf(-1), math.NaN(), 1e-12, 1e-300, -3.5, 1 << 302, 1 << 303}, uniform(30, 0, 40), randoms(10, -40, 10, true), uniform(6, 100, 400)) {
+			jn = append(jn, words(uint64(int64(n)), f(x), f(oddJn(n, x)))...)
+			yn = append(yn, words(uint64(int64(n)), f(x), f(math.Yn(n, x)))...)
+		}
+	}
+	fmaEdge := []float64{0, math.Copysign(0, -1), 1, -1, math.Inf(1), math.Inf(-1), math.NaN(), 5e-324, math.MaxFloat64, 1 + 0x1p-52, 1 - 0x1p-53, 0x1p-1022, 3}
+	for _, x := range fmaEdge {
+		for _, y := range fmaEdge {
+			for _, z := range []float64{0, math.Copysign(0, -1), -1, 1, math.Inf(1), math.NaN(), -0x1p-1074, math.MaxFloat64} {
+				fm = append(fm, words(f(x), f(y), f(z), f(math.FMA(x, y, z)))...)
+			}
+		}
+	}
+	for i := 0; i < 1500; i++ {
+		var x, y, z float64
+		switch i % 3 {
+		case 0:
+			x, y, z = randoms(1, -1074, 1023, true)[0], randoms(1, -1074, 1023, true)[0], randoms(1, -1074, 1023, true)[0]
+		case 1:
+			x, y = randoms(1, -30, 30, true)[0], randoms(1, -30, 30, true)[0]
+			z = -x * y
+			if rng.IntN(2) == 0 {
+				z = math.Nextafter(z, 0)
+			}
+		default:
+			x, y, z = randoms(1, -540, -500, true)[0], randoms(1, -540, -500, true)[0], randoms(1, -1074, -1000, true)[0]
+		}
+		fm = append(fm, words(f(x), f(y), f(z), f(math.FMA(x, y, z)))...)
+	}
+	out["lgamma"] = hex.EncodeToString(lg)
+	out["jn"] = hex.EncodeToString(jn)
+	out["yn"] = hex.EncodeToString(yn)
+	out["fma"] = hex.EncodeToString(fm)
 	out["frexp"] = hex.EncodeToString(fr)
 	out["modf"] = hex.EncodeToString(mf)
 	out["sincos"] = hex.EncodeToString(sc)

@@ -20,6 +20,9 @@ const ROWS: &[(&str, &str)] = &[
     ("max", "binary max-of-f64"), ("min", "binary min-of-f64"), ("copysign", "binary copysign-f64"),
     ("frexp", "frexp-row"), ("modf", "modf-row"), ("sincos", "sincos-row"), ("ldexp", "ldexp-row"),
     ("ilogb", "ilogb-row"), ("pow10", "pow10-row"),
+    ("erf", "unary erf-f64"), ("erfc", "unary erfc-f64"), ("erfinv", "unary erfinv-f64"), ("erfcinv", "unary erfcinv-f64"),
+    ("gamma", "unary gamma-f64"), ("j0", "unary j0-f64"), ("j1", "unary j1-f64"), ("y0", "unary y0-f64"), ("y1", "unary y1-f64"),
+    ("lgamma", "lgamma-row"), ("jn", "order-row jn-f64"), ("yn", "order-row yn-f64"), ("fma", "fma-row"),
 ];
 
 /// Every function matches the reference bit for bit.
@@ -57,7 +60,7 @@ fn float_kernels_compile_for_arm_wasm_and_big_endian_targets() {
         let project = directory.path().join(arch);
         std::fs::create_dir_all(&project).unwrap();
         std::fs::write(project.join("Data.Float.cinch"), include_str!("../prelude/Data/Float.cinch")).unwrap();
-        std::fs::write(project.join("Main.cinch"), "module Main where\n  import Data.Float\n  -- | Reach the kernels.\n  main :: Int\n  main = if flt-f64 (add-f64 (pow-f64 (sin-f64 (exp-f64 2)) (log-f64 3)) (add-f64 (mod-f64 7 (atan2-f64 1 2)) (tanh-f64 (cbrt-f64 5)))) 0 then 1 else 0\n").unwrap();
+        std::fs::write(project.join("Main.cinch"), "module Main where\n  import Data.Float\n  -- | Reach the kernels.\n  main :: Int\n  main = if flt-f64 (add-f64 (pow-f64 (sin-f64 (exp-f64 2)) (log-f64 3)) (add-f64 (mod-f64 7 (atan2-f64 1 2)) (add-f64 (tanh-f64 (cbrt-f64 5)) (add-f64 (gamma-f64 4) (add-f64 (jn-f64 3 2) (fma-f64 1 2 3)))))) 0 then 1 else 0\n").unwrap();
         let ir_path = project.join("program.ll");
         let entry = project.join("Main.cinch");
         let ir = std::thread::Builder::new()
@@ -155,6 +158,24 @@ module Main where
   -- | Pairs from an index.
   pow10-from :: Bytes -> Nat -> Nat -> Bool
   pow10-from b i n = if i >= n then True else same (pow10-f64 (wrapping-u64-to-i64 (w b (2 * i)))) (w b (2 * i + 1)) && pow10-from b (i + 1) n
+  -- | Every (x, value, sign) triple.
+  lgamma-row :: String -> Bool
+  lgamma-row text = let b = words text in lgamma-from b 0 (bytes-len b / 24)
+  -- | Triples from an index.
+  lgamma-from :: Bytes -> Nat -> Nat -> Bool
+  lgamma-from b i n = if i >= n then True else (case lgamma-f64 (v b (3 * i)) of (l, s) -> same l (w b (3 * i + 1)) && eq-u64 (wrapping-i64-to-u64 s) (w b (3 * i + 2))) && lgamma-from b (i + 1) n
+  -- | Every (n, x, f n x) triple.
+  order-row :: (I64 -> F64 -> F64) -> String -> Bool
+  order-row f text = let b = words text in order-from f b 0 (bytes-len b / 24)
+  -- | Triples from an index.
+  order-from :: (I64 -> F64 -> F64) -> Bytes -> Nat -> Nat -> Bool
+  order-from f b i n = if i >= n then True else same (f (wrapping-u64-to-i64 (w b (3 * i))) (v b (3 * i + 1))) (w b (3 * i + 2)) && order-from f b (i + 1) n
+  -- | Every (x, y, z, fma) quadruple.
+  fma-row :: String -> Bool
+  fma-row text = let b = words text in fma-from b 0 (bytes-len b / 32)
+  -- | Quadruples from an index.
+  fma-from :: Bytes -> Nat -> Nat -> Bool
+  fma-from b i n = if i >= n then True else same (fma-f64 (v b (4 * i)) (v b (4 * i + 1)) (v b (4 * i + 2))) (w b (4 * i + 3)) && fma-from b (i + 1) n
   -- | The index of the first failing row, or 200.
   first :: List Bool -> Int -> Int
   first values i = case values of Nil -> 200; Cons x rest -> if x then first rest (i + 1) else i

@@ -429,9 +429,9 @@
     {
       "module": "Data.Float",
       "path": "seed/prelude/Data/Float.cinch",
-      "sha256": "949fa82cf6b91e83172986fce7f9e44485a13d4acaf61532bd6638ac73fdd048",
+      "sha256": "ed1856b6e134453e2e8b1efa30c70515d533ce4d2b4a5d6a981fe4d7c9777d1a",
       "embedded": false,
-      "values": 66,
+      "values": 79,
       "public_methods": 0
     },
     {

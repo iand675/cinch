@@ -120,7 +120,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Core](Data.Core.md) | Embedded | Shared declarations for List, Option, and Result. Their public homes add operations and instances; this module breaks declaration-order cycles. |
 | [Data.Date](Data.Date.md) | Ship source | Civil date values, validation, parsing/formatting, and calendar calculations. |
 | [Data.Enum](Data.Enum.md) | Embedded | Finite enumeration and the class behind inclusive range literals, including an explicit next element for a step. |
-| [Data.Float](Data.Float.md) | Ship source | Binary64 mathematics: exact roundings and splitting, roots, exponentials, logarithms, powers and trigonometric and hyperbolic functions as branch-free kernels, bit-identical on every target. |
+| [Data.Float](Data.Float.md) | Ship source | Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target. |
 | [Data.FromList](Data.FromList.md) | Embedded | The opt-in collection-literal vocabulary used to interpret [elements] at the expected container type. |
 | [Data.FromMap](Data.FromMap.md) | Embedded | The opt-in map-literal vocabulary used to interpret {key => value} at the expected container type. |
 | [Data.Hash](Data.Hash.md) | Embedded | Hashing vocabulary and admitted hash implementations for keys. |
