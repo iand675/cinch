@@ -1,54 +1,55 @@
 # Compiler-provided vocabulary and special forms
 
-Most operations are ordinary library declarations, indexed in the [library reference](../library/00-index.md). A second surface is installed by the Rust checker itself: these names have no source declaration in Prelude, and their schemes live in the checker's registration table rather than in a `.cinch` file. This page is the index of that surface. Every name below was read from a registration site in `seed/src/check_decls.rs` and then exercised with the compiler; the entry for each name gives its arity, its scheme, its effect row, and either a program that uses it or the message that refuses it.
+Most types and functions in Cinch are ordinary declarations in the standard library (indexed in the [library reference](../library/00-index.md)). A smaller core surface is installed directly by the typechecker rather than declared in a `.cinch` file.
 
-Two kinds of name appear. An **installed value** is a real binding with a scheme, registered under a bare name, a qualified name, or both. A **special form** has no binding at all: the checker matches its application directly in `check_terms.rs`, so printing its type is not even meaningful.
+This surface consists of two distinct mechanisms:
+
+- **Installed types and values** are real bindings with known schemes (registered under a bare name, a qualified name, or both). They cannot be redeclared by user code.
+- **Special forms** have no first-class value binding; the checker elaborates their applications directly by syntax, so they must be applied to their required arguments rather than referenced bare.
 
 # Installed types
 
-These types are registered before any source is read, so no program can redeclare them.
+Installed types are in scope before any module source is parsed:
 
-| Name | Arity | Role |
+| Type | Kind arity | Role |
 | --- | --- | --- |
-| `Nat`, `Int`, `Bool`, `Unit`, `Bytes`, `Sym` | 0 | Core types. `Nat` and `Int` are bignums with an immediate fast path; `Bytes` and `Sym` are counted handles. |
-| `Char`, `I8`, `I16`, `I32`, `I64`, `U8`, `U16`, `U32`, `U64`, `F32`, `F64`, `Usize`, `Isize` | 0 | The thirteen machine scalars, from the `Scalar` enumeration. [Numbers and primitives](05-numbers-and-primitives.md) gives widths. |
-| `Array`, `Tensor`, `Columnar` | 1 | Opaque runtime containers. No source constructor can forge a shape or a column layout. |
-| `Io` | 1 | Capability evidence for identity `r`. The value is a uniform word; the identity lives in the type. |
-| `Scope`, `Task` | 2, 3 | Structured concurrency carriers: `Scope r s` and `Task s x a`. |
-| `Code`, `SyntaxBinding` | 1 | Compile-time-only carriers: a typed quotation, and a binding in a captured syntax tree. |
-| `Syntax`, `TypeSyntax`, `PackedCode`, `Declarations`, `Name`, `Secret`, `IoCap`, `FileReadCap`, `FileWriteCap`, `ProcCap`, `SchemaSnapshot`, `Database`, `SchemaRead` | 0 | Compile-time-only staging vocabulary. None of them appears in generated code. |
-| `Vec` | 2 | Builtin indexed family: `Nil :: Vec 0 a`, `Cons :: a -> Vec k a -> Vec (k + 1) a`. |
-| `Fin` | 1 | Builtin indexed family: `Fin :: (i :: Nat) -> (bound :: i < n) -> Fin n`. The bound is erased. |
-| `Dec` | 1 | Builtin indexed family: `Yes :: (h :: p) -> Dec p`, `No :: Not p -> Dec p`. Both fields are erased. |
+| `Nat`, `Int`, `Bool`, `Unit`, `Bytes`, `Sym` | 0 | Core value types. `Nat` and `Int` are arbitrary-precision integers with an immediate fast path; `Bytes` and `Sym` are counted handles. |
+| `Char`, `I8`, `I16`, `I32`, `I64`, `U8`, `U16`, `U32`, `U64`, `F32`, `F64`, `Usize`, `Isize` | 0 | The thirteen fixed-width machine scalars (see [Chapter 05](05-numbers-and-primitives.md)). |
+| `Array`, `Tensor`, `Columnar` | 1 | Opaque runtime containers whose shapes and column layouts cannot be forged by user constructors. |
+| `Io` | 1 | Region-indexed I/O capability token (`Io r`). Represented as a uniform word; capability identity lives in the type. |
+| `Scope`, `Task` | 2, 3 | Structured concurrency handles: `Scope r s` and linear `Task s x a`. |
+| `Code`, `SyntaxBinding` | 1 | Compile-time-only typed quotations and hygienic syntax bindings. |
+| `Syntax`, `TypeSyntax`, `PackedCode`, `Declarations`, `Name`, `Secret`, `IoCap`, `FileReadCap`, `FileWriteCap`, `ProcCap`, `SchemaSnapshot`, `Database`, `SchemaRead` | 0 | Compile-time-only staging types. None of these ever appear in runtime code. |
+| `Vec` | 2 | Built-in length-indexed vector family: `Nil :: Vec 0 a`, `Cons :: a -> Vec k a -> Vec (k + 1) a`. |
+| `Fin` | 1 | Built-in bounded natural family: `Fin :: (i :: Nat) -> (bound :: i < n) -> Fin n` (`bound` is erased). |
+| `Dec` | 1 | Built-in decidability family: `Yes :: (h :: p) -> Dec p`, `No :: Not p -> Dec p` (both evidence fields are erased). |
 
-`Vec`, `Fin`, and `Dec` arrive as builtins because their runtime helpers need walks the surface cannot express, and because `Vec`'s constructor spellings `Nil` and `Cons` would collide with `Data.List`. A user program declares its own indexed families in the same syntax; [types and kinds](04-types-and-kinds.md) shows one.
+`Vec`, `Fin`, and `Dec` are built-in because their runtime helpers rely on internal traversals and because `Vec`'s `Nil`/`Cons` constructors coexist with `Data.List`. User programs can declare their own indexed families with the same `data` syntax (see [Chapter 04](04-types-and-kinds.md)).
 
-The generated WIT vocabulary is a different matter: `WasiStream`, `WasiFuture`, `StreamError`, and `BoundaryError` are written into the `Prelude.Generated` module when an adapter is generated, not registered as builtins.
+When a `.wit` adapter is generated, the compiler additionally synthesizes `WasiStream`, `WasiFuture`, `StreamError`, and `BoundaryError` in `Prelude.Generated` rather than registering them unconditionally as built-ins.
 
 # Installed values
 
 ## Core values
 
-| Name | Arity | Scheme | Effect row | Evidence |
+| Name | Arity | Scheme | Effect row | Notes |
 | --- | --- | --- | --- | --- |
-| `True`, `False` | 0 | `Bool` | none | Used by every `if` and `case` below. |
-| `newIO` | 1 | `Unit -> Io r` | pure | `with (io = newIO ()) in ...` in the I/O program below. Also registered as `Runtime.newIO`. |
-| `eval` | 1 | `forall a. Code a -> a` | pure | `eval [\| 41 + 1 \|]` below, under a profile with `allow_eval`. |
-
-`newIO` constructs a fresh runtime capability identity; each use instantiates a new region, and the value is a unit marker. `eval` consumes a typed quotation and carries no capability and no effect, because the quotation was typed where it was built. A target profile may forbid runtime code generation, and [supercompilation and JIT](../specifications/supercompilation-and-jit-specification.md) section 7 states that boundary.
+| `True`, `False` | 0 | `Bool` | pure | Boolean constructors. |
+| `newIO` (`Runtime.newIO`) | 1 | `Unit -> Io r` | pure | Mints a fresh `Io r` capability token with a fresh region identity. |
+| `eval` | 1 | `forall a. Code a -> a` | pure | Evaluates a typed quotation. Requires a target profile with `allow_eval` (see [supercompilation and JIT](../specifications/supercompilation-and-jit-specification.md) section 7). |
 
 ## Index and evidence values
 
 | Name | Arity | Scheme | Notes |
 | --- | --- | --- | --- |
-| `toNat` | 1 | `U32 -> Nat` | Total, executable index function usable inside refinements. |
-| `length` | 1 | `Bytes -> Nat` | Installed, but shadowed at the surface: Prelude's `Data.List.length :: forall a. List a -> Int` answers first, which is what `:t length` prints. |
-| `vecStreamStep` | 1 | `Ref region (Vec n a) -> Step (Ref region (Vec n a)) a` | The producer step over a borrowed vector. |
-| `refl` | 0 | `Eq x x` | Evidence constructor. Erased. |
-| `congr` | 3 | `Eq a b -> Eq (f a) (f b)` | Evidence constructor lifting equality across a named total function. Erased. |
-| `Vec.getCopy` | 2 | `forall region n a. using (copy :: Copy a) => Ref region (Vec n a) -> Fin n -> a` | Qualified only; the bare name is not installed. |
+| `toNat` | 1 | `U32 -> Nat` | Total, executable conversion usable inside refinement predicates. |
+| `length` | 1 | `Bytes -> Nat` | Installed bare, but shadowed by Prelude's `Data.List.length :: forall a. List a -> Int`. |
+| `vecStreamStep` | 1 | `Ref region (Vec n a) -> Step (Ref region (Vec n a)) a` | Producer step over a borrowed length-indexed vector. |
+| `refl` | 0 | `Eq x x` | Erased reflexivity witness. |
+| `congr` | 3 | `Eq a b -> Eq (f a) (f b)` | Erased congruence witness lifting equality across a total function. |
+| `Vec.getCopy` | 2 | `forall region n a. using (copy :: Copy a) => Ref region (Vec n a) -> Fin n -> a` | Qualified only; no bare `getCopy` binding exists. |
 
-`congr` takes the function, the two endpoints, and the equality; the scheme the REPL prints is `(Eq ?i550 ?i551 -> Eq (?i549 ?i550) (?i549 ?i551))`. `getCopy` has no bare spelling, and a program referring to `getCopy` unqualified is refused:
+Referencing `getCopy` unqualified is rejected:
 
 <!-- cinch:reject contains="unknown name getCopy" -->
 ```cinch
@@ -62,19 +63,19 @@ module Main where
 
 ## Runtime capabilities and concurrency
 
-All four `Io r` operations carry an `Io r` constraint the caller must satisfy, which is why their schemes are only printable with the capability in scope.
+All `Io r` operations require an `Io r` capability in scope via `using`.
 
 | Name | Arity | Scheme | Effect row |
 | --- | --- | --- | --- |
-| `withScope` | 1 | `forall a e. using (io :: Io r) => (Scope r s ->{e} a) ->{Diverge \| e} a` | body row plus `Diverge` |
-| `spawn` | 2 | `Scope r s -> (Unit ->{eb} Result x a) ->{Async r \| eb} Task s x a` | `Async r` plus the body row |
-| `joinAllOrCancel` | 3 | `Scope r s -> Task s x v -> Task s x w ->{Async r, Cancel r, Diverge} Result x (v, w)` | closed `{Async r, Cancel r, Diverge}` |
-| `ioWrite` | 1 | `using (io :: Io r) => Bytes ->{IO r} Unit` | closed `{IO r}` |
-| `ioRead` | 1 | `using (io :: Io r) => Nat ->{Diverge, IO r} Option Bytes` | closed `{Diverge, IO r}` |
-| `ioSleep` | 1 | `using (io :: Io r) => Nat ->{Cancel r, IO r} Unit` | closed `{Cancel r, IO r}` |
-| `pollCancel` | 1 | `using (io :: Io r) => Unit ->{Cancel r} Bool` | closed `{Cancel r}` |
+| `withScope` | 1 | `forall a e. using (io :: Io r) => (Scope r s ->{e} a) ->{Diverge \| e} a` | `{Diverge \| e}` |
+| `spawn` | 2 | `Scope r s -> (Unit ->{eb} Result x a) ->{Async r \| eb} Task s x a` | `{Async r \| eb}` |
+| `joinAllOrCancel` | 3 | `Scope r s -> Task s x v -> Task s x w ->{Async r, Cancel r, Diverge} Result x (v, w)` | `{Async r, Cancel r, Diverge}` |
+| `ioWrite` | 1 | `using (io :: Io r) => Bytes ->{IO r} Unit` | `{IO r}` |
+| `ioRead` | 1 | `using (io :: Io r) => Nat ->{Diverge, IO r} Option Bytes` | `{Diverge, IO r}` |
+| `ioSleep` | 1 | `using (io :: Io r) => Nat ->{Cancel r, IO r} Unit` | `{Cancel r, IO r}` |
+| `pollCancel` | 1 | `using (io :: Io r) => Unit ->{Cancel r} Bool` | `{Cancel r}` |
 
-`spawn` and `joinAllOrCancel` get their capture, scope, and one-shot elaboration in `check_terms.rs`, so the registered scheme is the arity contract and the elaborator adds the ownership rules. A `spawn` that is not applied to its body directly is refused before the scheme is consulted:
+In addition to their type schemes, `spawn` and `joinAllOrCancel` enforce scope-escape, capture, and linear task-handle rules during elaboration. Partially applying `spawn` without its task body is rejected:
 
 <!-- cinch:reject contains="spawn takes a scope and one task body" -->
 ```cinch
@@ -86,7 +87,7 @@ module Main where
   main = 0
 ```
 
-`ioWrite` writes bytes and returns `Unit`. `ioRead` returns `Option Bytes` so the end of input is an ordinary value. Here the program writes `hi` and a newline:
+Writing bytes to stdout with `ioWrite`:
 
 <!-- cinch:run exit=0 stdout="hi\n" -->
 ```cinch
@@ -97,7 +98,7 @@ module Main where
       () -> 0
 ```
 
-Two tasks run inside one scope, and the join consumes both handles exactly once and returns their results in handle order:
+Running two tasks inside a structured concurrency scope and consuming both linear task handles via `joinAllOrCancel`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -115,11 +116,11 @@ module Main where
     Err e -> 2
 ```
 
-Dropping a handle instead of joining it is refused with `consumed exactly once`. [Concurrency](13-concurrency-and-runtime.md) gives the ordering and lifetime rules.
+Dropping a `Task` handle without joining it fails with `consumed exactly once`. See [Chapter 13](13-concurrency-and-runtime.md) for concurrency lifetime and cancellation rules.
 
-## Evidence and decisions
+## Evidence and indexed bounds
 
-`decide` is a special form rather than an installed value, so it is indexed under [special forms](#special-forms) below. The two values it produces, `Yes` and `No`, are builtin constructors of the builtin `Dec` family, and `Fin`'s constructor is builtin too:
+`decide` (indexed under [Special forms](#special-forms)) produces `Yes`/`No` values of the built-in `Dec` family, which feed indexed constructors like `Fin` and bounds-checked accessors like `Vec.getCopy`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -138,7 +139,7 @@ module Main where
     None -> 1
 ```
 
-`safeAt` builds a `Fin n` only from the bound `decide` hands back, and `Vec.getCopy` accepts nothing else. `toNat`, `refl`, and `eval` appear together here:
+Combining `toNat`, `refl`, and `eval`:
 
 <!-- cinch:run exit=42 -->
 ```cinch
@@ -155,7 +156,7 @@ module Main where
 
 ## Compile-time (staging) values
 
-Every staging value is registered twice: under its bare name and under the `Stage.` qualification, and the syntax builders also under their namespaced aliases (`Syntax.*`, `Name.*`). All of them are refused in runtime code with the same message:
+Staging values are registered both bare and under `Stage.*`, and syntax/name builders also have `Syntax.*` and `Name.*` aliases. They are valid only inside `stage`/`macro` definitions, `generate do` blocks, and quotation splices; referencing any staging value in runtime code is rejected:
 
 <!-- cinch:reject contains="snapshot is compile-time only" -->
 ```cinch
@@ -164,15 +165,15 @@ module Main where
   main = snapshot
 ```
 
-The rule covers `stage` and `macro` definitions, `generate do` blocks, and quotation splices.
+### Staging capabilities, I/O, and generation
 
 | Name | Arity | Scheme | Effect row |
 | --- | --- | --- | --- |
-| `snapshot` | 2 | `forall a e. String -> (IoCap ->{e} a) ->{e} a` | callback row |
-| `withReadFiles` | 2 | `forall a e. IoCap -> (FileReadCap ->{e} a) ->{e} a` | callback row |
-| `withWriteFiles` | 2 | `forall a e. IoCap -> (FileWriteCap ->{e} a) ->{e} a` | callback row |
-| `withProcess` | 2 | `forall a e. IoCap -> (ProcCap ->{e} a) ->{e} a` | callback row |
-| `withDatabase` | 4 | `forall a e. IoCap -> Secret -> SchemaRead -> (Database ->{e} a) ->{e} a` | callback row |
+| `snapshot` | 2 | `forall a e. String -> (IoCap ->{e} a) ->{e} a` | `{e}` |
+| `withReadFiles` | 2 | `forall a e. IoCap -> (FileReadCap ->{e} a) ->{e} a` | `{e}` |
+| `withWriteFiles` | 2 | `forall a e. IoCap -> (FileWriteCap ->{e} a) ->{e} a` | `{e}` |
+| `withProcess` | 2 | `forall a e. IoCap -> (ProcCap ->{e} a) ->{e} a` | `{e}` |
+| `withDatabase` | 4 | `forall a e. IoCap -> Secret -> SchemaRead -> (Database ->{e} a) ->{e} a` | `{e}` |
 | `readFile` | 2 | `FileReadCap -> String ->{StageFile} String` | `{StageFile}` |
 | `writeFile` | 3 | `FileWriteCap -> String -> String ->{StageFile} Unit` | `{StageFile}` |
 | `run` | 3 | `ProcCap -> String -> List String ->{StageProcess} String` | `{StageProcess}` |
@@ -180,47 +181,55 @@ The rule covers `stage` and `macro` definitions, `generate do` blocks, and quota
 | `emit` | 1 | `Declarations ->{StageEmit} Unit` | `{StageEmit}` |
 | `introspectConsistently` | 1 | `Database -> SchemaSnapshot` | pure |
 | `ReadSchema` | 0 | `SchemaRead` | pure |
-| `quoteNat`, `quoteInt`, `quoteBool` | 1 | `Nat -> Code Nat`, `Int -> Code Int`, `Bool -> Code Bool` | pure |
-| `name-to-sym`, `sym-to-name` | 1 | `Name -> Sym`, `Sym -> Name` | pure |
-| `strNat`, `natStr`, `strLen` | 1 | `String -> Nat`, `Nat -> String`, `String -> Nat` | pure |
-| `strAppend` | 2 | `String -> String -> String` | pure |
-| `syntax-new-binding` (`Syntax.newBinding`) | 1 | `forall a. Name -> SyntaxBinding a` | pure |
-| `syntax-capture` (`Syntax.capture`) | 1 | `forall a. Syntax -> Code a` | pure |
-| `syntax-capture-under` (`Syntax.captureUnder`) | 2 | `forall a b. SyntaxBinding a -> Syntax -> Code b` | pure |
-| `syntax-reference` (`Syntax.reference`) | 1 | `forall a. SyntaxBinding a -> Code a` | pure |
-| `syntax-let-in` (`Syntax.letIn`) | 3 | `forall a b. SyntaxBinding a -> Code a -> Code b -> Code b` | pure |
-| `syntax-apply` (`Syntax.apply`) | 2 | `forall a b e. Code (a %many ->{e} b) -> Code a -> Code b` | row parameter `e` |
-| `syntax-lambda` (`Syntax.lambda`) | 2 | `forall a b e. SyntaxBinding a -> Code b -> Code (a %many ->{e} b)` | row parameter `e` |
-| `syntax-definition` (`Syntax.definition`) | 1 | `forall a. Name -> Code a` | pure |
-| `syntax-record` (`Syntax.recordValue`) | 2 | `forall a. Name -> Syntax -> Code a` | pure |
-| `syntax-error` (`Syntax.error`) | 1 | `forall a. String -> a` | pure |
-| `syntax-items` (`Syntax.items`) | 1 | `Syntax -> List Syntax` | pure |
-| `syntax-name` (`Syntax.name`) | 1 | `Syntax -> Name` | pure |
-| `syntax-empty-declarations` (`Syntax.emptyDeclarations`) | 0 | `Declarations` | pure |
-| `syntax-append-declarations` (`Syntax.appendDeclarations`) | 2 | `Declarations -> Declarations -> Declarations` | pure |
-| `syntax-link-declarations` (`Syntax.linkDeclarations`) | 4 | `Name -> Name -> Declarations -> Declarations -> Declarations` | pure |
-| `syntax-rename-declarations` (`Syntax.renameDeclarations`) | 3 | `Name -> Name -> Declarations -> Declarations` | pure |
-| `syntax-export-declaration` (`Syntax.exportDeclaration`) | 2 | `Name -> Declarations -> Declarations` | pure |
-| `syntax-specialize-declaration-type` (`Syntax.specializeDeclarationType`) | 3 | `Name -> Syntax -> Declarations -> Declarations` | pure |
-| `syntax-capture-type`, `syntax-declaration-type`, `syntax-signature-type` | 1, 2, 2 | `Syntax -> TypeSyntax`, `Name -> Declarations -> TypeSyntax`, `Name -> Declarations -> TypeSyntax` | pure |
-| `syntax-declaration-reference`, `syntax-function-code` | 2 | `forall a. Name -> Declarations -> Code a` | pure |
-| `syntax-apply-type`, `syntax-function-type` | 2 | `TypeSyntax -> TypeSyntax -> TypeSyntax` | pure |
-| `syntax-tuple-type` (`Syntax.tupleType`) | 1 | `List TypeSyntax -> TypeSyntax` | pure |
-| `syntax-specialize-type` (`Syntax.specializeType`) | 3 | `Name -> TypeSyntax -> Declarations -> Declarations` | pure |
-| `syntax-add-constructor` (`Syntax.addConstructor`) | 4 | `Name -> Name -> TypeSyntax -> Declarations -> Declarations` | pure |
-| `syntax-add-equations` (`Syntax.addEquations`) | 4 | `Name -> Name -> Declarations -> Declarations -> Declarations` | pure |
-| `syntax-record-declaration` (`Syntax.recordDeclaration`) | 2 | `Name -> Syntax -> Declarations` | pure |
-| `syntax-pack-code` (`Syntax.packCode`) | 1 | `forall a. Code a -> PackedCode` | pure |
-| `syntax-tuple-code` (`Syntax.tupleCode`) | 1 | `forall a. List PackedCode -> Code a` | pure |
-| `name-append` (`Name.append`) | 2 | `Name -> Name -> Name` | pure |
-| `name-prefix` (`Name.prefix`) | 2 | `String -> Name -> Name` | pure |
-| `name-suffix` (`Name.suffix`) | 2 | `Name -> String -> Name` | pure |
-| `name-join` (`Name.join`) | 3 | `String -> Name -> Name -> Name` | pure |
-| `CodecGenerator.derive` | 1 | `SchemaSnapshot -> Declarations` | pure, qualified only |
+| `CodecGenerator.derive` | 1 | `SchemaSnapshot -> Declarations` | pure (qualified only) |
 
-`CodecGenerator.derive` has no bare spelling, so a user definition named `derive` stays available.
+### Quotation, string, and name helpers
 
-A quotation, two syntax builders, and `emit` in one program, which prints nothing and exits 42:
+| Name (and alias) | Arity | Scheme |
+| --- | --- | --- |
+| `quoteNat`, `quoteInt`, `quoteBool` | 1 | `Nat -> Code Nat`, `Int -> Code Int`, `Bool -> Code Bool` |
+| `name-to-sym`, `sym-to-name` | 1 | `Name -> Sym`, `Sym -> Name` |
+| `strNat`, `natStr`, `strLen` | 1 | `String -> Nat`, `Nat -> String`, `String -> Nat` |
+| `strAppend` | 2 | `String -> String -> String` |
+| `name-append` (`Name.append`) | 2 | `Name -> Name -> Name` |
+| `name-prefix` (`Name.prefix`) | 2 | `String -> Name -> Name` |
+| `name-suffix` (`Name.suffix`) | 2 | `Name -> String -> Name` |
+| `name-join` (`Name.join`) | 3 | `String -> Name -> Name -> Name` |
+
+### Syntax, code, type, and declaration builders
+
+| Name (and alias) | Arity | Scheme |
+| --- | --- | --- |
+| `syntax-new-binding` (`Syntax.newBinding`) | 1 | `forall a. Name -> SyntaxBinding a` |
+| `syntax-capture` (`Syntax.capture`) | 1 | `forall a. Syntax -> Code a` |
+| `syntax-capture-under` (`Syntax.captureUnder`) | 2 | `forall a b. SyntaxBinding a -> Syntax -> Code b` |
+| `syntax-reference` (`Syntax.reference`) | 1 | `forall a. SyntaxBinding a -> Code a` |
+| `syntax-let-in` (`Syntax.letIn`) | 3 | `forall a b. SyntaxBinding a -> Code a -> Code b -> Code b` |
+| `syntax-apply` (`Syntax.apply`) | 2 | `forall a b e. Code (a %many ->{e} b) -> Code a -> Code b` |
+| `syntax-lambda` (`Syntax.lambda`) | 2 | `forall a b e. SyntaxBinding a -> Code b -> Code (a %many ->{e} b)` |
+| `syntax-definition` (`Syntax.definition`) | 1 | `forall a. Name -> Code a` |
+| `syntax-record` (`Syntax.recordValue`) | 2 | `forall a. Name -> Syntax -> Code a` |
+| `syntax-error` (`Syntax.error`) | 1 | `forall a. String -> a` |
+| `syntax-items` (`Syntax.items`) | 1 | `Syntax -> List Syntax` |
+| `syntax-name` (`Syntax.name`) | 1 | `Syntax -> Name` |
+| `syntax-pack-code` (`Syntax.packCode`) | 1 | `forall a. Code a -> PackedCode` |
+| `syntax-tuple-code` (`Syntax.tupleCode`) | 1 | `forall a. List PackedCode -> Code a` |
+| `syntax-capture-type`, `syntax-declaration-type`, `syntax-signature-type` | 1, 2, 2 | `Syntax -> TypeSyntax`, `Name -> Declarations -> TypeSyntax`, `Name -> Declarations -> TypeSyntax` |
+| `syntax-apply-type`, `syntax-function-type` | 2 | `TypeSyntax -> TypeSyntax -> TypeSyntax` |
+| `syntax-tuple-type` (`Syntax.tupleType`) | 1 | `List TypeSyntax -> TypeSyntax` |
+| `syntax-empty-declarations` (`Syntax.emptyDeclarations`) | 0 | `Declarations` |
+| `syntax-append-declarations` (`Syntax.appendDeclarations`) | 2 | `Declarations -> Declarations -> Declarations` |
+| `syntax-link-declarations` (`Syntax.linkDeclarations`) | 4 | `Name -> Name -> Declarations -> Declarations -> Declarations` |
+| `syntax-rename-declarations` (`Syntax.renameDeclarations`) | 3 | `Name -> Name -> Declarations -> Declarations -> Declarations` |
+| `syntax-export-declaration` (`Syntax.exportDeclaration`) | 2 | `Name -> Declarations -> Declarations` |
+| `syntax-specialize-declaration-type` (`Syntax.specializeDeclarationType`) | 3 | `Name -> Syntax -> Declarations -> Declarations` |
+| `syntax-declaration-reference`, `syntax-function-code` | 2 | `forall a. Name -> Declarations -> Code a` |
+| `syntax-specialize-type` (`Syntax.specializeType`) | 3 | `Name -> TypeSyntax -> Declarations -> Declarations` |
+| `syntax-add-constructor` (`Syntax.addConstructor`) | 4 | `Name -> Name -> TypeSyntax -> Declarations -> Declarations` |
+| `syntax-add-equations` (`Syntax.addEquations`) | 4 | `Name -> Name -> Declarations -> Declarations -> Declarations` |
+| `syntax-record-declaration` (`Syntax.recordDeclaration`) | 2 | `Name -> Syntax -> Declarations` |
+
+Using hygienic syntax builders and `emit` to generate `main`:
 
 <!-- cinch:run exit=42 -->
 ```cinch
@@ -236,11 +245,11 @@ module Main where
       main = if $(identity) True then $(identity) (42 :: Int) else 0)
 ```
 
-Staging types never appear in generated code, and a `Code` carrier is checked at its splice. [Staging and macros](14-staging-and-macros.md) gives the ordering and hygiene rules.
+See [Chapter 14](14-staging-and-macros.md) for staging phases, splicing, and hygiene rules.
 
-## WIT and stream vocabulary
+## WIT stream and future bindings
 
-A generated WIT adapter installs its raw bindings under qualified names (`adapter binding`), because the bare function name stays the user's to define. When the adapter declares streams, three word-level observations are also installed bare, each with the closed row `{Foreign Component, Diverge}`:
+A generated WIT adapter installs its raw interface functions under qualified names (`Raw.<fn>`). When the adapter includes streams or futures, three bare operations are also installed with closed effect row `{Foreign Component, Diverge}`:
 
 | Name | Arity | Scheme |
 | --- | --- | --- |
@@ -248,7 +257,7 @@ A generated WIT adapter installs its raw bindings under qualified names (`adapte
 | `wasiStreamWrite` | 2 | `forall a. WasiStream a -> a ->{Foreign Component, Diverge} Result StreamError Unit` |
 | `wasiFutureWait` | 1 | `forall a. WasiFuture a ->{Foreign Component, Diverge} a` |
 
-Without a generated adapter the names do not exist, which is why `Raw` code reaches them through the boundary module instead:
+Without a discovered `.wit` adapter, these bindings are absent:
 
 <!-- cinch:reject contains="unknown name wasiStreamRead" -->
 ```cinch
@@ -259,22 +268,24 @@ module Main where
 
 # Special forms
 
-These names have no registry entry. The checker matches the application in `check_terms.rs`, so the arity and the rule below are the whole contract, and a bare reference is refused with `<name> must be applied in the bootstrap slice`.
+Special forms have no standalone binding or polymorphic value type. They are matched syntactically at application sites, so referencing a special form unapplied is a type error.
 
-| Name | Arity | What it does | Evidence |
-| --- | --- | --- | --- |
-| `decide` | 1 | Takes a proposition and yields `Dec p`: `Yes` carries the proof, `No` the refutation. Static decisions fold on numerals; the evidence is scoped to the values examined. | The `safeDiv` program below. |
-| `ignore` | 1 | Explicitly discards a must-use result, including a `Result`. Returns `Unit`. | The `discard` program below. |
-| `copyOut` | 1 | Copies out of a `Ref` or `Mut`, or duplicates a `Copy` value. Requires `Copy` evidence and a `%many` binder. | The `copyOut` program below. |
-| `refSet` | 2 | Writes through a `Mut`: `Mut region a -> a -> Unit`. Invalidates facts about the cell. | The `bump` program below. |
-| `borrow` | 1 | Introduces a `Ref region a` from a place. The region needs an annotation. | The `peek` program below. |
-| `mutBorrow` | 1 | Introduces a `Mut region a` from a place. The region needs an annotation. | The `cell` program below. |
-| `delay` | 1 | `(Unit ->{e} a) -> Thunk {e} a`. Creating the thunk performs nothing. | The `thunkOf` program below. |
-| `force` | 1 | Forces a `Thunk {e} a` or a `Later a`, performing `e` in the first case. | The `thunkOf` program below. |
-| `demand` | 1 | Demands a `Lazy` cell and yields a borrow of the cached value, performing `{Eval region}`. | The `cell` program below. |
-| `unrefine` | 1 | Projects a refinement to its carrier. The identity at run time. | The `total` program below. |
+| Form | Arity | Semantics |
+| --- | --- | --- |
+| `decide p` | 1 | Evaluates proposition `p` to `Dec p` (`Yes` proof or `No` refutation). Static numeral propositions fold at compile time; runtime decisions scope evidence to the examined values. |
+| `ignore e` | 1 | Explicitly discards a must-use value (such as `Result`), returning `Unit`. |
+| `copyOut e` | 1 | Copies a value out of `Ref`/`Mut`, or duplicates a `Copy` value bound `%many`. |
+| `refSet m v` | 2 | Writes `v` into `Mut region a`, returning `Unit` and invalidating prior refinement facts on that cell. |
+| `borrow x` | 1 | Creates a shared borrow `Ref region a`; requires a region annotation (via expected type or ascription). |
+| `mutBorrow x` | 1 | Creates a mutable borrow `Mut region a`; requires a region annotation. |
+| `delay f` | 1 | Wraps `Unit ->{e} a` into `Thunk {e} a` without running `e`. |
+| `force t` | 1 | Forces `Thunk {e} a` (performing `e`) or advances a guarded `Later a`. |
+| `demand x` | 1 | Forces a memo cell `~x` and returns a borrow of the cached value under `{Eval region}`. |
+| `unrefine x` | 1 | Projects a refined value to its underlying carrier type (zero-cost identity at run time). |
 
-`decide` is the entry to the obligation world. A numeral proposition folds here, which is what makes `10 / 2` total without a written proof:
+## `decide`
+
+`decide` bridges runtime checks and static proof obligations:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -292,7 +303,9 @@ module Main where
     None -> 2
 ```
 
-`copyOut` needs `Copy` evidence and a binder it may duplicate. Both refusals name the reason:
+## `copyOut`
+
+`copyOut` requires `Copy` evidence and a `%many` binder (or a borrow). Copying a `%1` binder is rejected because linear values cannot be duplicated:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -315,28 +328,28 @@ module Main where
   main = 0
 ```
 
-A `%1` binder is refused with `multiplicity %1: copyOut would copy x, but a value bound %1 cannot be duplicated (copying needs a %many binder or a borrow)`.
+## `borrow`, `mutBorrow`, and `refSet`
 
-`mutBorrow` and `refSet` are the mutable-place pair. A write between a test and a use invalidates the fact the test established, which is reported as a stale-evidence error.
+`mutBorrow` and `refSet` introduce and mutate cells; writing through a `Mut` invalidates any prior branch facts about that cell:
 
 <!-- cinch:run exit=0 -->
 ```cinch
 module Main where
-  cell :: forall region. Int -> Mut region Int
-  cell x = mutBorrow x
-
   bump :: forall region. Mut region Int -> Int
   bump m =
     let u = refSet m 9
     in copyOut m
 
+  update :: forall region. Int -> Int
+  update x = bump (mutBorrow x :: Mut region Int)
+
   main :: Int
-  main = case bump (cell 3) of
+  main = case update 3 of
     9 -> 0
     _ -> 1
 ```
 
-`borrow` produces the shared analogue, and without an annotation the region is unknowable:
+`borrow` requires a known region from its context or an explicit type ascription:
 
 <!-- cinch:reject contains="cannot infer the region of borrow" -->
 ```cinch
@@ -353,8 +366,6 @@ module Main where
         _ -> 1
 ```
 
-With the annotation and a bound region, the same program checks:
-
 <!-- cinch:run exit=0 -->
 ```cinch
 module Main where
@@ -370,7 +381,9 @@ module Main where
     _ -> 1
 ```
 
-`delay` and `force` are the explicit thunk pair. `force` on a `Thunk` performs the body's row; on a `Later` it takes the next guarded tick.
+## `delay`, `force`, and `demand`
+
+`delay`/`force` control explicit thunks; `demand` evaluates a memo binding (`~name`) and returns a borrow of the cached cell:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -383,8 +396,6 @@ module Main where
     42 -> 0
     _ -> 1
 ```
-
-`demand` yields a borrow of a memo cell, so the cache is never silently duplicated; `copyOut` produces the owned value. The cell comes from a memo binding `~name`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -399,7 +410,9 @@ module Main where
     _ -> 1
 ```
 
-`unrefine` is a refinement's free projection and `ignore` is the explicit discard. Both appear here:
+## `unrefine` and `ignore`
+
+`unrefine` strips a refinement wrapper at zero runtime cost; `ignore` explicitly acknowledges and discards a must-use value:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -417,9 +430,11 @@ module Main where
     _ -> 1
 ```
 
-# Qualified spellings and reserved namespaces
+# Qualified aliases and reserved namespaces
 
-Beyond the per-name qualifications above, the checker registers nine dotted presentation aliases that resolve to the surface's home definition, so the split module layout stays invisible:
+## Dotted presentation aliases
+
+The checker installs nine qualified presentation aliases that resolve directly to their standard-library definitions:
 
 | Alias | Target |
 | --- | --- |
@@ -432,27 +447,27 @@ Beyond the per-name qualifications above, the checker registers nine dotted pres
 | `Target.detect-vec-u32` | `detect-vec-u32` |
 | `SumProofs.scalar-to-simd` | `scalar-to-simd` |
 
-`Proof.search` is a qualified-only elaboration form used where an expected proposition exists; it is not a value and cannot be inferred or used at run time. The message is `Proof.search needs an expected proposition; it cannot be inferred or used at runtime`.
+## `Proof.search`
 
-`cinch.prim.*` and `cinch.runtime.*` are reserved foreign symbol namespaces, not callable vocabulary. Their declarations are the prelude's `foreign import ccall` lines; the second is the runtime's own C surface. Guessing a reserved symbol does not give you an extension API: define an admitted `prim` body or a real foreign binding with explicit ABI and containment contracts instead. [Primitive operations](../specifications/primitive-operations-and-inline-target-ir-specification.md) is the normative text.
+`Proof.search` is a qualified-only proof-elaboration form valid only where an expected proposition is known from context. It has no runtime representation and cannot be inferred standalone (`Proof.search needs an expected proposition; it cannot be inferred or used at runtime`).
 
-# What is library rather than installed
+## Reserved foreign symbol prefixes
 
-The names above are the whole installed surface. Everything else that looks built in arrives through Prelude's re-export list, and a name Prelude does not re-export is reachable only by importing its home module. The distinction matters when reading a diagnostic: `unknown name` for a Prelude name means the import is missing, while a registered name always resolves.
+`cinch.prim.*` and `cinch.runtime.*` are reserved foreign symbol namespaces owned by the Prelude and C runtime. User code must not bind against them directly; use admitted `prim` declarations or ordinary `foreign import` declarations with explicit ABI and effect contracts (see [Chapter 15](15-ffi-layout-and-attributes.md)).
 
-| Family | Home module | Examples |
+# Standard library vs. compiler-installed names
+
+Everything outside the tables above comes from standard-library `.cinch` modules (re-exported through `Prelude` or imported explicitly). An `unknown name` diagnostic for a library operation means its module has not been imported; compiler-installed names always resolve.
+
+| Family | Home modules | Representative names |
 | --- | --- | --- |
-| Arithmetic classes and their operators | `Algebra.Arithmetic` | `Add`, `Div`, `NonZero`, `+`, `/` |
-| Bit classes and operators | `Algebra.Bits` | `Bits`, `&`, `<<` |
-| Equality and order | `Relation.Eq`, `Relation.Ord` | `Eq`, `Ord`, `==`, `<` |
-| Mathematical integers | `Data.Nat`, `Data.Int` | `nat-add`, `checked-div`, `int-mod-nat` |
+| Arithmetic classes & operators | `Algebra.Arithmetic` | `Add`, `Div`, `NonZero`, `+`, `/` |
+| Bitwise classes & operators | `Algebra.Bits` | `Bits`, `&`, `<<` |
+| Equality & ordering | `Relation.Eq`, `Relation.Ord` | `Eq`, `Ord`, `==`, `<` |
+| Arbitrary-precision integers | `Data.Nat`, `Data.Int` | `nat-add`, `checked-div`, `int-mod-nat` |
 | Machine scalars | `Data.Machine` | `checked-add-u8`, `u8-to-i32`, `max-bound-i64` |
-| Text, bytes, symbols | `Data.String`, `Data.Bytes`, `Data.Sym`, `Data.Char` | `string-to-bytes`, `bytes-get`, `intern`, `char-code` |
+| Text, bytes, symbols, chars | `Data.String`, `Data.Bytes`, `Data.Sym`, `Data.Char` | `string-to-bytes`, `bytes-get`, `intern`, `char-code` |
 | Containers | `Data.List`, `Data.Option`, `Data.Result`, `Data.Map` | `map-option`, `Ok`, `map-lookup` |
-| Sequencing and I/O wrappers | `Effect.Sequencing`, `Effect.Io`, `Effect.Concurrent`, `Effect.Fs` | `fs-read`, `read-config-bytes`, `fetch` |
+| High-level I/O & concurrency | `Effect.Sequencing`, `Effect.Io`, `Effect.Concurrent`, `Effect.Fs` | `fs-read`, `read-config-bytes`, `fetch` |
 
-`Effect.Concurrent` and `Effect.Io` are worth reading beside this page: they are ordinary Prelude modules whose operations call the installed `ioRead`, `ioWrite`, and `spawn`, which is the intended way to use them.
-
-# Implementation
-
-`seed/src/check_decls.rs` holds every registration site: `install_builtins`, `install_concurrency_api`, `install_eval_api`, `install_staging_api`, `install_stage_value`, `install_stage_value_row`, `install_index_families`, `register_family`, `install_index_values`, `install_wit_api`, `install_stream_api`, and `install_presentation_aliases`. Special-form application is in `seed/src/check_terms.rs` (`infer_builtin_app` and the application elaborator); schemes and the `Word` representation are in `seed/src/core.rs`. Suites: `bootstrap_intrinsics.rs`, `bootstrap_effects.rs`, `concurrency.rs`, `dependent.rs`, `staging.rs`, `stage_code_expectations.rs`, `bootstrap_pipeline.rs`.
+Prefer the high-level wrappers in `Effect.Io` and `Effect.Concurrent` over calling low-level installed primitives (`ioRead`, `ioWrite`, `spawn`) directly.

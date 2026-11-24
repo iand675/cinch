@@ -1,28 +1,32 @@
 # Editors, analysis APIs, and diagnostics
 
-One analysis layer (`seed/src/analysis.rs`) answers the checker's questions for three front ends: the command line, the language server, and the REPL. It keeps source identity, definition sites, diagnostics, and incremental recheck reports, so the three front ends do not run independent checkers that could disagree.
-
-Three user-facing ways to see a diagnostic:
+A single analysis layer serves all three compiler front ends—the CLI (`cinch`), the language server (`cinch lsp`), and the interactive REPL (`cinch repl`). Because they share the same module graph, typechecker, and incremental cache, diagnostics and type queries cannot diverge between terminal builds and editor sessions.
 
 ```sh
-cinch check Main.cinch   # typecheck, no linker, fastest feedback
-cinch run Main.cinch     # typecheck, build, run
-cinch lsp                # the same analysis over stdio for an editor
+cinch check Main.cinch   # typecheck without codegen or linking (fastest loop)
+cinch run Main.cinch     # typecheck, compile, link, and execute
+cinch lsp                # run the shared analysis over LSP stdio
 ```
 
-`cinch check` returns exit status 1 when it reports a diagnostic. `cinch run` also returns the program's own exit status, so read the diagnostic text rather than the status alone.
+`cinch check` exits with status `1` on a diagnostic (`2` on CLI argument errors). `cinch run` returns the compiled program's own exit code once the program starts, so inspect stderr rather than exit status alone.
 
-# Message shape
+# Diagnostic ordering and message formats
 
-The compiler prints three shapes, and which one you see tells you which part failed first.
+Diagnostics are emitted in strict pipeline order—each phase must succeed before the next runs:
 
-| Shape | Producer | Example |
+1. **Front end (lexer, layout engine, parser):** Reports syntax, layout, and attribute-lexing errors first, stopping before name resolution or typechecking.
+2. **Module loader & checker (elaboration, types, effects, ownership, totality, proofs, safety assertions):** Reports whole-module import failures and span-located semantic diagnostics.
+3. **Lowering, codegen, and linking (`emit-ir`, `emit-object`, `build`, `run`):** Reports entry-point requirements, target-profile or capability admission errors, and native/Wasm linker failures.
+
+Each producer formats its messages distinctly, so the prefix immediately tells you which phase rejected the program:
+
+| Format | Producer | Example |
 | --- | --- | --- |
-| `cinch: LINE:COL: message (in FILE)` | the checker after parsing | `cinch: 4:8: type mismatch: expected String, got Int (in Main.cinch)` |
-| `cinch: FILE: LINE:COL: message` | the parser and layout engine | `cinch: Main.cinch: 5:1: expected an expression, found end of input` |
-| `cinch: message` | a whole-module or whole-program rule with no single span | `cinch: main must have type Int or Unit ->{e} Int in the bootstrap slice, got String` |
+| `cinch: FILE: LINE:COL: message` | Lexer, layout engine, and parser | `cinch: Main.cinch: 5:1: expected an expression, found end of input` |
+| `cinch: LINE:COL: message (in FILE)` | Checker and elaborator | `cinch: 4:8: type mismatch: expected String, got Int (in Main.cinch)` |
+| `cinch: message` | Whole-module, import-graph, or driver rule without a single token span | `cinch: module Nonexistent.Module is imported, but Nonexistent.Module.cinch does not exist...` |
 
-The checker form comes from `Error`'s `Display` in `seed/src/lib.rs`, which writes `span: message`, plus `in_module` in `seed/src/check_decls.rs`, which appends ` (in FILE)`. The REPL wrapper in `seed/src/repl.rs` prints a fourth, more readable shape for a session input:
+In interactive sessions, `cinch repl` wraps the same diagnostic with a source excerpt and caret:
 
 ```text
 error: no instance for Add Bool
@@ -31,42 +35,52 @@ error: no instance for Add Bool
     ^
 ```
 
-Line and column are one-based. The column points at the start of the failing expression, declaration, or token, not at a whole statement, so column 8 in `main = "abc"` is the opening quote.
+Line and column numbers are **1-based**. Columns point to the start of the offending token, expression, or declaration (for example, the opening `"` of `"abc"`).
 
-The parser names tokens by their grammar class rather than by their source text, because it has not built an expression yet:
+## Common parser diagnostics
 
-| Message | Cause |
+Because the parser runs before name or type resolution, it names unexpected tokens by grammar class:
+
+| Message | Typical cause |
 | --- | --- |
-| `expected an expression, found end of input` | the file ends in the middle of an expression |
-| ``expected `else`, found RBrace`` | an `if` with no `else`, so the enclosing block closed first |
-| ``expected `::`, found Where`` | `where` used where a signature was expected |
-| ``expected `;` or `}` in the declaration block, found Equals`` | an explicit block was opened and never split or closed |
+| `expected an expression, found end of input` | Truncated expression or missing right-hand side at EOF. |
+| ``expected `else`, found RBrace`` | An `if ... then ...` missing its `else` branch before the enclosing layout block ends. |
+| ``expected `::`, found Where`` | `where` written where a type signature was expected. |
+| ``expected `;` or `}` in the declaration block, found Equals`` | Explicit `{ ... }` block missing a separator or closing brace. |
 
-# What the checker reports
+# Checker diagnostics by category
 
-Every message below was produced by compiling a file in this section. The table groups them by the rule that failed, so a message you do not recognise can be placed before you read the rest of it.
-
-| Category | Example message | The rule that failed |
+| Category | Example message | Rule violated |
 | --- | --- | --- |
-| Type mismatch | `type mismatch: expected String, got Int` | Two types were required to be equal and are not. The first type is what the expression produced; the second is what its position requires. |
-| Literal type | `integer literal cannot have type String` | The literal's own defaulting meets an incompatible expected type. |
-| Application | `cannot apply a value of type Int` | The head of an application is not a function. |
-| Unknown name | `unknown name quad` | No declaration is visible under that name in this scope. |
-| Unknown type | `unknown type Nope` | A type name in a signature is not declared or imported. |
-| Missing module | `module Nonexistent.Module is imported, but Nonexistent.Module.cinch does not exist` | The import has no source to read. The full message continues with the sibling-file rule. |
-| No instance | `no instance for Pretty Color` | A class constraint has no matching instance. |
-| Effect row | `effect rows do not match: {} vs {IO r#844 \| ?r894}` | The body performs effects its declared row does not admit. See the note below on the leaked metavariables. |
-| Multiplicity | `multiplicity %1: x must be used exactly once on every path, but is never used` | The use count violates the declared multiplicity. |
-| Proof obligation | ``the obligation `n > 0` needs `Dec` evidence or a branch fact at this use`` | A refinement predicate is not discharged at the use. |
-| Totality | `non-exhaustive patterns: constructor Green is not covered` | A `case` omits a constructor. |
-| Fixity | ``there is no fixity declared for the operator `<>`, and there is no default for an undeclared operator`` | An operator was used with no `infix`, `infixl`, or `infixr` declaration in scope. |
-| Duplicate declaration | `duplicate signature for f` | Two signatures, or two constructors of the same name, exist in one module. |
-| Projection | `Main.P is not a record; field projection needs a record type` | `.field` was applied to something declared with `data`. |
-| Attribute placement | `` `#[inline]` is a hint on a function declaration `` | An attribute sits on a declaration kind it does not apply to. |
-| Entry point | `main must have type Int or Unit ->{e} Int in the bootstrap slice, got String` | The entry point's type is not one the runtime can start. |
-| Missing entry point | ``this program has no `main`; `emit-ir`, `build`, and `run` need `main :: Int` in the entry module`` | Only `run`, `build`, and `emit-ir` need an entry point; `check` does not. |
+| Type mismatch | `type mismatch: expected String, got Int` | Two unified types disagree (see the `expected`/`got` order note below). |
+| Literal type | `integer literal cannot have type String` | Numeric literal does not inhabit the expected type. |
+| Application | `cannot apply a value of type Int` | Non-function value in callee position. |
+| Unknown name | `unknown name quad` | Identifier is not declared or imported in scope. |
+| Unknown type | `unknown type Nope` | Type constructor is not declared or imported in scope. |
+| Missing module | `module Nonexistent.Module is imported, but Nonexistent.Module.cinch does not exist` | Import cannot be resolved in sibling files, packages, or the embedded standard library. |
+| Missing instance | `no instance for Pretty Color` | Required type-class constraint has no matching instance in scope. |
+| Effect row | `effect rows do not match: {} vs {IO r#844 \| ?r894}` | Expression performs effects not permitted by its declared effect row. |
+| Multiplicity | `multiplicity %1: x must be used exactly once on every path, but is never used` | Linear (`%1`) or affine (`%aff`) usage count violated. |
+| Proof obligation | ``the obligation `n > 0` needs `Dec` evidence or a branch fact at this use`` | Refinement or index predicate not discharged by static facts or `decide`. |
+| Exhaustiveness | `non-exhaustive patterns: constructor Green is not covered` | `case` expression or function clauses omit a reachable constructor. |
+| Fixity | ``there is no fixity declared for the operator `<>`, and there is no default for an undeclared operator`` | Infix operator used without an `infix`/`infixl`/`infixr` declaration in scope. |
+| Duplicate declaration | `duplicate signature for f` | Duplicate type signature or constructor name in one module (multiple defining equations for one function are valid clauses, not duplicates). |
+| Field projection | `Main.P is not a record; field projection needs a record type` | `.field` applied to a `data` type rather than a `record`. |
+| Attribute placement | `` `#[inline]` is a hint on a function declaration `` | Attribute attached to an unsupported construct. |
+| Entry point | ``this program has no `main`; `emit-ir`, `build`, and `run` need `main :: Int` in the entry module`` | Executable/IR mode invoked on a library module, or `main` has an unsupported entry type. |
 
-An effect-row mismatch has its own shape, because the row is printed as a set:
+## Reading `expected` / `got` order
+
+The unifier prints `type mismatch: expected <A>, got <B>` using the argument order passed at the checking site:
+
+- At **function argument sites**, the parameter's declared domain is unified first and the argument's type second (`expected <param-type>, got <arg-type>`).
+- At **bidirectional checking sites** (such as checking a definition body or expression against its declared type signature), the checker passes `(inferred, contextual)` to the unifier—so `main :: Int; main = "abc"` prints `expected String, got Int`.
+
+Read both types alongside the column span rather than assuming `expected` is always the signature type.
+
+## Internal metavariables in effect-row errors
+
+Effect-row mismatches print internal region and row-tail metavariables (such as `r#844` and `?r894`) whose numeric suffixes are per-compile identifiers:
 
 <!-- cinch:reject contains="effect rows do not match" -->
 ```cinch
@@ -83,15 +97,11 @@ main = 0
 cinch: 4:1: effect rows do not match: {} vs {IO r#844 | ?r894} (in Main.cinch)
 ```
 
-The two names are inference variables in their internal form, not source names. They are stable for one compile, so match on the marker (`IO`) rather than on the digits. This is a rough edge in the message text, not in the check.
-
-A repeated equation for one name is not a duplicate definition. `f 0 = 0` and `f n = n` are two clauses of one function, and the checker accepts them.
+Focus on the effect labels (`IO`, `Async`, `Diverge`, etc.) rather than the generated suffixes.
 
 # Worked diagnostics
 
-Each example below is a complete file followed by the exact message `cinch check` printed for it.
-
-A declared result type that disagrees with the body:
+## Type mismatch against a signature
 
 <!-- cinch:reject contains="type mismatch: expected String, got Int" -->
 ```cinch
@@ -105,9 +115,9 @@ main = "abc"
 cinch: 4:8: type mismatch: expected String, got Int (in Main.cinch)
 ```
 
-The fix is to change the body or the declared type, not to add a coercion. Fix the side whose contract is wrong.
+Column `8` points to `"abc"`. Fix whichever side carries the wrong contract—either the signature or the body.
 
-A name that is not in scope:
+## Unknown name
 
 <!-- cinch:reject contains="unknown name show" -->
 ```cinch
@@ -121,9 +131,9 @@ main = show 1
 cinch: 4:8: unknown name show (in Main.cinch)
 ```
 
-`show` is not in the prelude facade. Import the module that declares the operation you meant, or write the conversion from the functions already in scope.
+`show` is not re-exported by `Prelude`. Import the module defining the operation you want or use an explicit formatting function already in scope.
 
-An `import` with no source file beside it:
+## Missing imported module
 
 <!-- cinch:reject contains="is imported, but Nonexistent.Module.cinch does not exist" -->
 ```cinch
@@ -139,9 +149,9 @@ main = 0
 cinch: module Nonexistent.Module is imported, but Nonexistent.Module.cinch does not exist and no other source file beside the entry declares `module Nonexistent.Module`
 ```
 
-This message has no position because the failure is the import edge, not a token. The prelude family is embedded in the compiler and needs no file; a module outside that family must exist as a sibling `.cinch` file or arrive through a package.
+Standard-library modules are embedded in the compiler; any other imported module must exist as a sibling `.cinch` file or come from an installed package.
 
-A `case` that omits a constructor:
+## Non-exhaustive pattern match
 
 <!-- cinch:reject contains="non-exhaustive patterns: constructor Green is not covered" -->
 ```cinch
@@ -160,9 +170,9 @@ main = case Red of
 cinch: 8:8: non-exhaustive patterns: constructor Green is not covered (in Main.cinch)
 ```
 
-Add the missing alternative, or match a value that cannot be `Green`.
+Cover every reachable constructor (or match a refined value whose type excludes the missing branch).
 
-A `signature` whose class has no instance for the type used:
+## Missing class instance
 
 <!-- cinch:reject contains="no instance for Pretty Color" -->
 ```cinch
@@ -188,85 +198,54 @@ main = 0
 cinch: 13:9: no instance for Pretty Color (in Main.cinch)
 ```
 
-Write `implicit instance PrettyColor :: Pretty Color where` beside the type, or add the constraint to `use` and let the caller supply it.
+Declare an `implicit instance` for `Pretty Color`, or abstract over the constraint (`using (p :: Pretty Color) => ...`) so callers supply it.
 
-# Read diagnostics by phase
+# Isolating failures by compiler phase
 
-Use the narrowest command that reaches the failing phase.
+Run the narrowest subcommand that reaches the failing stage:
 
-| Command | What it runs | Use it when |
+| Command | Phases executed | Best used for |
 | --- | --- | --- |
-| `cinch check Main.cinch` | lexer, layout, parser, checker | isolating a front-end failure, or a fast edit loop |
-| `cinch emit-ir Main.cinch -o out.ll` | everything `check` runs, then code generation | separating an accepted program from a code-generation failure |
-| `cinch build Main.cinch -o prog` | everything, including the linker | a link or external symbol problem |
-| `cinch run Main.cinch` | everything, then the program | the program's own exit status matters |
-| `cinch check Main.cinch --rebuild` | as `check`, and rewrite the package-store entry for this compile even when the existing entry is intact | the stored entry for the base package is suspect |
+| `cinch check Main.cinch` | Lexer, layout, parser, checker | Syntax, imports, types, effects, ownership, and safety assertions (never invokes `clang`). |
+| `cinch emit-ir Main.cinch -o out.ll` | `check` + specialization, RC lowering, LLVM emission | Separating typechecking from code-generation failures. |
+| `cinch build Main.cinch -o prog` | `emit-ir` + `clang` / `wasm-ld` linking | External C/Wasm symbol and archive link issues. |
+| `cinch run Main.cinch` | `build` + execution | Runtime exit codes and stdout/stderr behavior. |
+| `cinch check Main.cinch --rebuild` | `check` + unconditional package-store rewrite | Repairing a suspect package-store cache entry (see [Chapter 18](18-artifacts-and-incremental.md)). |
 
-`--rebuild` is a store-repair switch, not a checker switch. The compile path keeps an existing entry only when `Store::load` succeeds and the entry agrees with exactly the artifact set this compile produced; anything else is repaired by writing, so an ordinary compile never fails because of a stale entry. `--rebuild` skips that comparison and writes unconditionally. The loader's hard errors (a truncated interface, a mismatched key) reach callers that consume the store, which no command-line mode does today.
+Diagnostic spans point either to your source token or to the provenance site of a macro/staging expansion. When an error originates inside generated code, fix the originating generator or declaration rather than weakening downstream signatures.
 
-`check` never invokes clang, so a clang or linker failure can only appear at `build` or `run`. A program with no `main` passes `check` and fails `build`, which is the standard way to tell "my module is fine, the entry point is not".
+See [Chapter 01](01-using-the-compiler.md) for all CLI flags and [Chapter 16](16-support-and-roadmap.md) for intentional language and target boundaries.
 
-The [compiler guide](01-using-the-compiler.md) covers the subcommands and flags in full. The [support page](16-support-and-roadmap.md) lists the refusals that are deliberate boundaries rather than regressions, so a named refusal can be distinguished from a bug.
+# Editor integration and analysis APIs
 
-A diagnostic's span is attached to the failing source or to the provenance of a generated expansion. When a message appears inside generated or expanded code, fix the originating declaration rather than weakening a signature to silence it.
+## Bundled editor support
 
-# Editor setup that exists
+The repository ships syntax grammars and editor configurations under `tooling/editors/` (not yet published to external marketplaces):
 
-The repository contains syntax and language-client files, and nothing is published to an extension marketplace.
-
-| Editor | Files | What they provide |
+| Editor | Path | Provided features |
 | --- | --- | --- |
-| VS Code, Cursor | `tooling/editors/vscode/` | language id `cinch` for `.cinch`, a TextMate grammar, bracket and comment configuration, and a language client |
-| Vim | `tooling/editors/vim/` | `ftdetect/cinch.vim` (the `.cinch` suffix) and `syntax/cinch.vim` |
-| Emacs | `tooling/editors/emacs/cinch-mode.el` | `cinch-mode`, a `prog-mode` derivative with font-lock rules, `-- ` comments, and an `auto-mode-alist` entry for `.cinch` |
-| Sublime Text | `tooling/editors/sublime/Cinch.sublime-syntax` | a syntax definition with `file_extensions: [cinch]` |
-| Zed | `tooling/editors/zed/` | an extension manifest pointing at `tooling/tree-sitter-cinch`, plus indentation, bracket, and completion word rules |
+| VS Code, Cursor | `tooling/editors/vscode/` | `.cinch` language definition, TextMate grammar, bracket/comment config, and LSP client |
+| Vim | `tooling/editors/vim/` | Filetype detection (`ftdetect/cinch.vim`) and syntax highlighting (`syntax/cinch.vim`) |
+| Emacs | `tooling/editors/emacs/cinch-mode.el` | `cinch-mode` (`prog-mode` derivative) with font-lock and `.cinch` `auto-mode-alist` |
+| Sublime Text | `tooling/editors/sublime/Cinch.sublime-syntax` | Syntax definition for `.cinch` |
+| Zed | `tooling/editors/zed/` | Extension manifest using `tooling/tree-sitter-cinch` |
 
-The VS Code extension is the only one that starts a language client. Its `package.json` declares four contributions: the `cinch` language for `[".cinch"]`, the grammar `source.cinch`, the `cinch.lsp.command` setting, and the `cinch.lsp.trace` setting. `extension.js` reads `cinch.lsp.command`, falls back to `DEFAULT_COMMAND` (`bin/cinch-lsp`), and starts a `LanguageClient` with `documentSelector: [{ scheme: 'file', language: 'cinch' }]`.
+For LSP launch commands (`cinch lsp` and `tooling/lsp-driver`), client configuration, supported JSON-RPC methods, and open-document behavior, see [Chapter 27](27-language-server.md). For interactive evaluation and `:t`/`:i`/`:browse` queries, see [Chapter 26](26-repl.md).
 
-`bin/cinch-lsp` is a shell launcher. It execs `cinch lsp` when `cinch` is on `PATH`, and otherwise runs the driver crate:
+## Shared Rust analysis API (`cinch::analysis::Analysis`)
 
-```sh
-cargo run --quiet --manifest-path tooling/lsp-driver/Cargo.toml --release -- "$@"
-```
+Custom tools and front ends can drive the incremental analyzer directly through `cinch::analysis::Analysis`:
 
-`cinch.lsp.command` is one executable path. The client passes it as `{ command: command }` with no argument list, so a value containing a space is a single path and will not work. Point it at a launcher if you need arguments:
-
-```sh
-#!/bin/sh
-exec /absolute/path/to/seed/target/debug/cinch lsp
-```
-
-Two settings notes, both read from the files rather than assumed:
-
-- The `cinch.lsp.command` description in `package.json` still says the compiler binary has no `lsp` subcommand. It does: `cinch lsp` is listed in `cinch --help` and is covered by a test. Trust the binary and the launcher, not that description.
-- `package.json` declares `cinch.lsp.trace`, and `extension.js` never reads it. Changing the setting does not enable tracing.
-
-The TextMate grammar declares `"fileTypes": ["lang"]` and the Zed language config declares `path_suffixes = ["lang"]`, while the VS Code language contribution, Vim detection, Emacs mode, and Sublime syntax all use `.cinch`. If highlighting does not attach in Zed or through the bare grammar, add `cinch` to that list in your copy.
-
-# Analysis APIs
-
-`cinch::analysis::Analysis` is the shared layer. It holds open documents, checked module state, definition sites, and the last `UpdateReport`. The language server and REPL both drive it:
-
-| Call | Answer |
+| Method | Behavior |
 | --- | --- |
-| `set_document`, `remove_document` | open or drop an in-memory buffer that wins over disk |
-| `update` | recheck, returning an `UpdateReport` with `rechecked`, `kept`, and `chain_ok` |
-| `file_diagnostics` | diagnostics for one workspace-relative file |
-| `hover`, `definition`, `completions`, `kind_of`, `browse` | the queries behind the editor and REPL answers |
-| `semantic_tokens` | classified spans for one file |
+| `set_document`, `remove_document` | Register or drop an in-memory buffer that overrides the on-disk file. |
+| `update` | Incrementally recheck dirty modules and return an `UpdateReport` (`rechecked`, `kept`, `chain_ok`). |
+| `file_diagnostics` | Return current diagnostics for a workspace-relative path. |
+| `hover`, `definition`, `completions`, `kind_of`, `browse` | Type, symbol, and module queries used by the LSP and REPL. |
+| `semantic_tokens` | Return classified token spans for one document. |
 
-`UpdateReport` is the incremental report: `rechecked` names the modules the update re-ran, `kept` names the cached interfaces it reused, and `chain_ok` records that the merged interface chain was re-verified. Both front ends report the same lists, so a slow edit and a slow reload are explained by the same data.
+All paths returned by `Analysis` are workspace-relative; absolute paths appear only in URIs supplied by the caller.
 
-Two boundaries that matter when writing a front end:
+# Reporting compiler bugs
 
-- The checker's spans carry a line and a column only, with no file. Each file is parsed behind a fixed line band and the attribution is removed at the output boundary, which is why `check` can name the file in `(in FILE)` and the analysis can answer with workspace-relative keys.
-- Every path the analysis produces is workspace-relative. Absolute paths appear only in a document URI that the client itself supplied.
-
-The [language server guide](27-language-server.md) covers the protocol; the [REPL guide](26-repl.md) covers the interactive front end.
-
-# Reporting a compiler bug
-
-Include the compiler checkout, the exact command, the minimal source and any sibling files the import graph needs, and the complete diagnostic including its `cinch:` line. For editor problems, add the client and version, the workspace root you selected, whether the buffer was saved, and the request or action that failed.
-
-Staging input and process environments can carry secrets. Remove them from the source and from protocol traces before posting; protocol traces contain full document text.
+Include the compiler commit/version, the exact command line, a minimal self-contained reproducer (including any sibling modules or `.wit` files), and the full diagnostic output. For LSP issues, include the editor client, workspace root, buffer save state, and failing request—redacting any staging secrets or private source text from protocol logs before sharing.

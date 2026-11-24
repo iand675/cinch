@@ -1,12 +1,12 @@
-# Dependent types, the logical fragment, and evidence
+# Dependent types, proofs, and erasure
 
-The checker has a dependent core: dependent function and pair types, indexed families, a universe hierarchy, erased propositions, and a small proof kernel with `refl`, `congr` and structural induction. Its elimination and proof procedures are bounded on purpose, and the bounds are named in the diagnostics rather than left to be discovered. This page gives each construct with a program that compiles, and each boundary with the text the checker prints.
+Cinch's type checker sits on a small, predicative dependent core: stratified universes, dependent function (Pi) and pair (`Sigma`) types, indexed algebraic families, an erased proposition universe `Prop` with `%0` multiplicity enforcement, and a term-level proof kernel (`refl`, `congr`, and structural induction). Definitional equality and proof checking are intentionally bounded and predictable—every unsupported obligation is rejected explicitly rather than guessed or silently assumed.
 
-[Refinements, narrowing, and proof obligations](06-refinements.md) covers predicates over a carrier and the evidence that discharges them. The normative statement is the [core language specification](../specifications/core-language-specification.md) sections 2 to 4; the kernel's shape is [the dependent core kernel](../design/dependent-core-kernel.md); what the checker decides on its own is [proof automation](../design/proof-automation.md).
+For predicate refinements over value carriers and flow-sensitive narrowing, see [refinements, narrowing, and proof obligations](06-refinements.md). Normative rules live in the [core language specification](../specifications/core-language-specification.md), [the dependent core kernel](../design/dependent-core-kernel.md), and [proof automation](../design/proof-automation.md).
 
 # Universes
 
-`Type` is stratified, `Type 0 : Type 1 : ...`, and `Prop` sits below at `Prop : Type 0`. `Type : Type` is never admitted, so a type parameter at `Type 0` cannot be filled with `Type` itself.
+Types are stratified into a predicative hierarchy `Type 0 : Type 1 : ...`, with `Prop : Type 0` sitting at the base for erased propositions. `Type` in source syntax denotes `Type 0`. Because `Type : Type` is disallowed, a parameter of kind `Type` cannot be instantiated with `Type` itself:
 
 <!-- cinch:reject contains="the universe `Type 0` has kind `Type 1`: `Type : Type` is not admitted" -->
 ```cinch
@@ -21,11 +21,11 @@ module Main where
   main = 0
 ```
 
-`Nat` and `Int` are in `Type 0` with exact, unbounded semantics. Machine integers are primitives in `Type 0` with fixed representations, which is why index arithmetic over them is opaque to the checker while `Nat` and `Int` arithmetic is not.
+`Nat` and `Int` inhabit `Type 0` with exact, unbounded integer semantics, so the checker reduces index arithmetic over them. Fixed-width machine integers (`I8`..`I64`, `U8`..`U64`) also inhabit `Type 0`, but arithmetic over them is opaque in type indices.
 
-# Dependent arrows and `Sigma`
+# Dependent arrows, `Sigma`, and conversion
 
-A binder before an arrow may be named, and the result type may mention it. `bump` computes its result index from its argument, and the call `bump 2 (Tag 7)` therefore builds a `Tagged 3`:
+A function parameter may be named before `->` so that the return type can refer to it. In `bump`, the input index `n` determines the result index `n + 1`, so `bump 2 (Tag 7)` has type `Tagged 3`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -44,9 +44,9 @@ module Main where
   main = if readTag (bump 2 (Tag 7)) == 10 then 0 else 1
 ```
 
-`forall` binders carry a value annotation (`(n :: Nat)`) or a kind annotation (`(a :: Type)`). An implicit binding is solved from the application's context: `readTag (bump 2 (Tag 7))` supplies the index from the argument's type.
+Implicit `forall` binders carry either a value type (`forall (n :: Nat).`) or a kind (`forall (a :: Type).`) and are solved from application context—`readTag (bump 2 (Tag 7))` infers `n = 3` from the argument's type.
 
-`Sigma (x :: A). B` is a dependent pair. Construction is the pair notation, elimination is a pair pattern, and the witness survives into run time:
+`Sigma (x :: A). B` is a dependent pair pairing a runtime witness `x :: A` with a payload of type `B` that may depend on `x`. Pairs are built with `(x, y)` and eliminated with pair patterns; unlike family indices and `Prop` evidence, a `Sigma` witness is retained at runtime:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -62,7 +62,16 @@ module Main where
   main = if unpack (pack (Cons 7 (Cons 8 Nil))) == 2 then 0 else 1
 ```
 
-Conversion is beta at elaboration, iota on numerals, alpha for Pi and `Sigma`, and proof irrelevance. User definitions do not unfold: a named function in an index position stays an opaque application, so `Vec (plus-one 2)` and `Vec 3` are different types and the refusal shows both sides. The program below is refused with `index mismatch` and the unreduced form `(Main.plus-one 2)` on one side.
+## Definitional equality
+
+Type conversion combines four rules:
+
+1. **Beta reduction** at elaboration time.
+2. **Numeral arithmetic reduction** (`iota`) on concrete `Nat`/`Int` index expressions.
+3. **Alpha equivalence** for Pi and `Sigma` binders.
+4. **Proof irrelevance** for terms inhabiting `Prop`.
+
+Crucially, **user-defined functions do not unfold during conversion**. A named function applied inside an index stays opaque, so `Vec (plus-one 2) Int` does not convert to `Vec 3 Int`:
 
 <!-- cinch:reject contains="(Main.plus-one 2)" -->
 ```cinch
@@ -77,7 +86,7 @@ module Main where
   main = 0
 ```
 
-Arithmetic *inside* an index does reduce on numerals, which is what makes the next program's type legal: `Vec (2 + 1) Int` is `Vec 3 Int`.
+Direct numeral arithmetic inside an index does reduce, so `Vec (2 + 1) Int` is definitionally equal to `Vec 3 Int`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -100,7 +109,7 @@ module Main where
 
 # Indexed families
 
-`Vec`, `Fin` and `Dec` are builtin families, because their runtime helpers need code the surface cannot express before the borrow recursion slice, and because `Vec`'s constructors are spelled `Nil` and `Cons`, which `List` already owns. Their declarations are these:
+Three foundational indexed families are built in:
 
 ```text
 data Vec (n :: Nat) (a :: Type) where
@@ -115,9 +124,9 @@ data Dec (p :: Prop) where
   No  :: (h :: Not p) -> Dec p
 ```
 
-The indexed-declaration mechanism is general, and a program declares its own families the same way: `data Tagged (n :: Nat) where Tag :: Nat -> Tagged n` above, and `data Signal (channels :: Nat)` with constructors at fixed indices below.
+User programs declare indexed families with the same GADT-style `data ... where` syntax—each constructor specifies the exact index it targets (as in `Tagged` above and `Signal` below).
 
-`Fin` cannot be fabricated. Its second field is the erased evidence of `i < n`, and a bound that is false cannot produce evidence:
+Constructors carrying proposition fields cannot be fabricated without valid evidence. `Fin i bound` requires proof of `i < n`; supplying a false static bound fails immediately:
 
 <!-- cinch:reject contains="obligation disproved: `7 < 3` is false" -->
 ```cinch
@@ -129,7 +138,7 @@ module Main where
   main = 0
 ```
 
-The accepted construction takes the bound from a static decision, and the index itself stays in the value:
+For runtime indices, obtain the proof witness through `decide`, which evaluates the proposition and returns `Yes bound` or `No _`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -149,9 +158,9 @@ module Main where
     None -> 2
 ```
 
-# Constructor coverage with index equations
+# Index-aware pattern coverage
 
-Coverage accounts for the indices of the family at the scrutinee's type. `Vec 0 Int` has no `Cons`, so matching `Nil` alone is exhaustive:
+Exhaustiveness checking solves constructor index equations against the scrutinee's type. For `Vec 0 Int`, `Cons` produces `Vec (k + 1) Int` and cannot unify with `0`, so matching `Nil` alone is exhaustive:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -164,7 +173,7 @@ module Main where
   main = if onlyNil Nil == 5 then 0 else 1
 ```
 
-The same rule makes an arm for a refuted constructor an error, not dead code to be ignored:
+Writing an arm for a constructor whose index contradicts the scrutinee is a compile-time error rather than dead code:
 
 <!-- cinch:reject contains="impossible arm: constructor Cons cannot build Vec 0 Int" -->
 ```cinch
@@ -178,7 +187,7 @@ module Main where
   main = 0
 ```
 
-A user family behaves the same at a concrete index. `Signal 1` has only `Mono`, so one arm covers it:
+User-defined indexed families follow the same rule at concrete indices—`Signal 1` is covered completely by `Mono`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -195,9 +204,9 @@ module Main where
   main = if observe (Mono 4) == 4 then 0 else 1
 ```
 
-# The limit on rigid-index elimination
+## Rigid-index boundary
 
-The index equation is solvable when the scrutinee's index is a concrete term. When it is a rigid variable, from a `forall (n :: Nat)` parameter, the checker does not refine the family by the arm's index: every constructor remains possible and the match is refused. This is the boundary as it stands.
+Index unification succeeds when the scrutinee's index is concrete. When the index is a rigid universally quantified variable (from `forall (n :: Nat)`), the checker does not currently refine `n` per branch when matching constructors with concrete target indices:
 
 <!-- cinch:reject contains="this slice does not refine rigid indices" -->
 ```cinch
@@ -214,17 +223,13 @@ module Main where
   main = 0
 ```
 
-The full text is
-
-```text
-cinch: 8:5: cannot match constructor Mono against Main.Signal @value[4056]: the index equation 1 vs @value[4056] has no solution here (this slice does not refine rigid indices; reshape the type or dispatch through `decide`) (in Main.cinch)
-```
-
-`@value[4056]` is an internal name for the rigid index, not something you can write in source. Until that slice lands, index dispatch over an unknown index goes through `decide` and a witness, as `safeAt` does for `Fin`, or through a family whose scrutinee has a known index.
+To branch over an unknown index, either match at a concrete index or dispatch via `decide` and a witness (as `safeAt` does for `Fin`).
 
 # `Prop`, erasure, and `%0`
 
-`Prop` is the universe of erased evidence. A declaration may mark a record field `erased`, and the field then occupies no run-time slot, so a value whose first declared field is erased reads its second field first in the block:
+`Prop` is the universe of compile-time evidence. Terms in `Prop` are **proof-irrelevant** and **erased before code generation**: they occupy zero runtime space and cannot influence runtime control flow.
+
+Record fields marked `erased` carry compile-time invariants without taking a field slot in the heap layout:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -240,7 +245,7 @@ module Main where
   main = if get (Tagged { val = 4, ok = refl }) == 4 then 0 else 1
 ```
 
-Two proofs of one proposition are interchangeable, because both erase to nothing:
+Because all proofs of a proposition erase identically, any two proofs of `Eq 3 3` are definitionally interchangeable:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -257,7 +262,7 @@ module Main where
   main = if use p1 1 == use p2 1 then 0 else 1
 ```
 
-The `%0` multiplicity is the enforcement of the same separation at a binding: an erased parameter must never be read. Use it for evidence-shaped arguments that must not leak into output.
+At function binders, multiplicity `%0` enforces the same phase separation: an erased parameter may appear in types and proofs, but never in a runtime computational position:
 
 <!-- cinch:reject contains="multiplicity %0: x is erased and must never be used, but is used 1 time(s)" -->
 ```cinch
@@ -269,11 +274,21 @@ module Main where
   main = 0
 ```
 
-`Sigma` retains its witness (`unpack` above returns `m`), while family indices are not stored in blocks and erased evidence never is. Erasure may not remove computation: a term with an observable effect or a divergence is not erased, and a proof of a total fact vanishes entirely.
+Summary of what survives to runtime:
 
-# `refl`, `congr`, and induction
+- **Retained:** `Sigma` witnesses, ordinary value fields, and any computation with observable effects or possible divergence.
+- **Erased:** `Prop` evidence, `erased` record fields, `%0` parameters, family type indices, and `spec`/`proof` declarations.
 
-`refl` proves `Eq x x` for any index `x`. `congr` lifts an equality through a total function. It takes the lifting function as an explicit index argument before the evidence, which is what `congr S (same inner)` does; the checker describes that form as `congr [f] e`, and the one-argument form `congr e` leaves the function implicit. A proof of a general statement is a `case` on the induction variable: each branch is a proof term, and the recursive call is on a structurally smaller value.
+# Proof terms: `refl`, `congr`, and induction
+
+Cinch uses explicit proof terms rather than a separate tactic language. The kernel admits four proof forms:
+
+- **`refl`** — proves `Eq x x` for any index `x`.
+- **`congr f e`** (or `congr e` when the lifting function is inferred) — lifts an equality `e :: Eq a b` through a total function `f` to `Eq (f a) (f b)`.
+- **Structural induction via `case`** — branches on an inductive value, proving each case with recursive calls on structurally smaller constructor fields.
+- **Named evidence** — references to in-scope `proof` declarations, `Yes` bindings from `decide`, or `Prop` parameters.
+
+Proving reflexivity over an inductive unary counter by structural induction and congruence:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -294,11 +309,15 @@ module Main where
   main = 0
 ```
 
-A proof term is `refl`, `congr [f] e`, a `case` on the induction variable, or the name of evidence. When a `congr` carries a function that does not prove the expected proposition, the message names both.
+If the function passed to `congr` does not produce the expected equality, the checker reports both the inferred and expected propositions.
 
-# Termination and positivity
+# Totality, `spec`, and strict positivity
 
-A `spec` or `proof` definition must terminate: a looping function cannot inhabit a proposition. Structural recursion over a constructor field is accepted:
+To keep `Prop` logically consistent, every `spec` and `proof` definition must terminate, and every inductive `data` type must be strictly positive.
+
+## `spec` and `proof` termination
+
+A `spec` function defines pure ghost logic for specifications and type-level reasoning; a `proof` defines a proposition witness. Both must decrease structurally on an inductive argument on every recursive call:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -316,7 +335,7 @@ module Main where
   main = 0
 ```
 
-A `spec` definition is ghost code: it exists to be reasoned about, and it has no executable form, so calling one from `main` is refused.
+Because `spec` definitions are erased ghost code, calling one in an executable expression is rejected:
 
 <!-- cinch:reject contains="it is erased ghost code and cannot be used computationally" -->
 ```cinch
@@ -334,7 +353,7 @@ module Main where
   main = size (S Z)
 ```
 
-A definition with no structural decrease is refused, and the message says which obligation is unsupported and what to supply:
+Non-decreasing recursion and mutual recursion cycles in logical definitions are both rejected:
 
 <!-- cinch:reject contains="must terminate: no argument decreases structurally" -->
 ```cinch
@@ -350,8 +369,6 @@ module Main where
   main = 0
 ```
 
-Mutual recursion between logical definitions is a cycle, not a termination argument:
-
 <!-- cinch:reject contains="mutually recursive" -->
 ```cinch
 module Main where
@@ -364,7 +381,9 @@ module Main where
   main = 0
 ```
 
-Recursive occurrences must be positive. A constructor field that mentions the type to the left of an arrow is refused:
+## Strict positivity
+
+Inductive `data` definitions must be strictly positive: the type being defined cannot appear to the left of an arrow in any constructor field (negative occurrence), preventing non-terminating encodings of logical falsehood:
 
 <!-- cinch:reject contains="occurs negatively in field `$f0` of constructor BadC" -->
 ```cinch
@@ -376,7 +395,7 @@ module Main where
   main = 0
 ```
 
-Nesting inside another type constructor is refused too: this slice checks direct occurrences only.
+Nested recursive occurrences inside another type constructor (such as `List Bush -> Bush`) are also rejected; only direct positive occurrences are currently checked:
 
 <!-- cinch:reject contains="occurs nested inside another type constructor" -->
 ```cinch
@@ -388,12 +407,10 @@ module Main where
   main = 0
 ```
 
-# What the checker does not do yet
+# Current boundaries
 
-- Rigid-index elimination, above: a match on an unresolved index is refused, not accepted conditionally.
-- The universe hierarchy holds for `Type 0`, and its cumulativity is still an open decision in the kernel design, as is an eta rule for records and units.
-- Totality is required of `spec` and `proof` definitions. Requiring the `Diverge` effect of a recursive executable definition is a named deferral (decision D32 in the [core language specification](../specifications/core-language-specification.md)), so a recursive executable function is not proved total by the compiler today.
-- No tactic layer. Proofs are terms: `refl`, `congr`, `case` on the induction variable, `decide` and named evidence. A `rewrite ... justify` may cite a class law and record an undischarged assumption; that does not extend definitional equality.
-- <span class="support-tag support-tag--planned">Coming soon</span> **Broader proof automation and primitive proofs.** The [proof automation](../design/proof-automation.md) and [verified primitives](../design/verified-primitives.md) designs describe the intended solver and certificate work. A future checker has to keep the rule these examples show: an unsupported proposition is refused, never accepted because it was written.
-
-Implementation: `seed/src/check.rs`, `check_decls.rs`, `check_terms.rs`, `types.rs`. Suites: `dependent.rs`, `case_evidence.rs`, `linear_facts.rs`, `syntax_proof_patterns.rs`, `bootstrap_source_constructors.rs`, `evidence_invalidation.rs`.
+- **Rigid-index elimination.** Pattern matching on an indexed family whose scrutinee index is an unresolved rigid variable does not refine the index per arm; use concrete indices or `decide`.
+- **Universe cumulativity and eta rules.** `Type 0 : Type 1 : ...` is enforced without implicit universe cumulativity; definitional eta equivalence for records and `Unit` is not yet finalized.
+- **Executable recursion and `Diverge`.** Totality is strictly checked for `spec` and `proof` declarations. Requiring explicit `Diverge` annotations on arbitrary recursive executable functions is deferred, so ordinary recursive definitions are not currently proved total by the compiler.
+- **Proof terms and laws.** Proofs are explicit terms (`refl`, `congr`, structural `case`, `decide`, and named evidence) with no tactic engine. A `rewrite ... justify` citing a class law records an explicit assumption in the build manifest without extending definitional equality.
+- <span class="support-tag support-tag--planned">Coming soon</span> **Expanded proof automation and verified primitives.** Broader automated decision procedures and primitive proof certificates are described in [proof automation](../design/proof-automation.md) and [verified primitives](../design/verified-primitives.md); unsupported propositions will continue to be rejected explicitly rather than assumed.

@@ -1,25 +1,23 @@
 # Types, kinds, declarations, and inference
 
-Types, kinds, and values share one term syntax, so `Vec (n + 1) a` and `(x :: a) -> a` are elaborated rather than parsed by a second restricted grammar. This page gives the exact spellings the parser accepts, the declaration forms, and the inference rules whose limits you meet when reading a diagnostic. Rationale is in [surface syntax and grammar](../specifications/surface-syntax-and-grammar.md) and [core language](../specifications/core-language-specification.md).
+Cinch shares a single term syntax across values, types, and kinds: indexed types such as `Vec (n + 1) a` and dependent arrows such as `(x :: a) -> a` are elaborated from one grammar rather than parsed by a separate type-only language. This chapter specifies function arrows, type application, universes and kinds, quantifiers, higher-rank polymorphism, type declarations, inference boundaries, and module interface contracts. See [surface syntax and grammar](../specifications/surface-syntax-and-grammar.md) and [core language specification](../specifications/core-language-specification.md) for the formal specifications.
 
-# Function arrows
+# Function arrows, effects, and multiplicities
 
-An arrow is `->` followed by an optional effect row and preceded by an optional multiplicity.
+A function arrow `->` carries an optional leading multiplicity and an optional trailing effect row. Omitting the multiplicity defaults to `%many` (unrestricted); omitting the effect row defaults to `{}` (pure).
 
-| Spelling | Meaning |
+| Syntax | Meaning |
 | --- | --- |
-| `A -> B` | Pure arrow. The closed empty row. |
-| `A ->{} B` | The same closed empty row, written out. |
-| `A ->{Poke, Diverge} B` | Closed row holding exactly the labels between the braces. |
-| `A ->{IO r \| e} B` | Labels first, then `\|`, then one row variable. |
-| `A %0 -> B` | The argument is never used and is erased. |
-| `A %1 -> B` | The argument is used exactly once on every path. |
-| `A %aff -> B` | The argument is used at most once. |
-| `A %many -> B` | The argument is unrestricted. This is the default when no multiplicity is written. |
+| `A -> B` | Pure function (closed empty effect row `{}`). |
+| `A ->{} B` | Explicit closed empty effect row. |
+| `A ->{Poke, Diverge} B` | Closed effect row containing exactly the listed effects. |
+| `A ->{IO r \| e} B` | Open effect row: explicit labels followed by `\|` and one row variable. |
+| `A %0 -> B` | Erased argument: never used computationally; absent at runtime. |
+| `A %1 -> B` | Linear argument: used exactly once on every execution path. |
+| `A %aff -> B` | Affine argument: used at most once on every execution path. |
+| `A %many -> B` | Unrestricted argument (default). |
 
-Arrows associate right, application associates left, and a curried definition carries each application step's effects on the arrow that produces the next function. `f :: Int -> Int ->{Poke} Int` performs `Poke` when given the second argument and is pure when given only the first. The row grammar, the label rules, and higher-order row variables are in [effects and capabilities](09-effects-and-capabilities.md); a printed arrow shows the multiplicity inline, as in `(?a %many ->{?r} ?b)`.
-
-Multiplicity violations are reported against the binder name and the count:
+Function arrows associate to the right (`A -> B -> C` is `A -> (B -> C)`), and curried functions attach effects to the specific arrow whose application performs them. A function of type `Int -> Int ->{Poke} Int` is pure when applied to one argument and performs `Poke` only upon receiving the second. Diagnostics print multiplicities inline, e.g. `(?a %many ->{?r} ?b)`. See [effects and capabilities](09-effects-and-capabilities.md) for row polymorphism and [ownership and memory](10-ownership-and-memory.md) for linearity and borrows.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -40,6 +38,8 @@ module Main where
   main = case many (keep 1) of
     (a, b) -> if a == b then 0 else 1
 ```
+
+Violating a `%1` or `%0` multiplicity is a compile-time error reporting the binder and exact usage count:
 
 <!-- cinch:reject contains="must be used exactly once on every path" -->
 ```cinch
@@ -62,41 +62,37 @@ module Main where
   main = 0
 ```
 
-The three messages are `multiplicity %1: x must be used exactly once on every path, but is used 2 time(s)`, `multiplicity %1: x must be used exactly once on every path, but is never used`, and `multiplicity %0: x is erased and must never be used, but is used 1 time(s)`.
+# Type application, tuples, and variables
 
-# Type application and type variables
-
-Apply a type constructor by juxtaposition: `List a`, `Result ConfigError Bytes`, `Vec n a`, `Io r`, `Scope r s`. A partially applied constructor is refused at the point where a full type is required, and over-application is refused too:
+Type constructors are applied by juxtaposition, associating to the left: `List a`, `Result ConfigError Bytes`, `Vec n a`, `Io r`, `Scope r s`. Where a saturated type of kind `Type` is required, under-applying or over-applying a constructor is rejected:
 
 ```text
 cinch: 6:10: type Main.Pair must be fully applied (expects 1 arguments)
 cinch: 6:10: type Main.Pair expects at most 1 arguments, got 2
 ```
 
-Tuples are structural: `(a, b)` is a pair type, `()` is `Unit`, and a three-field product needs a record or a data declaration rather than `(a, b, c)`.
+Tuples are structural n-ary products: `()` is `Unit`, `(a, b)` is a 2-tuple, `(a, b, c)` is a 3-tuple, and so on. Tuples unify componentwise and require matching arities. Use a `record` or `data` declaration when you want named fields or nominal identity.
 
-Two different things are both called a variable by readers, and the checker keeps them apart.
+Cinch distinguishes two kinds of type-level names:
 
-| Term | What it is |
+| Construct | Role |
 | --- | --- |
-| A parameter, as in `data Pair (a :: Type)` | Declared by the type's own binder list. It is part of the constructor's identity, and `Pair` has arity 1. |
-| A type variable, as in `forall a. a -> a` | Quantified at one signature or at one constructor type. Every use instantiates it afresh. |
+| Declaration parameter (`data Pair (a :: Type)`) | Fixed part of the type constructor's signature and arity. |
+| Quantified type variable (`forall a. a -> a`) | Bound by a signature or constructor quantifier; instantiated fresh at each use. |
 
-A signature may not use an unquantified variable. The checker reports it by name:
-
-```text
-cinch: 3:8: unknown type variable a
-```
-
-Row and region variables are variables of their own kinds and need their own quantifiers; `unknown row variable e` and `unknown region variable region` are the messages when a signature mentions one that no binder introduces.
+Every type, row, and region variable appearing in a signature must be explicitly quantified. Unbound variables are rejected by kind (`unknown type variable a`, `unknown row variable e`, `unknown region variable region`).
 
 # Kinds and universe levels
 
-`Type` is stratified: `Type 0` is the universe of ordinary types, `Type 1` holds `Type 0`, and `Type : Type` is never admitted. `Prop` is the separate universe of propositions; its inhabitants are erased at runtime, and [dependent types](08-dependent-types-and-proofs.md) documents the proofs built there. `Nat` is the kind of index values, and `Row` is the kind of effect rows.
+Cinch uses a stratified universe hierarchy with distinct kinds for propositions, indices, effect rows, and regions:
 
-Function quantifiers also accept `Region`, the kind of runtime identities: `forall (r :: Region). ...`. An explicit identity kind is useful for a pure factory that captures an effectful action without running it. The annotation preserves the identity in the returned handle even when the factory itself has no effect row. It also works in nested `forall` arguments. A region cannot be used as an inhabited value type, a numeric index, or an effect-row tail, and distinct quantified identities cannot be exchanged. Kernel capability constraints such as `using (io :: Io r)` retain the same identity.
+- `Type 0` (written `Type`) is the universe of ordinary value types; `Type 1` classifies `Type 0`, and so on. `Type : Type` is never admitted.
+- `Prop` is the universe of propositions. Its inhabitants are erased before code generation (see [dependent types and proofs](08-dependent-types-and-proofs.md)).
+- `Nat` is the kind of compile-time numeric indices (such as `Vec n a`).
+- `Row` is the kind of effect rows.
+- `Region` is the kind of runtime capability identities. Quantifying `forall (r :: Region). ...` allows a pure factory to capture or return an effectful handle without executing effects while preserving its identity across `using (io :: Io r)` constraints. Regions cannot be used as value types, numeric indices, or effect-row tails, and distinct quantified regions cannot be unified.
 
-The REPL reports the kind of a source declaration:
+Type declarations may also take higher-kinded parameters. For example, a declaration `Wrap` taking a unary type constructor has kind `(Type -> Type) -> Type -> Type`, which can be inspected in the REPL:
 
 ```text
 Pair :: (Type) -> Type
@@ -105,7 +101,7 @@ Wrap :: (Type -> Type) -> (Type) -> Type
 Handle :: Type
 ```
 
-`Wrap`'s first parameter has kind `Type -> Type`, so a higher-kinded type may be passed to it. The checker refuses a universe above the one a parameter expects:
+Passing a universe where a `Type 0` argument is expected violates stratification:
 
 <!-- cinch:reject contains="`Type : Type` is not admitted" -->
 ```cinch
@@ -120,33 +116,35 @@ module Main where
   main = 0
 ```
 
-Kind errors have five shapes you will meet:
+Common kind diagnostics:
 
-| Mistake | Message |
+| Error | Diagnostic |
 | --- | --- |
-| `Type` passed where `Type 0` is expected | ``the universe `Type 0` has kind `Type 1`: `Type : Type` is not admitted`` |
-| A numeral written in a type position | ``a numeral is an index value, not a type; index values appear as arguments of an indexed family (as in `Vec 0 a`)`` |
-| One variable used at both a type and an index position | `` `a` is used both as a type and as an index value; annotate it `` |
-| A value position used as a type, as in `Depth Bool` | `unknown name Bool in index position` |
-| A type declared but not applied | `type Main.Pair must be fully applied (expects 1 arguments)` |
+| Universe passed as `Type 0` | ``the universe `Type 0` has kind `Type 1`: `Type : Type` is not admitted`` |
+| Numeral in type position | ``a numeral is an index value, not a type; index values appear as arguments of an indexed family (as in `Vec 0 a`)`` |
+| Variable used as both type and index | `` `a` is used both as a type and as an index value; annotate it `` |
+| Type name in index position | `unknown name Bool in index position` |
+| Unapplied constructor in type position | `type Main.Pair must be fully applied (expects 1 arguments)` |
 
 # Quantifiers, dependent binders, and contexts
 
-`forall` binds implicit parameters. Each binder may carry a kind annotation, and a binder of kind `Nat` is mentioned by later binders and by index positions:
+`forall` introduces implicit parameters; dependent arrows `(x :: T) -> U` introduce explicit parameters that later types may reference; `using (...) => ...` introduces type class dictionaries, capabilities, or proof obligations.
 
 | Form | Meaning |
 | --- | --- |
-| `forall a. ...` | Unannotated type variable. |
-| `forall (a :: Type). ...` | Type variable with an explicit kind. |
-| `forall (n :: Nat). ...` | Index variable, usable in `Vec n` and in dependent binders. |
-| `forall (e :: Row). ...` | Row variable. |
-| `forall (p :: Prop). ...` | Proposition variable. |
-| `(n :: Nat) -> Vec n a` | Dependent function: the first argument is a value the result type mentions. |
-| `Sigma (n :: Nat). Vec n a` | Dependent pair. |
-| `using (d :: Eq a) => ...` | A class dictionary the caller supplies. |
-| `using (i < n) => ...` | A proof obligation the caller discharges. |
+| `forall a. ...` | Implicit type variable. |
+| `forall (a :: Type). ...` | Implicit type variable with explicit kind. |
+| `forall (n :: Nat). ...` | Implicit index variable usable in types and dependent binders. |
+| `forall (e :: Row). ...` | Implicit effect-row variable. |
+| `forall (p :: Prop). ...` | Implicit proposition variable. |
+| `forall (r :: Region). ...` | Implicit region identity variable. |
+| `(n :: Nat) -> Vec n a` | Dependent function whose return type mentions the argument `n`. |
+| `Sigma (n :: Nat). Vec n a` | Dependent pair pairing a witness `n` with a `Vec n a`. |
+| `using (d :: Eq a) => ...` | Type class constraint resolved from instances. |
+| `using (io :: Io r) => ...` | Capability requirement supplied explicitly or lexically. |
+| `using (i < n) => ...` | Proof obligation discharged at each call site. |
 
-Supplying an obligation explicitly is `f @{io = newIO ()}` at a call, or `with (io = newIO ()) in body` for a lexical scope. A class dictionary is resolved from instances instead; naming a non-capability parameter in a supply is refused with `twice has no capability parameter add`.
+Capabilities are supplied at a call with `f @{io = newIO ()}` or over a lexical scope with `with (io = newIO ()) in body`. Class dictionaries are resolved automatically from instances; supplying a non-capability parameter via `@{...}` is rejected.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -159,7 +157,7 @@ module Main where
     (m, v) -> if m == 2 then 0 else 1
 ```
 
-An obligation carried by `using` is checked at each call, and the report names the instantiated proposition:
+A `using` proof obligation is checked at every call site with the instantiated arguments:
 
 <!-- cinch:reject contains="of this call is false" -->
 ```cinch
@@ -173,7 +171,7 @@ module Main where
 
 # Polymorphic arguments and results
 
-A `forall` may appear inside a type, not only at the start of a signature. `(forall a. a -> a) -> (I64, String) -> (I64, String)` takes an argument that is itself polymorphic, so the body may use it at more than one type. The callee chooses the types, not the caller:
+`forall` is not restricted to top-level prenex position. Placing `forall` inside a parameter type, constructor field, or return type gives higher-rank polymorphism: the callee chooses the instantiation types rather than the caller.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -186,17 +184,23 @@ module Main where
     (n, s) -> if n == 7 && string-length s == 5 then 0 else 1
 ```
 
-A constructor field may hold a polymorphic value, and a function may return one:
-
 | Form | Meaning |
 | --- | --- |
-| `(forall a. a -> a) -> Int` | A rank-2 argument: the body may apply it at several types. |
-| `((forall a. a -> a) -> Int) -> Int` | Rank 3: the argument itself takes a polymorphic argument. |
-| `Church :: (forall a. (a -> a) -> a -> a) -> Church` | A polymorphic constructor field. |
-| `Bool -> (forall a. a -> a -> a)` | A polymorphic result, instantiated where it is applied. |
-| `(forall f. f I64 -> f I64) -> ...` | A nested binder may be a type constructor, an effect row or a region. |
+| `(forall a. a -> a) -> Int` | Rank-2 argument usable at multiple types inside the body. |
+| `((forall a. a -> a) -> Int) -> Int` | Rank-3 argument taking a rank-2 function. |
+| `Church :: (forall a. (a -> a) -> a -> a) -> Church` | Constructor field holding a polymorphic function. |
+| `Bool -> (forall a. a -> a -> a)` | Polymorphic result instantiated where applied. |
+| `(forall f. f I64 -> f I64) -> ...` | Higher-kinded, row, or region nested quantifier. |
 
-The rules are predicative. A term checked against a polymorphic type is checked at fresh rigid type variables, so `\x -> x` is accepted and a function of `I64 -> I64` is not. Those variables may not escape into a type outside the term. Building the value performs no effects, because it is built once for each representation its uses need. A type variable never stands for a polymorphic type, so `ident both` is refused, and a nested `forall` cannot carry `using` constraints. Two polymorphic types are the same when they differ only in the names of their binders.
+Higher-rank checking is predicative:
+
+- Checking a term against a `forall` type introduces fresh rigid type variables (skolems), which cannot unify with concrete types or escape into outer scopes.
+- Constructing a polymorphic value performs no effects.
+- Type variables cannot be instantiated with polymorphic types (impredicative instantiation such as passing `both` to `id` is rejected).
+- Nested `forall` types cannot carry `using` constraints.
+- Two polymorphic types are equal up to alpha-renaming of their bound variables.
+
+Passing a monomorphic function where a polymorphic argument is expected is rejected:
 
 <!-- cinch:reject contains="type mismatch: expected I64, got a" -->
 ```cinch
@@ -211,13 +215,13 @@ module Main where
   main = int-from-i64 (run inc)
 ```
 
-A polymorphic value is a block of closures, one for each word representation its uses reach, so passing one costs a pointer, and a use is one indirect call.
+At runtime, a first-class polymorphic value is represented as a pointer to a block of closures specialized for each word representation its uses reach, so passing one costs a single pointer and calling it costs one indirect call.
 
 # Declaration forms
 
 ## Data declarations
 
-`data Name binders where` lists constructor signatures, one `::` each. Constructors are the only way to build the type, and each constructor records its argument count.
+Algebraic data types are declared with `data Name params where` and explicit constructor signatures:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -239,7 +243,7 @@ module Main where
 
 ## Indexed families
 
-A parameter of kind `Nat` makes the family indexed. The constructor's result type states the index it builds, and a constructor may bind index variables that its fields mention.
+A parameter of kind `Nat` defines an indexed data family. Each constructor specifies the exact index it constructs and may quantify additional index variables referenced by its arguments:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -262,17 +266,11 @@ module Main where
     _ -> 1
 ```
 
-Index equations are solved on numerals and by conversion on definitionally equal terms. A case over a rigid index does not refine it, and the checker says so:
-
-```text
-cinch: 9:5: cannot match constructor Z against Main.Nat2 @value[4056]: the index equation 0 vs @value[4056] has no solution here (this slice does not refine rigid indices; reshape the type or dispatch through `decide`)
-```
-
-Building a value at a rigid index is refused the same way, with `constructor Nil cannot build this value: index mismatch: 0 vs @value[4056]`.
+Index equations are solved on numerals and definitionally equal terms. Matching a constructor whose index constrains an abstract (rigid) index variable does not refine that rigid index inside the branch; reshape the type or branch through `decide` (see [dependent types and proofs](08-dependent-types-and-proofs.md)).
 
 ## Record declarations
 
-`record Name where` lists named fields. Construction is `Name { field = value, ... }`, projection is `value.field`, and a pattern may name the fields it binds. There is no record-update syntax: rebuilding the record is the way to change one field, and a stray brace after an expression is refused with `record construction must place `R { x = e, ... }` directly on a constructor name`.
+Records are declared with `record Name where` and named `field :: Type` entries. Values are built with `Name { field = value, ... }` and projected with `value.field`. There is no functional record-update syntax; construct a new record explicitly when changing fields.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -295,7 +293,7 @@ module Main where
 
 ## Refinement and opaque type declarations
 
-`type` does not declare a synonym. It declares a refinement, and the only accepted right-hand side is `refine (x :: T) with P`:
+The `type` keyword declares a refinement type rather than a type synonym. Its right-hand side must have the form `refine (x :: T) with P` (see [refinements](06-refinements.md)):
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -311,9 +309,7 @@ module Main where
     _ -> 1
 ```
 
-A value that does not satisfy the predicate is refused when it is constructed: `integer literal 0 is not a Positive: its predicate `0 < 0` is false (a refined value needs its predicate to hold)`. Refinement machinery is in [refinements](06-refinements.md).
-
-Aliasing a type constructor is not available, and the attempt names the two declaration forms that do exist:
+Refinement declarations do not accept kind signatures, and bare type aliases are rejected:
 
 <!-- cinch:reject contains="a `type` declaration is a refinement" -->
 ```cinch
@@ -324,17 +320,14 @@ module Main where
   main = 0
 ```
 
-The full message is ``expected `refine (x :: T) with p` (a `type` declaration is a refinement; `opaque type T :: Type` declares an abstract foreign resource), found constructor `List` ``. A kind signature on a refinement is likewise refused with `kind signatures on refinement declarations are not supported in the bootstrap slice`.
+`opaque type Name :: Type` declares a parameterless abstract type whose values originate across a foreign boundary (see [FFI, representation, and inline primitives](15-ffi-layout-and-attributes.md)).
 
-`opaque type Name :: Type` declares an abstract type whose values come from a foreign boundary. It takes no parameters and no right-hand side.
+# Type inference and its limits
 
-# Inference and its limits
+Type checking is bidirectional: the compiler synthesizes types bottom-up where unambiguous and checks against expected types top-down where needed. Unification enforces occurs checks and structural effect-row constraints. The following boundaries are intentional:
 
-The checker synthesizes a type where it can and checks the expression against an expected type where it cannot. Unification handles occurs checking and structural rows. These limits are the ones you will read in a diagnostic.
-
-**Top-level definitions need signatures.** `missing signature for f (this draft does not silently infer top-level types)`. A definition with no signature is not inferred and then generalized.
-
-**Local value bindings generalize; computations do not.** A `let`-bound function is polymorphic at each later use, so one local identity is usable at more than one type:
+- **Top-level signatures are mandatory.** Every top-level binding must carry an explicit `::` signature; the compiler does not silently infer or generalize top-level definitions.
+- **Value restriction on local bindings.** Syntactic values bound with `let` (such as lambdas) generalize and may be instantiated at multiple types; non-value applications do not generalize, leaving their unification variables monomorphic.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -348,9 +341,7 @@ module Main where
        else 2
 ```
 
-A local binding whose right-hand side is an application is not a value, so its pending unification variables stay unsolved and the next use reports them.
-
-**An unsolved implicit is an error, not a default.** A literal whose type no constraint fixes reports `the type of this integer literal is not determined by context; add a type annotation`. A dictionary no instance satisfies reports the wanted class with its unsolved argument:
+- **No silent defaulting of ambiguous types.** Unconstrained type variables and ambiguous integer literals are errors rather than silently defaulted; add a type annotation to fix the type:
 
 <!-- cinch:reject contains="no instance for Eq (List ?m" -->
 ```cinch
@@ -359,23 +350,14 @@ module Main where
   main = if Nil == Nil then 0 else 1
 ```
 
-The suffix `(a literal's type is not determined by context; add a type annotation)` says what the unresolved variable is waiting for.
-
-**Occurs checking is fatal.** A self-application is refused rather than accepted at an infinite type: `cannot construct infinite type: ?m2017 in (?m2017 %many ->{?r897} ?m2018)`.
-
-**Coverage is checked.** An omitted constructor is an error, and a guarded row does not cover:
-
-```text
-cinch: 4:10: non-exhaustive patterns: a value other than 0, 1 is not covered by an unguarded row (a guarded row covers nothing, since its guard can fail); add an unguarded final row such as `_ -> ...`
-```
-
-**Effect rows must agree.** A pure declaration whose body performs a label is refused with `effect rows do not match: {} vs {IO r#845 | ?r894}`; [effects and capabilities](09-effects-and-capabilities.md) documents the row calculus.
-
-**Local recursion is not available.** A `let` group is sequential, so `let f x = f x in ...` reports `unknown name f`; move the recursion to a top-level definition.
+- **Occurs check rejects infinite types.** Self-application (`\x -> x x`) fails rather than synthesizing a recursive type.
+- **Pattern coverage is enforced.** Every reachable constructor or domain requires an unguarded row; guarded rows contribute zero coverage.
+- **Effect rows must agree.** Performing an effect not permitted by a function's arrow row is a type error (`effect rows do not match`).
+- **Local recursion requires `letrec`.** Plain `let` is strictly sequential and non-recursive (`let f x = f x in ...` fails with `unknown name f`). Use `letrec` for recursive or mutually recursive local bindings (see [expressions and patterns](03-expressions-and-patterns.md)), or lift the binding to top level.
 
 # Proposition variables and decisions
 
-A `Prop`-kinded binder may be quantified over, and `decide` produces the `Dec` value that tells you which side holds. `Dec`, `Yes`, and `No` are builtin, and the evidence fields are erased. [Compiler-provided vocabulary](20-compiler-vocabulary.md) lists their schemes.
+Signatures may quantify over `Prop` variables, and `decide` returns a builtin `Dec p` (`Yes` or `No`) whose evidence field is erased at runtime. See [compiler-provided vocabulary](20-compiler-vocabulary.md) for the builtin schemes.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -391,8 +373,6 @@ module Main where
     False -> 1
 ```
 
-# Interface contracts
+# Module interface contracts
 
-A compiled `.cinchif` records each scheme's quantifier kinds, the nominal identity of every declared type, constructor schemes, the private nominal and class closure a caller may not reinterpret, method visibility, and admitted contexts. A caller that declares an unrelated local type with the same short name does not thereby obtain the private type.
-
-Implementation: `seed/src/types.rs`, `check.rs`, `check_decls.rs`, `check_terms.rs`, `check_interface.rs`; suites: `hk.rs`, `dependent.rs`, `interface_kinds.rs`, `interface_nominals.rs`, `interface_class_contracts.rs`, `interface_region_effects.rs`, `bootstrap_infer.rs`.
+A compiled `.cinchif` interface records every exported scheme's quantifier kinds, nominal type identities, constructor schemes, private type and class closures, method visibility, and admitted contexts. Nominal identity is module-qualified: declaring a local type with the same short name as a private exported type never aliases or exposes it.

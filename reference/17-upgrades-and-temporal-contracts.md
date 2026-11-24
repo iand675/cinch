@@ -1,8 +1,13 @@
 # Runtime upgrades and temporal contracts
 
-Two subsystems live on this page. `upgrade` relates two state schemas and records what changed, and `contract` states a temporal property of a definition and asks the checker to discharge it over the definition's steps. Both record their evidence in the compiled interface and the artifact manifest, and both refuse a claim they cannot establish instead of trusting it.
+This chapter covers two verification-backed mechanisms whose evidence is recorded in compiled interfaces (`.cinchif`) and build manifests (`.manifest.json`):
 
-# The upgrade declaration
+1. **Schema upgrades (`upgrade`)** relate an old and new state representation, check migration signatures and field compatibility, and pair with runtime version-activation primitives (`cinch_evo_*`).
+2. **Temporal contracts (`contract`)** assert invariants across a definition's state transitions and discharge bounded safety, stability, liveness, and recurrence properties during checking.
+
+Both mechanisms refuse claims they cannot establish rather than accepting them unchecked.
+
+# Upgrade declarations
 
 ```text
 upgrade OldState to NewState where
@@ -10,7 +15,7 @@ upgrade OldState to NewState where
   related = OldState
 ```
 
-The block takes the two reserved component names `migrate` and `related`, each at most once. Any other name is refused: `` `x` is not an upgrade component; expected `migrate` or `related` ``.
+An `upgrade` block accepts two reserved component bindings—`migrate` and `related`—each at most once. Any other binding name is rejected (`'x' is not an upgrade component; expected 'migrate' or 'related'`).
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -35,11 +40,11 @@ module Main where
   main = if viewV2 (migrate (StateV1 { value = 5 })) == 5 then 0 else 1
 ```
 
-`migrate` is an ordinary definition here, and running it proves only that this conversion computes what it says. It does not perform a rollout, activate an artifact, or migrate live state; those are runtime operations below.
+## Migration obligations and compatibility
 
-# Migration obligations
+Every `upgrade` declaration is checked against the structural diff between `OldState` and `NewState`:
 
-The migration must have exactly the declared type, taking the old state linearly and returning the new one. A wrong signature is refused with both types printed:
+- **Linear migration type.** When `migrate` is supplied, it must have exact type `OldState %1 -> NewState` so the old state value is consumed exactly once. Any other signature is rejected:
 
 <!-- cinch:reject contains="the migration must have type" -->
 ```cinch
@@ -60,11 +65,7 @@ module Main where
   main = 0
 ```
 
-```
-cinch: 11:3: the migration must have type `(Main.StateV1 %1 -> Main.StateV2)`, but it is declared `(Main.StateV1 %1 -> Main.StateV1)` (runtime evolution specification section 3)
-```
-
-A change the checker classifies as incompatible, such as retyping a field, needs a migration. A migration-free record view across such a change is refused rather than reinterpreted:
+- **Incompatible changes require a migration.** Retyping or structurally altering a field cannot be bridged with `related` alone:
 
 <!-- cinch:reject contains="incompatible field change" -->
 ```cinch
@@ -82,15 +83,12 @@ module Main where
   main = 0
 ```
 
-```
-cinch: 8:3: incompatible field change `value` in the evolution of StateV1 to StateV2 needs a migration (runtime evolution specification section 2)
-```
+- **Additive changes.** Purely additive record evolutions are admitted without a migration, with added fields recorded explicitly rather than defaulted silently.
+- **Representation changes.** Changing a type's `#[repr(...)]` changes its recorded ABI layout and interface identity, marking dependents built against the old identity stale until replaced.
 
-A purely additive change is admitted without a migration, and the added field is recorded as added rather than collapsed into a default value. `related` names the relation the two schemas are claimed to satisfy; with a migration it points at the old type, and the migration is what establishes the relation.
+## Recorded interface evidence
 
-# Evidence recorded at replacement
-
-The compiled interface (`build/Main.cinchif`) carries the checked mapping that a replacement reads: which fields the migration produces, which fields changed incompatibly, and whether a migration was checked at all.
+Checking writes the evolution summary into `build/<Module>.cinchif`, recording added fields, incompatibly retyped fields, and whether a checked migration was supplied:
 
 ```json
 {
@@ -102,11 +100,9 @@ The compiled interface (`build/Main.cinchif`) carries the checked mapping that a
 }
 ```
 
-A `#[repr]` change is also a representation change: it alters the recorded layout and the interface identity, so a dependent checked against the old identity is stale and must be replaced. A replacement must carry this evidence for the exact pair of artifacts, and a change that retypes a field without a recorded migration is not admissible.
+# Runtime version activation (`cinch_evo_*`)
 
-# What the runtime does now
-
-The runtime library exposes version, update-set, frame, variant, and deoptimization entry points as `cinch_evo_*` symbols. A program binds them as ordinary foreign imports and drives them; the effects are `{Global, IO}` and the entry point declares that row.
+The runtime library exports low-level module-evolution entry points (`cinch_evo_*`) for registering code versions, assembling atomic update sets, tracking active call frames, validating target capabilities, and checking linear-consumption safety during deoptimization. Programs bind these via `foreign import ccall` under `{Global, IO}`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -135,26 +131,22 @@ module Main where
     if act == -2 then (if cur == v1 then 0 else 1) else 2
 ```
 
-This program builds the first version, activates it, starts a second update set, adds one replacement, and tries to activate an incomplete set. Activation returns `-2` and the current version is unchanged: an incomplete update set never becomes current. The same entry points express code retention while a frame is live (`cinch_evo_frame_enter`, `cinch_evo_version_retired`), refusal to resume old code over migrated state (`cinch_evo_frame_resume` returning `-4`), target compatibility checked before reachability (`cinch_evo_version_new` with an instruction requirement, `cinch_evo_activate` returning `-3`), variant install and retire, and a consumption-safe deoptimization that refuses an unbalanced linear transfer with `-7`. The `evolution` suite drives each of those as a compiled program.
+In this example, `v1` is marked complete and activated, whereas `u2` is incomplete: `cinch_evo_activate` returns `-2` and leaves `v1` active. Key runtime error codes across the `cinch_evo_*` surface include:
 
-The compatibility dimensions a replacement must satisfy are stated in the [runtime evolution specification](../specifications/runtime-evolution-specification.md) section 2: inputs, outputs, effects, state, resources, in-flight work, temporal properties, representation, and dependencies.
+| Code | Meaning |
+| --- | --- |
+| `-2` | Incomplete update set rejected before activation. |
+| `-3` | Target instruction/capability requirement failed compatibility check. |
+| `-4` | Attempt to resume an old code frame (`cinch_evo_frame_resume`) over already-migrated state. |
+| `-7` | Consumption-unsafe deoptimization (unbalanced linear transfer). |
 
-<span class="support-tag support-tag--planned">Coming soon</span> **an operator-facing update workflow.** There is no `cinch upgrade` subcommand, no service supervisor, no package activation command, and no rollback tooling. The subcommand does not exist, and the CLI answers with its usage text and exit status 2:
+Active frames retain their code version (`cinch_evo_frame_enter`, `cinch_evo_version_retired`) until all in-flight calls drain.
 
-```
-$ cinch upgrade Main.cinch
-cinch: bootstrap compiler for the safe language design
-
-usage:
-  cinch check <file.cinch> [--rebuild]         typecheck only
-  ...
-$ echo $?
-2
-```
-
-Driving the runtime entry points from a program you build yourself is the current workflow. Packaging an update, choosing a deployment policy, and coordinating a distributed rollout are specified but not implemented.
+<span class="support-tag support-tag--planned">Coming soon</span> **Operator-facing upgrade CLI and rollout tooling.** There is no `cinch upgrade` subcommand, service supervisor, package activation command, or distributed rollout controller yet; driving `cinch_evo_*` directly from compiled code is the current workflow.
 
 # Temporal contract declarations
+
+A `contract` attaches a temporal property to a named definition:
 
 ```text
 contract <kind> <name> for <definition> where
@@ -162,7 +154,7 @@ contract <kind> <name> for <definition> where
   assume = (<formula>)
 ```
 
-The kind and the operator are paired: `safety` with `always`, `stability` with `stable`, `liveness` with `eventually`, `recurrence` with `recur`. An unknown kind is refused with the four names. `assume` states what the claim rests on; a formula rather than a name is the admitted form, and a named external assumption stays an assumption.
+Each contract kind pairs with one temporal operator: `safety` with `always`, `stability` with `stable`, `liveness` with `eventually`, and `recurrence` with `recur`. An optional `assume` clause states preconditions the proof relies on.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -183,16 +175,14 @@ module Main where
   main = 0
 ```
 
-The checker walks the definition's transitions over the borrowed state and checks the invariant at each. `build/Main.manifest.json` records the discharged obligation under `temporal`, which is the manifest's only contract section:
+The checker traverses the definition's state transitions over borrowed mutable state (`Mut`) and verifies the invariant at every step. Discharged contracts are recorded in `build/<entry>.manifest.json` under `temporal.contracts`:
 
 ```json
 {
   "temporal": {
     "contracts": [
       {
-        "assumptions": [
-          "assume (copyOut m < 5)"
-        ],
+        "assumptions": ["assume (copyOut m < 5)"],
         "contract": "loopInv",
         "definition": "Main.countdown",
         "formula": "always (copyOut m < 5)",
@@ -204,7 +194,7 @@ The checker walks the definition's transitions over the borrowed state and check
 }
 ```
 
-A write that falsifies the invariant names the step, the state, and the formula:
+Any write transition that violates the invariant is rejected with the failing source location, written state, and violated formula:
 
 <!-- cinch:reject contains="is falsified by the step" -->
 ```cinch
@@ -225,21 +215,21 @@ module Main where
   main = 0
 ```
 
-```
+```text
 cinch: 7:15: temporal safety: the contract `loopInv` on `Main.countdown` is falsified by the step at 7:15: the write leaves the state `9 < 5` false, so `always (copyOut m < 5)` fails at this transition (core specification section 10) (in Main.cinch)
 ```
 
-# The checked fragment
+# The checked temporal fragment
 
-| Kind | Operator | What is checked today |
+| Kind | Operator | Checked today |
 | --- | --- | --- |
-| `safety` | `always` | The invariant at the initial state and at every write step of the definition. A violating step is refused with the state; a step the checker cannot decide is refused by name, never assumed. The formula must read borrowed state. |
-| `stability` | `stable` | A fact about one location survives every transition that does not touch its footprint. A write, including a call's potential write, to that footprint kills the fact and the error names evidence invalidation over mutable state. |
-| `liveness` | `eventually` | Finite structured obligations within their scope: every spawned handle joined, cleanup run. An open-ended claim over arbitrary progress needs a fairness assumption and a well-founded progress argument that this fragment does not provide, so it is refused. |
-| `recurrence` | `recur` | A state recurs at each cycle of a structural recursion, bounded by the decreasing argument. A ladder of literal equations has no structural bound and is refused. |
+| `safety` | `always` | Verifies the invariant at entry and across every write transition on borrowed `Mut` state. Undecidable steps fail with an explicit refusal rather than being assumed. |
+| `stability` | `stable` | Verifies that a fact about a location holds across all transitions outside its footprint; any direct or callee write to that footprint triggers evidence invalidation. |
+| `liveness` | `eventually` | Verifies finite structured obligations within a scope (joining spawned task handles, completing scope cleanup). Open-ended progress claims requiring fairness are rejected. |
+| `recurrence` | `recur` | Verifies recurrence along a structurally decreasing recursion argument. Non-structural or unbounded loops are rejected. |
 
-Nonstructural or unbounded temporal claims receive a named refusal instead of being accepted unchecked. Liveness does not prove that arbitrary network access eventually succeeds; an external outcome remains an external outcome.
+Non-structural and unbounded temporal claims always receive a named check-time refusal. In particular, `liveness` cannot prove that external I/O or network calls eventually succeed; any external guarantee must be stated explicitly via `assume`.
 
-<span class="support-tag support-tag--planned">Coming soon</span> **general unbounded temporal reasoning.** Simulation-based refinement, divergence-sensitive liveness, and proofs over arbitrary process trees are specified and unimplemented. Until their proof procedure exists, use the finite fragment and state external assumptions honestly as `assume`.
+<span class="support-tag support-tag--planned">Coming soon</span> **Unbounded temporal reasoning.** Simulation-based refinement, divergence-sensitive liveness, and proofs over arbitrary concurrent process trees are specified but not yet implemented.
 
-Implementation: `check_decls.rs` (upgrade components, contract clauses), `interface.rs` (upgrade and contract evidence), `analysis.rs` (transition walk); suites `evolution.rs`, `temporal.rs`, `evidence_invalidation.rs`; runtime `evolution.rs`. Intended semantics: [runtime evolution specification](../specifications/runtime-evolution-specification.md) sections 1 to 13 and [core language specification](../specifications/core-language-specification.md) section 10. Tutorial: [upgrades and contracts](../learn/21-upgrades-and-contracts.md).
+See the [runtime evolution specification](../specifications/runtime-evolution-specification.md), [core language specification](../specifications/core-language-specification.md) §10, and the [upgrades and contracts tutorial](../learn/21-upgrades-and-contracts.md).

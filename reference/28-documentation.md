@@ -1,39 +1,37 @@
-# Documentation comments and symbol lookup
+# Documentation comments and API search
 
-Documentation lives beside the declaration it describes, in comments the compiler parses into a canonical JSON document. The syntax and the `.cinchdoc` schema are defined in the [documentation comments specification](../specifications/documentation-comments-specification.md); this page shows the tool that implements it.
+Cinch keeps API documentation beside declarations in structured comments. The `cinch doc` toolchain extracts canonical `.cinchdoc` JSON, renders Hackage-style Markdown and standalone HTML documentation sites, runs Hoogle-style name and type-signature searches, and executes embedded `cinch test` examples.
 
-Documentation is not part of a module's checked contract. Editing a comment does not change `iface_hash`, invalidate a compiled interface, or force dependents to rebuild.
+Documentation is excluded from checked module contracts: editing comments never changes `iface_hash`, invalidates a `.cinchif` interface, or triggers downstream recompilation. The full schema is specified in [documentation comments](../specifications/documentation-comments-specification.md).
 
-# Markers
+# Comment markers
 
 | Marker | Attaches to |
 | --- | --- |
-| `-- \|` | the next declaration |
-| `-- ^` | the nearest declaration above |
-| `{-\| ... -}` | the next declaration, block form |
-| `{-^ ... -}` | the nearest declaration above, block form |
-| `--` | nothing, unless `--legacy` is passed |
+| `-- \|` | Next declaration (line form; continues on following `--` lines until a blank line or new marker) |
+| `-- ^` | Preceding declaration (line form) |
+| `{-\| ... -}` | Next declaration (block form) |
+| `{-^ ... -}` | Preceding declaration (block form) |
+| `--` | Implementation note (ignored unless `--legacy` is passed) |
 
-A `-- |` block continues on following `--` lines and ends at a blank source line or the next marker. Ordinary `--` comments are implementation notes and are ignored unless you ask for the legacy convention.
-
-A documented module, which is also the running example for the rest of this page:
+Leading comments skip `#[...]` attributes to reach their declaration, and attach to constructors, record fields, or class methods inside `data`, `record`, `codata`, and `signature` blocks. Non-declaration statements (`import`, `export`, `module`, `where`) break association so stray doc blocks are reported as orphans rather than silently attaching to a later item. Two explicit doc blocks on one declaration produce a `duplicate-doc` diagnostic, and the nearest block wins.
 
 <!-- cinch:run exit=0 -->
 ```cinch
--- | The shapes module.
+-- | Geometric shapes and area calculations.
 module Shapes where
 
--- | A rectangle, measured in whole units.
+-- | A rectangle measured in integer units.
 --
 -- The area is $w \times h$.
 data Rect where
-  -- | A rectangle with its width and height.
+  -- | Construct a rectangle from width and height.
   Rect :: (w :: Int) -> (h :: Int) -> Rect
 
--- | The area of a rectangle.
+-- | Compute the area of a rectangle.
 --
--- @param r the rectangle to measure
--- @returns the area in square units
+-- @param r rectangle to measure
+-- @returns area in square units
 area :: Rect -> Int
 area r = case r of
   Rect w h -> w * h
@@ -42,326 +40,119 @@ main :: Int
 main = area (Rect 3 4) - 12
 ```
 
-`cinch run Shapes.cinch` accepts this file and exits 0; the `main` exists so the example is checkable end to end. Remove it and the file is still a valid module for `cinch doc`.
+# Metadata tags, symbol links, and math
 
-# Extract
+Tag lines beginning with `@` are parsed into structured metadata and stripped from prose:
+
+| Tag | Meaning |
+| --- | --- |
+| `@param NAME TEXT` / `@arg NAME TEXT` | Parameter documentation (merged with named signature binders such as `(w :: Int)`) |
+| `@typeparam NAME TEXT` | Type parameter documentation |
+| `@field NAME TEXT` | Record or constructor field documentation |
+| `@returns TEXT` | Return value description |
+| `@safety TEXT`, `@errors TEXT` | Preconditions and failure modes |
+| `@law TEXT`, `@effect TEXT` | Algebraic laws or effect obligations (repeatable) |
+| `@since VER`, `@deprecated TEXT`, `@experimental TEXT` | Stability and lifecycle metadata |
+| `@see SYMBOL[, SYMBOL]` | Related symbols |
+
+Cross-references use the `symbol:` scheme: ``[`Rect`](symbol:Shapes.Rect)``. Without `--iface`, constructor identities take the provisional `Module.Type.Constructor` form; pass `--iface build/Shapes.cinchif` to resolve checked interface identities and schemes. Unresolved targets emit an `unresolved-symbol` diagnostic and remain plain text.
+
+Inline math (`$...$`), display math (`$$...$$`), and `mermaid` code fences are preserved in `.cinchdoc` for renderers; code fences and inline backticks are excluded from math extraction.
+
+# Extracting `.cinchdoc` JSON
 
 ```sh
-cinch doc extract Shapes.cinch
+cinch doc extract Shapes.cinch --iface build/Shapes.cinchif --out Shapes.cinchdoc
 ```
 
-The output is canonical JSON: sorted keys, declarations in source order, no timestamps. The declaration and constructor entries for the file above, trimmed to the interesting fields:
-
-```text
-{
-  "declarations": [
-    {
-      "children": [
-        {
-          "doc": {
-            "legacy": false,
-            "line": 8,
-            "links": [],
-            "markdown": "A rectangle with its width and height.",
-            "math": [],
-            "summary": "A rectangle with its width and height.",
-            "tags": {},
-            "tests": []
-          },
-          "id": "Shapes.Rect.Rect",
-          "kind": "constructor",
-          "name": "Rect",
-          "parameters": [
-            { "doc": "", "name": "w", "type": "Int" },
-            { "doc": "", "name": "h", "type": "Int" }
-          ],
-          "signature": "Rect :: (w :: Int) -> (h :: Int) -> Rect",
-          "source": { "line": 9 }
-        }
-      ],
-      "doc": {
-        "legacy": false,
-        "line": 4,
-        "markdown": "A rectangle, measured in whole units.\n\nThe area is $w \\times h$.",
-        "math": [ { "display": false, "line": 6, "tex": "w \\times h" } ],
-        "summary": "A rectangle, measured in whole units.",
-        "tags": {},
-        "tests": []
-      },
-      "id": "Shapes.Rect",
-      "kind": "data",
-      "name": "Rect",
-      "signature": "data Rect where",
-      "source": { "line": 7 }
-    }
-  ]
-}
-```
-
-Four things in that output are worth reading closely.
-
-`summary` is the first paragraph with inline Markdown removed, and it is what `lookup` prints.
-
-`signature` is the source line, `data Rect where`, because no checked interface was supplied. With `--iface` it becomes the rendered scheme.
-
-Math is lifted out of the body into `math` with its line, and stays in `markdown`, so a renderer can use either.
-
-The constructor identity is `Shapes.Rect.Rect`, the `Module.Type.Constructor` form the specification defines for a document with no interface. That form is provisional, and it is why a `symbol:` link written for the checked identity will not resolve until you pass `--iface`.
-
-Flags, all read from the parser and exercised:
+Output is deterministic canonical JSON (sorted keys, source-order declarations, SHA-256 of the source file, no timestamps). Each declaration carries `id`, `kind`, `name`, `signature` (checked scheme when `--iface` is supplied, otherwise the source line), `doc` (`summary`, `markdown`, `tags`, `links`, `tests`, `math`), `parameters`, `typeParameters`, `fields`, `children`, and `source.line`.
 
 | Flag | Effect |
 | --- | --- |
-| `--out PATH`, `-o PATH` | write the document to a file instead of standard output |
-| `--iface MODULE.cinchif` | take checked identities and rendered schemes from a built interface |
-| `--module NAME` | override the module name in the document |
-| `--legacy` | accept a contiguous `--` block before a declaration as documentation |
+| `--out PATH`, `-o PATH` | Write to a file instead of stdout |
+| `--iface MODULE.cinchif` | Pull authoritative identities and schemes from a checked interface |
+| `--module NAME` | Override the module name |
+| `--legacy` | Treat contiguous `--` blocks immediately before declarations as documentation |
 
-`extract` exits 1 when the source contains an unattached documentation block, after writing the document:
+`extract` still writes its output if the file contains unattached doc blocks, then exits `1` naming the orphan condition.
 
-```text
-cinch doc: source contains unattached documentation
-```
+# Rendering Hackage-style HTML and Markdown
 
-# Association
+## Standalone searchable HTML (`cinch doc html`)
 
-A leading block attaches to the next significant declaration, skipping attribute lines. A line that is `import`, `export`, `module`, `where`, or another non-declaration statement breaks the association, and the block is reported as an orphan instead of attaching to something later:
-
-```cinch
--- | This block has no declaration after it.
-import Data.Path
-```
-
-```text
-orphans: [{"kind": "leading", "line": 3, "text": "This block has no declaration after it."}]
-```
-
-Inside a `data`, `record`, or `signature` block, a leading block attaches to the next member. A trailing `-- ^` attaches to the nearest declaration above, including a multi-line signature.
-
-Attributes may sit between the block and the declaration:
-
-```cinch
--- | The value.
-#[inline(always)]
-value :: Int
-value = 0
-```
-
-Two documentation blocks for one declaration are reported as `duplicate-doc` and the nearest wins. The diagnostic names the declaration:
-
-```text
-diagnostics: [{"code": "duplicate-doc", "line": 18, "message": "Shapes.Shape.Dot already has a documentation block"}]
-```
-
-That case arises when a constructor has both a leading `-- |` block and a trailing `-- ^` block. Use one.
-
-# Tags, links, math, diagrams
-
-A tag line is metadata and is removed from the rendered body. The full set is in the [specification](../specifications/documentation-comments-specification.md): `@since`, `@see`, `@deprecated`, `@experimental`, `@param`, `@arg`, `@typeparam`, `@field`, `@returns`, `@safety`, `@errors`, `@law`, `@effect`. Tags land in `tags`:
-
-```text
-"tags": {"params": [{"name": "r", "text": "the rectangle to measure"}], "returns": "the area in square units"}
-```
-
-`@param` and `@arg` merge with named binders from the signature into `parameters`. A named binder supplies `type`; a positional binder leaves it empty:
-
-```text
-"parameters": [{"doc": "the rectangle to measure", "name": "r", "type": ""}]
-```
-
-Named binders such as `(f :: a -> b)` fill it:
-
-```cinch
--- | Apply a function.
---
--- @param f the transformation
-map-one :: forall a b. (f :: a -> b) -> a -> b
-map-one f x = f x
-```
-
-A `symbol:` link is recorded with its resolution:
-
-```cinch
--- | The area of a shape in square units.
---
--- See [`Rect`](symbol:Shapes.Rect).
-```
-
-```text
-"links": [{"resolved": false, "target": "Shapes.Rect", "text": "`Rect`"}]
-```
-
-Without `--iface` the constructor identity is `Shapes.Rect.Rect`, so `Shapes.Rect` does not resolve and the parser records `unresolved-symbol`:
-
-```text
-diagnostics: [{"code": "unresolved-symbol", "line": 30, "message": "Shapes.area links to unknown symbol Shapes.Rect"}]
-```
-
-With `--iface build/Shapes.cinchif` the same run resolves it:
-
-```text
-"links": [{"resolved": true, "target": "Shapes.Rect", "text": "`Rect`"}]
-```
-
-Inline math is `$...$`, display math is `$$...$$`, and fences and inline code are excluded from math extraction. A `mermaid` fence stays in `markdown` for the site to render. Neither is executed by the parser.
-
-# Render and highlight
+Generate a self-contained, zero-dependency static documentation site for any directory or single file:
 
 ```sh
-cinch doc render Shapes.cinch
+cinch doc html src/ --out-dir docs/ --title "My Package"
+cinch doc html src/ --out-dir docs/ --iface-dir build/ --legacy
 ```
 
-`render` writes a Markdown page: the module summary, a `## Declarations` section, and one `##` or `###` block per declaration and member, with the signature and the body. A `cinch` fence becomes highlighted HTML:
+The output directory contains:
+- `index.html` — Namespace-grouped module directory and a live client-side Hoogle search bar (press `/` to focus).
+- `<Module>.html` — Hackage-style module page with collapsible **Synopsis**, grouped **Types**, **Signatures**, **Values**, **Operator fixities**, and **Instances**, pretty-printed signatures with hyperlinked type constructors, nested constructors/fields/methods, and collapsible cross-module **Instances** drawers.
+- `source/<Module>.html` — Line-numbered, tree-sitter syntax-highlighted source viewer (`#L<line>` anchors with target highlighting).
+- `search-index.json`, `style.css`, and `search.js` — Themeable light/dark reading palette and offline search index.
 
-```html
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rect</span> <span class="tok-keyword">where</span></code></pre>
-```
-
-`--plain` keeps the fence instead:
-
-````text
-```cinch
-data Rect where
-```
-````
-
-`cinch test` fences stay plain in both modes, because their heredoc sections are not Cinch source. The highlighting comes from `seed/src/highlight.rs` over `tooling/tree-sitter-cinch`, the same classifier the REPL uses for its transcript.
-
-`cinch doc highlight` applies that classifier to a bare `.cinch` file:
+## Markdown and syntax highlighting
 
 ```sh
+cinch doc render Shapes.cinch --iface build/Shapes.cinchif
+cinch doc render Shapes.cinch --plain
 cinch doc highlight Shapes.cinch
-```
-
-```html
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-comment">-- | Documentation test modes.</span>
-<span class="tok-keyword">module</span> <span class="tok-constructor">T</span> <span class="tok-keyword">where</span>
-```
-
-`cinch doc markdown` applies it to the `cinch` fences of a Markdown file or of standard input, and leaves every other fence alone:
-
-```sh
 cinch doc markdown < page.md
 ```
 
-```text
-# A page
+`render` outputs Hackage-style Markdown with a Synopsis, grouped sections, readable anchors (`#t-Rect`, `#v-area`), and pretty-printed signatures. By default, `cinch` code blocks are pre-highlighted with tree-sitter (`<pre class="cinch-highlight">`); pass `--plain` to keep standard ` ```cinch ` fences. `highlight` highlights a `.cinch` source file, and `markdown` highlights ` ```cinch ` fences in a Markdown stream while leaving `cinch test` and non-Cinch fences untouched.
 
-Prose outside any fence.
+# Hoogle-style API search and indexing
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">main</span> :: <span class="tok-constructor">Int</span>
-<span class="tok-variable">main</span> = <span class="tok-number">0</span></code></pre>
+## Searching from the CLI (`cinch doc search`)
 
-```text
-not cinch
-```
-```
-
-Both commands accept `--out PATH`.
-
-# Lookup and index
+`cinch doc search` ranks declarations by name, type signature, module scope, and kind:
 
 ```sh
-cinch doc index . --out symbols.json
+cinch doc search "(a -> b) -> List a -> List b"
+cinch doc search "Result e a -> Option a"
+cinch doc search "Ord a => List a -> List a"
+cinch doc search "+Data.Map lookup"
+cinch doc search "-Crypto is:type Bytes"
+cinch doc search "map :: (a -> b) -> List a -> List b"
 ```
 
-```text
-{
-  "schema": 1,
-  "symbols": [
-    {
-      "id": "Shapes.Rect",
-      "kind": "data",
-      "line": 7,
-      "module": "Shapes",
-      "name": "Rect",
-      "source": "./Shapes.cinch",
-      "summary": "A rectangle, measured in whole units."
-    },
-    {
-      "id": "Shapes.Rect.Rect",
-      "kind": "constructor",
-      "line": 9,
-      "module": "Shapes",
-      "name": "Rect",
-      "source": "./Shapes.cinch",
-      "summary": "A rectangle with its width and height."
-    },
-    {
-      "id": "Shapes.area",
-      "kind": "value",
-      "line": 15,
-      "module": "Shapes",
-      "name": "area",
-      "source": "./Shapes.cinch",
-      "summary": "The area of a rectangle."
-    },
-    {
-      "id": "Shapes.main",
-      "kind": "value",
-      "line": 19,
-      "module": "Shapes",
-      "name": "main",
-      "source": "./Shapes.cinch",
-      "summary": ""
-    }
-  ]
-}
-```
+Type search normalizes `forall` binders and module qualifiers, matches alpha-renamed variables (`(x -> y) -> List x -> List y` finds `map`), handles polymorphic generalization (`Int -> Int` finds `id :: forall a. a -> a`), tolerates argument reordering (`List a -> (a -> b) -> List b`), and respects constraints and effect rows.
 
-`index` walks a directory of sources. Each record has `id`, `module`, `kind`, `name`, `summary`, `source`, and `line`. An undocumented declaration is still indexed, with an empty `summary`.
+| Query form | Meaning |
+| --- | --- |
+| `(a -> b) -> List a -> List b` | Type signature match |
+| `partition-results` | Name, prefix, segment, fuzzy, or summary match |
+| `map :: List a -> List b` | Combined name and type filter |
+| `+Data.List` / `module:Text` | Restrict to modules matching the prefix |
+| `-Crypto` | Exclude modules matching the prefix |
+| `is:type`, `is:value`, `is:class`, `is:method`, `is:ctor`, `is:instance` | Filter by declaration kind |
 
-`lookup` builds the same index over `--dir` (default `seed/prelude`) and searches it, matching an exact `id` first and then a bare `name`:
+| Flag | Effect |
+| --- | --- |
+| `--dir PATH` | Directory of `.cinch` sources to scan (default `seed/prelude`) |
+| `--index PATH` | Query a prebuilt `cinch doc index` or website `library-search-index.json` file |
+| `--limit N`, `-n N` | Maximum results to display (default `25`) |
+| `--json` | Emit ranked matches as canonical JSON |
+| `--strict-comments` | Exclude legacy `--` comments when scanning sources |
+
+On the web, [**API Search**](/library/search/) provides the same Hoogle-style query engine over all checked standard-library interfaces with clickable type links and line-anchored source views.
+
+## Exact lookup and indexing (`lookup`, `index`)
 
 ```sh
+cinch doc index src/ --out symbols.json
 cinch doc lookup Shapes.area --dir .
+cinch doc lookup Rect --dir . --json
 ```
 
-```text
-Shapes.area (value)
-./Shapes.cinch:15
+`index` walks a directory and writes `{"schema": 1, "symbols": [...]}` where each entry records `id`, `module`, `kind`, `name`, `signature`, `prettySignature`, `summary`, `source`, and `line`. `lookup` matches an exact `id` first and then the first bare `name`, exiting `1` if absent. Pass the qualified `id` when a type and constructor share a name.
 
-The area of a rectangle.
-```
+# Executable documentation tests
 
-```sh
-cinch doc lookup Rect --dir .
-```
-
-```text
-Shapes.Rect (data)
-./Shapes.cinch:7
-
-A rectangle, measured in whole units.
-```
-
-The bare name found the data type rather than the constructor, because a name search takes the first index record with that name and the type is indexed before its constructor. Pass the exact id when the kind matters.
-
-`--json` prints the index record instead of the summary:
-
-```text
-{
-  "id": "Shapes.area",
-  "kind": "value",
-  "line": 15,
-  "module": "Shapes",
-  "name": "area",
-  "source": "./Shapes.cinch",
-  "summary": "The area of a rectangle."
-}
-```
-
-A name that is not documented is an error, not an empty answer:
-
-```text
-cinch doc: no documentation for Nosuch
-```
-
-`--legacy` applies the legacy comment convention to the scanned sources.
-
-# Executable examples
-
-A `cinch test` fence is a test case rather than prose. Its sections are `--- input`, `--- stdin`, `--- args`, `--- expect`, `--- error`, and `--- exit`, and the fence info may carry `name=`.
+A `cinch test` fence inside a doc comment defines an executable test case with `--- input`, `--- stdin`, `--- args`, `--- expect`, `--- error`, and `--- exit` sections:
 
 ````markdown
 ```cinch test name=rect-area
@@ -376,102 +167,33 @@ main = if width * 4 == 12 then 0 else 1
 ```
 ````
 
+Run all doctests in a directory or file:
+
 ```sh
-cinch doc test . --compiler /path/to/seed/target/debug/cinch
+cinch doc test src/ --compiler seed/target/debug/cinch
 ```
 
-```text
-PASS Shapes.Shape.rect-area
-1/1 documentation tests passed
-```
-
-The case name is `OWNER.TESTNAME`, where the owner is the identity of the documented declaration.
-
-`--- input` is a complete program or a module body. The runner wraps a body in `module Main where`, writes it to `Main.cinch` in a fresh temporary directory, and runs `cinch run` there. Two consequences:
-
-- The fence is self-contained. Sibling modules are not copied, so an `import` of the documented module fails with `unknown name`.
-- The prelude is embedded in the compiler, so prelude names work without any files.
-
-`--- args` is passed after `--`. `--- stdin` becomes the child's standard input, or `/dev/null` when absent. `--- expect` is compared with standard output after trailing newlines are trimmed. `--- exit` is compared with the process exit code. `--- error` requires a nonzero exit and the expected text somewhere in stdout or stderr.
-
-A failure prints the case and what happened:
-
-```text
-FAIL T.val.wrong-exit
-exit=0 (expected 3), stdout="", stderr=""
-```
-
-`--- error` is the one mode where the program is meant to fail:
-
-```text
-PASS T.val.reject-mismatch
-```
-
-A `>` REPL transcript is recorded in `tests` but has no runner; it is reported as a failure of the run rather than silently skipped:
-
-```text
-FAIL T.val.session
-```
+Each case runs in an isolated temporary directory as `Main.cinch` (a snippet without a `module` header is wrapped in `module Main where`). Prelude names are embedded and available automatically; sibling project modules are not copied. `--- expect` compares trimmed stdout, `--- exit` compares exit status (default `0`), and `--- error` asserts a nonzero exit whose output contains the given substring. `>` REPL transcripts are recorded in `.cinchdoc` but have no batch runner and fail under `cinch doc test`.
 
 | Flag | Effect |
 | --- | --- |
-| `--compiler PATH` | the compiler used to build and run each case |
-| `--legacy` | the legacy comment convention |
-| `--match TEXT` | run cases whose name contains the text |
-| `--timeout SECONDS` | per-case timeout, 90 by default |
-| `--report PATH` | write a JSON report with the compiler hash and per-case results |
+| `--compiler PATH` | Compiler binary used to run cases (default `cinch` on `PATH`) |
+| `--legacy` | Include legacy `--` doc blocks |
+| `--match TEXT` | Run only cases whose `OWNER.TESTNAME` contains `TEXT` |
+| `--timeout SECONDS` | Per-case timeout (default `90`) |
+| `--report PATH` | Write a JSON report with compiler SHA-256 and per-case outcomes |
 
-`--match` with no hits is an error, and so is an empty test set:
+# Standard-library doc generation
 
-```text
-cinch doc: no documentation tests matched
-```
-
-# Legacy comments
-
-The library predates the `-- |` marker. `--legacy` accepts a contiguous `--` block as documentation and marks the result:
-
-<!-- cinch:run exit=0 -->
-```cinch
-module Legacy where
-
--- An ordinary implementation comment.
---
--- It is a contiguous block before a declaration.
-double :: Int -> Int
-double n = n + n
-
-main :: Int
-main = double 21 - 42
-```
-
-Without the flag the declaration's `doc` is `null`; with it:
-
-```text
-{"legacy": true, "line": 3,
- "markdown": "An ordinary implementation comment.\n\nIt is a contiguous block before a declaration.",
- "summary": "An ordinary implementation comment."}
-```
-
-New source should use `-- |`. A canonical marker wins over a legacy block when both are present.
-
-# The documentation-build integration
-
-`website/scripts/generate-library-reference.py` calls `cinch doc extract` to build the library pages. Its `--validate-docs` mode parses every library source and reports diagnostics without regenerating pages:
+The website's standard-library pages and Hoogle index are generated from checked `.cinchif` interfaces by `website/scripts/generate-library-reference.py`:
 
 ```sh
-python3 website/scripts/generate-library-reference.py \
-  --compiler seed/target/debug/cinch --validate-docs
+python3 website/scripts/generate-library-reference.py --compiler seed/target/debug/cinch
+python3 website/scripts/generate-library-reference.py --check
+python3 website/scripts/generate-library-reference.py --compiler seed/target/debug/cinch --validate-docs
 ```
 
-That is how the [library reference](../library/00-index.md) stays in sync with the sources, and why those pages are generated rather than edited.
+# Legacy comments and limits
 
-# Limits
-
-- Association is source-order and indentation-aware, not a compiler AST pass. A block before a form the parser does not recognise is reported as an orphan rather than guessed at.
-- A `.cinchdoc` is evidence, not a contract. A signature shown there is advisory unless it came from a checked `.cinchif`.
-- `symbol:` links resolve only against the supplied index or interface. An unresolved target stays text and is never turned into a live link.
-- `cinch doc test` compiles and runs only self-contained fences, one temporary directory per case.
-- Mermaid and math are recorded, not rendered, by the compiler. The site renders them.
-
-Implementation: `seed/src/cinchdoc.rs` for `cinch doc`, `seed/src/highlight.rs` for token classification over `tooling/tree-sitter-cinch`. The [compiler guide](01-using-the-compiler.md) covers the build commands that produce the `.cinchif` files `--iface` reads.
+- **`--legacy`**: Pre-existing stdlib files using plain `--` blocks above declarations are still parsed with `--legacy` (marked `"legacy": true` in `.cinchdoc`). Explicit `-- |` markers always take precedence over legacy comments.
+- **Scanner model**: `cinch doc` is an indentation-aware lexical scanner rather than a full compiler AST pass; supply `--iface` whenever authoritative checked types and identities are required.

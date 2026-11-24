@@ -1,49 +1,49 @@
 # Numbers, machine primitives, symbols, and text
 
-Mathematical numbers, machine scalars, text, and byte buffers are different types with different representations and different proof obligations. Operator spellings are library vocabulary; the operation family you call decides the overflow policy. The normative chapter is [primitive types](../specifications/primitive-types-specification.md), amended by the dated notes in `compiler/CONFORMANCE.md`. Signatures below are the checked exports listed under [Data.Machine](../library/Data.Machine.md), [Data.Nat](../library/Data.Nat.md), [Data.Int](../library/Data.Int.md), [Data.NonZero](../library/Data.NonZero.md), [Data.Bytes](../library/Data.Bytes.md), [Data.String](../library/Data.String.md), [Data.Char](../library/Data.Char.md), and [Data.Sym](../library/Data.Sym.md).
+Cinch separates unbounded mathematical integers (`Nat`, `Int`) from fixed-width machine scalars (`I8`–`I64`, `U8`–`U64`, `F32`, `F64`, `Isize`, `Usize`, `Char`), UTF-8 text (`String`), byte buffers (`Bytes`), and interned symbols (`Sym`). There are no implicit numeric coercions and no implicit overflow policies: every conversion is explicit, and the operation family you call determines how overflow is handled.
 
-# The types the checker knows
+The normative specification is [primitive types](../specifications/primitive-types-specification.md). Full export lists live in [Data.Machine](../library/Data.Machine.md), [Data.Nat](../library/Data.Nat.md), [Data.Int](../library/Data.Int.md), [Data.NonZero](../library/Data.NonZero.md), [Data.Bytes](../library/Data.Bytes.md), [Data.String](../library/Data.String.md), [Data.Char](../library/Data.Char.md), and [Data.Sym](../library/Data.Sym.md).
 
-| Type | Width | Align | Kind of value |
+# Builtin primitive types
+
+| Type | Width (bits) | Alignment (bytes) | Semantics |
 | --- | --- | --- | --- |
 | `Bool` | 8 | 1 | `False` and `True`. Builtin. |
 | `Char` | 32 | 4 | One Unicode scalar value. Machine scalar. |
-| `I8`, `I16`, `I32`, `I64` | 8, 16, 32, 64 | 1, 2, 4, 8 | Two's complement signed. Machine scalars. |
-| `U8`, `U16`, `U32`, `U64` | 8, 16, 32, 64 | 1, 2, 4, 8 | Unsigned. Machine scalars. |
+| `I8`, `I16`, `I32`, `I64` | 8, 16, 32, 64 | 1, 2, 4, 8 | Two's-complement signed integers. Machine scalars. |
+| `U8`, `U16`, `U32`, `U64` | 8, 16, 32, 64 | 1, 2, 4, 8 | Unsigned integers. Machine scalars. |
 | `F32`, `F64` | 32, 64 | 4, 8 | IEEE 754 binary32 and binary64. Machine scalars. |
-| `Usize`, `Isize` | target word | target word | Sizes, indices, pointer differences. Machine scalars. |
-| `()` | 0 | 1 | The single value `()`. |
-| `Nat` | unbounded | word | Nonnegative exact integer. Builtin, bignum. |
-| `Int` | unbounded | word | Signed exact integer. Builtin, bignum. |
-| `Bytes` | word handle | 8 | Arbitrary byte buffer. Builtin, counted object. |
-| `Sym` | word handle | 8 | Interned name. Builtin, counted object. |
-| `Array a`, `Tensor a`, `Columnar row` | element-dependent | element-dependent | Opaque runtime containers. No source constructor. |
+| `Usize`, `Isize` | target word | target word | Sizes, indices, pointer offsets. Machine scalars. |
+| `Unit` (`()`) | 0 | 1 | Single value `()`. Builtin. |
+| `Nat` | unbounded | word | Non-negative exact integer. Tagged immediate / bignum. |
+| `Int` | unbounded | word | Signed exact integer. Tagged immediate / bignum. |
+| `Bytes` | word handle | 8 | Mutable byte buffer. Reference-counted object. |
+| `Sym` | word handle | 8 | Interned symbol. Reference-counted object. |
+| `Array a`, `Tensor a`, `Columnar row` | element-dependent | element-dependent | Opaque runtime containers (no surface constructors). |
 
-`Usize` and `Isize` are the target profile's word width, not the build host's. The native profile is 64-bit, and `max-bound-usize == 18446744073709551615` there; a wasm32 profile makes both 32-bit. Machine scalars are unboxed, `Copy`, and never erased. The width table is also the C ABI table, with `Char` having no C counterpart.
+`Usize` and `Isize` track the **target** profile's word width, not the build host's (64-bit on native 64-bit targets, where `max-bound-usize == 18446744073709551615`; 32-bit on `wasm32`). Machine scalars are unboxed, `Copy`, and never erased. Their widths and alignments match the C ABI, except `Char`, which has no direct C scalar counterpart. See [compiler-provided vocabulary](20-compiler-vocabulary.md) for the complete set of builtin types.
 
-Machine scalars are builtin types the checker installs. So are `Nat`, `Int`, `Bool`, `Unit`, `Bytes`, and `Sym`; [compiler vocabulary](20-compiler-vocabulary.md) lists the whole installed set.
+# Exact mathematical numbers: Nat and Int
 
-# Mathematical Nat and Int
+`Nat` and `Int` represent exact mathematical integers and never wrap or overflow. Both use a tagged single-word fast path (`v << 1 | 1`) for small values — `0` to `2^63 - 1` for `Nat` and `-2^62` to `2^62 - 1` for `Int` — promoting transparently to heap bignums outside those bounds (see [type layout](24-type-layout.md)).
 
-`Nat` and `Int` are exact. They never take machine overflow behaviour, and arithmetic does not wrap. Both are boxed bignums with an immediate fast path: a `Nat` in `0` through `2^63 - 1` and an `Int` in `-2^62` through `2^62 - 1` travel as one word (`v << 1 | 1`). Those are representation thresholds, not the types' limits. [Type layout](24-type-layout.md) gives the representation details.
-
-| Operation | Signature | Note |
+| Operation | Signature | Notes |
 | --- | --- | --- |
 | `nat-add`, `nat-mul` | `Nat -> Nat -> Nat` | Total. |
-| `nat-sub` | `using (b <= a) => (a :: Nat) -> (b :: Nat) -> Nat` | Exact difference; the caller proves the result is a `Nat`. |
+| `nat-sub` | `using (b <= a) => (a :: Nat) -> (b :: Nat) -> Nat` | Exact difference; caller proves `b <= a`. |
 | `nat-div` | `Nat -> NonZero Nat -> Nat` | Total by construction. |
-| `nat-rem` | `Nat -> (d :: NonZero Nat) -> refined (r < d) Nat` | Result carries its bound. |
-| `checked-div`, `checked-rem` | `Nat -> Nat -> Option Nat` | `None` exactly when the divisor is zero. |
+| `nat-rem` | `Nat -> (d :: NonZero Nat) -> refined (r < d) Nat` | Result carries `r < d`. |
+| `checked-div`, `checked-rem` | `Nat -> Nat -> Option Nat` | `None` when the divisor is `0`. |
 | `saturating-sub` | `Nat -> Nat -> Nat` | `max(a - b, 0)`. |
-| `checked-sub` | `Nat -> Nat -> Option Nat` | `None` exactly when `b > a`. |
+| `checked-sub` | `Nat -> Nat -> Option Nat` | `None` when `b > a`. |
 | `nat-cmp` | `Nat -> Nat -> I64` | Immediate `-1`, `0`, or `1`. |
 | `int-add`, `int-sub`, `int-mul` | `Int -> Int -> Int` | Total. |
 | `int-div`, `int-rem` | `Int -> NonZero Int -> Int` | Total by construction. |
 | `int-neg` | `Int -> Int` | Total. |
 | `int-cmp` | `Int -> Int -> I64` | Immediate `-1`, `0`, or `1`. |
-| `int-mod-nat` | `Int -> NonZero Nat -> Nat` | Floored residue, always `0 <= r < d`. |
+| `int-mod-nat` | `Int -> NonZero Nat -> Nat` | Floored residue (`0 <= r < d`). |
 
-Subtraction at `Nat` is a checked obligation, and an impossible one is refuted at the call rather than at run time:
+`Nat` subtraction requires `b <= a` as a compile-time obligation; an impossible subtraction is rejected statically:
 
 <!-- cinch:reject contains="the obligation `2 <= 1` of this call is false" -->
 ```cinch
@@ -53,39 +53,42 @@ module Main where
     _ -> 0
 ```
 
-A branch condition supplies the same fact. `if b <= a then a - b else 0` typechecks, and `saturating-sub` is that function under its own name.
+Branch conditions discharge the same obligation automatically (`if b <= a then a - b else 0` typechecks without an explicit `decide`), and `saturating-sub` wraps that pattern as a named function.
 
-# Conversions between the integer families
+# Explicit numeric conversions
 
-Every conversion is explicit. There is no implicit widening, narrowing, or signedness change, and the attempt is a type error:
+Every numeric conversion is explicit. Implicit widening, narrowing, or signedness changes are type errors (`type mismatch: expected U8, got I32`).
 
-```text
-cinch: 4:13: type mismatch: expected U8, got I32
-```
+Conversion names follow a uniform scheme across all machine integer pairs (documented in full in [Data.Machine](../library/Data.Machine.md)):
 
-The four families follow one naming rule. A total conversion is `<src>-to-<dst>` with both sides lowercase: `u8-to-i32`, `u32-to-nat`, `i8-to-f64`, `i64-to-isize`. A conversion that can fail is `checked-<src>-to-<dst>` and returns `Option`; one that clamps is `saturating-<src>-to-<dst>`; one that truncates in two's complement is `wrapping-<src>-to-<dst>`. Every ordered pair of machine integer types has all four where they are defined, which is the 10 by 10 family in [Data.Machine](../library/Data.Machine.md).
+- `<src>-to-<dst>` — total lossless conversion (e.g., `u8-to-i32`, `u32-to-nat`, `i8-to-f64`, `i64-to-isize`).
+- `checked-<src>-to-<dst>` — returns `Option <dst>`, yielding `None` if out of range.
+- `saturating-<src>-to-<dst>` — clamps out-of-range inputs to the target's bounds.
+- `wrapping-<src>-to-<dst>` — truncates or reinterprets in two's complement.
 
-| From a mathematical number | To a mathematical number |
+Conversions between mathematical integers and machine integers carry proof obligations or refined equalities where applicable:
+
+| From mathematical integer | To mathematical integer |
 | --- | --- |
-| `nat-to-i64` : `using (n <= 9223372036854775807) => (n :: Nat) -> refined (x == n) I64` | `nat-from-i64` : `using (0 <= x) => (x :: I64) -> refined (n == x) Nat` |
-| `checked-nat-to-i64` : `Nat -> Option I64` | `checked-nat-from-i64` : `I64 -> Option Nat` |
-| `nat-to-int` : `(n :: Nat) -> refined (x == n) Int` | `nat-from-int` : `using (0 <= x) => (x :: Int) -> refined (n == x) Nat` |
-| `int-to-i64` : `using (-9223372036854775808 <= x, x <= 9223372036854775807) => (x :: Int) -> refined (r == x) I64` | `int-from-i64` : `(x :: I64) -> refined (r == x) Int` |
-| `checked-int-to-i64` : `Int -> Option I64` | `u8-to-nat`, `u16-to-nat`, `u32-to-nat` : total |
+| `nat-to-i64 :: using (n <= 9223372036854775807) => (n :: Nat) -> refined (x == n) I64` | `nat-from-i64 :: using (0 <= x) => (x :: I64) -> refined (n == x) Nat` |
+| `checked-nat-to-i64 :: Nat -> Option I64` | `checked-nat-from-i64 :: I64 -> Option Nat` |
+| `nat-to-int :: (n :: Nat) -> refined (x == n) Int` | `nat-from-int :: using (0 <= x) => (x :: Int) -> refined (n == x) Nat` |
+| `int-to-i64 :: using (-9223372036854775808 <= x, x <= 9223372036854775807) => (x :: Int) -> refined (r == x) I64` | `int-from-i64 :: (x :: I64) -> refined (r == x) Int` |
+| `checked-int-to-i64 :: Int -> Option I64` | `u8-to-nat`, `u16-to-nat`, `u32-to-nat` (total) |
 
-# Overflow: three named families
+# Machine integer arithmetic and overflow policies
 
-Overflow behaviour is never implicit. For addition, subtraction, multiplication, and negation each machine integer type has three families, and the family is in the name:
+Fixed-width machine integers never silently wrap or trap on `+`, `-`, `*`, or unary `-`. Instead, every integer type provides three explicit operation families:
 
-| Family | Result | Behaviour on overflow |
-| --- | --- | --- |
-| `checked-add-u8`, `checked-sub-i32`, `checked-mul-u64`, `checked-neg-i8` | `Option t` | `None`. The wrapped value is never returned. |
-| `wrapping-add-u8`, `wrapping-sub-i32`, `wrapping-mul-u16`, `wrapping-neg-i64` | `t` | Two's complement wrap modulo the width. |
-| `saturating-add-u8`, `saturating-sub-i32`, `saturating-mul-usize`, `saturating-neg-i8` | `t` | Clamp to `min-bound-*` or `max-bound-*`. |
+| Family | Examples | Return type | On overflow |
+| --- | --- | --- | --- |
+| Checked | `checked-add-u8`, `checked-sub-i32`, `checked-mul-u64`, `checked-neg-i8` | `Option t` | Returns `None`. |
+| Wrapping | `wrapping-add-u8`, `wrapping-sub-i32`, `wrapping-mul-u16`, `wrapping-neg-i64` | `t` | Two's-complement wrap modulo `2^width`. |
+| Saturating | `saturating-add-u8`, `saturating-sub-i32`, `saturating-mul-usize`, `saturating-neg-i8` | `t` | Clamps to `min-bound-*` or `max-bound-*`. |
 
-Bounds are named values: `min-bound-i8`, `max-bound-u8`, `max-bound-usize`, and their siblings. Comparison has one name per type and is total: `eq-i64`, `ne-i32`, `lt-u8`, `le-isize`, `gt-u16`. The comparison family exists for the integer types only; `F32` and `F64` use the IEEE predicates instead.
+Extremes are exported as named constants (`min-bound-i8`, `max-bound-u8`, `max-bound-usize`, etc.). Total typed comparisons (`eq-i64`, `ne-i32`, `lt-u8`, `le-isize`, `gt-u16`, ...) exist for all integer types; floats use the IEEE predicate family instead.
 
-Machine integer types have no `Add`, `Sub`, `Mul`, or `Neg` instance, because one class method cannot say which family is meant. The operator call is refused by class resolution:
+Because a single infix operator cannot specify an overflow policy, machine integers intentionally have no `Add`, `Sub`, `Mul`, or `Neg` instances:
 
 <!-- cinch:reject contains="no instance for Add I32" -->
 ```cinch
@@ -96,7 +99,9 @@ module Main where
     _ -> 0
 ```
 
-Negation of a machine value is the same refusal, reported as `no instance for Neg I8`. A prefix minus on an integer literal is not an operator: it folds into the literal and is range checked with it, so `(-3 :: I8)` is valid and `-x` on a machine variable is not.
+Prefix `-` on a literal folds into the literal itself and is range-checked statically, so `(-3 :: I8)` is valid while `-x` on a machine variable fails with `no instance for Neg I8`.
+
+Signed division also checks the `minBound / -1` overflow case in addition to division by zero:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -116,21 +121,19 @@ module Main where
     Some n -> 5
 ```
 
-The last arm is the signed division overflow case: `minBound / -1` has no `I32` quotient, so `checked-div-i32` answers `None` for it as well as for a zero divisor.
+# Bitwise operations and shifts
 
-# Bit operations and shifts
+Bitwise operations (`bit-and-i16`, `bit-or-u32`, `bit-xor-i64`, `bit-not-u8`) and bit-inspection primitives (`count-ones-i32`, `leading-zeros-u16`, `trailing-zeros-i8`, `reverse-bits-u64`, `swap-bytes-i16`) are total and carry their type in their name.
 
-Bitwise operations are total and carry the type in the name: `bit-and-i16`, `bit-or-u32`, `bit-xor-i64`, `bit-not-u8`. Bit inspection is total and returns a width-typed count where meaningful: `count-ones-i32`, `leading-zeros-u16`, `trailing-zeros-i8`, `reverse-bits-u64`, `swap-bytes-i16`.
+Shift operations explicitly separate out-of-range shift counts from masked counts:
 
-Shifts separate the invalid count from the defined wrap:
+| Family | Examples | Semantics |
+| --- | --- | --- |
+| Checked shift | `checked-shl-i64`, `checked-shl-u32` | Returns `Option t`; `None` when count `>= width`. |
+| Wrapping shift | `wrapping-shl-i64`, `wrapping-shr-u16` | Masks shift count modulo `width`. |
+| Rotation | `rotate-left-i8`, `rotate-right-u64` | Total; count reduced modulo `width`. |
 
-| Form | Result |
-| --- | --- |
-| `checked-shl-i64`, `checked-shl-u32` | `Option t`, `None` when the count is at least the width. |
-| `wrapping-shl-i64`, `wrapping-shr-u16` | Reduced count modulo the width. |
-| `rotate-left-i8`, `rotate-right-u64` | Total, count reduced modulo the width. |
-
-`shr` is arithmetic on `I*` and `Isize` and logical on `U*` and `Usize`. `checked-shl-i64 1 64` is `None` while `wrapping-shl-i64 1 65` is `2`.
+Right shift (`shr`) is arithmetic (sign-extending) on signed types (`I*`, `Isize`) and logical (zero-filling) on unsigned types (`U*`, `Usize`).
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -148,9 +151,9 @@ module Main where
            else 4
 ```
 
-# Literals and range checking
+# Integer literals and range checking
 
-An integer literal is a decimal digit string, with `0x` folded at lexing and a prefix minus folded into the string. It is elaborated against its expected type. A literal outside the expected type's range is a compile error, and the message names both the literal and the type:
+Integer literals (decimal, `0x` hexadecimal, or negative signed literals) are elaborated against their expected type and range-checked at compile time:
 
 <!-- cinch:reject contains="integer literal 300 is out of range for U8" -->
 ```cinch
@@ -160,13 +163,13 @@ module Main where
     _ -> 0
 ```
 
-`Nat` and `Int` literals are unbounded. A literal whose type no constraint determines is an error rather than a default, with one narrow exception: when pending literal wants are the only thing blocking resolution it takes the mathematical `Int`. There is no defaulting to `I64` or `F64`, and a literal whose type stays open reports `the type of this integer literal is not determined by context; add a type annotation`.
+`Nat` and `Int` literals are unbounded. Cinch never silently defaults an unconstrained literal to `I64` or `F64`; when no context constrains a literal (other than pure literal constraints resolvable to exact `Int`), the compiler rejects it with `the type of this integer literal is not determined by context; add a type annotation`.
 
-# Division and NonZero
+# Total division and NonZero
 
-`/` and `%` are the `Div` and `Rem` class methods, and their second argument is a `NonZero a`, so division is total by construction. `NonZero` is a refinement declared beside the classes: `type NonZero a = refine (n :: a) with NonZero n`. A `NonZero Nat` is its `Nat` at run time, because the witness is erased.
+The `Div` and `Rem` operators `/` and `%` take a `NonZero a` divisor (`type NonZero a = refine (n :: a) with NonZero n`). Because the witness is erased `Prop` evidence, `NonZero Nat` has the same runtime representation as `Nat`, and division by zero is ruled out statically.
 
-A numeral divisor decides its own predicate, so `n / 10` needs nothing written. Zero is refuted:
+Non-zero numeral divisors satisfy the predicate automatically (`n / 10`); literal zero is rejected at compile time:
 
 <!-- cinch:reject contains="integer literal 0 is not a NonZero Nat" -->
 ```cinch
@@ -176,7 +179,7 @@ module Main where
     _ -> 0
 ```
 
-A variable divisor needs evidence. Either it arrives as a `NonZero` argument, or it comes from a runtime decision whose `Yes` branch carries the witness:
+For runtime divisors, pass a `NonZero` value, use a branch fact (`if d /= 0`), or branch on `decide (NonZero d)`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -194,43 +197,38 @@ module Main where
     None -> 2
 ```
 
-`Data.NonZero`'s `non-zero` and `non-zero-nat` are the total constructors returning `Option`, for the same reason. `checked-div` and `checked-rem` are the operations where zero is an ordinary input.
+At input boundaries, [Data.NonZero](../library/Data.NonZero.md) exports `non-zero :: Int -> Option (NonZero Int)` and `non-zero-nat :: Nat -> Option (NonZero Nat)`; `checked-div` and `checked-rem` accept zero directly and return `Option`.
 
-# Operators and fixities
+# Standard numeric and boolean operators
 
-Operators are class methods, and only the declaring module may declare a fixity. These are the declared facts:
-
-| Operator | Fixity | Declaring module | Second argument |
+| Operator | Fixity | Declaring module | Notes |
 | --- | --- | --- | --- |
-| `*` | `infixl 9` | `Algebra.Arithmetic` | `a` |
-| `/` | `infixl 9` | `Algebra.Arithmetic` | `NonZero a` |
-| `%` | `infixl 9` | `Algebra.Arithmetic` | `NonZero a` |
-| `+` | `infixl 8` | `Algebra.Arithmetic` | `a` |
-| `-` | `infixl 8` | `Algebra.Arithmetic` | `a`, with `b <= a` at `Nat` |
-| `<<`, `>>` | `infixl 7` | `Algebra.Bits` | count |
-| `&` | `infixl 6` | `Algebra.Bits` | `a` |
-| `^` | `infixl 5` | `Algebra.Bits` | `a` |
-| `\|` | `infixl 4` | `Algebra.Bits` | `a` |
-| `==`, `/=` | `infix 3` | `Relation.Eq` | `a` |
-| `<`, `<=`, `>`, `>=` | `infix 3` | `Relation.Ord` | `a` |
-| `&&` | `infixr 2` | `Data.Bool` | `Bool`, short-circuiting |
-| `\|\|` | `infixr 1` | `Data.Bool` | `Bool`, short-circuiting |
+| `*` | `infixl 9` | `Algebra.Arithmetic` | Exact on `Nat`/`Int`. |
+| `/` | `infixl 9` | `Algebra.Arithmetic` | Divisor is `NonZero a`. |
+| `%` | `infixl 9` | `Algebra.Arithmetic` | Divisor is `NonZero a`. |
+| `+` | `infixl 8` | `Algebra.Arithmetic` | Exact on `Nat`/`Int`. |
+| `-` | `infixl 8` | `Algebra.Arithmetic` | Exact on `Int`; requires `b <= a` on `Nat`. |
+| `<<`, `>>` | `infixl 7` | `Algebra.Bits` | Bit shifts. |
+| `&` | `infixl 6` | `Algebra.Bits` | Bitwise AND. |
+| `^` | `infixl 5` | `Algebra.Bits` | Bitwise XOR. |
+| `\|` | `infixl 4` | `Algebra.Bits` | Bitwise OR. |
+| `==`, `/=` | `infix 3` | `Relation.Eq` | Non-associative equality. |
+| `<`, `<=`, `>`, `>=` | `infix 3` | `Relation.Ord` | Non-associative ordering. |
+| `&&` | `infixr 2` | `Data.Bool` | Short-circuiting boolean AND. |
+| `\|\|` | `infixr 1` | `Data.Bool` | Short-circuiting boolean OR. |
 
-`&&` and `||` short-circuit because the parser elaborates them to `if`; the parenthesized `(&&)` and `(||)` name the strict methods and are different operations. An operator with no declared fixity and no import is refused with `there is no fixity declared for the operator ... and there is no default for an undeclared operator`.
+Infix `&&` and `||` short-circuit by desugaring to `if`; parenthesized `(&&)` and `(||)` refer to the strict two-argument functions. Operators without a declared or imported fixity are rejected.
 
-# Floating point
+# Floating-point numbers
 
-`F32` and `F64` are IEEE 754 binary32 and binary64. They have no `Eq` and no `Ord` instance and no arithmetic class instance, because those laws do not hold for them. The named operations are the interface: `add-f64`, `sub-f32`, `mul-f64`, `div-f64`, `neg-f32`, `abs-f64`, `sqrt-f64`.
+`F32` and `F64` implement IEEE 754 binary32 and binary64. Because NaN violates reflexivity, transitivity, and algebraic laws, floating-point types deliberately have no `Eq`, `Ord`, or arithmetic type class instances. Use the explicit named operations instead:
 
-Comparison is the IEEE predicate family, `feq-f64`, `fne-f64`, `flt-f64`, `fle-f64`, `fgt-f64`, `fge-f64`, plus the total order `total-order-f32` and `total-order-f64`. Inspection is total: `is-na-nf64`, `is-infinite-f64`, `is-finite-f64`, `is-normal-f64`, `sign-bit-f32`. `minimum-f64` and `maximum-f64` propagate NaN and distinguish the two zeros.
+- **Arithmetic:** `add-f64`, `sub-f32`, `mul-f64`, `div-f64`, `neg-f32`, `abs-f64`, `sqrt-f64`, `minimum-f64`, `maximum-f64` (`minimum`/`maximum` propagate NaN and distinguish `-0.0` from `+0.0`).
+- **Comparisons:** IEEE predicates `feq-f64`, `fne-f64`, `flt-f64`, `fle-f64`, `fgt-f64`, `fge-f64`, plus IEEE 754 total ordering `total-order-f32` and `total-order-f64`.
+- **Classification:** `is-na-nf64`, `is-infinite-f64`, `is-finite-f64`, `is-normal-f64`, `sign-bit-f32`.
+- **Conversions:** `f32-to-f64` and `f64-to-f32` (total, IEEE rounding); float-to-integer conversions exist only in `checked-*` and `saturating-*` forms.
 
-There is no fractional literal form in the surface syntax:
-
-```text
-cinch: 4:13: float literals are not supported in the bootstrap slice (there is no AST node for them)
-```
-
-A decimal comes from bytes through `f64-from-decimal :: Bytes -> F64`, and `f64-to-decimal :: F64 -> Bytes` renders one. Both `f32-to-f64` and `f64-to-f32` are total and round per IEEE 754; float to integer is `checked-*` or `saturating-*` only.
+Floating-point literals are not part of the surface syntax. Parse decimal text with `f64-from-decimal :: Bytes -> F64` and format with `f64-to-decimal :: F64 -> Bytes`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -250,22 +248,20 @@ module Main where
        else 3
 ```
 
-<span class="support-tag support-tag--planned">Coming soon</span> the unified refined-float design, which plans a revised representation and proof-driven range and finiteness contracts with explicitly selected unsafe IEEE instances. [Float refinements](../design/float-refinements.md) records it. It is not a description of the operations above.
+<span class="support-tag support-tag--planned">Coming soon</span> Refined floating-point contracts (finiteness, range proofs, and opt-in unsafe IEEE instances) are designed in [float refinements](../design/float-refinements.md).
 
-# Char and text
+# Characters and UTF-8 text
 
-`Char` is a Unicode scalar value, distinct from a byte. `char-code :: Char -> InRange 0 1114111 Nat` is total, and both directions of construction return `Option` because a surrogate is not a scalar value:
+`Char` represents a Unicode scalar value (`0`–`0x10FFFF`, excluding UTF-16 surrogates `0xD800`–`0xDFFF`). Construction from integers is checked and returns `Option Char`:
 
 | Function | Signature |
 | --- | --- |
 | `char-code` | `Char -> InRange 0 1114111 Nat` |
-| `char-to-u32` | `(a0 :: Char) -> refined ((0 <= r && r <= 1114111) && r == a0) U32` |
+| `char-to-u32` | `(c :: Char) -> refined ((0 <= r && r <= 1114111) && r == c) U32` |
 | `char-from-code` | `Nat -> Option Char` |
 | `u32-to-char` | `U32 -> Option Char` |
 | `digit-value`, `hex-digit-value` | `Char -> Option Nat` |
 | `to-upper-ascii`, `to-lower-ascii` | `Char -> Char` |
-
-`char-from-code 55296` is `None`, and `char-code 'A'` is 65.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -280,7 +276,12 @@ module Main where
     Some c -> 4
 ```
 
-`String` is immutable UTF-8 text, a module-private newtype over `Bytes`. `string-to-bytes` encodes and copies out, `string-from-bytes` validates and copies in, and returns `Option`. `string-length` counts characters while `string-byte-length` counts bytes. `pack` and `unpack` convert to and from `List Char`. There is no fractional literal form and no byte-string literal form; a `"..."` literal is a `String`.
+`String` is immutable UTF-8 text (a module-private wrapper over `Bytes`). String literals (`"..."`) always have type `String`; there is no separate byte-string literal.
+
+- `string-to-bytes :: String -> Bytes` copies out the UTF-8 bytes; `string-from-bytes :: Bytes -> Option String` validates UTF-8 and copies in.
+- `string-length :: String -> Nat` counts Unicode scalar values; `string-byte-length :: String -> Nat` counts UTF-8 bytes.
+- `pack :: List Char -> String` and `unpack :: String -> List Char` convert to and from character lists.
+- [Data.Char](../library/Data.Char.md) and [Data.String](../library/Data.String.md) also export ASCII predicates (`is-ascii-digit`, `is-ascii-space`, ...) and low-level `utf8-*` helpers.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -299,31 +300,23 @@ module Main where
        else 5
 ```
 
-`Data.Char` and `Data.String` also export the ASCII classification predicates (`is-ascii-digit`, `is-ascii-space`, and the rest) and the byte-level helpers `utf8-*`, which are the reference semantics for the UTF-8 rules.
+# Byte buffers
 
-# Bytes
-
-`Bytes` is arbitrary byte data in a counted object. Read-only static buffers fault on write.
+`Bytes` is a reference-counted mutable buffer of raw bytes with fixed allocation length. Static read-only buffers fault if mutated. Every indexed access requires compile-time bounds evidence, and returned lengths and byte values carry range refinements forward:
 
 | Function | Signature |
 | --- | --- |
-| `bytes-new` | `(n :: Nat) -> refined ((b.bytesLen cinch-result) == n) Bytes` |
+| `bytes-new` | `(n :: Nat) -> refined (bytes-len r == n) Bytes` |
 | `bytes-len` | `Bytes -> InRange 0 9223372036854775807 Nat` |
-| `bytes-get` | `using (arg1 < (bytes-len arg0)) => (arg0 :: Bytes) -> (arg1 :: Nat) -> InRange 0 255 Nat` |
-| `bytes-set` | `using (arg1 < (bytes-len arg0)) => Bytes -> Nat -> InRange 0 255 Nat -> Unit` |
+| `bytes-get` | `using (i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> InRange 0 255 Nat` |
+| `bytes-set` | `using (i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> InRange 0 255 Nat -> Unit` |
 | `bytes-from-u8s` | `List U8 -> Bytes` |
 | `bytes-from-list` | `List (InRange 0 255 Nat) -> Bytes` |
-| `bytes-copy-range` | `using ((arg2 + arg4) <= (bytes-len arg0), (arg3 + arg4) <= (bytes-len arg1)) => Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit` |
+| `bytes-copy-range` | `using (di + n <= bytes-len dst, si + n <= bytes-len src) => (dst :: Bytes) -> (src :: Bytes) -> (di :: Nat) -> (si :: Nat) -> (n :: Nat) -> Unit` |
 | `bytes-compare` | `Bytes -> Bytes -> I64` |
 | `sha256-bytes` | `Bytes -> Bytes` |
 
-An access needs its bound as evidence. With the buffer's length unknown to the checker, the obligation is unsatisfied and named in full:
-
-```text
-cinch: 4:15: the obligation `9 < (Data.Bytes.bytes-len (Data.Bytes.bytes-new 4))` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide (9 < (Data.Bytes.bytes-len $call-argument:4057)) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `9 < (Data.Bytes.bytes-len (Data.Bytes.bytes-new 4))` is in scope here
-```
-
-`bytes-len` and `bytes-get` carry their range as a refinement, so the fact travels to the next operation.
+Calling `bytes-get` or `bytes-set` without proving `i < bytes-len b` is rejected with a diagnostic naming the missing obligation and the ways to discharge it (`decide`, a branch condition, or a refined argument). Because `bytes-len b == 3` in the `then` branch below implies `1 < bytes-len b`, no separate bounds check is needed for `bytes-get b 1`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -339,7 +332,11 @@ module Main where
 
 # Interned symbols
 
-`Sym` is a word-sized handle to a process-wide interned name cell. `Eq` is identity, so it is one pointer test; `Ord` compares the name bytes, so the order is deterministic across runs. `intern : String -> Sym` and `sym-name : Sym -> String` are the conversions, and a `'name` literal interns at compile time and is emitted as a constant.
+`Sym` is a word-sized handle to a process-wide interned name. `Eq` compares pointer identity in O(1); `Ord` compares the underlying name bytes lexicographically, making ordering deterministic across runs.
+
+- `intern :: String -> Sym` interns a string dynamically.
+- `sym-name :: Sym -> String` recovers the symbol's text.
+- Symbol literals (`'foo`) are interned at compile time and emitted as constants.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -353,16 +350,11 @@ module Main where
     else 3
 ```
 
-A symbol is opaque identity: nothing in the language exposes a cell address, and there is no arithmetic on `Sym`. Type-level promotion of `'foo` is reserved spelling and not implemented; [staging](14-staging-and-macros.md) covers the separate name-quotation context.
+Symbols are opaque identities: their addresses are never exposed, and they support no arithmetic. Type-level symbol promotion is reserved syntax; see [staging and macros](14-staging-and-macros.md) for compile-time name quotation.
 
-# Rational and BigDecimal
+# Exact Rationals and BigDecimals
 
-Both are exact and both are source-distributed: [Data.Rational](../library/Data.Rational.md) and [Data.BigDecimal](../library/Data.BigDecimal.md) are marked **Ship source**, so an `import` needs the module file beside the entry file under its dotted name, and an import without it reports `module Data.Rational is imported, but Data.Rational.cinch does not exist`.
+[Data.Rational](../library/Data.Rational.md) and [Data.BigDecimal](../library/Data.BigDecimal.md) provide exact arbitrary-precision fractions and base-10 decimals. Both are source-distributed modules: importing them requires `Data.Rational.cinch` or `Data.BigDecimal.cinch` beside the entry module (otherwise compilation fails with `module Data.Rational is imported, but Data.Rational.cinch does not exist`).
 
-`Rational` is a normalised integer pair: the denominator is positive, the two are coprime, and the raw constructor is private, so `rational 1 2` and `rational 2 4` produce equal values. `rational : Int -> Int -> Result RationalError Rational` reports `ZeroDenominator`; `div` reports `DivideByZero` and is the only partial operation. `add`, `sub`, and `mul` are total, `from-int` embeds integers, `numerator` and `denominator` observe the pair, and `to-f64` is the documented rounded boundary.
-
-`BigDecimal` is an unscaled `Int` times ten to an `Int` exponent: `big-decimal : Int -> Int -> BigDecimal`, with `unscaled` and `exponent` as observations, `from-string : String -> Result BigDecimalError BigDecimal`, and `add`, `sub`, `mul`, `abs`, `neg` total. `round : Nat -> Rounding -> BigDecimal -> BigDecimal` and `div : Nat -> Rounding -> BigDecimal -> BigDecimal -> Option BigDecimal` carry the rounding mode explicitly, so no quotient is silently rounded.
-
-# Implementation
-
-Machine scalar registration and the conversion families are in `seed/src/check_decls.rs` and the prelude's `Data/Machine.cinch`; literal range checking and the arithmetic primitives are in `seed/src/check_terms.rs`, `core.rs`, and `codegen.rs`; the bignum, bytes, and symbol runtimes are in `seed/runtime/src/`. Suites: `primitives.rs`, `bootstrap_machine_values.rs`, `safe_division.rs`, `safe_subtraction.rs`, `safe_bytes.rs`, `range_facts.rs`, `small_nats.rs`, `string_literals.rs`, `sym.rs`, `lib_rational.rs`, `lib_bigdecimal.rs`.
+- **`Rational`** maintains a normalized coprime `Int` pair with a strictly positive denominator behind a private constructor, so `rational 1 2` and `rational 2 4` produce equal values. Construction via `rational :: Int -> Int -> Result RationalError Rational` rejects zero denominators (`ZeroDenominator`); `div` rejects division by zero (`DivideByZero`); `add`, `sub`, `mul`, `from-int`, `numerator`, and `denominator` are total; `to-f64` explicitly rounds to `F64`.
+- **`BigDecimal`** pairs an unscaled `Int` mantissa with an `Int` base-10 exponent: `big-decimal :: Int -> Int -> BigDecimal`, observed with `unscaled` and `exponent`, and parsed via `from-string :: String -> Result BigDecimalError BigDecimal`. `add`, `sub`, `mul`, `abs`, and `neg` are total; `round :: Nat -> Rounding -> BigDecimal -> BigDecimal` and `div :: Nat -> Rounding -> BigDecimal -> BigDecimal -> Option BigDecimal` require an explicit `Rounding` mode so quotients are never silently rounded.

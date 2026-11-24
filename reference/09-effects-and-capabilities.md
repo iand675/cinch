@@ -1,22 +1,29 @@
 # Effects, handlers, capabilities, and sequencing
 
-An effect row describes what a computation may do. A capability supplies access to one runtime identity. A handler interprets the operations of a user effect. A sequencing provider fixes the meaning of `do` for one definition. The four mechanisms compose, and none of them substitutes for another: supplying an `Io r` capability does not remove `IO r` from a row, and handling an effect does not select a `do` provider.
+Cinch separates four orthogonal mechanisms that other languages frequently conflate:
+
+- **Effect rows** declare *what* a computation may do on its function arrows.
+- **Capabilities** (`Io r`) grant lexical *access* to a specific runtime identity.
+- **Effect handlers** interpret user-defined algebraic operations and discharge their labels from a row.
+- **Sequencing providers** choose the meaning of `do` notation (`bind` and `pure`) lexically for a definition.
+
+None substitutes for another: supplying an `Io r` capability with `with` does not remove `IO r` from an effect row, and handling an effect does not change how `do` sequences statements.
 
 # Effect rows
 
-An arrow carries a row in one of these forms:
+Every function arrow carries an effect row in one of five forms:
 
-| Spelling | Meaning |
+| Syntax | Meaning |
 | --- | --- |
-| `A -> B` | Pure. The closed empty row. |
-| `A ->{} B` | The same closed empty row, written explicitly. |
-| `A ->{Poke} B` | A closed row holding the labels written between the braces. |
-| `A ->{\|e} B` | An open row: a row variable and no fixed labels. |
-| `A ->{Poke \| e} B` | An open row: the labels, then `\|`, then one row variable. |
+| `A -> B` | Pure (closed empty row). |
+| `A ->{} B` | Closed empty row, written explicitly. |
+| `A ->{Poke} B` | Closed row containing exactly the listed labels. |
+| `A ->{\|e} B` | Open row consisting solely of row variable `e`. |
+| `A ->{Poke \| e} B` | Open row containing `Poke` plus tail variable `e`. |
 
-Labels in a brace list are separated by commas, for example `->{Async r, IO r, Cancel r, Diverge}`. The tail after `|` must be a variable; a constructor there is refused with ``expected a row variable after `|`, found constructor `Eval` ``.
+Multiple labels in braces are comma-separated (e.g., `->{Async r, IO r, Cancel r, Diverge}`). The tail after `|` must be a row variable, never a concrete effect constructor.
 
-A row variable is a type parameter of kind `Row`. `forall e.` and `forall (e :: Row).` both declare one. Another kind annotation on a row position is refused:
+Row variables have kind `Row`. Both `forall e.` (inferred in row position) and `forall (e :: Row).` declare a row variable; annotating a row variable with another kind is rejected:
 
 <!-- cinch:reject contains="incompatible kind or non-row use" -->
 ```cinch
@@ -28,13 +35,9 @@ module Main where
   main = 0
 ```
 
-A curried definition carries its effects on the arrow that produces the result. `f :: Int -> Int ->{Poke} Int` may perform `Poke`; the same row on an earlier arrow is refused, because the earlier arrows of a curried definition unify with the pure row:
+In a curried function definition, effects belong on the final arrow that produces the result (`Int -> Int ->{Poke} Int`). Placing an effect row on an earlier arrow of a curried definition fails row unification against `{}`.
 
-```text
-cinch: 6:3: effect rows do not match: {Poke} vs {}
-```
-
-A declared row is the contract callers see. The body may perform fewer labels than it declares and never more. Here `plain` is pure, `pokePlus` performs `Poke`, and `main` stays pure because it calls only `plain`:
+A declared row is an upper bound on the body and an exact contract for callers. A body may perform fewer effects than declared, never more; omitting a performed label fails with `effect rows do not match`:
 
 <!-- cinch:run exit=42 -->
 ```cinch
@@ -52,8 +55,6 @@ module Main where
   main = plain 41
 ```
 
-Declaring a label the body does not perform still puts that label on every caller. A body that performs a label its declaration omits is refused. Both directions are the same row unification, and each is reported as `effect rows do not match` with the two rows:
-
 <!-- cinch:reject contains="effect rows do not match" -->
 ```cinch
 module Main where
@@ -67,9 +68,9 @@ module Main where
   main = 0
 ```
 
-## Row variables in higher-order signatures
+## Row polymorphism in higher-order signatures
 
-A higher-order API quantifies over the row rather than duplicating a pure and an effectful variant. One definition of `twice` then accepts a pure callback and an effectful one, and the caller's declared row records what the chosen callback performs:
+Quantifying over a row variable lets a higher-order function accept both pure and effectful callbacks without duplication. The caller's row receives whatever effects the supplied callback performs:
 
 <!-- cinch:run exit=8 -->
 ```cinch
@@ -90,45 +91,39 @@ module Main where
   main = pureCall
 ```
 
-`effectfulCall` declares `{Poke}` and checks; instantiating `e` with the empty row gives `pureCall` no effect at all. The same instantiation rule is why `pureCall` can be evaluated by a pure `main`.
+Here `pureCall` instantiates `e` to `{}` so it can be called from a pure `main`, while `effectfulCall` instantiates `e` to `{Poke}`.
 
 ## `Diverge`
 
-`Diverge` is an ordinary label in the row vocabulary and records that a computation may not return. A non-terminating definition is written with it:
+`Diverge` is an effect label indicating that a computation may fail to return:
 
 ```cinch
 loop :: forall a b. a ->{Diverge} b
 loop x = loop x
 ```
 
-The label is admitted by declaration, not proved absent by handling. A pure entry point cannot contain it, so a `main :: Int` that calls `loop` is refused:
+`Diverge` cannot be discharged by a handler. A pure nullary `main :: Int` cannot call a `Diverge` computation, and a handler whose own clauses diverge propagates `Diverge` to the enclosing `handle` expression.
 
-```text
-cinch: 6:3: effect rows do not match: {} vs {Diverge | ?r895} (a nullary definition must be pure in the bootstrap slice)
-```
+# Capabilities and runtime identities
 
-Wrapping a looping computation in a handler does not discharge `Diverge`. A handler clause that loops makes the whole `handle` expression divergent, so the definition that owns it must declare `{Diverge}`, and a pure `main` that reaches that definition is refused with the same message.
+Effect labels may be indexed by a region-like identity `r` that binds operations to a specific runtime or memo scope:
 
-# Capability indices
-
-A label may take a runtime identity as its argument, which ties the operation to one runtime. The labels a user meets are:
-
-| Label | Argument | Introduced by |
+| Label | Parameter | Origin |
 | --- | --- | --- |
-| `IO r` | runtime identity | the builtin `Io` head over `r` |
+| `IO r` | runtime identity | `Io r` capability operations |
 | `Log r`, `Trace r` | runtime identity | [Effect.Log](../library/Effect.Log.md), [Effect.Trace](../library/Effect.Trace.md) |
-| `Async r`, `Cancel r` | runtime identity | the structured-task builtins ([concurrency](13-concurrency-and-runtime.md)) |
-| `Eval r` | memo region | the `~` memo group that introduces `r` |
-| `Diverge` | none | any definition that may not return |
-| `Foreign`, `IO`, `Global`, `Blocking`, `Fail`, `Reentrant`, `ThreadAffine` | `Foreign` takes the boundary name | a `foreign import` whose row accounts for the behaviour |
+| `Async r`, `Cancel r` | runtime identity | Structured concurrency ([Chapter 13](13-concurrency-and-runtime.md)) |
+| `Eval r` | memo region | Local `~` memo groups ([Chapter 11](11-laziness-and-codata.md)) |
+| `Diverge` | none | Potentially non-terminating computations |
+| `Foreign`, `IO`, `Global`, `Blocking`, `Fail`, `Reentrant`, `ThreadAffine` | boundary name on `Foreign` | `foreign import` declarations ([Chapter 15](15-ffi-layout-and-attributes.md)) |
 
-A `foreign import` has to account for what the C function can do, so its declared row is where `Blocking`, `Global`, `Fail`, `Reentrant`, and `ThreadAffine` appear. Leaving out a behaviour the call has is an effect honesty failure, and `Blocking` in particular reaches the spawning scope's row when a task calls it.
+A `foreign import` must declare every foreign behavior it can exhibit (`Blocking`, `Global`, `Fail`, `Reentrant`, `ThreadAffine`). In particular, calling a `Blocking` foreign function inside a spawned task propagates `Blocking` to the enclosing task scope's effect row.
 
-`Io r` is the one class head the checker treats as a runtime capability. A `using (x :: C ...)` binder whose head is `Io` is a capability parameter, solved only from a lexical provider or an explicit supply, never from an instance and never from global state. Every other `using` head is an ordinary compile-time class constraint. This split is decision D21 in [the specification](../specifications/runtime-capabilities-effects-and-sequencing.md).
+Among `using` constraints, `Io r` is treated specially as a **lexical runtime capability**: it is resolved exclusively from an enclosing `with` binding or an explicit call-site `@{...}` argument, never from type-class instances or global state. All other `using` heads are ordinary compile-time class constraints.
 
-## `using` contexts, `with`, and `@{...}`
+## `using`, `with`, and `@{...}`
 
-A definition requests the capability in its `using` context. A caller supplies it lexically with `with (io = newIO ()) in body`, or at the call with `@{...}`:
+A function declares its capability requirement in a `using` clause. Callers provide the capability either lexically with `with (io = ...) in body` or directly at a call site with `@{io = ...}`:
 
 <!-- cinch:run stdout="direct\ninside\n" exit=0 -->
 ```cinch
@@ -142,13 +137,9 @@ module Main where
       _ -> 0
 ```
 
-`newIO ()` constructs a fresh runtime identity. The capability name is a term-level value of type `Io r`, so an inner `with` shadows an outer one and forwarding a capability is written `with (io = io) in ...`. Three refusals cover the mistakes:
+`newIO ()` creates a fresh runtime identity. Because capability bindings are ordinary lexically scoped values of type `Io r`, an inner `with` shadows an outer one and forwarding a capability is written `with (io = io) in ...`. Supplying a capability never removes `IO r` from the effect row; `with` supplies runtime access, not a handler.
 
-| Mistake | Diagnostic |
-| --- | --- |
-| No provider anywhere in scope | ``no Io r#846 capability in scope; supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause`` |
-| `with` supplies a value of the wrong type | ``supply io must have type `Io r` or another checked signature, got Int`` |
-| `@{...}` names a parameter the definition does not have | `greet has no capability parameter cap` |
+Omitting a capability provider is rejected at the call site:
 
 <!-- cinch:reject contains="capability in scope" -->
 ```cinch
@@ -161,11 +152,11 @@ module Main where
     _ -> 0
 ```
 
-Supplying a capability does not remove the effect. The row `{IO r}` stays on the call and on the caller, which is why the examples above declare `main :: Unit ->{IO r} Int` rather than `main :: Int`. `with` supplies evidence; it is not a handler.
+Supplying a non-capability value in `with` or naming a nonexistent capability parameter in `@{...}` is likewise rejected at check time.
 
-## Runtime identity
+## Runtime identity isolation
 
-The identity `r` is a rigid region-like parameter, and two identities do not unify. A capability for one identity cannot stand in for a row naming another, and the refusal is row unification again:
+Each runtime identity `r` is a rigid parameter of kind `Region`. Distinct identities never unify, so a capability for one runtime cannot satisfy an `IO` effect tagged with another:
 
 <!-- cinch:reject contains="effect rows do not match" -->
 ```cinch
@@ -180,11 +171,11 @@ module Main where
   main = 0
 ```
 
-The checker reports `effect rows do not match: {IO r#847} vs {IO s#846 | ?r895}`: `writeAt` needs `IO r`, the supplied capability writes at `IO s`, and the two are distinct. The identity also appears in every task and scope contract, and a checked interface keeps it printed, for example `io :: Io r` with `r :: Region` in the `.cinchif` contract of an exported helper.
+Here `writeAt` requires `IO r`, while passing `other :: Io s` produces `IO s`; the mismatch is caught by row unification. Runtime identities are preserved in checked `.cinchif` interfaces and across task/scope boundaries.
 
 ## Memo regions
 
-A `~` memo group introduces one region `r` and one `Eval r` label for the group. A demand performs `Eval r`, so the label appears in rows, and a memo cell whose evaluation row contains its own group's label is refused statically:
+A `~` memo binding block introduces a fresh region `r` and effect label `Eval r`. Demanding a cell performs `Eval r`. A cell's own body cannot contain `Eval r` for its own group, statically preventing self-referential black holes:
 
 <!-- cinch:reject contains="memo cell cannot demand its own group" -->
 ```cinch
@@ -198,18 +189,18 @@ module Main where
   main = f 1
 ```
 
-The message names the identity: `effect row must not contain Eval r#13 (a memo cell cannot demand its own group): this memo binding demands its own memo group`. The group's label is discharged at the end of its scope, so a definition whose `~` bindings are local does not export `Eval r`. The value types carry the row instead: `Thunk {e} a` holds the row of the computation it stores, `Lazy {e} r a` names the region as well, and both must be fully applied. Writing a bare `Thunk a` is refused with ``Thunk and Lazy must be fully applied as `Thunk {e} a` and `Lazy {e} r a` ``.
+`Eval r` is discharged when the memo block exits. Explicit deferred types must be fully applied as `Thunk {e} a` and `Lazy {e} r a`; see [Chapter 11](11-laziness-and-codata.md).
 
-# Handler declarations and clauses
+# Algebraic effects and handlers
 
-`effect` declares the operation signatures of a user effect, and each operation performs exactly its effect's label:
+An `effect` block declares user-defined operations, each carrying its effect's label in its arrow:
 
 ```cinch
 effect Poke where
   poke :: Unit ->{Poke} Int
 ```
 
-`handle` discharges the labels of one effect from the handled expression and replaces them with whatever the clauses perform:
+A `handle expr with h` expression discharges the effect from `expr` and replaces it with any effects performed by the handler's clauses:
 
 ```cinch
 handle poke () + 10 with (handler Poke where
@@ -217,25 +208,26 @@ handle poke () + 10 with (handler Poke where
   poke u resume k -> k 5)
 ```
 
-The handler form is `handler Effect where` followed by clauses at the same indentation. A `return` clause receives the value of the handled computation when it finishes without an unhandled operation. An operation clause matches the operation's arguments, then its resumption, and names the continuation `k` after `resume`. The parentheses matter: `handle e with h` takes a handler expression, and a handler is an ordinary value, so `let h = (handler Poke where ...) in handle e with h` is the same program.
+A `handler Effect where` block contains:
 
-## Which handler programs work today
+- A **`return` clause** (`return x -> ...`), invoked when the handled computation finishes with a normal value.
+- One **operation clause** per operation (`op args... resume k -> ...`), binding the operation arguments and the delimited continuation `k`. Duplicate clauses for the same operation are rejected.
 
-| Form | Today |
+Handlers are first-class values: `let h = (handler Poke where ...) in handle e with h` is equivalent to writing the handler inline.
+
+## Handler semantics
+
+| Case | Behavior |
 | --- | --- |
-| Operation performed by the handled expression itself | Dispatched to its clause. |
-| Operation performed inside a `do` block under the handler | Dispatched, when the block's statements are direct. |
-| Operation value passed to another function without being performed | Accepted. Constructing or passing `poke` performs nothing. |
-| Operation reached through a called computation | Refused at `handle`. This is the cross-call boundary below. |
-| Clause that resumes once | Accepted; the continuation runs the rest of the handled computation and the return clause. |
-| Clause that never resumes | Accepted; the clause's value is the result of the `handle` and the rest of the computation never runs. |
-| Clause that resumes twice | Refused by the multiplicity checker. |
-| Resumption that consumes a `%1` capture | Accepted exactly once; the resumption binder is promoted to `%1`, so a second use is refused. |
-| Clause that performs effects | Accepted; the effects join the `handle` expression's row, so they reach the enclosing definition. |
-| Duplicate clause for one operation | Refused: `duplicate handler clause for operation poke`. |
-| Handler bound to a name, then used | Accepted. |
+| Direct operation in handled expression or `do` block | Dispatched to its matching handler clause. |
+| Operation passed as a value without calling it | Accepted; referencing `poke` performs no effect. |
+| Clause resumes once (`k v`) | Runs the remainder of the handled computation, then the `return` clause. |
+| Clause does not resume | Short-circuits immediately; neither the remainder nor `return` runs. |
+| Clause resumes more than once | Rejected (`k` is one-shot). |
+| Clause performs other effects | Those effects join the `handle` expression's output row. |
+| Operation performed inside a called helper function | Rejected at `handle` (see [handler boundaries](#handler-boundaries)). |
 
-Three verified programs cover the accepted shapes. Resuming once runs the rest of the handled expression and then the return clause, and the clause's own value is what the continuation becomes:
+Resuming once runs the rest of `poke () + 10` (yielding `15`) and then `return x -> x * 2` (yielding `30`):
 
 <!-- cinch:run exit=30 -->
 ```cinch
@@ -249,7 +241,7 @@ module Main where
     poke u resume k -> k 5)
 ```
 
-Never resuming returns the clause's value and abandons the rest: the same handler with `poke u resume k -> 7` gives exit 7, because `+ 10` and the return clause never run.
+Binding a handler to a local variable:
 
 <!-- cinch:run exit=42 -->
 ```cinch
@@ -267,7 +259,7 @@ module Main where
   main = answer ()
 ```
 
-A clause may perform effects of its own. The handled label is removed and the clause's row is added, so `greet` below declares `{IO r}` for the write inside the clause and does not declare `Ask` at all:
+Handler clauses may perform other effects. The handled label (`Ask`) is removed from the row, while the clause's effects (`IO r`) propagate outward:
 
 <!-- cinch:run stdout="asked\n" exit=7 -->
 ```cinch
@@ -285,9 +277,11 @@ module Main where
   main u = with (io = newIO ()) in greet ()
 ```
 
-## One-shot resumption
+## One-shot resumptions
 
-The continuation is `%aff` by construction: it may be used at most once, and the checker enforces that at the second use. Two resumes in one clause are refused even when the continuation captures nothing linear:
+Handler continuations are strictly one-shot:
+
+- By default, `k` has multiplicity `%aff` (at most once). Resuming twice is rejected even with no linear captures:
 
 <!-- cinch:reject contains="must be used at most once" -->
 ```cinch
@@ -301,7 +295,7 @@ module Main where
     poke u resume k -> k 1 + k 2)
 ```
 
-The full diagnostic is `multiplicity %aff: k must be used at most once, but is used 2 time(s)`. When the handled expression consumes a `%1` value, the continuation holds that value, and both dropping the resumption and duplicating it are then refused with `must be used exactly once`. Resuming exactly once is accepted and consumes the capture once:
+- When the handled computation captures a `%1` (linear) value, `k` is promoted to `%1` (exactly once), so both dropping `k` and calling `k` twice are rejected. Resuming once consumes the linear value cleanly:
 
 <!-- cinch:run exit=6 -->
 ```cinch
@@ -323,7 +317,7 @@ module Main where
 
 ## Region-parameterized effects
 
-An effect may take a region identity, which is how a user effect is indexed by a runtime. The parameter is declared `(r :: Region)` and the handler takes the same binder:
+User effects can be indexed by a region identity `(r :: Region)`. The corresponding `handler` header repeats the binder (`handler Mark r where`):
 
 <!-- cinch:run exit=9 -->
 ```cinch
@@ -337,13 +331,12 @@ module Main where
     mark u resume k -> k 9)
 ```
 
-Omitting the binder is refused at the handler with ``effect Async has a region parameter: write `handler Async r where` ``. Any other kind annotation on the parameter is refused at the declaration with ``effect parameters are region identities (`(r :: Region)`); other kinds are not supported in the bootstrap slice``.
+Omitting `r` in the handler header or annotating an effect parameter with a kind other than `Region` is rejected.
 
-## Handler typing boundaries
+## Handler boundaries
 
-An operation's type parameters are universal in the clause, so a clause cannot pick a result type for a polymorphic operation. A definition of `magic :: forall a. Unit ->{Magic} a` handled at `Int` refuses a clause that resumes with a literal and reports `type mismatch`. A clause cannot return an operation-local type parameter as the answer either; that case is refused with `operation-local type parameter escapes`. A polymorphic operation that never resumes is accepted at any result type, because the clause's own value is the answer.
-
-<span class="support-tag support-tag--planned">Coming soon</span> **cross-call operation dispatch.** Handlers interpret operations performed by the handled expression itself, including those inside a `do` block under the handler. An operation reached through a separate call is not dispatched, and the checker refuses the `handle` rather than leaving the operation to run uninterpreted:
+- **Polymorphic operations.** Type parameters on an operation are universally quantified inside the handler clause, so a clause cannot resume with an arbitrary concrete type or allow an operation-local type variable to escape into the handler's result. (A clause that never resumes can return any answer type.)
+- <span class="support-tag support-tag--planned">Coming soon</span> **Cross-call operation dispatch.** Handlers currently dispatch operations performed directly within the handled expression (including direct statements inside a `do` block), not operations invoked transitively through a separate function call:
 
 <!-- cinch:reject contains="performed through a called computation" -->
 ```cinch
@@ -360,13 +353,11 @@ module Main where
     poke u resume k -> k 1)
 ```
 
-The diagnostic is `the handled effect {Poke} is performed through a called computation; the bootstrap handler calculus dispatches operations only from the handled computation's own expression`. Answer-passing elaboration is the planned direction, and until it lands the restriction is a real limit: a helper that performs an operation cannot be handled from its caller.
+Until answer-passing elaboration lands, keep handled operations direct within the `handle` body rather than behind helper calls.
 
-Handler-vtable specialization is a separate planned optimizer extension. A handler is already a dictionary of clause closures at runtime; specializing a statically known handler is an optimization, not a change in which programs check.
+# Sequencing providers (`do` notation)
 
-# Sequencing providers
-
-`do` notation reads the same under three providers. The provider supplies `pure` and `bind`, and the whole difference between the three is those two signatures, which are their declarations in `Effect/Sequencing.cinch`:
+`do` notation is not hardwired to a `Monad` type class. Instead, each definition selects a **sequencing provider** that supplies `pure` and `bind`. Three core providers live in `Effect.Sequencing`:
 
 | Provider | `pure` | `bind` |
 | --- | --- | --- |
@@ -374,19 +365,16 @@ Handler-vtable specialization is a separate planned optimizer extension. A handl
 | `ResultSequencing e` | `forall a. a -> Result e a` | `forall a b ef. Result e a -> (a ->{ef} Result e b) ->{ef} Result e b` |
 | `OptionSequencing` | `forall a. a -> Option a` | `forall a b ef. Option a -> (a ->{ef} Option b) ->{ef} Option b` |
 
-## Selecting a provider
+## Provider selection
 
-The selection is lexical, per definition, and comes from one place: a `using` binder whose class head is one of the three providers. The binder's name is yours; only the head matters.
+Selection is strictly lexical and per definition:
 
-| Rule | Consequence |
-| --- | --- |
-| No provider binder in the definition | Direct sequencing. |
-| One provider binder, of any name | That provider, for every `do` and every bare `pure` in the definition. |
-| Two provider binders in one selection scope | Refused at each `do` and `pure`: `two active sequencing providers in one selection scope are ambiguous (ResultSequencing e#844, OptionSequencing); bind one explicitly`. |
-| A return type that mentions `Result` or `Option` | Selects nothing. |
-| A `Category.*` class constraint such as `Monad` | Selects nothing; those classes abstract over containers for polymorphic code and never feed `do`. |
+- **No provider binder in `using`:** `DirectSequencing` is active by default.
+- **One provider binder in `using`:** That provider governs every `do` block and bare `pure` in the definition (the binder's variable name does not matter).
+- **Two provider binders in one scope:** Rejected as ambiguous at each `do` and `pure`.
+- **Return types and `Category.*` classes:** Returning `Result` or `Option`, or constraining `using (m :: Monad f)`, **never** selects a `do` provider.
 
-The return type rule is the one that surprises people, so it is worth a refusal of its own:
+Returning `Result` without a `ResultSequencing` binder leaves `DirectSequencing` active, where `x <- r` binds the `Result` itself rather than unwrapping `Ok`:
 
 <!-- cinch:reject contains="integer literal cannot have type Result Int Int" -->
 ```cinch
@@ -400,32 +388,25 @@ module Main where
   main = 0
 ```
 
-Under the default direct provider, `x <- r` binds the whole `Result`, `pure` is the identity, and `x + 1` has no meaning; the literal reports `integer literal cannot have type Result Int Int`. Writing `using (provider :: ResultSequencing Int)` in the signature is what changes the block's meaning.
+## Elaboration of `do` blocks
 
-## What `do`, `<-`, and `let` become
-
-With `bind` and `pure` the two provider methods, a block elaborates as follows.
-
-| Statement | Elaboration |
+| Statement | Desugaring |
 | --- | --- |
-| `x <- e` then `rest` | `bind e (\x -> rest)`. The payload type of `e` is what `x` names. |
-| `e` then `rest`, with no binding | `bind e (\_ -> rest)`. The payload is discarded, so an unconstrained literal there needs an annotation. |
-| `let` and its local block | Bound strictly, as a pure local group, and not sequenced through `bind`. |
-| Last statement | Must be an expression, and it is the block's value. |
-| `pure x` | The provider's `pure` at `x`, which builds the block's result shape. |
+| `x <- e` followed by `rest` | `bind e (\x -> rest)` |
+| `e` followed by `rest` | `bind e (\_ -> rest)` (discarded value; unconstrained literals need an annotation) |
+| `let ...` | Pure, strict local binding group; not passed through `bind`. |
+| Final statement | Must be an expression; produces the block's result. |
+| `pure x` | Calls the active provider's `pure`. |
 
-Consequences that follow from that table and are worth stating separately:
+Key rules for `do` statements:
 
-- A `let` statement must be pure. Its interpretation does not sequence effects, so `let x = poke ()` inside `do` is refused with ``a `let` statement in `do` must be pure (its interpretation does not sequence effects)``.
-- One `let` group binds one whole local block, so `let { inc :: Int -> Int; inc n = n + 1; v = inc 40 }` and a multi-line group both work, and the same name twice in one group is refused with ``duplicate binding `x` in the `let` group``.
-- Under a handled computation only simple value bindings sequence; a local function equation or a `~` memo binding in the group is refused with `local functions and memo bindings under a handled computation`.
-- A refutable pattern on the left of `<-` is refused, because the three providers have no typed failure operation: ``refutable patterns in `do` bindings need a provider failure operation; the direct, Result and Option bootstrap providers do not supply one``.
-- The last statement must be an expression: `the last statement of a do block must be an expression`.
-- Binds do not hide effects. A `do` block in a `main :: Int` that performs a user effect is refused exactly as the same expression outside `do` would be.
+- `let` statements inside `do` must be pure (performing an effect in a `let` inside `do` is rejected). One `let` group may bind multiple non-duplicate names and local helpers, except directly under a `handle` body where only simple value bindings are allowed.
+- Patterns on the left of `<-` must be irrefutable; refutable patterns are rejected because the built-in providers define no typed pattern-failure hook.
+- Sequencing never hides effects: effects performed inside `do` propagate to the enclosing definition's row identically to explicit expressions.
 
-## Direct provider
+## Built-in providers
 
-Direct sequencing is the default and the identity: `bind v k = k v` and `pure x = x`. The payload of a statement is the statement's own value, so a literal on the right of `<-` needs no container:
+**`DirectSequencing`** (default) uses `pure x = x` and `bind v k = k v`, so `<-` sequences plain values with no wrapper:
 
 <!-- cinch:run exit=7 -->
 ```cinch
@@ -437,18 +418,7 @@ module Main where
     pure (x + y)
 ```
 
-`y <- 4` binds `4` itself, and the final `pure (x + y)` is `3 + 4`. Naming the provider explicitly changes nothing:
-
-```cinch
-step :: using (provider :: DirectSequencing) => Int -> Int
-step n = do
-  x <- pure (n + 1)
-  pure x
-```
-
-## `Result` provider
-
-Under `ResultSequencing e`, a statement on the right of `<-` has type `Result e a`, the success payload is what `x` names, and a failure returns at once. The block's final expression must therefore be a `Result e b`; `pure` wraps a payload in `Ok`.
+**`ResultSequencing e`** unwraps `Ok` payloads and short-circuits on `Err`, wrapping the final value with `pure` into `Ok`:
 
 <!-- cinch:run exit=45 -->
 ```cinch
@@ -466,11 +436,7 @@ module Main where
     _ -> 0
 ```
 
-`step (Ok 41)` gives `Ok 42` and `step (Err 3)` gives `Err 3`, so the exit status is `42 + 3`. The error type is the provider's parameter `e`, which the expected type pins to `Int`; the block never names it.
-
-## `Option` provider
-
-`OptionSequencing` is the same shape with `Some` and `None`. There is no error payload, so the provider takes no parameter:
+**`OptionSequencing`** unwraps `Some` payloads and short-circuits on `None`:
 
 <!-- cinch:run exit=5 -->
 ```cinch
@@ -487,58 +453,30 @@ module Main where
     _ -> 0
 ```
 
-`step (Some 4)` gives `Some 5` and `step None` gives `None`, so the exit status is `5`.
-
-## `STM` provider
-
-A fourth provider is declared outside `Effect/Sequencing.cinch`, beside the type it sequences. `StmSequencing` in `Effect.Stm` has `pure :: a -> STM a` and `bind :: STM a -> (a -> STM b) -> STM b`, and a definition selects it the same way, with `using (seq :: StmSequencing)`. It differs from the other three in one rule: the function to the right of `<-` may run once per attempt of the transaction, so it is checked as a lambda that may be called many times, and a `%1` value cannot be carried across a `<-`. [Software transactional memory](13-concurrency-and-runtime.md#software-transactional-memory) has the library and the refusal.
+**`StmSequencing`** (in `Effect.Stm`) provides `pure :: a -> STM a` and `bind :: STM a -> (a -> STM b) -> STM b` via `using (seq :: StmSequencing)`. Because an `STM` transaction may retry, the continuation after `<-` can execute multiple times and therefore cannot capture a `%1` linear value. See [software transactional memory](13-concurrency-and-runtime.md#software-transactional-memory).
 
 ## `pure` resolution
 
-`pure` is a class method. Inside a definition with a provider binder, a bare `pure` is the provider's method. When a non-provider class constraint with a `pure` method is in scope, that constraint answers the bare use first, and `Applicative.pure` is the qualified spelling that always names the class method:
+Inside a definition with an active sequencing provider, bare `pure` resolves to that provider's `pure` unless a non-provider class constraint in scope also provides `pure` (which takes precedence). To target the `Applicative` class method unambiguously, qualify it as `Applicative.pure`:
 
 ```cinch
 wrap :: forall f. using (app :: Applicative f) => Int -> f Int
 wrap n = Applicative.pure n
 ```
 
-`Monad` has no `return`; the word does not exist as a method, and `return` appears only as handler clause syntax.
+`Monad` has no `return` method; `return` is reserved exclusively for handler clauses.
 
-## Module parameters
+## Module-level provider parameters
 
-The design also describes selecting a provider through a module parameter, as in `module ImportConfig (Seq :: ResultSequencing ConfigError) where`. The checker accepts that header and typechecks the module body. A program whose module declares a parameter does not currently run, whatever the parameter is:
-
-```text
-$ cinch check Main.cinch      # accepts the header and the body; prints nothing
-$ cinch run Main.cinch
-cinchruntime: compiler bug: null or wrong-kind word or corrupt generated data
-$ echo $?
-71
-```
-
-The same fault occurs for a parameter with no relation to sequencing, such as `module Main (N :: Nat) where`, so the limit belongs to module parameters rather than to provider selection. Use the `using` binder form above today.
-
-# Computations stored as values
-
-<span class="support-tag support-tag--planned">Coming soon</span> **`Comp {e} a` and resource-safe effectful pull streams.** The selected design packages an effectful unit closure in an ordinary transparent library type, with `suspend :: (Unit ->{e} a) -> Comp {e} a` and `run :: Comp {e} a ->{e} a`. The law is `run (suspend k) = k ()`: storing a computation executes nothing and sequences nothing, and the closure's ownership and row govern running and sharing it.
-
-`Effect.Comp` is not a shipped module, so the import fails: ``module Effect.Comp is imported, but Effect.Comp.cinch does not exist and no other source file beside the entry declares `module Effect.Comp` ``. Programs use explicitly typed effectful closures and the existing thunk and codata APIs instead of assuming a container-polymorphic effectful-stream library. The [computation-type decision](../design/comp-computation-type.md) fixes the direction and leaves the implementing streaming slice responsible for the exact resource-safe stream API.
+Imported library modules may accept signature or value parameters in their module headers (see [module parameters](07-modules-and-packages.md#module-parameters)), but an **entry module** declaring `main` cannot take module parameters, and module-header provider selection is not yet wired into executable entry points. Select sequencing providers per definition using a `using` binder.
 
 # Entry points and boundaries
 
-The entry signature is `main :: Int` for a pure program or `main :: Unit ->{e} Int` for an effectful one. Nothing else is admitted, and `main` takes no other parameters and no `using` context:
+Executable entry points admit exactly two signatures—`main :: Int` (pure) and `main :: Unit ->{e} Int` (effectful, with no `using` clause)—where the declared row establishes the program's effect envelope and capabilities are introduced inside `main` via `with (io = newIO ()) in`. See [entry points and exit statuses](01-using-the-compiler.md#entry-points-and-exit-statuses) and [entry points, exit statuses, and runtime diagnostics](13-concurrency-and-runtime.md#entry-points-exit-statuses-and-runtime-diagnostics) for the full entry diagnostics and reserved runtime exit codes.
 
-| Written | Diagnostic |
-| --- | --- |
-| `main :: Unit -> Unit -> Int` | `main must have type Int or Unit ->{e} Int in the bootstrap slice, got (Unit -> (Unit -> Int))` |
-| `main :: forall r. using (io :: Io r) => Int` | `main must have type Int or Unit ->{e} Int in the bootstrap slice` |
+Compile-time staging runs with its own recorded capabilities rather than ambient runtime I/O (see [staging and macros](14-staging-and-macros.md)).
 
-The effectful entry's declared row is the program's effect envelope. A capability is supplied at the entry with `with (io = newIO ()) in`, as every runnable example above does; a pure `main :: Int` cannot hide an unhandled effect, which is the `must be pure` refusal quoted under [rows](#effect-rows).
+- <span class="support-tag support-tag--planned">Coming soon</span> **`Comp {e} a` and resource-safe effectful pull streams.** Packaging an effectful unit closure as `Comp {e} a` (with `suspend :: (Unit ->{e} a) -> Comp {e} a` and `run :: Comp {e} a ->{e} a`) in `Effect.Comp` is planned ([computation-type design](../design/comp-computation-type.md)); until it ships, store explicit effectful closures or use `Thunk {e} a` and `codata`.
+- <span class="support-tag support-tag--planned">Coming soon</span> **Handler specialization.** Handlers are represented as clause-closure dictionaries at runtime; specializing statically known handlers is a planned optimization that does not change typing rules.
 
-Foreign operations declare their effects honestly, including `Blocking` and failure where the foreign call blocks or fails. Staging uses its own recorded capabilities rather than inheriting ambient runtime I/O.
-
-# Implementation
-
-The checker rules live in `check_terms.rs` and `check_decls.rs`: row unification in `types.rs`, handler elaboration and `@{...}` application in `check_terms.rs`, the entry rule in `check_decls.rs`. The provider declarations are `seed/prelude/Effect/Sequencing.cinch`. End-to-end suites are `effects.rs`, `concurrency.rs`, `observability.rs`, and `interface_region_effects.rs`.
-
-Tutorial chapters: [effects and I/O](../learn/10-effects-and-io.md) and [handlers and sequencing](../learn/11-handlers-and-sequencing.md). The normative text is [runtime capabilities, effects and sequencing](../specifications/runtime-capabilities-effects-and-sequencing.md); the implementation decisions are in [the design note](../design/effects-capabilities-sequencing.md).
+For guided walkthroughs, see [effects and I/O](../learn/10-effects-and-io.md) and [handlers and sequencing](../learn/11-handlers-and-sequencing.md). Normative details are in the [runtime capabilities, effects, and sequencing specification](../specifications/runtime-capabilities-effects-and-sequencing.md).

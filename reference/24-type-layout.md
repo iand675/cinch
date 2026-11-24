@@ -1,23 +1,23 @@
 # Type layout and runtime representation
 
-A source type, a native value word, an aggregate's byte layout, and a C calling convention are related but distinct. This chapter records what the Rust compiler currently computes for each of them, shows the command that prints those facts, and labels the selected future representation work. All `#[repr(...)]` variants are indexed in [attributes and pragmas](23-attributes-and-pragmas.md#repr-every-current-variant).
+A source type, a native value word, an aggregate's byte layout, and a C calling convention are distinct layers. This chapter specifies how the compiler computes and enforces each of them, how to inspect recorded layouts, and where explicit representation attributes interact with foreign boundaries and native optimization. For attribute attachment grammar and the complete `#[repr(...)]` index, see [attributes and pragmas](23-attributes-and-pragmas.md#syntax-and-attachment) and [every `repr` variant](23-attributes-and-pragmas.md#repr-every-current-variant).
 
-# What layout describes
+# Mental model: four separate layers
 
-An explicit aggregate layout records:
+| Layer | What it governs | Controlled by |
+| --- | --- | --- |
+| Source type | Type checking, inference, instance resolution, proofs | Declarations (`record`, `data`, `opaque`) |
+| Native value word | Uniform 64-bit call/field slots and reference counting (`Raw`, `Obj`, `TObj`) | Compiler lowering, `#[repr(unboxed)]`, `#[unpack]` |
+| Explicit byte layout | Field offsets, padding, alignment, and total byte size | `#[repr(C)]`, `#[repr(packed)]`, `#[repr(align(N))]`, `#[repr(transparent)]` |
+| Foreign calling convention | Passing structs by pointer, register, `byval`, or `sret` | `foreign import`/`export`, `#[byval]`, `#[sret]` |
 
-- Size and aggregate alignment, in bytes.
-- Each represented field's offset, size, and natural alignment.
-- Source representation spelling and any recorded discriminant width.
-- The relevant type/ABI identity used by interfaces and boundary marshaling.
+Explicit aggregate layouts describe a type's payload or marshaled bytes; they do **not** include the runtime allocation header. A value passed in a native 64-bit slot may be a pointer to that payload rather than the payload bytes inline.
 
-Offsets in an aggregate's layout describe its payload or marshaled representation. They do not include the runtime allocation header. A value carried in a native function's word slot can be a pointer to that payload rather than the payload bytes themselves.
+Do not infer wire or persistence stability from the fact that a type compiles. `#[repr(C)]` follows the target platform's C ABI (endianness, scalar widths, alignment); it is not a portable serialization format. Use an explicit codec for network or file formats.
 
-Do not infer persistence or wire compatibility from the fact that a type happens to work in a program. Use an explicit admitted layout for a boundary, inspect its recorded facts, and use a separate codec for a portable file or network format. `repr(C)` follows the supported target ABI; it is not an endian-neutral serialization format.
+# Inspecting recorded layouts
 
-# Inspect the compiler's layout facts
-
-`cinch check` writes one interface file per module under `build/`, and the entry module's `.cinchif` carries an `abi` section with the recorded layouts:
+`cinch check` writes a `.cinchif` interface file per module under `build/`. Its `abi.layouts` array records every type's computed representation:
 
 ```sh
 cinch check Main.cinch
@@ -32,7 +32,7 @@ for layout in interface["abi"]["layouts"]:
 PY
 ```
 
-For a module holding one `#[repr(C)]` record, one packed record, one transparent wrapper, one fixed-discriminant `data` and one unannotated record:
+Consider a module declaring one `#[repr(C)]` record, one packed record, one transparent wrapper, one fixed-discriminant `data` type, and one unannotated record:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -65,7 +65,7 @@ module Main where
   main = 0
 ```
 
-the script prints, with field lines indented under their type:
+Inspecting `build/Main.cinchif` prints:
 
 ```text
 Header C 12 4 None
@@ -82,15 +82,17 @@ Color u8 8 8 1
 Plain uniform-word 8 8 None
 ```
 
-Three facts follow from that output. The field `align` is the field type's **natural** alignment even when placement capped or raised it (`length` at offset 2 keeps natural alignment 4). A fixed discriminant is a recorded width on a value that stays one word. An unannotated record has the same size and alignment as any other word and no field facts at all.
+Three rules show up immediately:
 
-This JSON workflow is an implementation artifact, not a `sizeof`/`alignof` source intrinsic or a stable promise about every future schema key. The current compiler exposes no general source-level layout-reflection API merely because the interface carries the facts.
+- A field's recorded `align` is its **natural** alignment, even when packing caps its placement alignment (`Packed2.length` is placed at offset 2 while keeping natural alignment 4).
+- A fixed-discriminant `data` type (`Color`) records its discriminant width while keeping a 1-word native representation.
+- An unannotated record (`Plain`) records `uniform-word` (size 8, alignment 8) with no C field layout.
 
-# Default layout
+This JSON output is a compiler interface artifact, not a source-level `sizeof`/`alignof` reflection API.
 
-Without an explicit layout recipe the recorded layout is `uniform-word` with size and alignment 8, as `Plain` shows above. Constructor products remain object-backed with runtime-managed payloads. That is not an assurance that a particular source record's C-compatible inline fields occupy eight bytes in total.
+# Default layout (`uniform-word`)
 
-The current foreign checker refuses an ordinary `uniform-word` aggregate at a C boundary:
+Without a `#[repr(...)]` attribute, a record or `data` type has layout `uniform-word` (size 8, alignment 8): a 64-bit word holding a pointer to a runtime-managed heap object. Its fields are not laid out for C, and the FFI checker rejects it at foreign boundaries:
 
 <!-- cinch:reject contains="uniform-word" -->
 ```cinch
@@ -108,7 +110,7 @@ module Main where
 cinch: 5:3: the recorded layout of Main.R is `uniform-word` (no representation attribute), which has no C representation at the boundary (foreign function interface specification section 2: only `#[repr(C)]`, `#[repr(packed)]` and `#[repr(transparent)]` aggregates cross; boxed aggregates and fixed-discriminant data are rejected instead of guessed)
 ```
 
-The same checker refuses to fix a layout for an unresolved generic field:
+Explicit layouts require concrete field types; an unresolved type parameter is rejected:
 
 <!-- cinch:reject contains="not fixed" -->
 ```cinch
@@ -121,19 +123,27 @@ module Main where
   main = 0
 ```
 
-<span class="support-tag support-tag--planned">Coming soon</span> the broader compiler-chosen default-layout design includes deterministic field reordering and unpacking choices recorded in interfaces. Do not apply that future freedom as a description of today's explicit source-order layout algorithm.
+<span class="support-tag support-tag--planned">Coming soon</span> Compiler-chosen default layouts with deterministic field reordering and automatic unpacking recorded in interfaces are planned; today, unannotated aggregates always use `uniform-word`.
 
-# C layout: source order, padding, and alignment
+# C layout: field order, padding, and alignment
 
-`#[repr(C)]` uses represented fields in source order. For each field:
+`#[repr(C)]` lays out non-erased fields strictly in declaration order:
 
-1. Obtain its size and natural alignment from the scalar type or an admitted nested layout.
-2. Apply a field alignment floor, if present, then the applicable packing cap.
-3. Round the current offset **up** to that effective placement alignment.
-4. Place the field and advance by its size.
-5. Set aggregate alignment to the maximum effective field alignment, raised by an admitted aggregate alignment floor, and round the final size up to it.
+1. Take the field's size and natural alignment from its scalar type or nested explicit layout.
+2. Apply any field-level `#[repr(align(N))]` floor, then any applicable `packed` cap.
+3. Round the running offset **up** to that effective placement alignment.
+4. Place the field and advance the offset by its size.
+5. Set the aggregate's alignment to the maximum effective field alignment (raised by any aggregate `#[repr(align(N))]` floor), and round the final size up to a multiple of that alignment.
 
-For these native scalar fields, U8 has size and alignment 1, U16 has 2, U32 has 4, and U64 has 8. Bool is 1/1; Char is its scalar representation rather than a UTF-8 byte. Target-sized scalars use their admitted profile width. Do not treat mathematical `Int` as `I64`.
+Scalar sizes and natural alignments:
+
+- `U8`, `I8`, `Bool`: size 1, align 1
+- `U16`, `I16`: size 2, align 2
+- `U32`, `I32`, `F32`, `Char`: size 4, align 4
+- `U64`, `I64`, `F64`: size 8, align 8
+- `Usize`, `Isize`: target profile pointer width (8 bytes on 64-bit targets, 4 bytes on `wasm32`)
+- `Unit`: size 0, align 1 in explicit aggregate calculations
+- Mathematical `Int` and `Nat` are **not** `I64`/`U64`; they use tagged-word/bignum representations.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -150,19 +160,19 @@ module Main where
     in if header.kind == 1 && header.length == 42 && header.flags == 3 then 0 else 1
 ```
 
-Its recorded layout is:
+`Header` has size **12**, alignment **4**, and field offsets **0, 4, 8**:
 
 | Byte range | Contents | Reason |
 | --- | --- | --- |
-| 0 | `kind`, 1 byte | U8 needs alignment 1. |
-| 1-3 | Padding | The next U32 starts at a multiple of 4. |
-| 4-7 | `length`, 4 bytes | U32 natural alignment 4. |
-| 8-9 | `flags`, 2 bytes | U16 natural alignment 2. |
-| 10-11 | Tail padding | Aggregate size rounds to a multiple of 4. |
+| 0 | `kind` (1 byte) | `U8` alignment 1 |
+| 1-3 | Padding | Aligns `length` to 4 |
+| 4-7 | `length` (4 bytes) | `U32` alignment 4 |
+| 8-9 | `flags` (2 bytes) | `U16` alignment 2 |
+| 10-11 | Tail padding | Rounds aggregate size to a multiple of 4 |
 
-Size is **12**, alignment **4**, offsets **0, 4, 8**. Padding bytes are not application fields and must not be assumed to contain stable serialized data.
+Padding bytes are uninitialized filler and must not be treated as meaningful or deterministic data.
 
-Fields keep source order. If you write the declaration until the offsets differ, they do:
+Fields stay in declaration order. Reordering fields in source changes their offsets directly:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -184,11 +194,11 @@ module Main where
     in if a.small == 1 && b.small == 4 then 0 else 1
 ```
 
-Both records are size 8 with alignment 4, and the field offsets are 0 and 4 in each, in the order written.
+Both `SmallFirst` and `WideFirst` have size 8 and alignment 4, with offsets 0 and 4 in source order (`small` at 0 / `wide` at 4 in `SmallFirst`; `wide` at 0 / `small` at 4 in `WideFirst`).
 
-Nested explicit layouts resolve recursively. A `#[repr(C)]` record whose field is another `#[repr(C)]` record takes that field's computed size and alignment: an inner record of `U16` then `U8` is size 4 alignment 2, and placing it after a `U8` field puts it at offset 2 in a 12-byte outer record.
+Nested explicit layouts resolve recursively. A `#[repr(C)]` field inside a `#[repr(C)]` record uses the inner record's computed size and alignment (for example, an inner `(U16, U8)` of size 4 and alignment 2 placed after a leading `U8` starts at offset 2).
 
-C-style field layouts apply to admitted one-constructor products. A multi-constructor `data` does not gain a tagged C union layout through `repr(C)`:
+`#[repr(C)]` applies only to single-constructor products (`record` or single-constructor `data`, whose positional fields are recorded as `$f0`, `$f1`, ...). Multi-constructor `data` types are rejected:
 
 <!-- cinch:reject contains="multi-constructor" -->
 ```cinch
@@ -202,7 +212,7 @@ module Main where
   main = 0
 ```
 
-A single-constructor `data` does get a field layout through `repr(C)`; its fields are recorded as `$f0`, `$f1`, and so on. Explicit by-value layouts must have fixed fields: a generic type parameter with unknown layout is rejected, and an infinite recursive explicit-layout dependency is rejected:
+Recursive by-value layouts have infinite size and are rejected:
 
 <!-- cinch:reject contains="infinite explicit layout" -->
 ```cinch
@@ -219,31 +229,29 @@ module Main where
 cinch: Main.Loop has an infinite explicit layout: its fields' layouts depend on the type itself (attribute annotations specification section 4)
 ```
 
-# Current native value representations
+# Native value representations
 
-Current native lowering carries values in uniform 64-bit word slots and attaches representation classes before reclamation and specialization:
+Native lowering passes values in uniform 64-bit word slots and assigns each slot a representation class used by reference counting and pointer maps:
 
 | Class | Meaning | Examples |
 | --- | --- | --- |
-| `Raw` | Never reference-count as an object pointer. | Machine scalars, Bool, Char, Unit, Sym handles, opaque/runtime handles and capabilities. |
-| `Obj` | Counted pointer to a heap or static object. | Constructor products, tuples, closures, dictionaries, bytes/text, memo cells, quotes. |
-| `TObj` | Tagged small immediate or object pointer. | Mathematical Nat and Int. |
-| Parameter class | Temporary class of a generic type parameter before instantiation. | Resolved to a reached concrete class vector before emission. |
+| `Raw` | Uncounted scalar or handle; never retained or released | Machine scalars, `Bool`, `Char`, `Unit`, `Sym`, opaque handles, capabilities |
+| `Obj` | Counted pointer to a heap or static block | Records, ADTs, tuples, closures, dictionaries, `Bytes`, `String`, memo cells |
+| `TObj` | Tagged immediate or counted object pointer | Mathematical `Nat` and `Int` |
+| Parameter class | Polymorphic placeholder resolved per concrete call vector | Specializes units as `unit@RO`, `unit@OO`, etc. |
 
-This classification controls retains and releases and the pointer maps; it is not the same as choosing a packed C struct. The Rust implementation specializes reached generic units by representation-class vector, naming each copy `unit@RO`, `unit@OO` and so on after the vector's letters. The planned multiword and ad hoc representation system extends beyond that implemented finite class specialization.
+Small `Nat` values (`0` through `2^63 - 1`) and small `Int` values (`-2^62` through `2^62 - 1`) are encoded inline as `(n << 1) | 1`. The low `1` bit distinguishes an immediate from an 8-byte-aligned heap pointer; values outside those ranges box into bignum objects. These are purely representation thresholds, not numeric bounds.
 
-Native small `Nat` values from 0 through `2^63 - 1` and small `Int` values from `-2^62` through `2^62 - 1` fit the immediate form: the word is `n << 1 | 1`, so its low bit distinguishes it from an aligned block pointer. Values outside those ranges use bignum objects. These are representation thresholds, not the mathematical types' numeric limits. Machine integer arithmetic keeps its explicitly selected overflow policy.
-
-The encoding is visible in emitted IR. For a program that passes `42 :: Nat` to a constructor and a large `Nat` through a binding:
+In emitted LLVM IR, passing `42 :: Nat` alongside a heap-allocated `Nat` looks like:
 
 ```text
   %t0 = call i64 @"Main.big"()
   %t1 = call i64 @"Main.Pair"(i64 85, i64 %t0)
 ```
 
-`85` is `42 << 1 | 1`. The large value arrives as a word from `Main.big`, which boxes it.
+Here `85` is `(42 << 1) | 1`.
 
-Refinement witnesses are Prop-erased: `NonZero Int` carries the same runtime number as its carrier, and `unrefine` is an identity projection. That transparency does not let callers fabricate evidence. An `erased` field has no runtime slot at all, and the layout calculation skips it:
+Refinement witnesses are `Prop`-erased: `NonZero Int` has the exact runtime representation of `Int`, and `unrefine` is a no-op. Likewise, `erased` record fields occupy no runtime slot and are skipped during layout calculation:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -259,11 +267,11 @@ module Main where
   main = if get (Tagged { val = 4, ok = refl }) == 4 then 0 else 1
 ```
 
-`Unit` has zero byte size and alignment 1 in the explicit aggregate field-layout calculation, even though native calls use the compiler's uniform-word conventions.
+# Raising alignment (`align(N)`)
 
-# Raising alignment
+`#[repr(C, align(N))]` sets a minimum aggregate alignment. On `Header`, `#[repr(C, align(16))]` keeps field offsets at 0, 4, and 8 while raising aggregate alignment and rounded size to 16.
 
-`#[repr(C, align(16))]` on `Header` keeps the field offsets 0, 4 and 8, raises aggregate alignment to 16, and rounds the size to 16. The recorded layout is `C, align(16)` with size 16 and alignment 16. The argument is a nonzero power of two:
+`N` must be a nonzero power of two:
 
 <!-- cinch:reject contains="non-zero power of two" -->
 ```cinch
@@ -276,7 +284,7 @@ module Main where
   main = 0
 ```
 
-Asking for an alignment below the relevant natural alignment is an error, rather than a request to misalign the object:
+`align(N)` can only raise alignment; requesting a value below the natural alignment is an error (use `packed(N)` to lower alignment):
 
 <!-- cinch:reject contains="only raises" -->
 ```cinch
@@ -293,25 +301,23 @@ module Main where
 cinch: 3:10: `repr(align(4))` only raises: A's natural alignment is 8 (attribute annotations specification section 4.2)
 ```
 
-A field can independently request a stronger alignment in a `repr(C)` record:
+Individual fields of a `#[repr(C)]` record can also raise their placement alignment, either on the field declaration or prefixed to the field's type:
 
 ```cinch
 #[repr(C)]
 record AlignedField where
   first :: U8
   #[repr(align(8))] second :: U32
-```
 
-The recorded layout is size 16, alignment 8, with `second` at offset 8 and natural alignment 4. The modifier may instead prefix the field's type, and both spellings compute the same layout:
-
-```cinch
 #[repr(C)]
 record PrefixField where
   first :: U8
   second :: #[repr(align(8))] U32
 ```
 
-It records size 16, alignment 8, `second` at offset 8, identical to the attribute-on-declaration form. A field modifier whose alignment does not raise the field's own alignment is refused:
+Both compute size 16, alignment 8, with `second` at offset 8 (retaining natural alignment 4). Field-level alignment obeys three checks:
+
+1. It must strictly raise the field's natural alignment:
 
 <!-- cinch:reject contains="on field a only raises" -->
 ```cinch
@@ -324,7 +330,7 @@ module Main where
   main = 0
 ```
 
-Field modifiers require the containing record's `C` layout:
+2. The enclosing record must be `#[repr(C)]`:
 
 <!-- cinch:reject contains="applies to fields of a `repr(C)` record" -->
 ```cinch
@@ -336,7 +342,7 @@ module Main where
   main = 0
 ```
 
-An erased field has no represented location to align:
+3. It cannot annotate an `erased` field:
 
 <!-- cinch:reject contains="is erased and has no representation" -->
 ```cinch
@@ -350,23 +356,21 @@ module Main where
   main = 0
 ```
 
-Without the modifier, the same record records size 8 and alignment 8 with `val` at offset 0: the erased field took no bytes and no layout modifier.
+Without the attribute on `ok`, the erased field consumes zero bytes and `val` is placed at offset 0 with `U32`'s size and alignment (4).
 
-# Packed layout
+# Packed layout (`packed` and `packed(N)`)
 
-`#[repr(C, packed(2))]` on the same three-field Header caps placement alignment at 2:
+`#[repr(C, packed(N))]` caps each field's effective placement alignment at `N` (a nonzero power of two). Bare `packed` is `packed(1)`. On `Header`, `#[repr(C, packed(2))]` yields size **8** and alignment **2**:
 
-| Field | Offset | Size | Natural alignment | Effective placement alignment |
+| Field | Offset | Size | Natural align | Placement align |
 | --- | --- | --- | --- | --- |
 | `kind :: U8` | 0 | 1 | 1 | 1 |
 | `length :: U32` | 2 | 4 | 4 | 2 |
 | `flags :: U16` | 6 | 2 | 2 | 2 |
 
-Size is **8**, aggregate alignment **2**. Byte 1 remains padding. Packing is an **alignment cap**, not a rule that every padding byte disappears. Bare `packed` means `packed(1)`; the same fields then occupy offsets **0, 1, 5**, size **7**, alignment **1**.
+Byte 1 is still padding: `packed(N)` is an **alignment cap**, not a blanket removal of padding. With `packed(1)`, the offsets become **0, 1, 5**, size **7**, alignment **1**.
 
-The metadata's field alignment is the field's natural alignment, not the capped placement alignment. In the `packed(2)` example the U32 field is naturally aligned to 4 but placed at offset 2. That distinction is what lets the checker detect unsafe borrows.
-
-`packed` and aggregate `align` conflict, and both arguments must be nonzero powers of two:
+Aggregate `packed` and `align` conflict and cannot be combined on the same type:
 
 <!-- cinch:reject contains="they conflict" -->
 ```cinch
@@ -379,11 +383,11 @@ module Main where
   main = 0
 ```
 
-A field-level packing cap is admitted on a `repr(C)` record and participates in the effective placement calculation; it does not change the field type's natural alignment.
+Field-level `#[repr(packed(N))]` is permitted on fields of a `#[repr(C)]` record and caps that field's placement alignment without changing its recorded natural alignment.
 
 # Copying versus borrowing packed fields
 
-A field projection can copy an unaligned packed value through the admitted byte-exact load and marshal path. A `Ref` or `Mut` claims suitably aligned access. Introducing such a borrow to an unaligned packed field is rejected; merely choosing a shorter-lived region does not repair its alignment.
+Because a packed field's offset may not satisfy its type's natural alignment, taking a `Ref` or `Mut` borrow to an unaligned packed field is rejected at compile time (regardless of region lifetime):
 
 <!-- cinch:reject contains="cannot be borrowed" -->
 ```cinch
@@ -393,20 +397,21 @@ module Main where
     first :: U8
     number :: U32
 
-  borrow-number :: forall region. Packed -> Ref region U32
-  borrow-number value = borrow value.number
+  use-ref :: forall region. Ref region U32 -> Int
+  use-ref _ = 0
+
+  borrow-number :: Packed -> Int
+  borrow-number value = use-ref (borrow value.number)
 
   main :: Int
   main = 0
 ```
 
-Use an owned copy when that is what the operation needs. Do not cast an address to a borrow and assume that the type annotation makes it aligned. Foreign pointer access still needs its separate ownership, bounds, initialization, and lifetime contract.
+Project the field by value instead. The compiler generates byte-exact loads and stores at each field's recorded offset and width rather than wide unaligned word loads across padding (for `Packed2`, one `load i8`, one `load i32`, and one `load i16`).
 
-The boundary marshal reads each packed field at its recorded offset with its recorded width, never a word-width load across the padding. For a `#[repr(C, packed(2))]` record of `U8`, `U32`, `U16`, the emitted wrapper contains one `load i8`, one `load i32` and one `load i16`; the only `load i64` in it is the block header read at offset -8.
+# Transparent wrappers (`#[repr(transparent)]`)
 
-# Transparent wrappers
-
-`#[repr(transparent)]` requires exactly **one non-erased represented field**, so an `erased` witness beside it does not break the rule. The recorded field offset is 0, and the aggregate has that field's size and alignment.
+`#[repr(transparent)]` gives a record or single-constructor `data` type the exact C layout and ABI of its single non-erased field (any number of `erased` witness fields are allowed alongside it):
 
 ```cinch
 #[repr(transparent)]
@@ -414,7 +419,9 @@ record CounterWord where
   value :: U32
 ```
 
-The recorded layout is size 4, alignment 4, field offset 0. It combines with no other repr variant:
+`CounterWord` has size 4, alignment 4, and `value` at offset 0. Three restrictions apply:
+
+1. `transparent` cannot combine with any other `repr` variant:
 
 <!-- cinch:reject contains="combines with no other representation" -->
 ```cinch
@@ -427,7 +434,7 @@ module Main where
   main = 0
 ```
 
-It does not admit a field layout modifier. A modifier on its field is refused by the general rule that field representations belong to `repr(C)` records:
+2. Its field cannot carry a `#[repr(...)]` modifier:
 
 <!-- cinch:reject contains="applies to fields of a `repr(C)` record" -->
 ```cinch
@@ -440,7 +447,7 @@ module Main where
   main = 0
 ```
 
-Exactly one represented field must remain:
+3. It must have exactly one non-erased represented field:
 
 <!-- cinch:reject contains="needs exactly one represented field" -->
 ```cinch
@@ -454,7 +461,7 @@ module Main where
   main = 0
 ```
 
-A transparent wrapper over a scalar crosses the boundary as that scalar. For `#[repr(transparent)] record Word where value :: U32`, the emitted wrapper for `foreign import ccall "fix_word" readWord :: Word ->{Foreign Fix, IO} I64` is:
+At a foreign boundary, a transparent wrapper over a scalar passes as that scalar directly. For `foreign import ccall "fix_word" readWord :: CounterWord ->{Foreign Fix, IO} I64`, the generated wrapper truncates and calls the C symbol with `i32`:
 
 ```text
 define i64 @"Main.readWord"(i64 %p0) #0 {
@@ -466,11 +473,11 @@ entry:
 }
 ```
 
-That is the admitted scalar-like crossing through the field representation. It does not imply that every native use of a source wrapper is allocation-free, and it is not the future inline value type feature. Native object slots and boundary layout are different surfaces.
+`#[repr(transparent)]` governs foreign ABI layout; for allocation-free native single-field wrappers, see [Unboxed wrappers](#unboxed-wrappers).
 
-# Data tags and enum-like declarations
+# Fixed-discriminant `data` (`u8`, `u16`, `u32`, `u64`)
 
-`#[repr(u8)]`, `u16`, `u32` or `u64` on `data` records a fixed discriminant width. A record has no alternative-constructor discriminant:
+`#[repr(u8)]`, `#[repr(u16)]`, `#[repr(u32)]`, and `#[repr(u64)]` record a fixed discriminant width on a `data` declaration. They are rejected on `record` types, which have no constructor discriminant:
 
 <!-- cinch:reject contains="has no constructor discriminant" -->
 ```cinch
@@ -483,7 +490,7 @@ module Main where
   main = 0
 ```
 
-Only one discriminant choice is permitted, and it cannot combine with `C`, alignment, or packing. The recorded layout keeps the uniform word: `Color` above is size 8, alignment 8, discriminant 1. The implementation records the width in the interface while retaining the native uniform-word representation. It does not lay out a complete tagged union payload, guarantee that the whole value occupies one byte, or admit arbitrary fixed-discriminant data through the C boundary:
+Only one discriminant width may be specified, and it cannot combine with `C`, `align`, `packed`, or `transparent`. Today, the compiler records the discriminant width in the `.cinchif` interface while keeping the value's native `uniform-word` representation; fixed-discriminant `data` types do not yet cross a C FFI boundary directly:
 
 <!-- cinch:reject contains="has no C representation at the boundary" -->
 ```cinch
@@ -499,13 +506,13 @@ module Main where
   main = 0
 ```
 
-<span class="support-tag support-tag--planned">Coming soon</span> complete fixed-tag and payload lowering beyond the current recorded fact belongs to the wider representation work. Until then, use explicitly supported boundary data or a C shim rather than guessing a C enum or union representation.
+<span class="support-tag support-tag--planned">Coming soon</span> Compact tagged-union lowering and C enum/union boundary marshaling for fixed-discriminant `data` types are planned. Until then, pass an explicit integer scalar or use a small C shim.
 
 # Foreign calls and layout
 
-The boundary admits machine scalars, explicit pointer and ownership roles, opaque handles, and supported explicitly laid-out aggregates. Ordinary boxed values, language-native closures, dictionaries, vectors, dependent pairs, proofs, and unresolved generic layouts have no automatic C ABI.
+Foreign boundaries admit machine scalars, explicit pointer/ownership roles, opaque handles, and explicitly laid-out aggregates (`#[repr(C)]`, `#[repr(packed)]`, `#[repr(transparent)]`). Ordinary `uniform-word` values, closures, dictionaries, dependent pairs, and unresolved generics have no automatic C ABI.
 
-A default admitted aggregate parameter crosses through a pointer to a call-scoped layout copy. For a `#[repr(C)]` record of two `U32` fields:
+By default, an admitted aggregate parameter crosses via a pointer to a call-scoped stack copy. For a `#[repr(C)]` record of two `U32` fields:
 
 ```text
   %t0 = alloca [8 x i8], align 4
@@ -514,22 +521,16 @@ A default admitted aggregate parameter crosses through a pointer to a call-scope
   %t8 = call i64 @"sum_big"(ptr nonnull align 4 %t0)
 ```
 
-`#[byval]` passes the struct by value, as the target's C calling convention does. An 8-byte struct travels in one integer register on x86-64 and arm64, so the copy is loaded as one `i64`:
+Use `#[byval]` to pass an aggregate parameter by value according to the target's C ABI (for example, an 8-byte struct in one integer register on x86-64 and arm64):
 
 ```text
   %t8 = load i64, ptr %t0, align 8
   %t9 = call i64 @"sum_big"(i64 %t8)
 ```
 
-An aggregate result needs `#[sret]`, the by-value result. The same 8-byte struct comes back in a register, which is stored into the boundary copy:
+Use `#[sret]` to return an aggregate by value. Small structs return in registers; larger structs (such as 24 bytes of `I64` fields) use an LLVM `sret(<layout>)` out-buffer with a `void` return, and large `#[byval]` parameters use `byval(<layout>)` on x86-64 or an indirect copy pointer on arm64 (see [aggregate crossings](15-ffi-layout-and-attributes.md#aggregate-crossings-byval-and-sret)).
 
-```text
-  %t1 = call i64 @"make_big"(i64 noundef %p0)
-```
-
-A struct the convention does not keep in registers (24 bytes of `I64`s, say) takes an `sret(<layout>)` result buffer with a `void` result, and its parameter becomes a `byval(<layout>)` copy on x86-64 or a pointer to the caller's copy on arm64 ([aggregate crossings](15-ffi-layout-and-attributes.md#aggregate-crossings-byval-and-sret)).
-
-The three attributes are checked against the binding they annotate:
+Both `#[byval]` and `#[sret]` are validated against the foreign signature, and returning an aggregate without `#[sret]` is rejected:
 
 <!-- cinch:reject contains="marshals no aggregate parameter" -->
 ```cinch
@@ -564,17 +565,23 @@ module Main where
   main = 0
 ```
 
-The last diagnostic names the repairs: return through an `Out` cell or an `Owned` pointer, or spell the by-value crossing `#[sret]`.
+To return an aggregate from C, annotate the import with `#[sret]`, write through an `Out` parameter, or return an `Owned` pointer. See [foreign aggregate crossings](23-attributes-and-pragmas.md#foreign-aggregate-crossing-byval-and-sret) and [FFI and primitives](15-ffi-layout-and-attributes.md) for the complete boundary contract.
 
-See [byval and sret](23-attributes-and-pragmas.md#foreign-aggregate-crossing-byval-and-sret) for the attribute contracts and [FFI and primitives](15-ffi-layout-and-attributes.md) for the rest of the boundary.
-
-A field whose type is a boxed value crosses as one word, a pointer to the object payload. It is not recursively marshaled into a portable C struct merely because its enclosing type uses `C`. The marshal reads such a field with `load ptr` at its recorded offset and stores the word into the layout copy, so the C side receives a pointer whose target layout the declaration does not describe. Boundary admission validates the complete actual field and role plan, and ownership transfer, allocator identity, callbacks, blocking and no-unwind behaviour remain separate foreign obligations.
+Note that a boxed field inside a `#[repr(C)]` record crosses as a single pointer word—it is not recursively flattened into a C struct. Ownership transfer, allocator identity, callbacks, and no-unwind guarantees remain explicit obligations on the foreign declaration.
 
 # Runtime headers, constructor tags, and pointer maps
 
-Current native heap and static blocks carry a runtime header word at offset **-8** from their payload pointer, encoding a 40-bit signed count (low bits), an 8-bit kind, and a 16-bit layout id. The constants in `seed/runtime/src/block_kinds.rs` derive every shift and mask from those widths. A payload of 65535 words or more stores the escape value in the layout field and keeps the real size or descriptor one word earlier, at offset -16. These are runtime ABI details, not leading fields a C declaration should imitate.
+Every heap-allocated and static native block places an 8-byte header word at byte offset **-8** from its payload pointer:
 
-Generated code reads that header through a negative index, and reads a constructor's tag out of the layout id. A `case` over a two-field constructor compiles to:
+| Bit range | Width | Field | Meaning |
+| --- | --- | --- | --- |
+| `0..40` | 40 bits | `refcount` | Signed reference count (`0` = immortal/static; negative = shared across tasks, updated atomically) |
+| `40..48` | 8 bits | `kind` | Block kind (constructor, closure, bytes, bignum, dictionary, etc.) |
+| `48..64` | 16 bits | `layout_id` | Layout descriptor index (low 6 bits carry the constructor tag for ADTs) |
+
+Payloads of 65,535 words or more store the escape sentinel in `layout_id` and place the extended size/descriptor one word earlier at offset **-16**.
+
+Constructor tags live in the header's `layout_id` rather than in a leading payload word. Pattern matching reads the header atomically and masks the tag bits:
 
 ```text
   %t6 = inttoptr i64 %t5 to ptr
@@ -583,17 +590,15 @@ Generated code reads that header through a negative index, and reads a construct
   %t10 = lshr i64 %t9, 48
   %t11 = and i64 %t10, 63
   switch i64 %t11, label %bb2 [
-  i64 0, label %bb3
-]
+    i64 0, label %bb3
+  ]
 ```
 
-48 is the count plus kind width, and 63 selects the tag from the layout id, whose high bits name the data type. Constructor tags are therefore encoded through layout identifiers and descriptors, not through a universally present first payload tag word. Pointer maps tell reclamation which fields can contain objects and which are raw or tagged immediates. Closures and dictionaries have their own shapes.
-
-Runtime header formats and specialization symbols are versioned implementation facts. User code should not inspect them by integer or pointer casts or persist them as a file format. Their source authority is `seed/runtime/src/block_kinds.rs` and `block.rs`, with the corresponding code generation, not a source `repr` promise.
+Each layout descriptor carries a pointer map telling reclamation which payload slots hold `Obj`/`TObj` pointers versus `Raw` scalars. Runtime headers and layout IDs are internal ABI details; user and foreign code must never inspect or persist them directly.
 
 # Unboxed wrappers
 
-In the Rust compiler, `#[repr(unboxed)]` gives a single-constructor `data` or `record` the runtime representation of its one non-erased field. The constructor allocates no wrapper. A constructor pattern binds the payload directly, as does a projection of the represented record field.
+`#[repr(unboxed)]` gives a single-constructor `data` or `record` type the exact native runtime representation of its one non-erased field, eliminating wrapper allocation:
 
 ```cinch
 #[repr(unboxed)]
@@ -604,13 +609,13 @@ countValue :: Count -> U32
 countValue (CountOf n) = n
 ```
 
-`Count` remains a distinct type during instance resolution and proof checking. A constraint such as `Show Count` requires an instance for `Count`, and an equality proof about `CountOf n` retains the constructor in its proposition.
+`Count` remains a distinct nominal type for type checking, instance resolution, and proofs (`Show Count` does not inherit `Show U32`, and propositions over `CountOf n` keep the constructor).
 
-Supported payloads are machine scalars up to 64 bits, `Bool`, `Unit`, `Int`, `Nat`, `Bytes`, `Sym`, and other admitted unboxed wrappers. A field holding a `Count` stores the scalar directly. An unboxed wrapper around `Bytes` holds the existing counted buffer reference.
+Supported inner payloads are machine scalars up to 64 bits, `Bool`, `Unit`, `Int`, `Nat`, `Bytes`, `Sym`, and other admitted unboxed wrappers.
 
 ## Unpacking a record field
 
-On a monomorphic native record, `#[unpack]` stores a product’s represented fields in the enclosing record, in declaration order. Use it on a monomorphic `data` or `record` field with one ordinary constructor and at least one runtime field. The constructor’s arguments, record projections, and patterns retain their source types. Projecting the entire product can allocate a new box. The interface records the enclosing record’s payload size and field offsets. Other uses of the product keep their existing layout.
+On a monomorphic native record, `#[unpack]` inlines a nested product's represented fields directly into the enclosing record in declaration order:
 
 ```cinch
 data Point where
@@ -621,43 +626,41 @@ record Sample where
   reading :: I64
 ```
 
-Here `Sample` stores three words. Marking `position` with `#[nounpack]` instead keeps the ordinary boxed field. Explicit boundary layouts and products that themselves contain unpacked fields are outside the supported field layouts.
+`Sample` occupies three words instead of a pointer plus a separate heap `Point`. Source types, constructor arguments, patterns, and projections are unchanged (projecting the whole `sample.position` value allocates a fresh `Point` box if needed). Use `#[nounpack]` to keep a field boxed explicitly.
 
-# Diagnostics for unsupported combinations
+`#[unpack]` requires a monomorphic `data` or `record` field with one ordinary constructor and at least one runtime field. Explicit C boundary layouts and products that themselves contain unpacked fields are not supported targets for `#[unpack]`.
 
-| Written | Refusal |
+# Summary of rejected combinations
+
+| Form | Diagnostic |
 | --- | --- |
-| `repr(unboxed)` on a sum or multi-field product | `requires one constructor with exactly one represented field` |
+| `#[repr(unboxed)]` on a sum or multi-field product | `requires one constructor with exactly one represented field` |
 | `#[repr()]` | `` `#[repr(...)]` takes at least one representation `` |
 | `#[repr=C]` | `` `#[repr(...)]` takes its representations in parentheses `` |
-| `#[repr = C]` | `` unterminated attribute `` (the space ends the attribute name) |
+| `#[repr = C]` | `unterminated attribute` |
 | `repr(align(0))`, `repr(align(3))` | `` `repr(align(N))` takes a non-zero power of two `` |
-| `repr(align(N))` on a field or type | `` only raises `` |
-| `repr(packed, align(N))` | `` they conflict `` |
-| `repr(transparent, ...)` | `` combines with no other representation `` |
-| `repr(u8, C)` | `` combines with no other representation here `` |
-| `repr(C)` on a multi-constructor `data` | `` has no field layout to compute `` |
-| `repr(u8)` on a `record` | `` has no constructor discriminant `` |
-| field modifier outside `repr(C)` | `` applies to fields of a `repr(C)` record `` |
-| modifier on an `erased` field | `` is erased and has no representation `` |
-| `repr(C)` with a type-parameter field | `` this field's type is not fixed `` |
-| recursive explicit layout | `` has an infinite explicit layout `` |
-| one repr name twice | `` is written twice in one `#[repr(...)]` `` |
+| `repr(align(N))` below natural alignment | `only raises` |
+| `repr(packed, align(N))` | `they conflict` |
+| `repr(transparent, ...)` | `combines with no other representation` |
+| `repr(u8, C)` | `combines with no other representation here` |
+| `repr(C)` on a multi-constructor `data` | `has no field layout to compute` |
+| `repr(u8)` on a `record` | `has no constructor discriminant` |
+| Field `repr` outside `#[repr(C)]` | `` applies to fields of a `repr(C)` record `` |
+| Field `repr` on an `erased` field | `is erased and has no representation` |
+| `#[repr(C)]` with a type-parameter field | `this field's type is not fixed` |
+| Recursive explicit layout | `has an infinite explicit layout` |
+| Duplicate `repr` option | `` is written twice in one `#[repr(...)]` `` |
 
-# Intended representation system
+# Planned representation facilities
 
-<span class="support-tag support-tag--planned">Coming soon</span> the selected [layout and specialization design](../design/layouts-and-specialization.md) adds several distinct capabilities. Their proposed syntax is illustrative until implemented:
+<span class="support-tag support-tag--planned">Coming soon</span> The [layout and specialization design](../design/layouts-and-specialization.md) outlines further representation controls not yet implemented in the compiler:
 
-| Planned facility | Intended guarantee or behaviour | Current boundary |
+| Planned facility | Intended behaviour | Current status |
 | --- | --- | --- |
-| Multi-field inline value types | An admitted product is stored inline wherever used. | The Rust compiler supports single-field unboxed wrappers. |
-| Compiler-chosen default multiword layouts | Versioned deterministic field-layout choices recorded for consumers. | The current default remains the native uniform-word and object model described above. |
-| Expanding-edge boxing | Bound demand-driven full-layout specialization by boxing layout-growing recursive edges. | Current finite Raw/Obj/TObj class specialization does not establish that future full-layout algorithm. |
-| Representation instances, `Represent t carrier` | Builders and views relate an alternative carrier to canonical constructors, with optional fast paths. | No general shipped representation-instance API. |
-| Named representation selection, `List Bool via Dense` | Preserve a representation index through types, with explicit conversion between representations. | `via` and scoped representation defaults are planned syntax, not current implicit conversions. |
+| Multi-field inline value types | Store admitted multi-field products inline wherever used | Single-field `#[repr(unboxed)]` and `#[unpack]` fields are supported |
+| Compiler-chosen default multiword layouts | Deterministic field reordering recorded in interfaces | Unannotated types use `uniform-word` |
+| Expanding-edge boxing | Bound full-layout specialization on layout-growing recursive types | Finite `Raw`/`Obj`/`TObj` class specialization |
+| Representation instances (`Represent t carrier`) | Custom carriers with builder/view adapters | Not implemented |
+| Named representation selection (`List Bool via Dense`) | Explicit type-indexed alternative carriers | Not implemented |
 
-In the intended model, generic functions keep their source interface while constructors and matches use the selected representation's builders and view. The representation must preserve the required observations and borrowing rules; a bit-packed Boolean representation cannot silently break generic code that needs a real field borrow. A view can also change cost: repeated cons on a packed array may require copying, so a representation is not a universal performance improvement.
-
-The value-type spelling and some admission choices remain provisional. Keep them visibly planned rather than registering an inert metadata attribute that pretends to implement the storage change. Planned allocator selection and in-place or budget attributes are indexed in [all attributes](23-attributes-and-pragmas.md#planned-and-provisional-attribute-spellings).
-
-Implementation authority: `seed/src/check_decls.rs::parse_repr_args`, `compute_layouts`, `layout_of`, `build_layout`, `field_size_align`, `abi_param`; `seed/src/interface.rs` for the `AbiLayout` record; `seed/src/repr.rs`, `specialize.rs`, `codegen.rs`; runtime `block_kinds.rs`, `block.rs`, `rc.rs`. Behaviour suites: `seed/tests/attributes.rs`, `ffi.rs`, `llvm_contract.rs`, `repr_classes.rs`, `reclamation.rs`.
+Planned allocator and budget attribute spellings are indexed in [attributes and pragmas](23-attributes-and-pragmas.md#planned-and-provisional-attribute-spellings).
