@@ -1927,14 +1927,14 @@
       "reference_package": "math/rand/v2",
       "status": "partial",
       "cinch_modules": [
+        "Data.ChaCha8",
         "Effect.Random"
       ],
       "remaining": [
         "Generic explicit sources and state capabilities",
-        "ChaCha8 source and persistence",
         "Bounded and scalar distributions, normal/exponential/Zipf samplers",
         "Permutations/shuffling and concurrent adaptations",
-        "Public benchmarks/portable/Native qualification and production registration"
+        "PCG source in the production prelude"
       ],
       "reference_declarations": 60,
       "candidate_modules": [
@@ -1944,7 +1944,14 @@
           "availability": "Isolated immutable PCG state/draw/snapshot candidate; absent from production prelude."
         }
       ],
-      "review": "The cryptographic Effect.Random module alone does not implement seeded deterministic generators. The isolated PCG candidate passes2048 independent words plus state snapshots/appends and alias/refusal controls atO0/O2 across4 zero-leak memory profiles. Generic source/distribution/permutation/other-generator surface remains open."
+      "review": "Data.ChaCha8 reproduces the reference ChaCha8 generator: four word-interleaved eight-round blocks per call run as <4 x i32> lanes in generated kernels checked against a scalar model, with the four-block reseed period that withholds the last four outputs as the next seed. Scripted draws, byte reads across partial values, encodings and restored generators match the reference output for output, and malformed encodings are refused with its messages. States are immutable values. The isolated PCG candidate is still outside the production prelude, and the generic Rand distributions and permutations remain open.",
+      "tests": [
+        "lib_chacha8"
+      ],
+      "capability_mapping": {
+        "ChaCha8/NewChaCha8/Uint64/Read/Seed": "Data.ChaCha8: chacha8-new, chacha8-uint64 and chacha8-read return the next state; chacha8-reseed",
+        "ChaCha8 MarshalBinary/AppendBinary/UnmarshalBinary": "chacha8-marshal and chacha8-unmarshal with the same encoding, unread partial-read bytes included"
+      }
     },
     {
       "reference_package": "mime",

@@ -41,7 +41,7 @@ HOMES = {
     "log": ["Effect.Log"], "log/slog": ["Effect.Log"], "maps": ["Data.Map", "Data.HashMap", "Data.Mutable.HashTable", "Data.Mutable.BTree", "Data.Mutable.IndexMap"],
     "math": ["Data.Machine"], "math/big": ["Data.Nat", "Data.Int", "Data.Rational", "Data.BigDecimal"],
     "math/bits": ["Algebra.Bits", "Data.Machine", "Data.Word"], "math/cmplx": ["Data.Complex"],
-    "math/rand": ["Effect.Random"], "math/rand/v2": ["Effect.Random"],
+    "math/rand": ["Effect.Random"], "math/rand/v2": ["Effect.Random", "Data.ChaCha8"],
     "net": ["Effect.Net", "Effect.Resolv", "Data.IpAddr"], "net/http": ["Effect.Http"],
     "net/netip": ["Data.IpAddr"], "net/url": ["Text.Uri", "Text.Url", "Text.Url.Codec", "Text.Url.Error", "Text.Url.Query", "Text.Url.Userinfo", "Text.Url.Model", "Text.Url.Parser", "Text.Url.Resolve", "Text.Url.Ip", "Text.Url.Scan"],
     "os": ["Effect.Fs", "Effect.Process", "Effect.Stream"], "os/exec": ["Effect.Process"],
