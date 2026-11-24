@@ -10,22 +10,22 @@ Keep three components distinct when working with packages:
 
 # The manifest (`.cinchpkg`)
 
-A package manifest is a canonical JSON file named `.cinchpkg` declaring package metadata, module paths, check order, target conditions, link requirements, and dependencies. The embedded `cinch-base` library ships one as the canonical example:
+A package manifest is a canonical JSON file named `.cinchpkg` declaring package metadata, module paths, check order, target conditions, link requirements, and dependencies. The standard library itself ships as a `cinch/stdlib` manifest (`seed/prelude/.cinchpkg`, inspectable with `cinch pkg info cinch/stdlib`):
 
 ```json
 {
-  "schema": 1,
-  "name": "cinch-base",
+  "schema": 2,
+  "name": "cinch/stdlib",
   "version": "0.1.0",
   "modules": [
-    { "name": "Data.Core", "path": "Data/Core.cinch", "embedded": true },
-    { "name": "Prelude", "path": "Prelude.cinch", "embedded": true, "facade": true }
+    { "name": "Data.Core", "path": "Data/Core.cinch" },
+    { "name": "Prelude", "path": "Prelude.cinch", "facade": true }
   ],
   "order": ["Data.Core", "Prelude"]
 }
 ```
 
-(The full `cinch-base` manifest lists all 55 embedded modules, each named once in `order`.)
+(The full `cinch/stdlib` manifest declares all 288 standard-library modules in topological `order`.)
 
 | Field | Used by | Meaning |
 | --- | --- | --- |
@@ -36,7 +36,6 @@ A package manifest is a canonical JSON file named `.cinchpkg` declaring package 
 | `modules[].path` | Compiler, registry | Source path relative to the package root. |
 | `modules[].facade` | Compiler | Marks the re-export facade for the check-order split. |
 | `modules[].exposed` | Compiler | Whether external packages may import this module (default `true`). |
-| `modules[].embedded` | Informational | Notes embedded base modules. |
 | `order` | Compiler | Topological module check order; every resolved module must appear. |
 | `prelude` | Compiler | Implicitly imported prelude module for this package (`"default"`, `"none"`, or a module name). |
 | `select` | Compiler | Target-conditional modules and link requirements. |
@@ -115,7 +114,7 @@ cinch: module Internal is declared by package acme/lib and is not exposed; the p
 
 | Setting | Effect |
 | --- | --- |
-| Absent or `"default"` | Implicitly imports the embedded `Prelude` facade |
+| Absent or `"default"` | Implicitly imports the `cinch/stdlib` `Prelude` facade |
 | `"none"` | No implicit import (built-in type names remain in scope) |
 | `"Acme.Prelude"` | Implicitly imports `Acme.Prelude` from this package or a dependency |
 
@@ -200,7 +199,7 @@ Declare dependencies in the `dependencies` array of `.cinchpkg`:
 | `path` | `path` | Directory resolved relative to the declaring manifest |
 | `git` | `url`, `rev` | Cloned at `rev` into `<store>/git-packages/` |
 
-Optional `version` or `range` fields on `path`/`git` rows act as validation checks against the target manifest's version. `cinch/base` and `cinch-base` are always satisfied by the embedded base package.
+Optional `version` or `range` fields on `path`/`git` rows act as validation checks against the target manifest's version. `cinch/stdlib`, `stdlib`, `cinch/base`, and `cinch-base` are always satisfied by the toolchain's standard library package.
 
 Registry version constraints are solved to a fixed point so every package name resolves to a single version across the closure, or installation fails atomically without writing a partial `.cinchlock`.
 
@@ -358,7 +357,7 @@ cinch pkg publish --registry http://127.0.0.1:8787 --project DIR --token TOKEN [
 
 # The local store
 
-The compiler caches compiled interfaces for the embedded `cinch-base` package in a per-user store (overridable via `CINCH_STORE`; see [artifacts and incremental compilation](18-artifacts-and-incremental.md)). Git checkouts for `cinch pkg` are cached under `<store>/git-packages/`. Installed third-party packages themselves live inside each project's `vendor/` directory, not in the global store.
+The compiler caches compiled interface artifacts for the standard-library core in a per-user store (overridable via `CINCH_STORE`; see [artifacts and incremental compilation](18-artifacts-and-incremental.md)), and resolves `cinch/stdlib` from the toolchain sysroot (overridable via `CINCH_STDLIB`). Git checkouts for `cinch pkg` are cached under `<store>/git-packages/`. Installed third-party packages themselves live inside each project's `vendor/` directory, not in the global store.
 
 # The prototype registry (`registry/`)
 

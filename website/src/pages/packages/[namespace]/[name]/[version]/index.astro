@@ -6,12 +6,14 @@ import { loadCatalogue, packageUrl, moduleUrl, declarationsFor, dependencyLabel 
 
 export async function getStaticPaths() {
   const catalogue = await loadCatalogue();
-  return catalogue.packages.flatMap((p) =>
-    p.releases.map((release) => ({
-      params: { namespace: p.namespace, name: p.name.slice(p.namespace.length + 1), version: release.version },
-      props: { package: p, release },
-    })),
-  );
+  return catalogue.packages
+    .filter((p) => p.sourceKind === 'registry')
+    .flatMap((p) =>
+      p.releases.map((release) => ({
+        params: { namespace: p.namespace, name: p.name.slice(p.namespace.length + 1), version: release.version },
+        props: { package: p, release },
+      })),
+    );
 }
 
 const catalogue = await loadCatalogue();

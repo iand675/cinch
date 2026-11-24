@@ -10,7 +10,6 @@ const sample: CompactSearchEntry[] = [
     d: 'Apply a function to every element of a list.',
     h: 'v-map',
     l: 54,
-    e: 1,
   },
   {
     m: 'Data.Result',
@@ -20,7 +19,6 @@ const sample: CompactSearchEntry[] = [
     d: 'The value as an option, the error dropped.',
     h: 'v-result-to-option',
     l: 116,
-    e: 1,
   },
   {
     m: 'Data.Result',
@@ -30,7 +28,6 @@ const sample: CompactSearchEntry[] = [
     d: 'The option as a result, with the error supplied for None.',
     h: 'v-option-to-result',
     l: 123,
-    e: 1,
   },
   {
     m: 'Data.List',
@@ -40,7 +37,6 @@ const sample: CompactSearchEntry[] = [
     d: 'Sort a list in ascending order.',
     h: 'v-sort',
     l: 201,
-    e: 1,
   },
   {
     m: 'Function.Combinators',
@@ -50,7 +46,6 @@ const sample: CompactSearchEntry[] = [
     d: 'The identity function.',
     h: 'v-id',
     l: 12,
-    e: 1,
   },
   {
     m: 'Crypto.Aes',
@@ -60,7 +55,6 @@ const sample: CompactSearchEntry[] = [
     d: 'Encrypt a block with AES.',
     h: 'v-aes-encrypt',
     l: 88,
-    e: 0,
   },
   {
     m: 'Category.Functor',
@@ -70,7 +64,6 @@ const sample: CompactSearchEntry[] = [
     d: 'Types that can be mapped over.',
     h: 'c-Functor',
     l: 10,
-    e: 1,
   },
 ];
 
@@ -109,9 +102,9 @@ const classes = runHoogleSearch(sample, 'is:class');
 assert.equal(classes.length, 1);
 assert.equal(classes[0]?.entry.n, 'Functor');
 
-const sourceOnly = runHoogleSearch(sample, 'in:source Bytes');
-assert.equal(sourceOnly.length, 1);
-assert.equal(sourceOnly[0]?.entry.m, 'Crypto.Aes');
+const cryptoScoped = runHoogleSearch(sample, '+Crypto Bytes');
+assert.equal(cryptoScoped.length, 1);
+assert.equal(cryptoScoped[0]?.entry.m, 'Crypto.Aes');
 
 // 7. Combined name :: type query
 const combined = runHoogleSearch(sample, 'map :: (a -> b) -> List a -> List b');

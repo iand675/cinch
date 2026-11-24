@@ -4,23 +4,61 @@ on:
   push:
     branches: [main, "lane/**", "claude/**"]
     paths:
-      - "compiler/**"
-      - "tooling/**"
-      - "seed/prelude/**"
+      - "compiler/Bootstrap.*.cinch"
+      - "compiler/programs/Run.Pipeline.cinch"
+      - "compiler/pins/**"
+      - "compiler/seed/**"
+      - "seed/prelude/Text/Lex.cinch"
+      - "seed/prelude/Text/Scan.cinch"
+      - "seed/prelude/Text/Parse.cinch"
+      - "seed/prelude/Text/Json.cinch"
+      - "seed/prelude/Text/Builder.cinch"
+      - "seed/prelude/Text/Fnv.cinch"
+      - "seed/prelude/Data/Array.cinch"
+      - "seed/prelude/Data/Bytes/Word.cinch"
+      - "tooling/bootstrap.py"
+      - "tooling/bootstrap_objects.py"
+      - "tooling/bootstrap_interfaces.py"
+      - "tooling/build_slots.py"
+      - "tooling/pack_interfaces.py"
+      - "tooling/pgo.py"
+      - "tooling/shard_ir.py"
+      - "tooling/package-nightly.py"
+      - "tooling/nightly-release.md"
+      - "tooling/nix/*.nix"
+      - "tooling/tests/test_bootstrap*.py"
       - "examples/compiler/fib.cinch"
       - "flake.nix"
       - "flake.lock"
-      - "devenv.nix"
       - ".github/workflows/ladder-cache.yml"
   pull_request:
     paths:
-      - "compiler/**"
-      - "tooling/**"
-      - "seed/prelude/**"
+      - "compiler/Bootstrap.*.cinch"
+      - "compiler/programs/Run.Pipeline.cinch"
+      - "compiler/pins/**"
+      - "compiler/seed/**"
+      - "seed/prelude/Text/Lex.cinch"
+      - "seed/prelude/Text/Scan.cinch"
+      - "seed/prelude/Text/Parse.cinch"
+      - "seed/prelude/Text/Json.cinch"
+      - "seed/prelude/Text/Builder.cinch"
+      - "seed/prelude/Text/Fnv.cinch"
+      - "seed/prelude/Data/Array.cinch"
+      - "seed/prelude/Data/Bytes/Word.cinch"
+      - "tooling/bootstrap.py"
+      - "tooling/bootstrap_objects.py"
+      - "tooling/bootstrap_interfaces.py"
+      - "tooling/build_slots.py"
+      - "tooling/pack_interfaces.py"
+      - "tooling/pgo.py"
+      - "tooling/shard_ir.py"
+      - "tooling/package-nightly.py"
+      - "tooling/nightly-release.md"
+      - "tooling/nix/*.nix"
+      - "tooling/tests/test_bootstrap*.py"
       - "examples/compiler/fib.cinch"
       - "flake.nix"
       - "flake.lock"
-      - "devenv.nix"
       - ".github/workflows/ladder-cache.yml"
   workflow_dispatch:
 
@@ -29,11 +67,17 @@ permissions:
 
 concurrency:
   group: compiler-distributions-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   ladder:
     name: Compiler (${{ matrix.system }})
+    # Avoid duplicate runs when an in-repo lane/** or claude/** PR branch is
+    # already built (and pushed to Cachix) by the push trigger above.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name != github.repository ||
+      !(startsWith(github.head_ref, 'lane/') || startsWith(github.head_ref, 'claude/'))
     strategy:
       fail-fast: false
       matrix:

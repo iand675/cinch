@@ -1,0 +1,97 @@
+---
+import { STDLIB_FAMILIES, STDLIB_VERSION, type StdlibModuleEntry } from '../../lib/stdlib';
+
+interface Props {
+  modules: StdlibModuleEntry[];
+  activeModule?: string;
+}
+
+const { modules, activeModule } = Astro.props;
+const activeFamily = activeModule ? activeModule.split('.')[0] : undefined;
+const groups = STDLIB_FAMILIES.map((family) => ({
+  family,
+  items: modules.filter((m) => m.family === family),
+})).filter((g) => g.items.length > 0);
+---
+<aside class="stdlib-nav" aria-label="stdlib modules">
+  <div class="stdlib-nav-head">
+    <a class="stdlib-nav-home" href="/packages/stdlib/" aria-current={!activeModule ? 'page' : undefined}>stdlib</a>
+    <span class="stdlib-nav-ver">{STDLIB_VERSION}</span>
+  </div>
+
+  <a class="stdlib-nav-search-link" href="/packages/search/">
+    <span>API Search (Hoogle)</span>
+    <span aria-hidden="true">↗</span>
+  </a>
+
+  <input
+    type="search"
+    class="stdlib-nav-filter"
+    placeholder={`Filter ${modules.length} modules…`}
+    aria-label="Filter standard library modules"
+    data-stdlib-nav-filter
+    autocomplete="off"
+  />
+
+  <details class="stdlib-nav-drawer" open data-stdlib-drawer>
+    <summary class="stdlib-nav-drawer-toggle">
+      <span>Browse {modules.length} modules</span>
+      <span aria-hidden="true">▾</span>
+    </summary>
+    <div data-stdlib-nav-groups>
+      {groups.map(({ family, items }) => (
+        <details
+          class="stdlib-nav-family"
+          open={activeFamily ? family === activeFamily : family === 'Prelude' || family === 'Data'}
+          data-stdlib-family={family}
+        >
+          <summary>
+            <span>{family}</span>
+            <span class="fam-count">{items.length}</span>
+          </summary>
+          <ul>
+            {items.map((m) => (
+              <li data-stdlib-item={m.module.toLowerCase()}>
+                <a
+                  href={`/packages/stdlib/${m.module}/`}
+                  aria-current={m.module === activeModule ? 'page' : undefined}
+                >
+                  {m.module}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </div>
+  </details>
+
+  <a href="/packages/" class="stdlib-nav-back">← All packages</a>
+</aside>
+
+<script>
+  const drawer = document.querySelector<HTMLDetailsElement>('[data-stdlib-drawer]');
+  const filter = document.querySelector<HTMLInputElement>('[data-stdlib-nav-filter]');
+  const families = [...document.querySelectorAll<HTMLDetailsElement>('[data-stdlib-family]')];
+  const initialOpen = new Map<HTMLDetailsElement, boolean>(families.map((f) => [f, f.open]));
+
+  if (drawer && window.matchMedia('(max-width: 820px)').matches) {
+    drawer.open = false;
+  }
+
+  filter?.addEventListener('input', () => {
+    const q = filter.value.trim().toLowerCase();
+    if (drawer && q) drawer.open = true;
+    for (const fam of families) {
+      const items = [...fam.querySelectorAll<HTMLLIElement>('[data-stdlib-item]')];
+      let visible = 0;
+      for (const li of items) {
+        const match = !q || (li.dataset.stdlibItem ?? '').includes(q);
+        li.hidden = !match;
+        if (match) visible++;
+      }
+      fam.hidden = visible === 0;
+      fam.open = q ? visible > 0 : Boolean(initialOpen.get(fam));
+    }
+  });
+</script>

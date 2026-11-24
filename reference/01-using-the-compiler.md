@@ -18,7 +18,7 @@ Building requires Rust, `clang` 19 or newer on `PATH` (or pointed to by `CINCH_C
 
 # Commands
 
-Every compilation command takes one entry `.cinch` file. Imports resolve against sibling files beside the entry first, then vendored packages, then the embedded standard library.
+Every compilation command takes one entry `.cinch` file. Imports resolve against sibling files beside the entry first, then vendored packages under `vendor/`, then the toolchain's `cinch/stdlib` package (overridable via `CINCH_STDLIB`).
 
 | Command | Purpose | Primary outputs |
 | --- | --- | --- |

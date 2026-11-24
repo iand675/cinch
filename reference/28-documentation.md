@@ -138,7 +138,7 @@ Type search normalizes `forall` binders and module qualifiers, matches alpha-ren
 | `--json` | Emit ranked matches as canonical JSON |
 | `--strict-comments` | Exclude legacy `--` comments when scanning sources |
 
-On the web, [**API Search**](/library/search/) provides the same Hoogle-style query engine over all checked standard-library interfaces with clickable type links and line-anchored source views.
+On the web, [**API Search**](/packages/search/) provides the same Hoogle-style query engine over all checked `stdlib` interfaces with clickable type links and line-anchored source views.
 
 ## Exact lookup and indexing (`lookup`, `index`)
 
@@ -173,7 +173,7 @@ Run all doctests in a directory or file:
 cinch doc test src/ --compiler seed/target/debug/cinch
 ```
 
-Each case runs in an isolated temporary directory as `Main.cinch` (a snippet without a `module` header is wrapped in `module Main where`). Prelude names are embedded and available automatically; sibling project modules are not copied. `--- expect` compares trimmed stdout, `--- exit` compares exit status (default `0`), and `--- error` asserts a nonzero exit whose output contains the given substring. `>` REPL transcripts are recorded in `.cinchdoc` but have no batch runner and fail under `cinch doc test`.
+Each case runs in an isolated temporary directory as `Main.cinch` (a snippet without a `module` header is wrapped in `module Main where`). `Prelude` is in scope automatically and all `cinch/stdlib` modules resolve on demand; sibling project modules are not copied. `--- expect` compares trimmed stdout, `--- exit` compares exit status (default `0`), and `--- error` asserts a nonzero exit whose output contains the given substring. `>` REPL transcripts are recorded in `.cinchdoc` but have no batch runner and fail under `cinch doc test`.
 
 | Flag | Effect |
 | --- | --- |

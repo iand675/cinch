@@ -45,7 +45,7 @@ This manual documents the Cinch language, compiler CLI, type and effect systems,
 
 # Finding library APIs
 
-Use [**API Search**](/library/search/) to query standard-library declarations by name or type signature (for example `(a -> b) -> List a -> List b` or `Result e a -> Option a`), or browse the [library directory](../library/00-index.md). Compiler-installed forms that do not live in a source module are indexed in [compiler vocabulary](20-compiler-vocabulary.md).
+Use [**API Search**](/packages/search/) to query standard-library declarations by name or type signature (for example `(a -> b) -> List a -> List b` or `Result e a -> Option a`), or browse the [`stdlib` package](../library/00-index.md). Compiler-installed forms that do not live in a source module are indexed in [compiler vocabulary](20-compiler-vocabulary.md).
 
 # Reference conventions
 

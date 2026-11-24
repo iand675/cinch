@@ -113,29 +113,41 @@ fn report(installed: &Installed) {
     println!("  interfaces: {}", installed.interfaces.display());
 }
 
-/// `cinch pkg info NAME`: what one installed package resolves to for this
-/// target, before anything is compiled (design/base-as-a-package.md
-/// sections 4.2 and 4.3). It answers the questions a build would
-/// otherwise answer silently: which modules the target selects, which of
-/// them are internal, which prelude the package injects, what the link
-/// plan will add, and whether raw words will need consent.
+/// Return true when `name` refers to the toolchain's built-in standard library
+/// package (`cinch/stdlib`, `stdlib`, `cinch/base`, or `cinch-base`).
+fn is_builtin_stdlib(name: &str) -> bool {
+    matches!(name, "cinch/stdlib" | "stdlib" | "cinch/base" | "cinch-base")
+}
+
+/// `cinch pkg info NAME`: what one installed package (or `cinch/stdlib`)
+/// resolves to for this target, before anything is compiled
+/// (design/base-as-a-package.md sections 4.2 and 4.3).
 fn info(project: &Path, name: &str, facts: &crate::driver::TargetFacts) -> Result<String> {
-    let (namespace, package) = name
-        .split_once('/')
-        .ok_or_else(|| Error::plain(format!("{name}: a package name is namespace/name")))?;
-    let lock = read_lock(project)?;
-    let row = lock
-        .get(name)
-        .ok_or_else(|| Error::plain(format!("{name} is not installed in this project")))?;
-    let version = row
-        .get("version")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| Error::plain(format!("{name}: the lock entry has no version")))?;
-    let source_dir = project.join("vendor").join(namespace).join(package).join(version);
-    let manifest_path = source_dir.join(".cinchpkg");
-    let text = std::fs::read_to_string(&manifest_path)
-        .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
-    let declared = crate::driver::Package::parse(&text)?;
+    let (declared, row_native): (crate::driver::Package, Option<serde_json::Value>) =
+        if is_builtin_stdlib(name) {
+            let pkg = match crate::driver::stdlib_package()? {
+                Some((_dir, pkg)) => pkg,
+                None => crate::driver::base_package().clone(),
+            };
+            (pkg, None)
+        } else {
+            let (namespace, package) = name
+                .split_once('/')
+                .ok_or_else(|| Error::plain(format!("{name}: a package name is namespace/name")))?;
+            let lock = read_lock(project)?;
+            let row = lock
+                .get(name)
+                .ok_or_else(|| Error::plain(format!("{name} is not installed in this project")))?;
+            let version = row
+                .get("version")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| Error::plain(format!("{name}: the lock entry has no version")))?;
+            let source_dir = project.join("vendor").join(namespace).join(package).join(version);
+            let manifest_path = source_dir.join(".cinchpkg");
+            let text = std::fs::read_to_string(&manifest_path)
+                .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+            (crate::driver::Package::parse(&text)?, row.get("native").cloned())
+        };
     let resolved = declared.resolve(facts)?;
 
     let mut out = String::new();
@@ -204,7 +216,7 @@ fn info(project: &Path, name: &str, facts: &crate::driver::TargetFacts) -> Resul
             out.push_str(&format!("  pkgconfig {} (min {min})\n", pc.name));
         }
         if !resolved.link.pkgconfig.is_empty() {
-            match row.get("native").and_then(|n| n.get("words")) {
+            match row_native.as_ref().and_then(|n| n.get("words")) {
                 Some(serde_json::Value::Array(words)) => {
                     let recorded: Vec<String> = words
                         .iter()
@@ -748,7 +760,7 @@ impl<'a> InstallContext<'a> {
                         .get("name")
                         .and_then(Value::as_str)
                         .ok_or_else(|| Error::plain("a dependency has no name"))?;
-                    if dep_name == "cinch/base" || dep_name == "cinch-base" {
+                    if is_builtin_stdlib(dep_name) {
                         continue;
                     }
                     validate_name(dep_name)?;
@@ -1023,7 +1035,7 @@ fn parse_dependencies(manifest: &Value, owner: &str) -> Result<Vec<Dependency>> 
             .and_then(Value::as_str)
             .ok_or_else(|| Error::plain(format!("{owner}: a dependency has no name")))?
             .to_string();
-        if name == "cinch/base" || name == "cinch-base" {
+        if is_builtin_stdlib(&name) {
             continue;
         }
         validate_name(&name).map_err(|e| {
@@ -1642,7 +1654,7 @@ fn resolve_constraints(
                         .get("name")
                         .and_then(Value::as_str)
                         .ok_or_else(|| Error::plain("a dependency has no name"))?;
-                    if dep_name == "cinch/base" || dep_name == "cinch-base" {
+                    if is_builtin_stdlib(dep_name) {
                         continue;
                     }
                     validate_name(dep_name)?;

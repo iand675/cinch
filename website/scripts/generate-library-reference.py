@@ -1,11 +1,11 @@
-"""Generate real Cinch library documentation from Rust-checked interfaces.
+"""Generate real Cinch stdlib documentation from Rust-checked interfaces.
 
 python3 scripts/generate-library-reference.py --compiler /path/to/cinch
 python3 scripts/generate-library-reference.py --check
 
-The generator uses a temporary project and private package store. Non-embedded
-modules are copied by declared name beside the entry, matching the compiler's
-consumer tests. No repository compiler sources or caches are modified.
+The generator uses a temporary project and private package store, resolving
+every module through the toolchain's `cinch/stdlib` manifest (`seed/prelude/.cinchpkg`).
+No repository compiler sources or caches are modified.
 """
 from pathlib import Path
 import argparse
@@ -182,9 +182,9 @@ DESCRIPTIONS = {
 'Effect.Coverage':'Coverage collection/reporting utilities with explicit runtime and source metadata.',
 'Text.Show':'Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself.',
 'Text.Codec':'Encoding/decoding signatures and codec helpers with explicit failure results.',
-'Text.Lex':'A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients.',
+'Text.Lex':'Lexer toolkit: tokens, spans, and lexical errors for grammar and parser clients.',
 'Text.Scan':'Scanning primitives over input text and the shared position/error vocabulary.',
-'Text.Parse':'A source-distributed parser toolkit over the lexer/scanner vocabulary.',
+'Text.Parse':'Parser combinator toolkit over the lexer/scanner vocabulary.',
 'Text.Json':'JSON parsing and rendering over Data.Json, with explicit errors and builder-based output.',
 'Text.Json.Value':'Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting.',
 'Text.Json.Dynamic':'Owned dynamic JSON trees, separate encoding and decoding descriptors, typed payloads and bounded construction.',
@@ -302,37 +302,39 @@ DESCRIPTIONS = {
 }
 
 SUMMARIES={}
-SEARCH_INDEX = ROOT / 'website/public/library-search-index.json'
+STDLIB_BASE = '/packages/stdlib'
+SEARCH_URL = '/packages/search/'
+SEARCH_INDEX = ROOT / 'website/public/stdlib-search-index.json'
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cinch_type_format as ctf
 
 BUILTIN_TYPE_LINKS = {
-    'Int': '/library/Data.Int/',
-    'Nat': '/library/Data.Nat/',
-    'Bool': '/library/Data.Bool/',
-    'Char': '/library/Data.Char/',
-    'String': '/library/Data.String/',
-    'Bytes': '/library/Data.Bytes/',
-    'Array': '/library/Data.Array/',
-    'Ordering': '/library/Data.Ordering/',
-    'Sym': '/library/Data.Sym/',
-    'Path': '/library/Data.Path/',
-    'Json': '/library/Data.Json/',
-    'I8': '/library/Data.Machine/',
-    'I16': '/library/Data.Machine/',
-    'I32': '/library/Data.Machine/',
-    'I64': '/library/Data.Machine/',
-    'Isize': '/library/Data.Machine/',
-    'U8': '/library/Data.Machine/',
-    'U16': '/library/Data.Machine/',
-    'U32': '/library/Data.Machine/',
-    'U64': '/library/Data.Machine/',
-    'Usize': '/library/Data.Machine/',
-    'F32': '/library/Data.Machine/',
-    'F64': '/library/Data.Machine/',
-    'I128': '/library/Data.Wide/',
-    'U128': '/library/Data.Wide/',
+    'Int': f'{STDLIB_BASE}/Data.Int/',
+    'Nat': f'{STDLIB_BASE}/Data.Nat/',
+    'Bool': f'{STDLIB_BASE}/Data.Bool/',
+    'Char': f'{STDLIB_BASE}/Data.Char/',
+    'String': f'{STDLIB_BASE}/Data.String/',
+    'Bytes': f'{STDLIB_BASE}/Data.Bytes/',
+    'Array': f'{STDLIB_BASE}/Data.Array/',
+    'Ordering': f'{STDLIB_BASE}/Data.Ordering/',
+    'Sym': f'{STDLIB_BASE}/Data.Sym/',
+    'Path': f'{STDLIB_BASE}/Data.Path/',
+    'Json': f'{STDLIB_BASE}/Data.Json/',
+    'I8': f'{STDLIB_BASE}/Data.Machine/',
+    'I16': f'{STDLIB_BASE}/Data.Machine/',
+    'I32': f'{STDLIB_BASE}/Data.Machine/',
+    'I64': f'{STDLIB_BASE}/Data.Machine/',
+    'Isize': f'{STDLIB_BASE}/Data.Machine/',
+    'U8': f'{STDLIB_BASE}/Data.Machine/',
+    'U16': f'{STDLIB_BASE}/Data.Machine/',
+    'U32': f'{STDLIB_BASE}/Data.Machine/',
+    'U64': f'{STDLIB_BASE}/Data.Machine/',
+    'Usize': f'{STDLIB_BASE}/Data.Machine/',
+    'F32': f'{STDLIB_BASE}/Data.Machine/',
+    'F64': f'{STDLIB_BASE}/Data.Machine/',
+    'I128': f'{STDLIB_BASE}/Data.Wide/',
+    'U128': f'{STDLIB_BASE}/Data.Wide/',
     'Unit': '/reference/04-types-and-kinds/',
     'Io': '/reference/09-effects-and-capabilities/',
     'IO': '/reference/09-effects-and-capabilities/',
@@ -342,9 +344,9 @@ BUILTIN_TYPE_LINKS = {
     'Async': '/reference/13-concurrency-and-runtime/',
     'Cancel': '/reference/13-concurrency-and-runtime/',
     'Scope': '/reference/13-concurrency-and-runtime/',
-    'STM': '/library/Effect.Stm/',
-    'TVar': '/library/Effect.Stm/',
-    'MVar': '/library/Effect.Concurrent.MVar/',
+    'STM': f'{STDLIB_BASE}/Effect.Stm/',
+    'TVar': f'{STDLIB_BASE}/Effect.Stm/',
+    'MVar': f'{STDLIB_BASE}/Effect.Concurrent.MVar/',
 }
 
 
@@ -474,13 +476,15 @@ def unpack(package, out):
 def collect_interfaces(compiler, save_dir=None):
     temp = tempfile.TemporaryDirectory(prefix='cinch-library-')
     work = Path(temp.name)
-    manifest = json.loads((PRELUDE / 'cinch-base.cinchpkg').read_text())
-    embedded = {m['name'] for m in manifest['modules']}
+    stdlib_manifest = json.loads((PRELUDE / '.cinchpkg').read_text())
     all_sources = sources()
-    for name, path in all_sources.items():
-        if name not in embedded:
-            (work / (name + '.cinch')).write_bytes(path.read_bytes())
-    env = {**os.environ, 'CINCH_STORE': str(work / 'store'), 'RUST_MIN_STACK': '67108864'}
+    ordered_names = [m['name'] for m in stdlib_manifest['modules'] if m['name'] in all_sources]
+    env = {
+        **os.environ,
+        'CINCH_STORE': str(work / 'store'),
+        'CINCH_STDLIB': str(PRELUDE),
+        'RUST_MIN_STACK': '67108864',
+    }
     entry = work / 'Main.cinch'
     ifaces = save_dir if save_dir else (work / 'interfaces')
     ifaces.mkdir(parents=True, exist_ok=True)
@@ -494,14 +498,14 @@ def collect_interfaces(compiler, save_dir=None):
         unpack(work / 'build' / 'Main.cpk', ifaces)
         return None
 
-    # Always ensure embedded base interfaces exist
-    if not all((ifaces / (m + '.cinchif')).exists() for m in embedded):
+    # First check Prelude (which populates the base interfaces in one pass)
+    if not (ifaces / 'Prelude.cinchif').exists():
         err = check_batch([])
         if err:
-            raise RuntimeError(f'Rust compiler rejected embedded base:\n{err}')
-        print('Checked embedded base', flush=True)
+            raise RuntimeError(f'Rust compiler rejected Prelude:\n{err}')
+        print('Checked Prelude', flush=True)
 
-    remaining = [n for n in sorted(all_sources) if n not in embedded and not (ifaces / (n + '.cinchif')).exists()]
+    remaining = [n for n in ordered_names if not (ifaces / (n + '.cinchif')).exists()]
     batch_size = 24
     for start in range(0, len(remaining), batch_size):
         batch = [n for n in remaining[start:start + batch_size] if not (ifaces / (n + '.cinchif')).exists()]
@@ -541,7 +545,7 @@ def build_global_maps(all_sources, interfaces):
             if ty.get('kind') == 'signature':
                 continue
             aid = anchor('type', ty['name'])
-            href = f'/library/{mod}/#{aid}'
+            href = f'{STDLIB_BASE}/{mod}/#{aid}'
             ident = ty.get('identity', f'{mod}.{ty["name"]}')
             # Prefer public home (e.g. Data.Result for Data.Core.Result)
             if mod != 'Prelude':
@@ -553,7 +557,7 @@ def build_global_maps(all_sources, interfaces):
                 symbol_links.setdefault(ty['name'], href)
             for ctor in ty.get('ctors', []):
                 caid = anchor('ctor', ctor['name'])
-                chref = f'/library/{mod}/#{caid}'
+                chref = f'{STDLIB_BASE}/{mod}/#{caid}'
                 cid = f'{mod}.{ty["name"]}.{ctor["name"]}'
                 if mod != 'Prelude':
                     symbol_links.setdefault(cid, chref)
@@ -562,7 +566,7 @@ def build_global_maps(all_sources, interfaces):
             if not (public_class(sig) or any(m.get('exports') for m in sig['methods'])):
                 continue
             aid = anchor('class', sig['name'])
-            href = f'/library/{mod}/#{aid}'
+            href = f'{STDLIB_BASE}/{mod}/#{aid}'
             ident = sig.get('identity', f'{mod}.{sig["name"]}')
             if mod != 'Prelude':
                 type_links.setdefault(ident, href)
@@ -575,7 +579,7 @@ def build_global_maps(all_sources, interfaces):
                 if not method.get('exports'):
                     continue
                 maid = anchor('method', f'{sig["name"]}-{method["name"]}')
-                mhref = f'/library/{mod}/#{maid}'
+                mhref = f'{STDLIB_BASE}/{mod}/#{maid}'
                 if mod != 'Prelude':
                     symbol_links.setdefault(f'{ident}.{method["name"]}', mhref)
                     symbol_links.setdefault(f'{mod}.{method["name"]}', mhref)
@@ -583,7 +587,7 @@ def build_global_maps(all_sources, interfaces):
             if mod == 'Prelude':
                 continue
             aid = anchor('value', val['name'])
-            href = f'/library/{mod}/#{aid}'
+            href = f'{STDLIB_BASE}/{mod}/#{aid}'
             sym = val.get('symbol', f'{mod}.{val["name"]}')
             symbol_links.setdefault(sym, href)
             symbol_links.setdefault(f'{mod}.{val["name"]}', href)
@@ -627,7 +631,7 @@ def render_instances_drawer(rows, type_links):
         mod = row['module']
         items.append(
             f'<li><code>{linked_target}</code> '
-            f'<span class="doc-inst-meta">{res} · <a href="/library/{esc_html(mod)}/#instances">{esc_html(mod)}</a></span></li>'
+            f'<span class="doc-inst-meta">{res} · <a href="{STDLIB_BASE}/{esc_html(mod)}/#instances">{esc_html(mod)}</a></span></li>'
         )
     return (
         f'<details class="doc-instances">'
@@ -640,7 +644,7 @@ def render_instances_drawer(rows, type_links):
 def render_entry_block(aid, sig_html, body_md, src_mod, line, extra_html=''):
     links = [f'<a href="#{esc_html(aid)}" title="Permalink">#</a>']
     if src_mod:
-        src_href = f'/library/source/{esc_html(src_mod)}/' + (f'#L{line}' if line else '')
+        src_href = f'{STDLIB_BASE}/{esc_html(src_mod)}/source/' + (f'#L{line}' if line else '')
         src_title = f'View source at line {line}' if line else 'View source'
         links.append(f'<a href="{src_href}" title="{src_title}">Source</a>')
     sig_bar = (
@@ -666,7 +670,6 @@ def render_entry_block(aid, sig_html, body_md, src_mod, line, extra_html=''):
 
 def generate(ifaces, compiler):
     all_sources = sources()
-    embedded = {m['name'] for m in json.loads((PRELUDE / 'cinch-base.cinchpkg').read_text())['modules']}
     interfaces = {name: json.loads((ifaces / (name + '.cinchif')).read_text()) for name in all_sources}
     documents = {name: doc_json(compiler, path, name, ifaces / (name + '.cinchif')) for name, path in all_sources.items()}
     for name, parsed in documents.items():
@@ -766,37 +769,21 @@ def generate(ifaces, compiler):
         export = iface['exports']
         text = path.read_text()
         (downloads / (name + '.cinch')).write_text(text)
-        embedded_here = name in embedded
         imports = sorted(set(re.findall(r'^  import ([\w.]+)', text, re.M)))
-        closure = set()
 
-        def deps(module):
-            if module in closure or module in embedded or module not in all_sources:
-                return
-            closure.add(module)
-            for child in re.findall(r'^  import ([\w.]+)', all_sources[module].read_text(), re.M):
-                deps(child)
+        used_ids = {'synopsis', 'types', 'signatures', 'values', 'operator-fixities', 'instances', 'dependencies'}
 
-        deps(name)
-
-        used_ids = {'synopsis', 'types', 'signatures', 'values', 'operator-fixities', 'instances', 'dependencies', 'reference-provenance'}
-
-        badge_html = (
-            '<span class="support-tag support-tag--current">Embedded</span>'
-            if embedded_here
-            else '<span class="support-tag support-tag--source">Ship source</span>'
-        )
         import_note = (
             'Implicitly in scope.' if name == 'Prelude' else f'<code>import {esc_html(name)}</code>'
         )
         mod_bar = (
             f'<div class="doc-mod-bar">'
-            f'<div class="doc-mod-bar-primary">{badge_html} {import_note}</div>'
+            f'<div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> {import_note}</div>'
             f'<div class="doc-mod-bar-links">'
-            f'<a href="/library/source/{esc_html(name)}/">View source</a>'
-            f'<a href="/library/search/?q=%2B{esc_html(name)}">Search module</a>'
+            f'<a href="{STDLIB_BASE}/{esc_html(name)}/source/">View source</a>'
+            f'<a href="{SEARCH_URL}?q=%2B{esc_html(name)}">Search module</a>'
             f'<a href="/reference-sources/{esc_html(name)}.cinch" download="{esc_html(name)}.cinch">Download .cinch</a>'
-            f'<a href="/library/00-index/">All modules</a>'
+            f'<a href="{STDLIB_BASE}/">All stdlib modules</a>'
             f'</div></div>'
         )
 
@@ -808,25 +795,6 @@ def generate(ifaces, compiler):
                 for i in imports
             )
             lines += [f'**Dependencies:** {dep_links}.', '']
-        if not embedded_here:
-            sorted_closure = sorted(closure)
-            closure_links = ', '.join(f'[{m}]({m}.md)' for m in sorted_closure)
-            copy_cmds = '\n'.join(
-                f'cp {all_sources[m].relative_to(ROOT)} ./{m}.cinch'
-                for m in sorted_closure
-            )
-            lines += [
-                f'<details class="doc-closure"><summary>Ship-source closure ({len(sorted_closure)} file{"s" if len(sorted_closure) != 1 else ""})</summary>',
-                '',
-                f'Copy these modules beside your entry file before importing `{name}`: {closure_links}.',
-                '',
-                '```sh',
-                copy_cmds,
-                '```',
-                '',
-                '</details>',
-                '',
-            ]
 
         module_doc = documents[name]['doc']
         header = module_doc['markdown'] if module_doc else ''
@@ -900,7 +868,6 @@ def generate(ifaces, compiler):
                             'h': caid,
                             'l': c_info.get('line', item.get('line', 0)) or 0,
                             **({'sm': src_mod} if src_mod != name else {}),
-                            'e': 1 if embedded_here else 0,
                         })
                 children_blocks.append(f'<div class="doc-children"><h4>Constructors</h4><ul>{"".join(ctor_lis)}</ul></div>')
 
@@ -934,7 +901,6 @@ def generate(ifaces, compiler):
                     'h': aid,
                     'l': item.get('line', 0) or 0,
                     **({'sm': src_mod} if src_mod != name else {}),
-                    'e': 1 if embedded_here else 0,
                 })
 
         classes = [s for s in export['signatures'] if public_class(s) or any(m.get('exports') for m in s['methods'])]
@@ -965,7 +931,7 @@ def generate(ifaces, compiler):
                 )
                 m_info = info(f'{ident}.{method["name"]}', method['name'], src_mod)
                 m_line = m_info.get('line', 0) or item.get('line', 0)
-                m_src = f'/library/source/{esc_html(src_mod)}/' + (f'#L{m_line}' if m_line else '')
+                m_src = f'{STDLIB_BASE}/{esc_html(src_mod)}/source/' + (f'#L{m_line}' if m_line else '')
                 m_doc = m_info.get('doc', '').strip()
                 m_doc_html = f'<div class="doc-child-prose">{esc_html(summarize(m_doc))}</div>' if m_doc else ''
                 method_lis.append(
@@ -987,7 +953,6 @@ def generate(ifaces, compiler):
                         'h': maid,
                         'l': m_line or 0,
                         **({'sm': src_mod} if src_mod != name else {}),
-                        'e': 1 if embedded_here else 0,
                     })
 
             extra_parts = []
@@ -1012,7 +977,6 @@ def generate(ifaces, compiler):
                     'h': aid,
                     'l': item.get('line', 0) or 0,
                     **({'sm': src_mod} if src_mod != name else {}),
-                    'e': 1 if embedded_here else 0,
                 })
 
         for value in export['values']:
@@ -1043,7 +1007,6 @@ def generate(ifaces, compiler):
                 'h': aid,
                 'l': item.get('line', 0) or 0,
                 **({'sm': src_mod} if src_mod != name else {}),
-                'e': 1 if embedded_here else 0,
             })
 
         # Emit collapsible Synopsis
@@ -1064,7 +1027,7 @@ def generate(ifaces, compiler):
             lines += [
                 '# Re-exported values',
                 '',
-                'Prelude re-exports a curated subset of the standard library. Follow the defining module link for documentation, or use [API Search](/library/search/) to query by type signature. Compiler-installed forms such as `ioWrite` are documented in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
+                'Prelude re-exports a curated subset of the standard library. Follow the defining module link for documentation, or use [API Search](/packages/search/) to query by type signature. Compiler-installed forms such as `ioWrite` are documented in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
                 '',
                 '| Value | Signature | Defining module |',
                 '| --- | --- | --- |',
@@ -1119,69 +1082,74 @@ def generate(ifaces, compiler):
                         'd': summarize(decl['doc']['markdown']) if decl and decl['doc'] else f'{res} instance in {name}.',
                         'h': iaid,
                         'l': decl['source']['line'] if decl else 0,
-                        'e': 1 if embedded_here else 0,
                     })
             lines += ['</ul>', '']
 
-        lines += [
-            '# Reference provenance',
-            '',
-            f'Generated from checked `.cinchif` exports and [`seed/prelude/{path.relative_to(PRELUDE)}`](/library/source/{name}/). Source SHA-256: `{digest(path)}`.',
-            '',
-        ]
         (OUTPUT / (name + '.md')).write_text(highlighted_markdown(compiler, '\n'.join(lines)))
+        pub_sigs = sum(1 for s in export['signatures'] if public_class(s) or any(m.get('exports') for m in s['methods']))
         entries.append({
             'module': name,
+            'family': name.split('.')[0],
+            'description': describe(name),
             'path': str(path.relative_to(ROOT)),
             'sha256': digest(path),
-            'embedded': embedded_here,
+            'imports': imports,
             'types': len(public_types),
+            'signatures': pub_sigs,
             'values': len(export['values']),
             'public_methods': sum(bool(m.get('exports')) for s in export['signatures'] for m in s['methods']),
+            'instances': len(export['instances']),
         })
 
-    manifest = {'format': 1, 'base_manifest_sha256': digest(PRELUDE / 'cinch-base.cinchpkg'), 'modules': entries}
+    stdlib_pkg = json.loads((PRELUDE / '.cinchpkg').read_text())
+    manifest = {
+        'format': 3,
+        'package': stdlib_pkg.get('name', 'cinch/stdlib'),
+        'version': stdlib_pkg.get('version', '0.1.0'),
+        'stdlib_manifest_sha256': digest(PRELUDE / '.cinchpkg'),
+        'search_entry_count': len(search_entries),
+        'modules': entries,
+    }
     MANIFEST.write_text(json.dumps(manifest, indent=2) + '\n')
 
     search_payload = {
-        'schema': 1,
+        'schema': 2,
+        'package': 'cinch/stdlib',
         'moduleCount': len(entries),
         'typeLinks': type_links,
         'entries': search_entries,
     }
     SEARCH_INDEX.write_text(json.dumps(search_payload, separators=(',', ':')) + '\n')
 
-    embedded_count = sum(e['embedded'] for e in entries)
-    source_count = sum(not e['embedded'] for e in entries)
-
     hoogle_widget = (
-        '<form class="doc-hoogle-box" action="/library/search/" method="get" role="search">\n'
+        f'<form class="doc-hoogle-box" action="{SEARCH_URL}" method="get" role="search">\n'
         '<label for="lib-index-search">Search by symbol name or type signature</label>\n'
         '<div class="doc-hoogle-row">\n'
         '<input id="lib-index-search" name="q" type="search" placeholder="e.g. (a -> b) -> List a -> List b, Result e a -> Option a, or +Data.Map" autocomplete="off" />\n'
         '<button type="submit">Search API</button>\n'
         '</div>\n'
         '<div class="doc-hoogle-chips">\n'
-        '<a href="/library/search/?q=%28a+-%3E+b%29+-%3E+List+a+-%3E+List+b">(a -&gt; b) -&gt; List a -&gt; List b</a>\n'
-        '<a href="/library/search/?q=Result+e+a+-%3E+Option+a">Result e a -&gt; Option a</a>\n'
-        '<a href="/library/search/?q=Ord+a+%3D%3E+List+a+-%3E+List+a">Ord a =&gt; List a -&gt; List a</a>\n'
-        '<a href="/library/search/?q=Bytes+-%3E+Result">Bytes -&gt; Result</a>\n'
-        '<a href="/library/search/?q=is%3Aclass">is:class</a>\n'
+        f'<a href="{SEARCH_URL}?q=%28a+-%3E+b%29+-%3E+List+a+-%3E+List+b">(a -&gt; b) -&gt; List a -&gt; List b</a>\n'
+        f'<a href="{SEARCH_URL}?q=Result+e+a+-%3E+Option+a">Result e a -&gt; Option a</a>\n'
+        f'<a href="{SEARCH_URL}?q=Ord+a+%3D%3E+List+a+-%3E+List+a">Ord a =&gt; List a -&gt; List a</a>\n'
+        f'<a href="{SEARCH_URL}?q=Bytes+-%3E+Result">Bytes -&gt; Result</a>\n'
+        f'<a href="{SEARCH_URL}?q=is%3Aclass">is:class</a>\n'
         '</div>\n'
         '</form>'
     )
 
     index = [
-        '# Built-in and shipped libraries',
+        '# Standard library (`cinch/stdlib`)',
         '',
-        f'Standard library API reference extracted from checked compiler interfaces across **{len(entries)} modules** (**{embedded_count} embedded** in the compiler, **{source_count} source-distributed**) and **{len(search_entries):,} indexed declarations**. Separate from the registry-backed [package catalogue](/packages/).',
+        f'Standard library API reference extracted from checked `.cinchif` compiler interfaces across **{len(entries)} modules** and **{len(search_entries):,} indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).',
         '',
         hoogle_widget,
         '',
-        '# How modules are loaded',
+        '# Using `cinch/stdlib`',
         '',
-        '- **Embedded** modules are compiled into `cinch` and ready to `import` immediately. `Prelude` is implicitly in scope; compiler-installed special forms live in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
-        '- **Ship source** modules check with the compiler today and ship under `seed/prelude/`. Copy a module and its non-embedded closure (listed on each module page) beside your entry file before importing it.',
+        '- Every module in `cinch/stdlib` resolves directly through the toolchain package manifest (`import Data.Rational`, `import Text.Json`, `import Crypto.Aes`) and checks against its `.cinchif`/`.cpk` interface closure.',
+        '- `Prelude` is implicitly in scope unless a package sets `"prelude": "none"` or names a custom prelude in `.cinchpkg`. Compiler-installed special forms live in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
+        '- Inspect the resolved target surface with `cinch pkg info cinch/stdlib`, or link precompiled package objects via `cinch emit-object` and `--package-object` (see [packages, manifests, and the registry](../reference/29-package-management.md)).',
         '',
         '# Module directory',
         '',
@@ -1191,12 +1159,11 @@ def generate(ifaces, compiler):
         subset = [e for e in entries if e['module'].split('.')[0] == group]
         if not subset:
             continue
-        index += [f'## {group}', '', '| Module | Distribution | Exports | Purpose |', '| --- | --- | --- | --- |']
+        index += [f'## {group}', '', '| Module | Exports | Purpose |', '| --- | --- | --- |']
         for e in subset:
             name = e['module']
-            dist_label = 'Embedded' if e['embedded'] else 'Ship source'
             count = e['types'] + e['values'] + e['public_methods']
-            index.append(f'| [{name}]({name}.md) | {dist_label} | {count} | {markdown_text(describe(name))} |')
+            index.append(f'| [{name}]({name}.md) | {count} | {markdown_text(describe(name))} |')
         index += ['']
 
     index += [
@@ -1242,13 +1209,13 @@ def main():
         recorded = json.loads(MANIFEST.read_text())
         actual = sources()
         assert set(actual) == {m['module'] for m in recorded['modules']}, 'Library source set changed; regenerate reference'
-        assert recorded['base_manifest_sha256'] == digest(PRELUDE / 'cinch-base.cinchpkg'), 'Base manifest changed; regenerate reference'
+        assert recorded['stdlib_manifest_sha256'] == digest(PRELUDE / '.cinchpkg'), 'Stdlib manifest changed; regenerate reference'
         for entry in recorded['modules']:
             assert entry['sha256'] == digest(actual[entry['module']]), f'{entry["module"]}: source changed; regenerate reference'
             assert (OUTPUT / (entry['module'] + '.md')).exists(), f'Missing module page: {entry["module"]}'
             assert (ROOT / 'website/public/reference-sources' / (entry['module'] + '.cinch')).read_bytes() == actual[entry['module']].read_bytes(), f'Stale source download: {entry["module"]}'
-        assert SEARCH_INDEX.exists(), 'Missing Hoogle search index: website/public/library-search-index.json'
-        print(f'Library reference matches all {len(actual)} module sources, base manifest, and Hoogle search index')
+        assert SEARCH_INDEX.exists(), 'Missing Hoogle search index: website/public/stdlib-search-index.json'
+        print(f'Standard library (cinch/stdlib) reference matches all {len(actual)} module sources, stdlib manifest, and Hoogle search index')
         return
     compiler = options.compiler or shutil.which('cinch')
     if not compiler:
