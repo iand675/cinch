@@ -10,7 +10,7 @@ Import with `import Text.Tar`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
 Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Tar](Text.Tar.md).
 
@@ -19,7 +19,7 @@ Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Byte
 Tape archives: read V7, USTAR, PAX and GNU tar streams and write USTAR or PAX archives.
 An archive is a sequence of 512-byte header blocks, each followed by its
 file data padded to a whole block, and ends with two zero blocks. Reading
-verifies every header checksum (summed sixteen bytes at a time in SIMD lanes,
+verifies every header checksum (summed sixteen bytes at a time in parallel lanes,
 accepting both the unsigned and the historical signed sum), applies PAX
 extended records and GNU long names and links to the entry they precede,
 returns PAX global headers as entries of their own, and decodes octal and
@@ -40,7 +40,7 @@ times are whole seconds. Names, links and owner names are raw bytes.
 
 One archive member: its header and its data (empty for links, directories and devices).
 
-[Source](/reference-sources/Text.Tar.cinch) · line 91
+[Source](/reference-sources/Text.Tar.cinch) · line 92
 
 <a id="type-5461724572726f72"></a>
 
@@ -50,7 +50,7 @@ One archive member: its header and its data (empty for links, directories and de
 
 A malformed archive or an entry that cannot be written.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 192
+[Source](/reference-sources/Text.Tar.cinch) · line 193
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TarBadHeader</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span>)</code></pre>
 
@@ -71,7 +71,7 @@ A malformed archive or an entry that cannot be written.
 Entry metadata: type byte, name, link target, mode, user and group ids, data size, modification
 time in seconds since 1970, user and group names, device numbers, PAX records and the format read.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 86
+[Source](/reference-sources/Text.Tar.cinch) · line 87
 
 # Values
 
@@ -83,7 +83,7 @@ time in seconds since 1970, user and group names, device numbers, PAX records an
 
 Block device, type byte '4'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 49
+[Source](/reference-sources/Text.Tar.cinch) · line 50
 
 <a id="value-7461722d63686172"></a>
 
@@ -93,7 +93,7 @@ Block device, type byte '4'.
 
 Character device, type byte '3'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 45
+[Source](/reference-sources/Text.Tar.cinch) · line 46
 
 <a id="value-7461722d636f6e746967756f7573"></a>
 
@@ -103,7 +103,7 @@ Character device, type byte '3'.
 
 Contiguous file, type byte '7', read as a regular file.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 61
+[Source](/reference-sources/Text.Tar.cinch) · line 62
 
 <a id="value-7461722d6465766d616a6f72"></a>
 
@@ -113,7 +113,7 @@ Contiguous file, type byte '7', read as a regular file.
 
 Device major number.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 152
+[Source](/reference-sources/Text.Tar.cinch) · line 153
 
 <a id="value-7461722d6465766d696e6f72"></a>
 
@@ -123,7 +123,7 @@ Device major number.
 
 Device minor number.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 156
+[Source](/reference-sources/Text.Tar.cinch) · line 157
 
 <a id="value-7461722d6469726563746f7279"></a>
 
@@ -133,7 +133,7 @@ Device minor number.
 
 Directory, type byte '5'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 53
+[Source](/reference-sources/Text.Tar.cinch) · line 54
 
 <a id="value-7461722d656e747279"></a>
 
@@ -143,7 +143,7 @@ Directory, type byte '5'.
 
 Pair a header with data; the written size is always the data length.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 100
+[Source](/reference-sources/Text.Tar.cinch) · line 101
 
 <a id="value-7461722d656e7472792d64617461"></a>
 
@@ -153,7 +153,7 @@ Pair a header with data; the written size is always the data length.
 
 An entry's data.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 108
+[Source](/reference-sources/Text.Tar.cinch) · line 109
 
 <a id="value-7461722d656e7472792d686561646572"></a>
 
@@ -163,7 +163,7 @@ An entry's data.
 
 An entry's header.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 104
+[Source](/reference-sources/Text.Tar.cinch) · line 105
 
 <a id="value-7461722d6572726f722d6d657373616765"></a>
 
@@ -173,7 +173,7 @@ An entry's header.
 
 Render a tar error.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 205
+[Source](/reference-sources/Text.Tar.cinch) · line 206
 
 <a id="value-7461722d6669666f"></a>
 
@@ -183,7 +183,7 @@ Render a tar error.
 
 Named pipe, type byte '6'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 57
+[Source](/reference-sources/Text.Tar.cinch) · line 58
 
 <a id="value-7461722d666f726d6174"></a>
 
@@ -193,7 +193,7 @@ Named pipe, type byte '6'.
 
 Format bits observed when reading; zero for headers built in memory.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 164
+[Source](/reference-sources/Text.Tar.cinch) · line 165
 
 <a id="value-7461722d666f726d61742d676e75"></a>
 
@@ -203,7 +203,7 @@ Format bits observed when reading; zero for headers built in memory.
 
 Format bit: GNU extensions.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 81
+[Source](/reference-sources/Text.Tar.cinch) · line 82
 
 <a id="value-7461722d666f726d61742d706178"></a>
 
@@ -213,7 +213,7 @@ Format bit: GNU extensions.
 
 Format bit: POSIX PAX extended headers.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 77
+[Source](/reference-sources/Text.Tar.cinch) · line 78
 
 <a id="value-7461722d666f726d61742d7573746172"></a>
 
@@ -223,7 +223,7 @@ Format bit: POSIX PAX extended headers.
 
 Format bit: POSIX USTAR.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 73
+[Source](/reference-sources/Text.Tar.cinch) · line 74
 
 <a id="value-7461722d666f726d61742d7637"></a>
 
@@ -233,7 +233,7 @@ Format bit: POSIX USTAR.
 
 Format bit: original Unix V7 headers.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 69
+[Source](/reference-sources/Text.Tar.cinch) · line 70
 
 <a id="value-7461722d676964"></a>
 
@@ -243,7 +243,7 @@ Format bit: original Unix V7 headers.
 
 Owner group id.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 132
+[Source](/reference-sources/Text.Tar.cinch) · line 133
 
 <a id="value-7461722d676e616d65"></a>
 
@@ -253,7 +253,7 @@ Owner group id.
 
 Owner group name.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 148
+[Source](/reference-sources/Text.Tar.cinch) · line 149
 
 <a id="value-7461722d686172646c696e6b"></a>
 
@@ -263,7 +263,7 @@ Owner group name.
 
 Hard link to an earlier entry, type byte '1'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 37
+[Source](/reference-sources/Text.Tar.cinch) · line 38
 
 <a id="value-7461722d686561646572"></a>
 
@@ -273,7 +273,7 @@ Hard link to an earlier entry, type byte '1'.
 
 A header of the given type and name with mode 0644 (0755 for directories) and every other field zero or empty.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 96
+[Source](/reference-sources/Text.Tar.cinch) · line 97
 
 <a id="value-7461722d6b696e64"></a>
 
@@ -283,7 +283,7 @@ A header of the given type and name with mode 0644 (0755 for directories) and ev
 
 Type byte.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 112
+[Source](/reference-sources/Text.Tar.cinch) · line 113
 
 <a id="value-7461722d6c696e6b"></a>
 
@@ -293,7 +293,7 @@ Type byte.
 
 Link target for hard and symbolic links.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 120
+[Source](/reference-sources/Text.Tar.cinch) · line 121
 
 <a id="value-7461722d6d6f6465"></a>
 
@@ -303,7 +303,7 @@ Link target for hard and symbolic links.
 
 Permission and mode bits.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 124
+[Source](/reference-sources/Text.Tar.cinch) · line 125
 
 <a id="value-7461722d6d74696d65"></a>
 
@@ -313,7 +313,7 @@ Permission and mode bits.
 
 Modification time in whole seconds since 1970-01-01 UTC.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 140
+[Source](/reference-sources/Text.Tar.cinch) · line 141
 
 <a id="value-7461722d6e616d65"></a>
 
@@ -323,7 +323,7 @@ Modification time in whole seconds since 1970-01-01 UTC.
 
 Entry name, after any USTAR prefix, GNU long name or PAX path.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 116
+[Source](/reference-sources/Text.Tar.cinch) · line 117
 
 <a id="value-7461722d706178"></a>
 
@@ -333,7 +333,7 @@ Entry name, after any USTAR prefix, GNU long name or PAX path.
 
 PAX records that apply to this entry and are not represented by another field, in archive order.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 160
+[Source](/reference-sources/Text.Tar.cinch) · line 161
 
 <a id="value-7461722d7061782d676c6f62616c"></a>
 
@@ -343,7 +343,7 @@ PAX records that apply to this entry and are not represented by another field, i
 
 PAX global header, type byte 'g'. Read as an entry holding only its name and records, with no data.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 65
+[Source](/reference-sources/Text.Tar.cinch) · line 66
 
 <a id="value-7461722d72656164"></a>
 
@@ -353,7 +353,7 @@ PAX global header, type byte 'g'. Read as an entry holding only its name and rec
 
 Read every entry of a complete archive, stopping at the first zero block (normally one of two).
 
-[Source](/reference-sources/Text.Tar.cinch) · line 329
+[Source](/reference-sources/Text.Tar.cinch) · line 347
 
 <a id="value-7461722d726567756c6172"></a>
 
@@ -363,7 +363,7 @@ Read every entry of a complete archive, stopping at the first zero block (normal
 
 Regular file, type byte '0'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 33
+[Source](/reference-sources/Text.Tar.cinch) · line 34
 
 <a id="value-7461722d73697a65"></a>
 
@@ -373,7 +373,7 @@ Regular file, type byte '0'.
 
 Data size in bytes as recorded in the archive.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 136
+[Source](/reference-sources/Text.Tar.cinch) · line 137
 
 <a id="value-7461722d73796d6c696e6b"></a>
 
@@ -383,7 +383,7 @@ Data size in bytes as recorded in the archive.
 
 Symbolic link, type byte '2'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 41
+[Source](/reference-sources/Text.Tar.cinch) · line 42
 
 <a id="value-7461722d756964"></a>
 
@@ -393,7 +393,7 @@ Symbolic link, type byte '2'.
 
 Owner user id.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 128
+[Source](/reference-sources/Text.Tar.cinch) · line 129
 
 <a id="value-7461722d756e616d65"></a>
 
@@ -403,7 +403,7 @@ Owner user id.
 
 Owner user name.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 144
+[Source](/reference-sources/Text.Tar.cinch) · line 145
 
 <a id="value-7461722d776974682d646576696365"></a>
 
@@ -413,7 +413,7 @@ Owner user name.
 
 Set device major and minor numbers.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 184
+[Source](/reference-sources/Text.Tar.cinch) · line 185
 
 <a id="value-7461722d776974682d6c696e6b"></a>
 
@@ -423,7 +423,7 @@ Set device major and minor numbers.
 
 Set the link target.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 168
+[Source](/reference-sources/Text.Tar.cinch) · line 169
 
 <a id="value-7461722d776974682d6d6f6465"></a>
 
@@ -433,7 +433,7 @@ Set the link target.
 
 Set the mode bits.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 172
+[Source](/reference-sources/Text.Tar.cinch) · line 173
 
 <a id="value-7461722d776974682d6d74696d65"></a>
 
@@ -443,7 +443,7 @@ Set the mode bits.
 
 Set the modification time in seconds since 1970.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 180
+[Source](/reference-sources/Text.Tar.cinch) · line 181
 
 <a id="value-7461722d776974682d6f776e6572"></a>
 
@@ -453,7 +453,7 @@ Set the modification time in seconds since 1970.
 
 Set user and group ids and names.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 176
+[Source](/reference-sources/Text.Tar.cinch) · line 177
 
 <a id="value-7461722d776974682d706178"></a>
 
@@ -463,7 +463,7 @@ Set user and group ids and names.
 
 Set extra PAX records written with the entry (forcing a PAX header) and reported when read back.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 188
+[Source](/reference-sources/Text.Tar.cinch) · line 189
 
 <a id="value-7461722d7772697465"></a>
 
@@ -474,8 +474,8 @@ Set extra PAX records written with the entry (forcing a PAX header) and reported
 Write entries as a complete archive ending in two zero blocks. Each entry is written as USTAR
 when every field fits and otherwise with a preceding PAX extended header.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 549
+[Source](/reference-sources/Text.Tar.cinch) · line 567
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Tar.cinch`. Source SHA-256: `b1a5b11b1e6ca35103897fdf97fdb2bcbda0486175b98c020684efe5dd73eb37`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Tar.cinch`. Source SHA-256: `3c3fd9231f8b031fb2c9a56bf880aec842cd3f0ce3c59bcbc1ae1a30e10c6bdb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

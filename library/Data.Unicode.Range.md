@@ -100,7 +100,7 @@ Select one immutable built-in identity, rejecting out-of-range internal identifi
 
 Test scalar membership in any supplied immutable table.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 306
+[Source](/reference-sources/Data.Unicode.Range.cinch) · line 289
 
 <a id="value-756e69636f64652d696e2d636f6465"></a>
 
@@ -110,7 +110,7 @@ Test scalar membership in any supplied immutable table.
 
 Test numeric membership in any supplied immutable table, retaining invalid-input policy.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 302
+[Source](/reference-sources/Data.Unicode.Range.cinch) · line 285
 
 <a id="value-756e69636f64652d69732d6f6e652d6f66"></a>
 
@@ -120,7 +120,7 @@ Test numeric membership in any supplied immutable table, retaining invalid-input
 
 Test a table list before a scalar, with the same union semantics as unicode-in.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 314
+[Source](/reference-sources/Data.Unicode.Range.cinch) · line 297
 
 <a id="value-756e69636f64652d69732d6f6e652d6f662d636f6465"></a>
 
@@ -130,7 +130,7 @@ Test a table list before a scalar, with the same union semantics as unicode-in.
 
 Test a table list before a numeric code point, with the same union semantics as unicode-in-code.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 310
+[Source](/reference-sources/Data.Unicode.Range.cinch) · line 293
 
 <a id="value-756e69636f64652d6c6174696e2d6f6666736574"></a>
 
@@ -150,7 +150,7 @@ Observe the exact original built-in Latin offset, or the calculated custom prefi
 
 Test the membership of one valid scalar without copying or exposing a backing table.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 298
+[Source](/reference-sources/Data.Unicode.Range.cinch) · line 281
 
 <a id="value-756e69636f64652d72616e67652d636f6e7461696e732d636f6465"></a>
 
@@ -160,7 +160,7 @@ Test the membership of one valid scalar without copying or exposing a backing ta
 
 Test numeric membership, including surrogates and excluding negative or out-of-domain values.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 287
+[Source](/reference-sources/Data.Unicode.Range.cinch) · line 270
 
 <a id="value-756e69636f64652d72616e67652d6572726f722d696e646578"></a>
 
@@ -314,4 +314,4 @@ The exact original 32-bit stride, including values larger than the Unicode domai
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Range.cinch`. Source SHA-256: `36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Range.cinch`. Source SHA-256: `8251d091d9479df00330a8583e850f2d3b636b6cb4d744762845e6a2efc1e772`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

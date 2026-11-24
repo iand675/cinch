@@ -1,0 +1,783 @@
+-- | HTTP/1.1 server over Effect.Net sockets, ServeMux handler dispatch, and an HTTP client with
+-- Data.CookieJar and redirect support built over Effect.Http.
+--
+-- Connections are served with explicit header and body size limits, HTTP/1.1 keep-alive and pipelining
+-- buffer management, graceful single-request and multi-request serving, and an acceptor loop that pairs
+-- directly with socket listeners. The cookie-aware client threads an immutable CookieJar across requests
+-- and redirect chains without ambient mutable state.
+module Effect.Http.Server where
+
+  import Crypto.Tls
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.CookieJar
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Clock
+  import Effect.Http
+  import Effect.Net
+  import Effect.Tls
+  import Text.Cookie
+  import Text.Http
+  import Text.Show (nat-to-string)
+  import Text.Url
+
+  export HttpServerError, ServerNetError, ServerProtoError, ServerMaxRequestsReached, ServerTlsError, http-server-error-message
+  export HttpServerConfig, HttpServerConfig, http-server-config-default, http-server-config-with-limits
+  export http-server-config-with-keep-alive, http-server-config-with-max-requests
+  export HttpHandler, HttpHandler, http-handler-func, http-handler-pure, http-run-handler
+  export http-mux-handler, http-not-found-handler, http-redirect-handler
+  export http-serve-socket, http-serve-socket-with, http-serve-socket-once, http-serve-accept, http-serve-bytes
+  export http-serve-listener, http-serve-listener-n, http-listen-and-serve, http-listen-and-serve-with
+  export http-serve-tls, http-serve-tls-with, http-serve-tls-listener-n, http-listen-and-serve-tls, http-listen-and-serve-tls-with
+  export HttpClientError, ClientHttpError, ClientTooManyRedirects, ClientBadRedirectLocation, http-client-error-message
+  export HttpClient, HttpClient, http-client-default, http-client-with-jar, http-client-with-max-redirects
+  export http-client-with-max-bytes, http-client-with-time, http-client-with-tls, http-client-jar
+  export http-client-do, http-client-get, http-client-post
+  export http-client-do-tls, http-client-get-tls, http-client-post-tls
+
+  -- ---------------------------------------------------------------------
+  -- Server errors and configuration.
+  -- ---------------------------------------------------------------------
+
+  -- | Named errors reported by the HTTP/1.1 server.
+  data HttpServerError where
+    -- | The underlying TCP socket failed.
+    ServerNetError :: NetError -> HttpServerError
+    -- | An incoming request violated HTTP/1.1 framing or size limits.
+    ServerProtoError :: HttpProtoError -> HttpServerError
+    -- | The connection reached its configured request limit.
+    ServerMaxRequestsReached :: Nat -> HttpServerError
+    -- | The underlying TLS 1.3 handshake or encrypted record layer failed.
+    ServerTlsError :: TlsIoError -> HttpServerError
+
+  -- | Render a readable diagnostic for an HTTP server error.
+  http-server-error-message :: HttpServerError -> String
+  http-server-error-message err = case err of
+    ServerNetError ne -> render-net-error ne
+    ServerProtoError pe -> http-proto-error-message pe
+    ServerMaxRequestsReached n -> string-concat "http server: reached max requests " (nat-to-string n)
+    ServerTlsError te -> tls-io-error-message te
+
+  -- | Render a NetError diagnostic.
+  render-net-error :: NetError -> String
+  render-net-error ne = case ne of
+    NetNotFound -> "http server: network endpoint not found"
+    NetPermissionDenied -> "http server: network permission denied"
+    NetInvalidArgument -> "http server: invalid network argument"
+    NetIoError -> "http server: network I/O error"
+
+  -- | Server configuration: max header bytes, max body bytes, keep-alive enabled, max requests per connection (0 = unlimited).
+  data HttpServerConfig where
+    -- | Configuration fields in the order listed above.
+    HttpServerConfig :: Nat -> Nat -> Bool -> Nat -> HttpServerConfig
+
+  -- | Default HTTP/1.1 server configuration (1 MiB header limit, 10 MiB body limit, keep-alive enabled, unlimited requests).
+  http-server-config-default :: HttpServerConfig
+  http-server-config-default = HttpServerConfig 1048576 10485760 True 0
+
+  -- | Override the maximum header bytes and maximum body bytes.
+  http-server-config-with-limits :: Nat -> Nat -> HttpServerConfig -> HttpServerConfig
+  http-server-config-with-limits max-head max-body cfg = case cfg of
+    HttpServerConfig _ _ ka mr -> HttpServerConfig max-head max-body ka mr
+
+  -- | Enable or disable HTTP/1.1 persistent keep-alive connections.
+  http-server-config-with-keep-alive :: Bool -> HttpServerConfig -> HttpServerConfig
+  http-server-config-with-keep-alive ka cfg = case cfg of
+    HttpServerConfig mh mb _ mr -> HttpServerConfig mh mb ka mr
+
+  -- | Limit the number of requests served per connection (0 means unlimited).
+  http-server-config-with-max-requests :: Nat -> HttpServerConfig -> HttpServerConfig
+  http-server-config-with-max-requests mr cfg = case cfg of
+    HttpServerConfig mh mb ka _ -> HttpServerConfig mh mb ka mr
+
+  -- | Read the configured max header byte limit.
+  cfg-max-head :: HttpServerConfig -> Nat
+  cfg-max-head cfg = case cfg of HttpServerConfig mh _ _ _ -> mh
+
+  -- | Read the configured max body byte limit.
+  cfg-max-body :: HttpServerConfig -> Nat
+  cfg-max-body cfg = case cfg of HttpServerConfig _ mb _ _ -> mb
+
+  -- | Read whether keep-alive is enabled.
+  cfg-keep-alive :: HttpServerConfig -> Bool
+  cfg-keep-alive cfg = case cfg of HttpServerConfig _ _ ka _ -> ka
+
+  -- | Read the maximum requests per connection (0 = unlimited).
+  cfg-max-requests :: HttpServerConfig -> Nat
+  cfg-max-requests cfg = case cfg of HttpServerConfig _ _ _ mr -> mr
+
+  -- ---------------------------------------------------------------------
+  -- Handlers and ServeMux dispatch.
+  -- ---------------------------------------------------------------------
+
+  -- | An HTTP request handler under IO capability r (effectful callback or pure function).
+  data HttpHandler r where
+    -- | Function from an incoming wire request to a wire response performing IO r.
+    HttpHandler :: (HttpWireRequest ->{IO r} HttpWireResponse) -> HttpHandler r
+    -- | Pure request-to-response function requiring no IO effects.
+    HttpPureHandler :: (HttpWireRequest -> HttpWireResponse) -> HttpHandler r
+
+  -- | Wrap an effectful request handler function.
+  http-handler-func :: forall r. (HttpWireRequest ->{IO r} HttpWireResponse) -> HttpHandler r
+  http-handler-func f = HttpHandler f
+
+  -- | Lift a pure request-to-response function into an HttpHandler.
+  http-handler-pure :: forall r. (HttpWireRequest -> HttpWireResponse) -> HttpHandler r
+  http-handler-pure f = HttpPureHandler f
+
+  -- | Invoke an HttpHandler on a request.
+  http-run-handler :: forall r. using (io :: Io r) => HttpHandler r -> HttpWireRequest ->{IO r} HttpWireResponse
+  http-run-handler h req = case h of
+    HttpHandler f -> f req
+    HttpPureHandler f -> f req
+
+  -- | Standard 404 Not Found handler.
+  http-not-found-handler :: forall r. HttpHandler r
+  http-not-found-handler = HttpPureHandler (\_ -> http-response-error status-not-found "404 page not found")
+
+  -- | Standard HTTP redirect handler with the given status code and Location target.
+  http-redirect-handler :: forall r. Nat -> String -> HttpHandler r
+  http-redirect-handler code loc = HttpPureHandler (\_ -> http-response-redirect code loc)
+
+  -- | Adapt a ServeMux of HttpHandlers into a single HttpHandler, setting matched path values,
+  -- issuing canonical/trailing-slash redirects, and returning 405 with an Allow header when needed.
+  http-mux-handler :: forall r. using (io :: Io r) => ServeMux (HttpHandler r) -> HttpHandler r
+  http-mux-handler mux = HttpHandler (\req -> dispatch-mux mux req)
+
+  -- | Dispatch a single request against a ServeMux.
+  dispatch-mux :: forall r. using (io :: Io r) => ServeMux (HttpHandler r) -> HttpWireRequest ->{IO r} HttpWireResponse
+  dispatch-mux mux req = case mux-handler mux req of
+    MuxMatched h _ params -> http-run-handler h (req-with-path-values req params)
+    MuxRedirect loc code -> http-response-redirect code loc
+    MuxMethodNotAllowed methods ->
+      let allow = mux-allow-header methods in
+      let resp = http-response-error status-method-not-allowed "405 method not allowed" in
+      resp-with-header resp "Allow" allow
+    MuxNotFound -> http-response-error status-not-found "404 page not found"
+
+  -- ---------------------------------------------------------------------
+  -- Byte helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Copy [start, stop) from a Bytes buffer safely.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes b start stop =
+    if start <= stop && stop <= bytes-len b then
+      let out = bytes-new (stop - start) in
+      let copied = bytes-copy-range out b 0 start (stop - start) in
+      out
+    else bytes-new 0
+
+  -- | Convert UTF-8 bytes to text, defaulting to empty text.
+  text-of :: Bytes -> String
+  text-of b = case string-from-bytes b of
+    Some s -> s
+    None -> ""
+
+  -- | Check whether a response carries a Connection: close header.
+  resp-wants-close :: HttpWireResponse -> Bool
+  resp-wants-close resp = case resp-header resp "Connection" of
+    None -> False
+    Some v -> v == "close" || v == "Close" || v == "CLOSE"
+
+  -- | Prepare a response for wire emission on a connection, setting Connection: close if closing.
+  finalize-response :: HttpWireRequest -> HttpWireResponse -> Bool -> HttpWireResponse
+  finalize-response req resp closing =
+    if closing then
+      case resp-header resp "Connection" of
+        Some _ -> resp
+        None -> resp-with-header resp "Connection" "close"
+    else resp
+
+  -- | Build an HTTP error response appropriate for a request framing failure.
+  proto-error-response :: HttpProtoError -> HttpWireResponse
+  proto-error-response err = case err of
+    HttpProtoTooLarge _ -> http-response-error status-request-entity-too-large "413 request entity too large"
+    _ -> http-response-error status-bad-request "400 bad request"
+
+  -- ---------------------------------------------------------------------
+  -- Serving over Effect.Net Sockets and in-memory byte streams.
+  -- ---------------------------------------------------------------------
+
+  -- | Serve HTTP/1.1 requests over an open TCP socket using the default configuration.
+  -- Returns the number of requests served before clean EOF or connection close.
+  http-serve-socket :: forall r. using (io :: Io r) => Socket -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-serve-socket sock hdl = http-serve-socket-with http-server-config-default sock hdl
+
+  -- | Serve HTTP/1.1 requests over an open TCP socket with an explicit server configuration.
+  http-serve-socket-with :: forall r. using (io :: Io r) => HttpServerConfig -> Socket -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-serve-socket-with cfg sock hdl = serve-socket-loop cfg sock hdl (bytes-new 0) 0
+
+  -- | Tail-recursive HTTP/1.1 connection loop reading incrementally into a pending byte buffer.
+  serve-socket-loop :: forall r. using (io :: Io r) => HttpServerConfig -> Socket -> HttpHandler r -> Bytes -> Nat ->{IO r} Result HttpServerError Nat
+  serve-socket-loop cfg sock hdl pending served =
+    let max-req = cfg-max-requests cfg in
+    if max-req > 0 && served >= max-req then Ok served
+    else case read-next-request cfg sock pending of
+      Err e -> case e of
+        ServerProtoError HttpProtoIncomplete -> Ok served
+        ServerProtoError pe ->
+          let err-resp = resp-with-header (proto-error-response pe) "Connection" "close" in
+          let written = net-write sock (http-render-response err-resp) in
+          Err (ServerProtoError pe)
+        other -> Err other
+      Ok (None, _) -> Ok served
+      Ok (Some req, rest) ->
+        let resp0 = http-run-handler hdl req in
+        let next-served = served + 1 in
+        let closing = (req-close req
+          || not (cfg-keep-alive cfg)
+          || resp-wants-close resp0
+          || (max-req > 0 && next-served >= max-req)) in
+        let resp1 = finalize-response req resp0 closing in
+        let wire = http-render-response-for (req-method req) resp1 in
+        case net-write sock wire of
+          Err ne -> Err (ServerNetError ne)
+          Ok _ ->
+            if closing then Ok next-served
+            else serve-socket-loop cfg sock hdl rest next-served
+
+  -- | Incrementally read bytes from a socket until one complete HTTP/1.1 request is parsed,
+  -- returning None on clean EOF between requests.
+  read-next-request :: forall r. using (io :: Io r) => HttpServerConfig -> Socket -> Bytes ->{IO r} Result HttpServerError (Option HttpWireRequest, Bytes)
+  read-next-request cfg sock buf =
+    if bytes-len buf > 0 then
+      case http-parse-request-limit (cfg-max-head cfg) (cfg-max-body cfg) buf of
+        Ok (req, used) -> Ok (Some req, slice-bytes buf used (bytes-len buf))
+        Err HttpProtoIncomplete -> pull-more-bytes cfg sock buf
+        Err pe -> Err (ServerProtoError pe)
+    else pull-more-bytes cfg sock buf
+
+  -- | Read one chunk from the socket and append to the pending request buffer.
+  pull-more-bytes :: forall r. using (io :: Io r) => HttpServerConfig -> Socket -> Bytes ->{IO r} Result HttpServerError (Option HttpWireRequest, Bytes)
+  pull-more-bytes cfg sock buf = case net-read sock 4096 of
+    Err ne -> Err (ServerNetError ne)
+    Ok chunk ->
+      if bytes-len chunk == 0 then
+        if bytes-len buf == 0 then Ok (None, bytes-new 0)
+        else Err (ServerProtoError HttpProtoIncomplete)
+      else
+        let combined = bytes-concat [buf, chunk] in
+        let hard-cap = cfg-max-head cfg + cfg-max-body cfg + 65536 in
+        if cfg-max-head cfg > 0 && cfg-max-body cfg > 0 && bytes-len combined > hard-cap then
+          Err (ServerProtoError (HttpProtoTooLarge hard-cap))
+        else read-next-request cfg sock combined
+
+  -- | Serve exactly one HTTP/1.1 request on a socket with Connection: close, close the socket, and return the response.
+  http-serve-socket-once :: forall r. using (io :: Io r) => Socket -> HttpHandler r ->{IO r} Result HttpServerError HttpWireResponse
+  http-serve-socket-once sock hdl =
+    let cfg = http-server-config-with-keep-alive False (http-server-config-with-max-requests 1 http-server-config-default) in
+    case read-next-request cfg sock (bytes-new 0) of
+      Err e ->
+        let closed = net-close sock in
+        Err e
+      Ok (None, _) ->
+        let closed = net-close sock in
+        Err (ServerProtoError HttpProtoIncomplete)
+      Ok (Some req, _) ->
+        let resp0 = http-run-handler hdl req in
+        let resp1 = finalize-response req resp0 True in
+        let wire = http-render-response-for (req-method req) resp1 in
+        case net-write sock wire of
+          Err ne ->
+            let closed = net-close sock in
+            Err (ServerNetError ne)
+          Ok _ ->
+            let closed = net-close sock in
+            Ok resp1
+
+  -- | Repeatedly accept sockets from a listener callback until Ok None signals graceful shutdown,
+  -- serving each connection with the given configuration and closing it afterwards.
+  http-serve-accept :: forall r. using (io :: Io r) => HttpServerConfig -> (Unit ->{IO r} Result NetError (Option Socket)) -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-serve-accept cfg accept-fn hdl = accept-loop cfg accept-fn hdl 0
+
+  -- | Tail-recursive accept loop counting total served requests.
+  accept-loop :: forall r. using (io :: Io r) => HttpServerConfig -> (Unit ->{IO r} Result NetError (Option Socket)) -> HttpHandler r -> Nat ->{IO r} Result HttpServerError Nat
+  accept-loop cfg accept-fn hdl total = case accept-fn () of
+    Err ne -> Err (ServerNetError ne)
+    Ok None -> Ok total
+    Ok (Some sock) ->
+      let served-res = http-serve-socket-with cfg sock hdl in
+      let closed = net-close sock in
+      case served-res of
+        Err _ -> accept-loop cfg accept-fn hdl total
+        Ok count -> accept-loop cfg accept-fn hdl (total + count)
+
+  -- | Serve one or more HTTP/1.1 requests directly from an in-memory wire byte buffer,
+  -- returning the concatenated wire response bytes and total requests served.
+  http-serve-bytes :: forall r. using (io :: Io r) => HttpServerConfig -> Bytes -> HttpHandler r ->{IO r} Result HttpServerError (Bytes, Nat)
+  http-serve-bytes cfg input hdl = serve-bytes-loop cfg input hdl Nil 0
+
+  -- | Tail-recursive in-memory wire buffer serving loop.
+  serve-bytes-loop :: forall r. using (io :: Io r) => HttpServerConfig -> Bytes -> HttpHandler r -> List Bytes -> Nat ->{IO r} Result HttpServerError (Bytes, Nat)
+  serve-bytes-loop cfg buf hdl out-acc served =
+    let max-req = cfg-max-requests cfg in
+    if bytes-len buf == 0 || (max-req > 0 && served >= max-req) then
+      Ok (bytes-concat (reverse out-acc), served)
+    else case http-parse-request-limit (cfg-max-head cfg) (cfg-max-body cfg) buf of
+      Err pe ->
+        let err-resp = resp-with-header (proto-error-response pe) "Connection" "close" in
+        Ok (bytes-concat (reverse (Cons (http-render-response err-resp) out-acc)), served)
+      Ok (req, used) ->
+        let resp0 = http-run-handler hdl req in
+        let next-served = served + 1 in
+        let closing = (req-close req
+          || not (cfg-keep-alive cfg)
+          || resp-wants-close resp0
+          || (max-req > 0 && next-served >= max-req)) in
+        let resp1 = finalize-response req resp0 closing in
+        let wire = http-render-response-for (req-method req) resp1 in
+        let rest = slice-bytes buf used (bytes-len buf) in
+        if closing then Ok (bytes-concat (reverse (Cons wire out-acc)), next-served)
+        else serve-bytes-loop cfg rest hdl (Cons wire out-acc) next-served
+
+  -- ---------------------------------------------------------------------
+  -- TCP Listener serving over Effect.Net.
+  -- ---------------------------------------------------------------------
+
+  -- | Accept and serve incoming TCP connections on `listener` indefinitely using the default configuration.
+  http-serve-listener :: forall r. using (io :: Io r) => Listener -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-serve-listener listener hdl = http-serve-listener-n http-server-config-default listener 0 hdl
+
+  -- | Accept and serve up to `max-conns` TCP connections on `listener` (`0` = unlimited),
+  -- closing each accepted client socket after serving it and returning total served requests.
+  http-serve-listener-n :: forall r. using (io :: Io r) => HttpServerConfig -> Listener -> Nat -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-serve-listener-n cfg listener max-conns hdl = serve-listener-loop cfg listener max-conns hdl 0 0
+
+  -- | Tail-recursive listener accept loop bounded by `max-conns` (`0` = unlimited).
+  serve-listener-loop :: forall r. using (io :: Io r) => HttpServerConfig -> Listener -> Nat -> HttpHandler r -> Nat -> Nat ->{IO r} Result HttpServerError Nat
+  serve-listener-loop cfg listener max-conns hdl conns total =
+    if max-conns > 0 && conns >= max-conns then Ok total
+    else case net-accept listener of
+      Err ne -> Err (ServerNetError ne)
+      Ok sock ->
+        let served-res = http-serve-socket-with cfg sock hdl in
+        let closed = net-close sock in
+        let next-total = (case served-res of
+          Err _ -> total
+          Ok count -> total + count) in
+        serve-listener-loop cfg listener max-conns hdl (conns + 1) next-total
+
+  -- | Bind a TCP listener on `host:port` and serve incoming HTTP/1.1 connections indefinitely.
+  http-listen-and-serve :: forall r. using (io :: Io r) => String -> Nat -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-listen-and-serve host port hdl = http-listen-and-serve-with http-server-config-default host port 0 hdl
+
+  -- | Bind a TCP listener on `host:port`, serve up to `max-conns` connections (`0` = unlimited)
+  -- with explicit configuration, and close the listener before returning.
+  http-listen-and-serve-with :: forall r. using (io :: Io r) => HttpServerConfig -> String -> Nat -> Nat -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-listen-and-serve-with cfg host port max-conns hdl = case net-listen host port of
+    Err ne -> Err (ServerNetError ne)
+    Ok listener ->
+      let res = http-serve-listener-n cfg listener max-conns hdl in
+      let closed = net-listener-close listener in
+      res
+
+  -- ---------------------------------------------------------------------
+  -- TLS 1.3 HTTPS serving over Effect.Tls.
+  -- ---------------------------------------------------------------------
+
+  -- | Upgrade an accepted TCP socket with a TLS 1.3 server handshake and serve HTTP/1.1 keep-alive requests
+  -- using the default server configuration, sending `close_notify` when finished.
+  http-serve-tls :: forall r. using (io :: Io r) => TlsConfig -> Socket -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-serve-tls tls-cfg sock hdl = http-serve-tls-with http-server-config-default tls-cfg sock hdl
+
+  -- | Upgrade an accepted TCP socket with a TLS 1.3 server handshake and serve HTTP/1.1 keep-alive requests
+  -- with an explicit server configuration, sending `close_notify` and closing the socket on completion.
+  http-serve-tls-with :: forall r. using (io :: Io r) => HttpServerConfig -> TlsConfig -> Socket -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-serve-tls-with cfg tls-cfg sock hdl = case tls-server sock tls-cfg of
+    Err te -> Err (ServerTlsError te)
+    Ok conn -> case serve-tls-loop cfg conn hdl (bytes-new 0) 0 of
+      (res, conn-end) ->
+        let closed = tls-close conn-end in
+        res
+
+  -- | Tail-recursive HTTP/1.1 over TLS 1.3 connection loop reading decrypted bytes into a pending buffer.
+  serve-tls-loop :: forall r. using (io :: Io r) => HttpServerConfig -> TlsConn r -> HttpHandler r -> Bytes -> Nat ->{IO r} (Result HttpServerError Nat, TlsConn r)
+  serve-tls-loop cfg conn hdl pending served =
+    let max-req = cfg-max-requests cfg in
+    if max-req > 0 && served >= max-req then (Ok served, conn)
+    else case read-next-tls-request cfg conn pending of
+      (Err e, conn1) -> case e of
+        ServerProtoError HttpProtoIncomplete -> (Ok served, conn1)
+        ServerProtoError pe ->
+          let err-resp = resp-with-header (proto-error-response pe) "Connection" "close" in
+          let conn2 = (case tls-write conn1 (http-render-response err-resp) of
+            Ok (_, c2) -> c2
+            Err _ -> conn1) in
+          (Err (ServerProtoError pe), conn2)
+        other -> (Err other, conn1)
+      (Ok (None, _), conn1) -> (Ok served, conn1)
+      (Ok (Some req, rest), conn1) ->
+        let resp0 = http-run-handler hdl req in
+        let next-served = served + 1 in
+        let closing = (req-close req
+          || not (cfg-keep-alive cfg)
+          || resp-wants-close resp0
+          || (max-req > 0 && next-served >= max-req)) in
+        let resp1 = finalize-response req resp0 closing in
+        let wire = http-render-response-for (req-method req) resp1 in
+        case tls-write conn1 wire of
+          Err te -> (Err (ServerTlsError te), conn1)
+          Ok (_, conn2) ->
+            if closing then (Ok next-served, conn2)
+            else serve-tls-loop cfg conn2 hdl rest next-served
+
+  -- | Incrementally decrypt bytes from a TLS connection until one complete HTTP/1.1 request is parsed,
+  -- returning None on clean EOF between requests.
+  read-next-tls-request :: forall r. using (io :: Io r) => HttpServerConfig -> TlsConn r -> Bytes ->{IO r} (Result HttpServerError (Option HttpWireRequest, Bytes), TlsConn r)
+  read-next-tls-request cfg conn buf =
+    if bytes-len buf > 0 then
+      case http-parse-request-limit (cfg-max-head cfg) (cfg-max-body cfg) buf of
+        Ok (req, used) -> (Ok (Some req, slice-bytes buf used (bytes-len buf)), conn)
+        Err HttpProtoIncomplete -> pull-more-tls-bytes cfg conn buf
+        Err pe -> (Err (ServerProtoError pe), conn)
+    else pull-more-tls-bytes cfg conn buf
+
+  -- | Read one decrypted chunk from a TLS connection and append it to the pending request buffer.
+  pull-more-tls-bytes :: forall r. using (io :: Io r) => HttpServerConfig -> TlsConn r -> Bytes ->{IO r} (Result HttpServerError (Option HttpWireRequest, Bytes), TlsConn r)
+  pull-more-tls-bytes cfg conn buf = case tls-read conn 4096 of
+    Err te -> (Err (ServerTlsError te), conn)
+    Ok (chunk, conn2) ->
+      if bytes-len chunk == 0 then
+        if bytes-len buf == 0 then (Ok (None, bytes-new 0), conn2)
+        else (Err (ServerProtoError HttpProtoIncomplete), conn2)
+      else
+        let combined = bytes-concat [buf, chunk] in
+        let hard-cap = cfg-max-head cfg + cfg-max-body cfg + 65536 in
+        if cfg-max-head cfg > 0 && cfg-max-body cfg > 0 && bytes-len combined > hard-cap then
+          (Err (ServerProtoError (HttpProtoTooLarge hard-cap)), conn2)
+        else read-next-tls-request cfg conn2 combined
+
+  -- | Accept up to `max-conns` TCP connections on `listener` (`0` = unlimited), upgrade each via TLS 1.3,
+  -- and serve HTTP/1.1 requests on every established connection.
+  http-serve-tls-listener-n :: forall r. using (io :: Io r) => HttpServerConfig -> TlsConfig -> Listener -> Nat -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-serve-tls-listener-n cfg tls-cfg listener max-conns hdl =
+    serve-tls-listener-loop cfg tls-cfg listener max-conns hdl 0 0
+
+  -- | Tail-recursive TLS listener accept loop bounded by `max-conns` (`0` = unlimited).
+  serve-tls-listener-loop :: forall r. using (io :: Io r) => HttpServerConfig -> TlsConfig -> Listener -> Nat -> HttpHandler r -> Nat -> Nat ->{IO r} Result HttpServerError Nat
+  serve-tls-listener-loop cfg tls-cfg listener max-conns hdl conns total =
+    if max-conns > 0 && conns >= max-conns then Ok total
+    else case net-accept listener of
+      Err ne -> Err (ServerNetError ne)
+      Ok sock -> case tls-server sock tls-cfg of
+        Err _ ->
+          let closed = net-close sock in
+          serve-tls-listener-loop cfg tls-cfg listener max-conns hdl (conns + 1) total
+        Ok conn -> case serve-tls-loop cfg conn hdl (bytes-new 0) 0 of
+          (served-res, conn-end) ->
+            let closed = tls-close conn-end in
+            let next-total = (case served-res of
+              Err _ -> total
+              Ok count -> total + count) in
+            serve-tls-listener-loop cfg tls-cfg listener max-conns hdl (conns + 1) next-total
+
+  -- | Bind a TCP listener on `host:port` and serve HTTPS (HTTP/1.1 over TLS 1.3) indefinitely.
+  http-listen-and-serve-tls :: forall r. using (io :: Io r) => String -> Nat -> TlsConfig -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-listen-and-serve-tls host port tls-cfg hdl =
+    http-listen-and-serve-tls-with http-server-config-default tls-cfg host port 0 hdl
+
+  -- | Bind a TCP listener on `host:port`, serve up to `max-conns` HTTPS connections (`0` = unlimited)
+  -- over TLS 1.3 with explicit server configuration, and close the listener before returning.
+  http-listen-and-serve-tls-with :: forall r. using (io :: Io r) => HttpServerConfig -> TlsConfig -> String -> Nat -> Nat -> HttpHandler r ->{IO r} Result HttpServerError Nat
+  http-listen-and-serve-tls-with cfg tls-cfg host port max-conns hdl = case net-listen host port of
+    Err ne -> Err (ServerNetError ne)
+    Ok listener ->
+      let res = http-serve-tls-listener-n cfg tls-cfg listener max-conns hdl in
+      let closed = net-listener-close listener in
+      res
+
+  -- ---------------------------------------------------------------------
+  -- CookieJar and redirect-aware HTTP/HTTPS client built over Effect.Http.
+  -- ---------------------------------------------------------------------
+
+  -- | Named errors reported by the cookie- and redirect-aware HTTP client.
+  data HttpClientError where
+    -- | The underlying Effect.Http transport failed.
+    ClientHttpError :: HttpError -> HttpClientError
+    -- | The response redirect chain exceeded the configured maximum hop limit.
+    ClientTooManyRedirects :: Nat -> HttpClientError
+    -- | A redirect response carried a missing or unparseable Location header.
+    ClientBadRedirectLocation :: String -> HttpClientError
+
+  -- | Render a readable diagnostic for an HTTP client error.
+  http-client-error-message :: HttpClientError -> String
+  http-client-error-message err = case err of
+    ClientHttpError he -> render-http-error he
+    ClientTooManyRedirects n -> string-concat "http client: stopped after redirects limit " (nat-to-string n)
+    ClientBadRedirectLocation loc -> string-concat "http client: invalid redirect Location: " loc
+
+  -- | An immutable HTTP/HTTPS client carrying an optional CookieJar, redirect limit, response byte cap,
+  -- optional deterministic Unix timestamp override for cookie expiry checks, and optional TLS 1.3 configuration.
+  data HttpClient where
+    -- | Client fields: optional jar, max redirects, max response bytes, optional clock seconds, optional TLS config.
+    HttpClient :: Option CookieJar -> Nat -> Nat -> Option Int -> Option TlsConfig -> HttpClient
+
+  -- | Default HTTP client (no cookie jar, up to 10 redirects, 1 MiB response limit, live wall clock, plaintext only).
+  http-client-default :: HttpClient
+  http-client-default = HttpClient None 10 max-response-bytes None None
+
+  -- | Attach a CookieJar to an HTTP client.
+  http-client-with-jar :: CookieJar -> HttpClient -> HttpClient
+  http-client-with-jar jar client = case client of
+    HttpClient _ mr mb clk tls -> HttpClient (Some jar) mr mb clk tls
+
+  -- | Set the maximum number of redirects to follow (0 disables automatic redirects).
+  http-client-with-max-redirects :: Nat -> HttpClient -> HttpClient
+  http-client-with-max-redirects mr client = case client of
+    HttpClient jar _ mb clk tls -> HttpClient jar mr mb clk tls
+
+  -- | Set the maximum received response size in bytes.
+  http-client-with-max-bytes :: Nat -> HttpClient -> HttpClient
+  http-client-with-max-bytes mb client = case client of
+    HttpClient jar mr _ clk tls -> HttpClient jar mr mb clk tls
+
+  -- | Pin the client's Unix timestamp (seconds) for deterministic cookie expiration checks.
+  http-client-with-time :: Int -> HttpClient -> HttpClient
+  http-client-with-time ts client = case client of
+    HttpClient jar mr mb _ tls -> HttpClient jar mr mb (Some ts) tls
+
+  -- | Attach a TLS 1.3 configuration to an HTTP client, enabling `https://` requests and redirects.
+  http-client-with-tls :: HttpClient -> TlsConfig -> HttpClient
+  http-client-with-tls client tls-cfg = case client of
+    HttpClient jar mr mb clk _ -> HttpClient jar mr mb clk (Some tls-cfg)
+
+  -- | Retrieve the client's current CookieJar, if attached.
+  http-client-jar :: HttpClient -> Option CookieJar
+  http-client-jar client = case client of
+    HttpClient jar _ _ _ _ -> jar
+
+  -- | Perform an HTTP/HTTPS GET request to a URL, applying cookies and following redirects.
+  http-client-get :: forall r. using (io :: Io r) => HttpClient -> String ->{IO r} Result HttpClientError (HttpWireResponse, HttpClient)
+  http-client-get client url-str =
+    http-client-do client (http-new-request method-get url-str (bytes-new 0))
+
+  -- | Perform an HTTP/HTTPS POST request with a Content-Type and body bytes, applying cookies and following redirects.
+  http-client-post :: forall r. using (io :: Io r) => HttpClient -> String -> String -> Bytes ->{IO r} Result HttpClientError (HttpWireResponse, HttpClient)
+  http-client-post client url-str ctype body =
+    let req = req-with-header (http-new-request method-post url-str body) "Content-Type" ctype in
+    http-client-do client req
+
+  -- | Execute an HttpWireRequest with CookieJar persistence and redirect following, returning
+  -- the final response paired with the updated client. Uses TLS 1.3 for `https://` URLs when configured.
+  http-client-do :: forall r. using (io :: Io r) => HttpClient -> HttpWireRequest ->{IO r} Result HttpClientError (HttpWireResponse, HttpClient)
+  http-client-do client req =
+    let url-text = request-full-url req in
+    case url-parse-text url-text of
+      Err _ -> Err (ClientHttpError HttpBadUrl)
+      Ok u -> client-step client req u 0
+
+  -- | Ensure an HttpClient carries a TLS configuration, defaulting to `tls-config-default` when unset.
+  ensure-client-tls :: HttpClient -> HttpClient
+  ensure-client-tls client = case client of
+    HttpClient _ _ _ _ (Some _) -> client
+    HttpClient jar mr mb clk None -> HttpClient jar mr mb clk (Some tls-config-default)
+
+  -- | Execute an HttpWireRequest over HTTP or HTTPS (TLS 1.3), applying cookies and following redirects.
+  -- Uses the client's attached `TlsConfig` if set, or `tls-config-default` otherwise.
+  http-client-do-tls :: forall r. using (io :: Io r) => HttpClient -> HttpWireRequest ->{IO r} Result HttpClientError (HttpWireResponse, HttpClient)
+  http-client-do-tls client req = http-client-do (ensure-client-tls client) req
+
+  -- | Perform an HTTP or HTTPS GET request with cookies and redirect following.
+  http-client-get-tls :: forall r. using (io :: Io r) => HttpClient -> String ->{IO r} Result HttpClientError (HttpWireResponse, HttpClient)
+  http-client-get-tls client url-str =
+    http-client-do-tls client (http-new-request method-get url-str (bytes-new 0))
+
+  -- | Perform an HTTP or HTTPS POST request with Content-Type, body bytes, cookies, and redirect following.
+  http-client-post-tls :: forall r. using (io :: Io r) => HttpClient -> String -> String -> Bytes ->{IO r} Result HttpClientError (HttpWireResponse, HttpClient)
+  http-client-post-tls client url-str ctype body =
+    let req = req-with-header (http-new-request method-post url-str body) "Content-Type" ctype in
+    http-client-do-tls client req
+
+  -- | Build an absolute URL string from an HttpWireRequest (using http:// and Host when request-uri is relative).
+  request-full-url :: HttpWireRequest -> String
+  request-full-url req =
+    let raw = req-request-uri req in
+    if has-scheme-prefix raw then raw
+    else
+      let h = req-host req in
+      let p = if raw == "" then "/" else raw in
+      if h == "" then raw
+      else string-concat-all ["http://", h, p]
+
+  -- | Check whether text begins with "http://" or "https://".
+  has-scheme-prefix :: String -> Bool
+  has-scheme-prefix s =
+    let b = string-to-bytes s in
+    (bytes-len b >= 7 && eq-i64 (bytes-compare (slice-bytes b 0 7) (string-to-bytes "http://")) 0)
+    || (bytes-len b >= 8 && eq-i64 (bytes-compare (slice-bytes b 0 8) (string-to-bytes "https://")) 0)
+
+  -- | Resolve the current timestamp in Unix seconds from either the pinned clock or Effect.Clock.
+  client-now :: forall r. using (io :: Io r) => HttpClient ->{IO r} Int
+  client-now client = case client of
+    HttpClient _ _ _ (Some ts) _ -> ts
+    HttpClient _ _ _ None _ -> nat-to-int (nat-div (clock-wall-ns ()) 1000000000)
+
+  -- | Format a list of cookies into a Cookie request header value.
+  format-cookie-header :: List Cookie -> String
+  format-cookie-header cs = string-join (format-cookie-items cs Nil) "; "
+
+  -- | Render each cookie as name=value (preserving quotes when set).
+  format-cookie-items :: List Cookie -> List String -> List String
+  format-cookie-items cs acc = case cs of
+    Nil -> reverse acc
+    Cons c rest ->
+      let v = if cookie-quoted c then string-concat-all ["\"", cookie-value c, "\""] else cookie-value c in
+      let item = string-concat-all [cookie-name c, "=", v] in
+      format-cookie-items rest (Cons item acc)
+
+  -- | Parse a decimal port number from bytes, defaulting to `def` when empty.
+  parse-port-or-default :: Bytes -> Nat -> Option Nat
+  parse-port-or-default b def =
+    if bytes-len b == 0 then Some def
+    else parse-port-loop b 0 0
+
+  -- | Accumulate decimal port digits.
+  parse-port-loop :: Bytes -> Nat -> Nat -> Option Nat
+  parse-port-loop b i acc =
+    if i >= bytes-len b then Some acc
+    else
+      let c = bytes-get b i in
+      if c >= 48 && c <= 57 then parse-port-loop b (i + 1) (acc * 10 + (if 48 <= c then c - 48 else 0))
+      else None
+
+  -- | Filter out framing headers that Effect.Http generates itself (Host, Connection, Content-Length).
+  filter-transport-headers :: List (String, String) -> List (String, String) -> List (String, String)
+  filter-transport-headers ps acc = case ps of
+    Nil -> reverse acc
+    Cons pair rest -> case pair of
+      (k, v) ->
+        if k == "Host" || k == "Connection" || k == "Content-Length" then
+          filter-transport-headers rest acc
+        else filter-transport-headers rest (Cons pair acc)
+
+  -- | Convert an Effect.Http.HttpResponse into an HttpWireResponse with canonical HttpHeader.
+  from-effect-response :: HttpResponse -> HttpWireResponse
+  from-effect-response r =
+    let hd = http-header-from-pairs (http-headers r) in
+    let base = http-response-new (http-status r) hd (http-body r) in
+    resp-with-reason base (http-reason r)
+
+  -- | Whether a status code is an HTTP redirect followed by the client.
+  is-redirect-status :: Nat -> Bool
+  is-redirect-status code =
+    code == status-moved-permanently
+    || code == status-found
+    || code == status-see-other
+    || code == status-temporary-redirect
+    || code == status-permanent-redirect
+
+  -- | Send a single HTTP or HTTPS request hop using either plaintext TCP or TLS 1.3.
+  send-client-hop :: forall r. using (io :: Io r) => Bool -> Option TlsConfig -> Nat -> HttpRequest ->{IO r} Result HttpError HttpResponse
+  send-client-hop is-https tls-opt max-b eff-req =
+    if is-https then
+      case tls-opt of
+        None -> Err HttpNoTls
+        Some tls-cfg -> http-request-tls-max max-b tls-cfg eff-req
+    else http-request-max max-b eff-req
+
+  -- | Execute one hop of a request/redirect chain.
+  client-step :: forall r. using (io :: Io r) => HttpClient -> HttpWireRequest -> Url -> Nat ->{IO r} Result HttpClientError (HttpWireResponse, HttpClient)
+  client-step client req cur-url hops =
+    let scheme = text-of (url-scheme cur-url) in
+    let is-https = scheme == "https" in
+    let is-http = scheme == "http" in
+    if not is-https && not is-http then Err (ClientHttpError HttpUnsupportedScheme)
+    else
+      let tls-opt = case client of HttpClient _ _ _ _ tls -> tls in
+      if is-https && (case tls-opt of None -> True; Some _ -> False) then
+        Err (ClientHttpError HttpNoTls)
+      else
+        let host-name = text-of (url-hostname cur-url) in
+        if host-name == "" then Err (ClientHttpError HttpBadUrl)
+        else
+          let def-port = if is-https then (443 :: Nat) else (80 :: Nat) in
+          case parse-port-or-default (url-port cur-url) def-port of
+            None -> Err (ClientHttpError HttpBadUrl)
+            Some port ->
+              let now = client-now client in
+              let (jar-cookie-str, client1) = attach-jar-cookies client cur-url now in
+              let base-headers = filter-transport-headers (http-header-to-pairs (req-headers req)) Nil in
+              let send-headers = merge-cookie-pair base-headers jar-cookie-str in
+              let req-path-str = text-of (url-request-uri cur-url) in
+              let body-opt = if bytes-len (req-body req) == 0 then None else Some (req-body req) in
+              let max-b = case client1 of HttpClient _ _ mb _ _ -> mb in
+              let eff-req = MkHttpRequest (req-method req) host-name port req-path-str send-headers body-opt in
+              case send-client-hop is-https tls-opt max-b eff-req of
+                Err he -> Err (ClientHttpError he)
+                Ok eff-resp ->
+                  let wire-resp = from-effect-response eff-resp in
+                  let client2 = store-response-cookies client1 cur-url wire-resp now in
+                  let max-redir = case client2 of HttpClient _ mr _ _ _ -> mr in
+                  if max-redir > 0 && is-redirect-status (resp-status wire-resp) then
+                    case resp-header wire-resp "Location" of
+                      None -> Ok (wire-resp, client2)
+                      Some loc ->
+                        if hops >= max-redir then Err (ClientTooManyRedirects max-redir)
+                        else case url-parse-text loc of
+                          Err _ -> Err (ClientBadRedirectLocation loc)
+                          Ok ref-url ->
+                            let next-url = url-resolve-reference cur-url ref-url in
+                            let next-req = build-redirect-request req (resp-status wire-resp) cur-url next-url in
+                            client-step client2 next-req next-url (hops + 1)
+                  else Ok (wire-resp, client2)
+
+  -- | Look up cookies to send for cur-url and return the formatted Cookie value and updated client.
+  attach-jar-cookies :: HttpClient -> Url -> Int -> (String, HttpClient)
+  attach-jar-cookies client cur-url now = case client of
+    HttpClient None _ _ _ _ -> ("", client)
+    HttpClient (Some jar) mr mb clk tls ->
+      case jar-cookies-url jar cur-url now of
+        (cs, next-jar) -> (format-cookie-header cs, HttpClient (Some next-jar) mr mb clk tls)
+
+  -- | Store any Set-Cookie headers from a response into the client's CookieJar.
+  store-response-cookies :: HttpClient -> Url -> HttpWireResponse -> Int -> HttpClient
+  store-response-cookies client cur-url resp now = case client of
+    HttpClient None _ _ _ _ -> client
+    HttpClient (Some jar) mr mb clk tls ->
+      let cs = resp-cookies resp in
+      let next-jar = jar-set-cookies-url jar cur-url cs now in
+      HttpClient (Some next-jar) mr mb clk tls
+
+  -- | Combine jar cookies with any explicit Cookie header already present in the outgoing header list.
+  merge-cookie-pair :: List (String, String) -> String -> List (String, String)
+  merge-cookie-pair headers jar-val =
+    if jar-val == "" then headers
+    else merge-cookie-loop headers jar-val False Nil
+
+  -- | Scan outgoing headers to append jar cookies onto an existing Cookie header or add a fresh one.
+  merge-cookie-loop :: List (String, String) -> String -> Bool -> List (String, String) -> List (String, String)
+  merge-cookie-loop headers jar-val found acc = case headers of
+    Nil ->
+      if found then reverse acc
+      else reverse (Cons ("Cookie", jar-val) acc)
+    Cons pair rest -> case pair of
+      (k, v) ->
+        if k == "Cookie" then
+          let combined = if v == "" then jar-val else string-concat-all [v, "; ", jar-val] in
+          merge-cookie-loop rest jar-val True (Cons (k, combined) acc)
+        else merge-cookie-loop rest jar-val found (Cons pair acc)
+
+  -- | Build the follow-up request for a redirect hop, adjusting method/body per RFC 9110 and
+  -- stripping sensitive headers on cross-origin redirects.
+  build-redirect-request :: HttpWireRequest -> Nat -> Url -> Url -> HttpWireRequest
+  build-redirect-request prev-req code prev-url next-url =
+    let m0 = req-method prev-req in
+    let drop-body = (code == status-see-other
+      || ((code == status-moved-permanently || code == status-found) && m0 == method-post)) in
+    let next-m = if drop-body then (if m0 == method-head then method-head else method-get) else m0 in
+    let next-body = if drop-body then (bytes-new 0 :: Bytes) else req-body prev-req in
+    let next-uri = case url-to-text next-url of Some s -> s; None -> text-of (url-request-uri next-url) in
+    let same-origin = (text-of (url-scheme prev-url) == text-of (url-scheme next-url)
+      && text-of (url-host prev-url) == text-of (url-host next-url)) in
+    let h0 = http-header-del (req-headers prev-req) "Cookie" in
+    let h1 = if same-origin then h0 else http-header-del h0 "Authorization" in
+    let h2 = if drop-body then http-header-del (http-header-del h1 "Content-Type") "Content-Length" else h1 in
+    let base = http-new-request next-m next-uri next-body in
+    req-with-headers base h2

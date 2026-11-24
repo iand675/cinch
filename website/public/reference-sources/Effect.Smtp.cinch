@@ -1,16 +1,18 @@
--- | An SMTP client over Effect.Net (RFC 5321): greeting, EHLO with a HELO fallback, extensions,
--- PLAIN and CRAM-MD5 authentication, envelope commands, message data, verification, reset and quit,
--- plus a one-call send-mail.
+-- | An SMTP client over Effect.Net and Effect.Tls (RFC 5321, RFC 3207): greeting, EHLO with a HELO fallback,
+-- extensions, implicit TLS 1.3 and STARTTLS upgrades, PLAIN and CRAM-MD5 authentication, envelope commands,
+-- message data, verification, reset and quit, plus one-call send-mail helpers.
 --
--- A client is an explicit value: the socket, the bytes read ahead of the current reply, the server's
--- name, the name to greet with, the greeting state and whether the client is still open. Every operation
+-- A client is an explicit value: the socket or TLS connection, the bytes read ahead of the current reply, the
+-- server's name, the name to greet with, the greeting state and whether the client is still open. Every operation
 -- returns its result together with the next client, so the greeting state machine (not greeted, greeted
 -- with or without extensions, or greeting failed for good) is visible in the types. The first command
 -- that needs a greeting sends EHLO, falling back to HELO when EHLO is refused; a failed greeting is
--- remembered and returned by every later command. TLS is not available, so PLAIN authentication is only
--- offered to the local machine.
+-- remembered and returned by every later command. Over plaintext sockets PLAIN authentication is only
+-- offered to the local machine; over `SmtpTlsClient` (via `smtp-dial-tls` or `smtp-starttls`) PLAIN
+-- authentication is allowed to remote hosts over the encrypted TLS 1.3 link.
 module Effect.Smtp where
 
+  import Crypto.Tls
   import Data.Bytes
   import Data.Bytes.Build
   import Data.List
@@ -18,11 +20,16 @@ module Effect.Smtp where
   import Data.Result
   import Data.String
   import Effect.Net
+  import Effect.Tls
   import Text.Base64 (base64-encode, base64-decode)
   import Text.Smtp
 
   export SmtpClient, smtp-dial, smtp-hello, smtp-extension, smtp-auth, smtp-mail, smtp-rcpt, smtp-data
   export smtp-verify, smtp-reset, smtp-noop, smtp-quit, smtp-close, smtp-send-mail, smtp-auth-offered
+  export SmtpTlsClient, smtp-dial-tls, smtp-starttls
+  export smtp-tls-hello, smtp-tls-extension, smtp-tls-auth-offered, smtp-tls-auth
+  export smtp-tls-mail, smtp-tls-rcpt, smtp-tls-data, smtp-tls-verify, smtp-tls-reset, smtp-tls-noop
+  export smtp-tls-quit, smtp-tls-close, smtp-send-mail-tls, smtp-send-mail-starttls
 
   -- | How far the greeting has got.
   data Greeting where
@@ -323,3 +330,308 @@ module Effect.Smtp where
     Cons a rest -> (case smtp-rcpt c a of
       (Err e, c2) -> (Err e, c2)
       (Ok u, c2) -> recipients c2 rest)
+
+  -- ---------------------------------------------------------------------
+  -- TLS 1.3 SMTP client (implicit SMTPS and STARTTLS per RFC 3207).
+  -- ---------------------------------------------------------------------
+
+  -- | A TLS 1.3 SMTP client: encrypted connection, unread decrypted bytes, server name,
+  -- local greeting name, greeting state, and open flag.
+  data SmtpTlsClient (r :: Region) where
+    -- | Fields in the order listed above.
+    SmtpTlsClient :: TlsConn r -> Bytes -> String -> String -> Greeting -> Bool -> SmtpTlsClient r
+
+  -- | The server name of a TLS SMTP client.
+  tls-server-name :: forall r. SmtpTlsClient r -> String
+  tls-server-name c = case c of SmtpTlsClient conn b sv l g o -> sv
+
+  -- | Return the TLS SMTP client with an updated greeting state.
+  tls-with-greeting :: forall r. SmtpTlsClient r -> Greeting -> SmtpTlsClient r
+  tls-with-greeting c g = case c of SmtpTlsClient conn b sv l old o -> SmtpTlsClient conn b sv l g o
+
+  -- | The extensions offered after a TLS EHLO greeting.
+  tls-extensions :: forall r. SmtpTlsClient r -> Option (List (String, String))
+  tls-extensions c = case c of
+    SmtpTlsClient conn b sv l g o -> (case g of
+      Greeted exts -> exts
+      other -> None)
+
+  -- | Connect to an SMTP server using implicit TLS 1.3 (SMTPS) and read its 220 greeting.
+  smtp-dial-tls :: forall r. using (io :: Io r) => String -> Nat -> TlsConfig ->{IO r} Result SmtpError (SmtpTlsClient r)
+  smtp-dial-tls host port cfg = case tls-dial host port cfg of
+    Err te -> Err (SmtpNetError (tls-io-error-message te))
+    Ok conn ->
+      let c = SmtpTlsClient conn (bytes-new 0) host "localhost" NotGreeted True in
+      (case tls-read-reply c 220 of
+        (Ok r, c2) -> Ok c2
+        (Err e, c2) ->
+          let closed = smtp-tls-close c2 in
+          Err e)
+
+  -- | Upgrade a plaintext `SmtpClient` to TLS 1.3 via `STARTTLS` (RFC 3207).
+  -- Greets if needed, verifies the server advertises `STARTTLS`, issues `STARTTLS` expecting `220`,
+  -- completes the TLS 1.3 client handshake, and resets the greeting state to `NotGreeted` so a fresh
+  -- encrypted `EHLO` is sent per RFC 3207 section 4.2.
+  smtp-starttls :: forall r. using (io :: Io r) => SmtpClient -> TlsConfig ->{IO r} Result SmtpError (SmtpTlsClient r)
+  smtp-starttls c cfg = case greet c of
+    (Err e, c2) -> Err e
+    (Ok _, c2) -> case extensions c2 of
+      None -> Err (SmtpProtocolError "smtp: server does not support STARTTLS")
+      Some exts -> case smtp-extension-lookup exts "STARTTLS" of
+        None -> Err (SmtpProtocolError "smtp: server does not support STARTTLS")
+        Some _ -> case cmd c2 220 "STARTTLS" of
+          (Err e, _) -> Err e
+          (Ok _, c3) -> case c3 of
+            SmtpClient sock _ sv local _ open ->
+              if not open then Err SmtpClosed
+              else
+                let cfg-sni = if bytes-len (string-to-bytes (tls-config-server-name cfg)) == 0 then tls-config-with-server-name sv cfg else cfg in
+                case tls-client sock cfg-sni of
+                  Err te -> Err (SmtpNetError (tls-io-error-message te))
+                  Ok conn -> Ok (SmtpTlsClient conn (bytes-new 0) sv local NotGreeted True)
+
+  -- | Read one decrypted line (without CR/LF) from a TLS SMTP connection.
+  tls-read-line :: forall r. using (io :: Io r) => SmtpTlsClient r ->{IO r} (Result SmtpError String, SmtpTlsClient r)
+  tls-read-line c = case c of
+    SmtpTlsClient conn pending sv local g open ->
+      if not open then (Err SmtpClosed, c)
+      else case newline-at pending 0 of
+        Some i -> (Ok (smtp-strip-line (slice pending 0 (i + 1))), SmtpTlsClient conn (slice pending (i + 1) (minus (bytes-len pending) (i + 1))) sv local g open)
+        None -> (case tls-read conn 4096 of
+          Err te -> (Err (SmtpNetError (tls-io-error-message te)), c)
+          Ok (more, conn2) ->
+            if bytes-len more == 0 then
+              if bytes-len pending == 0 then (Err SmtpEof, SmtpTlsClient conn2 pending sv local g open)
+              else (Ok (smtp-strip-line pending), SmtpTlsClient conn2 (bytes-new 0) sv local g open)
+            else tls-read-line (SmtpTlsClient conn2 (bytes-concat [pending, more]) sv local g open))
+
+  -- | Read a complete SMTP reply over TLS expecting `expect` (`0` accepts any code).
+  tls-read-reply :: forall r. using (io :: Io r) => SmtpTlsClient r -> Nat ->{IO r} (Result SmtpError SmtpReply, SmtpTlsClient r)
+  tls-read-reply c expect = tls-feed c (smtp-reply-reader expect)
+
+  -- | Feed decrypted lines to a reply reader until the SMTP reply completes.
+  tls-feed :: forall r. using (io :: Io r) => SmtpTlsClient r -> ReplyReader ->{IO r} (Result SmtpError SmtpReply, SmtpTlsClient r)
+  tls-feed c reader = case tls-read-line c of
+    (Err e, c2) -> (Err e, c2)
+    (Ok line, c2) -> (case smtp-reply-line reader line of
+      NeedLine next -> tls-feed c2 next
+      ReplyDone r -> (r, c2))
+
+  -- | Send one SMTP command line over TLS and read its reply.
+  tls-cmd :: forall r. using (io :: Io r) => SmtpTlsClient r -> Nat -> String ->{IO r} (Result SmtpError SmtpReply, SmtpTlsClient r)
+  tls-cmd c expect line = case c of
+    SmtpTlsClient conn pending sv local g open ->
+      if not open then (Err SmtpClosed, c)
+      else case tls-write conn (string-to-bytes (string-concat line "\r\n")) of
+        Err te -> (Err (SmtpNetError (tls-io-error-message te)), c)
+        Ok (_, conn2) -> tls-read-reply (SmtpTlsClient conn2 pending sv local g open) expect
+
+  -- | Greet the server over TLS if not yet greeted (EHLO with HELO fallback), remembering the outcome.
+  tls-greet :: forall r. using (io :: Io r) => SmtpTlsClient r ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  tls-greet c = case c of
+    SmtpTlsClient conn pending sv local g open -> (case g of
+      Greeted exts -> (Ok (), c)
+      GreetFailed e -> (Err e, c)
+      NotGreeted -> (case tls-cmd c 250 (string-concat "EHLO " local) of
+        (Ok r, c2) -> (Ok (), tls-with-greeting c2 (Greeted (Some (smtp-extensions (smtp-reply-message r)))))
+        (Err e, c2) -> (case tls-cmd c2 250 (string-concat "HELO " local) of
+          (Ok r, c3) -> (Ok (), tls-with-greeting c3 (Greeted None))
+          (Err e2, c3) -> (Err e2, tls-with-greeting c3 (GreetFailed e2)))))
+
+  -- | Choose the local name to greet with over TLS; refused once the server has been greeted.
+  smtp-tls-hello :: forall r. using (io :: Io r) => SmtpTlsClient r -> String ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-hello c name = case smtp-validate-line name of
+    Err e -> (Err e, c)
+    Ok _ -> (case c of
+      SmtpTlsClient conn pending sv local g open -> (case g of
+        NotGreeted -> tls-greet (SmtpTlsClient conn pending sv name g open)
+        other -> (Err SmtpHelloTooLate, c)))
+
+  -- | Query whether the server offers an extension over TLS, greeting first if needed.
+  smtp-tls-extension :: forall r. using (io :: Io r) => SmtpTlsClient r -> String ->{IO r} (Option String, SmtpTlsClient r)
+  smtp-tls-extension c name = case tls-greet c of
+    (Err _, c2) -> (None, c2)
+    (Ok _, c2) -> (case tls-extensions c2 of
+      None -> (None, c2)
+      Some exts -> (smtp-extension-lookup exts name, c2))
+
+  -- | Return the authentication mechanisms advertised by the server over TLS.
+  smtp-tls-auth-offered :: forall r. SmtpTlsClient r -> List String
+  smtp-tls-auth-offered c = case tls-extensions c of
+    None -> Nil
+    Some exts -> smtp-auth-mechanisms exts
+
+  -- | Authenticate over an encrypted TLS 1.3 SMTP connection. Passes `True` for TLS to
+  -- `smtp-auth-start` so `PLAIN` authentication is permitted to non-localhost hosts.
+  smtp-tls-auth :: forall r. using (io :: Io r) => SmtpTlsClient r -> SmtpAuth ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-auth c auth = case tls-greet c of
+    (Err e, c2) -> (Err e, c2)
+    (Ok _, c2) -> (case smtp-auth-start auth (tls-server-name c2) True of
+      Err e -> (Err e, tls-snd-client (smtp-tls-quit c2))
+      Ok start -> (case start of
+        (mech, resp) ->
+          let first = if bytes-len resp == 0 then string-concat "AUTH " mech else string-concat "AUTH " (string-concat mech (string-concat " " (base64-encode resp))) in
+          tls-exchange auth (tls-cmd c2 0 first)))
+
+  -- | Run one round of a SASL authentication exchange over TLS.
+  tls-exchange :: forall r. using (io :: Io r) => SmtpAuth -> (Result SmtpError SmtpReply, SmtpTlsClient r) ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  tls-exchange auth sent = case sent of
+    (Err e, c) -> (Err e, c)
+    (Ok r, c) ->
+      let code = smtp-reply-code r in
+      let message = (if code == 334 then decode-challenge (smtp-reply-message r) else if code == 235 then Ok (string-to-bytes (smtp-reply-message r)) else Err (SmtpReplyError code (smtp-reply-message r))) in
+      (case message of
+        Err e -> tls-abort c e
+        Ok m -> (case smtp-auth-next auth m (code == 334) of
+          Err e -> tls-abort c e
+          Ok next -> (case next of
+            None -> (Ok (), c)
+            Some resp -> tls-exchange auth (tls-cmd c 0 (base64-encode resp)))))
+
+  -- | Cancel a TLS authentication exchange with "*", quit, and return the error.
+  tls-abort :: forall r. using (io :: Io r) => SmtpTlsClient r -> SmtpError ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  tls-abort c e = case tls-cmd c 501 "*" of
+    (_, c2) -> (Err e, tls-snd-client (smtp-tls-quit c2))
+
+  -- | Extract the TLS client from a `(Result SmtpError Unit, SmtpTlsClient r)` pair.
+  tls-snd-client :: forall r. (Result SmtpError Unit, SmtpTlsClient r) -> SmtpTlsClient r
+  tls-snd-client p = case p of (_, c) -> c
+
+  -- | Drop the reply payload from a TLS command result pair.
+  tls-drop-reply :: forall r. (Result SmtpError SmtpReply, SmtpTlsClient r) -> (Result SmtpError Unit, SmtpTlsClient r)
+  tls-drop-reply p = case p of
+    (Ok _, c) -> (Ok (), c)
+    (Err e, c) -> (Err e, c)
+
+  -- | Start a mail transaction over TLS (greeting first if needed), requesting `BODY=8BITMIME`
+  -- and `SMTPUTF8` when advertised.
+  smtp-tls-mail :: forall r. using (io :: Io r) => SmtpTlsClient r -> String ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-mail c from = case smtp-validate-line from of
+    Err e -> (Err e, c)
+    Ok _ -> (case tls-greet c of
+      (Err e, c2) -> (Err e, c2)
+      (Ok _, c2) -> tls-drop-reply (tls-cmd c2 250 (string-concat (string-concat "MAIL FROM:<" (string-concat from ">")) (mail-params (tls-extensions c2)))))
+
+  -- | Add a recipient over TLS (accepting any 25x reply).
+  smtp-tls-rcpt :: forall r. using (io :: Io r) => SmtpTlsClient r -> String ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-rcpt c rcpt = case smtp-validate-line rcpt of
+    Err e -> (Err e, c)
+    Ok _ -> tls-drop-reply (tls-cmd c 25 (string-concat "RCPT TO:<" (string-concat rcpt ">")))
+
+  -- | Send the transparency-encoded message body over TLS after `DATA` (354) and expect 250.
+  smtp-tls-data :: forall r. using (io :: Io r) => SmtpTlsClient r -> Bytes ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-data c message = case tls-cmd c 354 "DATA" of
+    (Err e, c2) -> (Err e, c2)
+    (Ok _, c2) -> (case c2 of
+      SmtpTlsClient conn pending sv local g open -> (case tls-write conn (smtp-dot-encode message) of
+        Err te -> (Err (SmtpNetError (tls-io-error-message te)), c2)
+        Ok (_, conn2) -> tls-drop-reply (tls-read-reply (SmtpTlsClient conn2 pending sv local g open) 250)))
+
+  -- | Ask the server to verify an address over TLS (`VRFY`).
+  smtp-tls-verify :: forall r. using (io :: Io r) => SmtpTlsClient r -> String ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-verify c address = case smtp-validate-line address of
+    Err e -> (Err e, c)
+    Ok _ -> tls-greeted-cmd c (string-concat "VRFY " address)
+
+  -- | Abort the current mail transaction over TLS (`RSET`).
+  smtp-tls-reset :: forall r. using (io :: Io r) => SmtpTlsClient r ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-reset c = tls-greeted-cmd c "RSET"
+
+  -- | Check the TLS SMTP connection (`NOOP`).
+  smtp-tls-noop :: forall r. using (io :: Io r) => SmtpTlsClient r ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-noop c = tls-greeted-cmd c "NOOP"
+
+  -- | Greet over TLS if needed, then send a command expecting 250.
+  tls-greeted-cmd :: forall r. using (io :: Io r) => SmtpTlsClient r -> String ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  tls-greeted-cmd c line = case tls-greet c of
+    (Err e, c2) -> (Err e, c2)
+    (Ok _, c2) -> tls-drop-reply (tls-cmd c2 250 line)
+
+  -- | Send `QUIT` over TLS expecting 221, then send `close_notify` and close the underlying socket.
+  smtp-tls-quit :: forall r. using (io :: Io r) => SmtpTlsClient r ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-quit c = case tls-greet c of
+    (_, c2) -> (case tls-cmd c2 221 "QUIT" of
+      (Err e, c3) -> (Err e, c3)
+      (Ok _, c3) -> smtp-tls-close c3)
+
+  -- | Close the TLS SMTP connection (sending `close_notify` and closing the socket) without `QUIT`.
+  smtp-tls-close :: forall r. using (io :: Io r) => SmtpTlsClient r ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  smtp-tls-close c = case c of
+    SmtpTlsClient conn _ sv local g open ->
+      if not open then (Ok (), c)
+      else (case tls-close conn of
+        Ok _ -> (Ok (), SmtpTlsClient conn (bytes-new 0) sv local g False)
+        Err te -> (Err (SmtpNetError (tls-io-error-message te)), SmtpTlsClient conn (bytes-new 0) sv local g False))
+
+  -- | Authenticate a TLS SMTP client when credentials are supplied (requiring server `AUTH` extension).
+  tls-authenticate :: forall r. using (io :: Io r) => SmtpTlsClient r -> Option SmtpAuth ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  tls-authenticate c auth = case auth of
+    None -> (Ok (), c)
+    Some a -> (case tls-extensions c of
+      None -> (Err SmtpNoAuth, c)
+      Some exts -> (case smtp-extension-lookup exts "AUTH" of
+        None -> (Err SmtpNoAuth, c)
+        Some _ -> smtp-tls-auth c a))
+
+  -- | Deliver one message over an established TLS SMTP client and quit.
+  tls-deliver :: forall r. using (io :: Io r) => SmtpTlsClient r -> String -> List String -> Bytes ->{IO r} Result SmtpError Unit
+  tls-deliver c from rcpts message = case smtp-tls-mail c from of
+    (Err e, c2) ->
+      let closed = smtp-tls-close c2 in
+      Err e
+    (Ok _, c2) -> (case tls-recipients c2 rcpts of
+      (Err e, c3) ->
+        let closed = smtp-tls-close c3 in
+        Err e
+      (Ok _, c3) -> (case smtp-tls-data c3 message of
+        (Err e, c4) ->
+          let closed = smtp-tls-close c4 in
+          Err e
+        (Ok _, c4) -> (case smtp-tls-quit c4 of
+          (r, _) -> r)))
+
+  -- | Send every recipient over TLS in order.
+  tls-recipients :: forall r. using (io :: Io r) => SmtpTlsClient r -> List String ->{IO r} (Result SmtpError Unit, SmtpTlsClient r)
+  tls-recipients c rcpts = case rcpts of
+    Nil -> (Ok (), c)
+    Cons a rest -> (case smtp-tls-rcpt c a of
+      (Err e, c2) -> (Err e, c2)
+      (Ok _, c2) -> tls-recipients c2 rest)
+
+  -- | Send one message over implicit TLS 1.3 (SMTPS): dial TLS, greet, authenticate when requested,
+  -- deliver the envelope and body, and quit.
+  smtp-send-mail-tls :: forall r. using (io :: Io r) => String -> Nat -> TlsConfig -> Option SmtpAuth -> String -> List String -> Bytes ->{IO r} Result SmtpError Unit
+  smtp-send-mail-tls host port cfg auth from rcpts message = case valid-all (Cons from rcpts) of
+    Err e -> Err e
+    Ok _ -> (case smtp-dial-tls host port cfg of
+      Err e -> Err e
+      Ok c -> (case tls-greet c of
+        (Err e, c2) ->
+          let closed = smtp-tls-close c2 in
+          Err e
+        (Ok _, c2) -> (case tls-authenticate c2 auth of
+          (Err e, c3) ->
+            let closed = smtp-tls-close c3 in
+            Err e
+          (Ok _, c3) -> tls-deliver c3 from rcpts message)))
+
+  -- | Send one message using `STARTTLS` (RFC 3207): dial plaintext, upgrade to TLS 1.3 via `STARTTLS`,
+  -- greet over the encrypted channel, authenticate when requested, deliver the envelope and body, and quit.
+  smtp-send-mail-starttls :: forall r. using (io :: Io r) => String -> Nat -> TlsConfig -> Option SmtpAuth -> String -> List String -> Bytes ->{IO r} Result SmtpError Unit
+  smtp-send-mail-starttls host port cfg auth from rcpts message = case valid-all (Cons from rcpts) of
+    Err e -> Err e
+    Ok _ -> (case smtp-dial host port of
+      Err e -> Err e
+      Ok c -> (case smtp-starttls c cfg of
+        Err e ->
+          let closed = smtp-close c in
+          Err e
+        Ok tc -> (case tls-greet tc of
+          (Err e, tc2) ->
+            let closed = smtp-tls-close tc2 in
+            Err e
+          (Ok _, tc2) -> (case tls-authenticate tc2 auth of
+            (Err e, tc3) ->
+              let closed = smtp-tls-close tc3 in
+              Err e
+            (Ok _, tc3) -> tls-deliver tc3 from rcpts message))))

@@ -10,7 +10,7 @@ Import with `import Data.Rand`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Array](Data.Array.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md).
+[Data.Array](Data.Array.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Wide](Data.Wide.md).
 
 Non-embedded source closure: [Data.Array](Data.Array.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.Rand](Data.Rand.md).
 
@@ -31,8 +31,8 @@ one 128-bit multiply-add per draw and the reference generator's constants and en
 Lemire's multiply-and-reject method (an unbiased result from one 64x64-bit product, redrawing only when the
 low half lands in the biased sliver), with a mask for powers of two; results are those of a 64-bit host.
 Normal and exponential variates use the Marsaglia-Tsang ziggurat with 128 and 256 strips; the tables are
-derived from the construction by tooling/generate_rand_kernels.py and read as constant vectors. Zipf variates
-use rejection-inversion. Outputs match the reference generators draw for draw.
+constant lookup functions over the strip index. Zipf variates use rejection-inversion. Outputs match the
+reference generators draw for draw.
 
 Cost: each draw returns a new source value, and the current compiler boxes it (a single-field wrapper, or a
 pair holding a 128-bit word, is a small heap object), so a draw costs one allocation: about 25 ns per raw
@@ -51,7 +51,7 @@ PCG draw on amd64, where the reference's mutable generator takes about 2 ns. The
 
 The state, high word first.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 53
+[Source](/reference-sources/Data.Rand.cinch) · line 54
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pcg</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span>)</code></pre>
 
@@ -63,7 +63,7 @@ The state, high word first.
 
 Why a PCG encoding was refused.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 56
+[Source](/reference-sources/Data.Rand.cinch) · line 57
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PcgBadEncoding</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">PcgError</span></code></pre>
 
@@ -75,7 +75,7 @@ Why a PCG encoding was refused.
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 371
+[Source](/reference-sources/Data.Rand.cinch) · line 338
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Zipf</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Zipf</span>))))))))</code></pre>
 
@@ -89,7 +89,7 @@ Fields in the order listed above.
 
 A source of uniformly distributed 64-bit values: a draw and the source to draw from next.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 46
+[Source](/reference-sources/Data.Rand.cinch) · line 47
 
 <a id="method-536f757263652e736f757263652d75696e743634"></a>
 
@@ -109,7 +109,7 @@ The next uniform 64-bit value and the source after it.
 
 A readable description of an error.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 61
+[Source](/reference-sources/Data.Rand.cinch) · line 62
 
 <a id="value-7063672d6d61727368616c"></a>
 
@@ -119,7 +119,7 @@ A readable description of an error.
 
 The state encoding: "pcg:" and the two halves big-endian (20 bytes).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 126
+[Source](/reference-sources/Data.Rand.cinch) · line 107
 
 <a id="value-7063672d6e6577"></a>
 
@@ -129,7 +129,7 @@ The state encoding: "pcg:" and the two halves big-endian (20 bytes).
 
 A PCG generator from two seed words (the state's high and low halves).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 114
+[Source](/reference-sources/Data.Rand.cinch) · line 95
 
 <a id="value-7063672d73656564"></a>
 
@@ -139,7 +139,7 @@ A PCG generator from two seed words (the state's high and low halves).
 
 The generator reseeded with two words (the same as a new generator).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 118
+[Source](/reference-sources/Data.Rand.cinch) · line 99
 
 <a id="value-7063672d75696e743634"></a>
 
@@ -149,7 +149,7 @@ The generator reseeded with two words (the same as a new generator).
 
 The next 64-bit value and generator.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 122
+[Source](/reference-sources/Data.Rand.cinch) · line 103
 
 <a id="value-7063672d756e6d61727368616c"></a>
 
@@ -159,7 +159,7 @@ The next 64-bit value and generator.
 
 A generator from its encoding.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 140
+[Source](/reference-sources/Data.Rand.cinch) · line 121
 
 <a id="value-72616e642d6578702d666c6f61743634"></a>
 
@@ -169,7 +169,7 @@ A generator from its encoding.
 
 A standard exponential variate (rate 1).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 345
+[Source](/reference-sources/Data.Rand.cinch) · line 312
 
 <a id="value-72616e642d666c6f61743332"></a>
 
@@ -179,7 +179,7 @@ A standard exponential variate (rate 1).
 
 A uniform binary32 value in [0, 1) with 24 random bits.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 233
+[Source](/reference-sources/Data.Rand.cinch) · line 200
 
 <a id="value-72616e642d666c6f61743634"></a>
 
@@ -189,7 +189,7 @@ A uniform binary32 value in [0, 1) with 24 random bits.
 
 A uniform value in [0, 1) with 53 random bits.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 229
+[Source](/reference-sources/Data.Rand.cinch) · line 196
 
 <a id="value-72616e642d696e743332"></a>
 
@@ -199,7 +199,7 @@ A uniform value in [0, 1) with 53 random bits.
 
 A uniform non-negative 32-bit integer (31 random bits).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 171
+[Source](/reference-sources/Data.Rand.cinch) · line 152
 
 <a id="value-72616e642d696e7433322d6e"></a>
 
@@ -209,7 +209,7 @@ A uniform non-negative 32-bit integer (31 random bits).
 
 A uniform 32-bit integer in [0, n), or None when n is not positive.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 221
+[Source](/reference-sources/Data.Rand.cinch) · line 188
 
 <a id="value-72616e642d696e743634"></a>
 
@@ -219,7 +219,7 @@ A uniform 32-bit integer in [0, n), or None when n is not positive.
 
 A uniform non-negative 64-bit integer (63 random bits).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 163
+[Source](/reference-sources/Data.Rand.cinch) · line 144
 
 <a id="value-72616e642d696e7436342d6e"></a>
 
@@ -229,7 +229,7 @@ A uniform non-negative 64-bit integer (63 random bits).
 
 A uniform integer in [0, n), or None when n is not positive.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 213
+[Source](/reference-sources/Data.Rand.cinch) · line 180
 
 <a id="value-72616e642d6e6f726d2d666c6f61743634"></a>
 
@@ -239,7 +239,7 @@ A uniform integer in [0, n), or None when n is not positive.
 
 A standard normal variate (mean 0, standard deviation 1).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 310
+[Source](/reference-sources/Data.Rand.cinch) · line 277
 
 <a id="value-72616e642d7065726d"></a>
 
@@ -249,7 +249,7 @@ A standard normal variate (mean 0, standard deviation 1).
 
 A random permutation of 0 .. n-1.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 245
+[Source](/reference-sources/Data.Rand.cinch) · line 212
 
 <a id="value-72616e642d73687566666c65"></a>
 
@@ -259,7 +259,7 @@ A random permutation of 0 .. n-1.
 
 The list's elements in a uniformly random order (the same order rand-perm's indices give).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 249
+[Source](/reference-sources/Data.Rand.cinch) · line 216
 
 <a id="value-72616e642d75696e743332"></a>
 
@@ -269,7 +269,7 @@ The list's elements in a uniformly random order (the same order rand-perm's indi
 
 A uniform 32-bit value (the draw's high half).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 167
+[Source](/reference-sources/Data.Rand.cinch) · line 148
 
 <a id="value-72616e642d75696e7433322d6e"></a>
 
@@ -279,7 +279,7 @@ A uniform 32-bit value (the draw's high half).
 
 A uniform 32-bit value in [0, n), or None when n is 0.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 217
+[Source](/reference-sources/Data.Rand.cinch) · line 184
 
 <a id="value-72616e642d75696e743634"></a>
 
@@ -289,7 +289,7 @@ A uniform 32-bit value in [0, n), or None when n is 0.
 
 A uniform 64-bit value.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 159
+[Source](/reference-sources/Data.Rand.cinch) · line 140
 
 <a id="value-72616e642d75696e7436342d6e"></a>
 
@@ -299,7 +299,7 @@ A uniform 64-bit value.
 
 A uniform value in [0, n), or None when n is 0.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 209
+[Source](/reference-sources/Data.Rand.cinch) · line 176
 
 <a id="value-7a6970662d6e6577"></a>
 
@@ -309,7 +309,7 @@ A uniform value in [0, n), or None when n is 0.
 
 The distribution for s > 1 and v >= 1 (None otherwise) over [0, imax].
 
-[Source](/reference-sources/Data.Rand.cinch) · line 382
+[Source](/reference-sources/Data.Rand.cinch) · line 349
 
 <a id="value-7a6970662d75696e743634"></a>
 
@@ -319,7 +319,7 @@ The distribution for s > 1 and v >= 1 (None otherwise) over [0, imax].
 
 A Zipf-distributed integer, by rejection-inversion.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 396
+[Source](/reference-sources/Data.Rand.cinch) · line 363
 
 # Instances
 
@@ -335,4 +335,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Rand.cinch`. Source SHA-256: `36b9fee50dbb6086e686f303683d130764dd167aec5cd48dfb2efe3682677c53`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Rand.cinch`. Source SHA-256: `0d7a056acd1c959a1d4ca2de348445c4a4951e04ee69fd5fb8c0e06ba4b84183`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

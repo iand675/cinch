@@ -10,15 +10,15 @@ Import with `import Effect.Buffered.Internal.Scan`. Selected exports may already
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md).
+Non-embedded source closure: [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 Exact bounded byte scans shared by buffered input and token splitters.
-Complete eight-byte words use lane comparisons; scalar fringes never read
-before the requested start or after the half-open end of the owned span.
+Complete sixteen-byte blocks use portable SIMD lane comparisons; scalar
+fringes never read before the requested start or after the half-open end.
 
 </details>
 
@@ -36,7 +36,7 @@ This module exports no type declarations.
 
 Advance past ASCII whitespace in a bounded span, returning an absolute endpoint; invalid bounds leave the offset unchanged.
 
-[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 74
+[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 86
 
 <a id="value-61736369692d776f7264"></a>
 
@@ -46,7 +46,7 @@ Advance past ASCII whitespace in a bounded span, returning an absolute endpoint;
 
 Advance past ASCII non-whitespace bytes, stopping before Unicode fringes for scalar decoding.
 
-[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 83
+[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 123
 
 <a id="value-66696e642d62797465"></a>
 
@@ -56,8 +56,8 @@ Advance past ASCII non-whitespace bytes, stopping before Unicode fringes for sca
 
 Find a byte in a checked half-open owner span, returning its absolute offset or None for absence or invalid bounds.
 
-[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 61
+[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 52
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Buffered/Internal/Scan.cinch`. Source SHA-256: `027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Buffered/Internal/Scan.cinch`. Source SHA-256: `851f155927bdbd4386078c6581e2ed9733b78295c1d0b1d2b41b278c22edb76a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -1,0 +1,1558 @@
+-- | ML-DSA (FIPS 204), the module-lattice digital signature algorithm, with the ML-DSA-44, ML-DSA-65, and ML-DSA-87 parameter sets.
+-- Key pairs are derived deterministically from a 32-byte seed or loaded from
+-- encoded FIPS 204 private and public key bytes. Signing supports both
+-- deterministic mode and hedged mode with 32 bytes of caller-supplied
+-- randomness, using the pure ML-DSA domain framing (0x00 || len(ctx) || ctx || M)
+-- with context strings up to 255 bytes. Polynomials are stored as 1024-byte
+-- buffers of 256 little-endian 32-bit coefficients reduced modulo q = 8380417,
+-- using exact 64-bit modular arithmetic and the FIPS 204 256-point NTT.
+module Crypto.MlDsa where
+
+  import Crypto.ConstantTime
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Sha3
+  import Text.Show (nat-to-string)
+
+  export MlDsaParameters, MlDsa44, MlDsa65, MlDsa87
+  export mldsa-seed-size, mldsa-public-key-size, mldsa-private-key-size, mldsa-signature-size
+  export MlDsaError, MlDsaInvalidSeedSize, MlDsaInvalidPublicKey, MlDsaInvalidPrivateKey, MlDsaInvalidSignature, MlDsaInvalidRandomnessSize, MlDsaContextTooLong, MlDsaSigningFailed, mldsa-error-message
+  export MlDsaPrivateKey, MlDsaPublicKey
+  export mldsa-key-from-seed, mldsa-private-key, mldsa-private-key-bytes, mldsa-private-key-parameters, mldsa-public-key-of
+  export mldsa-public-key, mldsa-public-key-bytes, mldsa-public-key-parameters
+  export mldsa-sign-deterministic, mldsa-sign-with, mldsa-verify
+
+  -- ---------------------------------------------------------------------
+  -- Parameters and errors.
+  -- ---------------------------------------------------------------------
+
+  -- | An ML-DSA parameter set from FIPS 204 Table 1.
+  data MlDsaParameters where
+    -- | k = 4, l = 4, eta = 2, tau = 39, beta = 78, omega = 80 (NIST security category 2).
+    MlDsa44 :: MlDsaParameters
+    -- | k = 6, l = 5, eta = 4, tau = 49, beta = 196, omega = 55 (NIST security category 3).
+    MlDsa65 :: MlDsaParameters
+    -- | k = 8, l = 7, eta = 2, tau = 60, beta = 120, omega = 75 (NIST security category 5).
+    MlDsa87 :: MlDsaParameters
+
+  -- | Number of rows k in the public matrix A.
+  param-k :: MlDsaParameters -> Nat
+  param-k p = case p of MlDsa44 -> 4; MlDsa65 -> 6; MlDsa87 -> 8
+
+  -- | Number of columns l in the public matrix A.
+  param-l :: MlDsaParameters -> Nat
+  param-l p = case p of MlDsa44 -> 4; MlDsa65 -> 5; MlDsa87 -> 7
+
+  -- | Secret-key coefficient bound eta.
+  param-eta :: MlDsaParameters -> Nat
+  param-eta p = case p of MlDsa44 -> 2; MlDsa65 -> 4; MlDsa87 -> 2
+
+  -- | Hamming weight tau of the challenge polynomial c.
+  param-tau :: MlDsaParameters -> Nat
+  param-tau p = case p of MlDsa44 -> 39; MlDsa65 -> 49; MlDsa87 -> 60
+
+  -- | Rejection-sampling bound beta = tau * eta.
+  param-beta :: MlDsaParameters -> I64
+  param-beta p = case p of MlDsa44 -> 78; MlDsa65 -> 196; MlDsa87 -> 120
+
+  -- | Masking polynomial coefficient bound gamma1.
+  param-gamma1 :: MlDsaParameters -> I64
+  param-gamma1 p = case p of MlDsa44 -> 131072; MlDsa65 -> 524288; MlDsa87 -> 524288
+
+  -- | Low-order rounding range gamma2.
+  param-gamma2 :: MlDsaParameters -> I64
+  param-gamma2 p = case p of MlDsa44 -> 95232; MlDsa65 -> 261888; MlDsa87 -> 261888
+
+  -- | Maximum number of ones omega in the hint vector h.
+  param-omega :: MlDsaParameters -> Nat
+  param-omega p = case p of MlDsa44 -> 80; MlDsa65 -> 55; MlDsa87 -> 75
+
+  -- | Challenge commitment hash length lambda / 4 in bytes.
+  param-ctilde-size :: MlDsaParameters -> Nat
+  param-ctilde-size p = case p of MlDsa44 -> 32; MlDsa65 -> 48; MlDsa87 -> 64
+
+  -- | Encoded byte size of one secret polynomial s1 or s2.
+  param-s-poly-bytes :: MlDsaParameters -> Nat
+  param-s-poly-bytes p = case p of MlDsa44 -> 96; MlDsa65 -> 128; MlDsa87 -> 96
+
+  -- | Encoded byte size of one response polynomial z (or mask y).
+  param-z-poly-bytes :: MlDsaParameters -> Nat
+  param-z-poly-bytes p = case p of MlDsa44 -> 576; MlDsa65 -> 640; MlDsa87 -> 640
+
+  -- | Key-generation seed size in bytes (32).
+  mldsa-seed-size :: Nat
+  mldsa-seed-size = 32
+
+  -- | Encoded public key size in bytes: 1312 for ML-DSA-44, 1952 for ML-DSA-65, 2592 for ML-DSA-87.
+  mldsa-public-key-size :: MlDsaParameters -> Nat
+  mldsa-public-key-size p = 32 + 320 * param-k p
+
+  -- | Encoded private key size in bytes: 2560 for ML-DSA-44, 4032 for ML-DSA-65, 4896 for ML-DSA-87.
+  mldsa-private-key-size :: MlDsaParameters -> Nat
+  mldsa-private-key-size p = 128 + param-s-poly-bytes p * (param-k p + param-l p) + 416 * param-k p
+
+  -- | Encoded signature size in bytes: 2420 for ML-DSA-44, 3309 for ML-DSA-65, 4627 for ML-DSA-87.
+  mldsa-signature-size :: MlDsaParameters -> Nat
+  mldsa-signature-size p = param-ctilde-size p + param-l p * param-z-poly-bytes p + param-omega p + param-k p
+
+  -- | A rejected ML-DSA input or signing failure.
+  data MlDsaError where
+    -- | Key-generation seeds must be 32 bytes; carries the supplied length.
+    MlDsaInvalidSeedSize :: Nat -> MlDsaError
+    -- | A public key of the wrong length.
+    MlDsaInvalidPublicKey :: MlDsaError
+    -- | A private key of the wrong length or with invalid or inconsistent components.
+    MlDsaInvalidPrivateKey :: MlDsaError
+    -- | A signature of the wrong length or with malformed hint encoding.
+    MlDsaInvalidSignature :: MlDsaError
+    -- | Signing randomness must be 32 bytes; carries the supplied length.
+    MlDsaInvalidRandomnessSize :: Nat -> MlDsaError
+    -- | The pure ML-DSA context string exceeds 255 bytes; carries the supplied length.
+    MlDsaContextTooLong :: Nat -> MlDsaError
+    -- | Rejection sampling exhausted the 16-bit mask counter space.
+    MlDsaSigningFailed :: MlDsaError
+
+  -- | Render an ML-DSA error as a diagnostic message.
+  mldsa-error-message :: MlDsaError -> String
+  mldsa-error-message err = case err of
+    MlDsaInvalidSeedSize n -> string-concat "mldsa: invalid seed length " (nat-to-string n)
+    MlDsaInvalidPublicKey -> "mldsa: invalid public key"
+    MlDsaInvalidPrivateKey -> "mldsa: invalid private key"
+    MlDsaInvalidSignature -> "mldsa: invalid signature"
+    MlDsaInvalidRandomnessSize n -> string-concat "mldsa: invalid randomness length " (nat-to-string n)
+    MlDsaContextTooLong n -> string-concat "mldsa: context string too long: " (nat-to-string n)
+    MlDsaSigningFailed -> "mldsa: signing failed"
+
+  -- ---------------------------------------------------------------------
+  -- Keys.
+  -- ---------------------------------------------------------------------
+
+  -- | An ML-DSA public key: parameters, encoded bytes, NTT(t1 * 2^13), matrix A-hat, and tr = SHAKE256(pk, 64).
+  data MlDsaPublicKey where
+    -- | Fields in the order listed above.
+    MlDsaPublicKey :: MlDsaParameters -> Bytes -> List Bytes -> List (List Bytes) -> Bytes -> MlDsaPublicKey
+
+  -- | An ML-DSA private key: encoded sk bytes, 32-byte K, s1-hat, s2-hat, t0-hat, and the corresponding public key.
+  data MlDsaPrivateKey where
+    -- | Fields in the order listed above.
+    MlDsaPrivateKey :: Bytes -> Bytes -> List Bytes -> List Bytes -> List Bytes -> MlDsaPublicKey -> MlDsaPrivateKey
+
+  -- | Return the parameter set of an ML-DSA public key.
+  mldsa-public-key-parameters :: MlDsaPublicKey -> MlDsaParameters
+  mldsa-public-key-parameters pk = case pk of MlDsaPublicKey p b t1h ah tr -> p
+
+  -- | Return a fresh copy of an ML-DSA public key's encoded bytes.
+  mldsa-public-key-bytes :: MlDsaPublicKey -> Bytes
+  mldsa-public-key-bytes pk = case pk of MlDsaPublicKey p b t1h ah tr -> copy b
+
+  -- | Return a fresh copy of an ML-DSA private key's encoded bytes.
+  mldsa-private-key-bytes :: MlDsaPrivateKey -> Bytes
+  mldsa-private-key-bytes sk = case sk of MlDsaPrivateKey b k s1h s2h t0h pk -> copy b
+
+  -- | Return the parameter set of an ML-DSA private key.
+  mldsa-private-key-parameters :: MlDsaPrivateKey -> MlDsaParameters
+  mldsa-private-key-parameters sk = case sk of MlDsaPrivateKey b k s1h s2h t0h pk -> mldsa-public-key-parameters pk
+
+  -- | Return the public key corresponding to an ML-DSA private key.
+  mldsa-public-key-of :: MlDsaPrivateKey -> MlDsaPublicKey
+  mldsa-public-key-of sk = case sk of MlDsaPrivateKey b k s1h s2h t0h pk -> pk
+
+  -- | Derive an ML-DSA key pair from a 32-byte seed xi (FIPS 204 Algorithm 6).
+  mldsa-key-from-seed :: MlDsaParameters -> Bytes -> Result MlDsaError MlDsaPrivateKey
+  mldsa-key-from-seed p seed =
+    if not (bytes-len seed == 32) then Err (MlDsaInvalidSeedSize (bytes-len seed))
+    else
+      let k = param-k p in
+      let l = param-l p in
+      let eta = param-eta p in
+      let expanded = shake256-sum (bytes-concat [seed, one k, one l]) 128 in
+      let rho = slice expanded 0 32 in
+      let rho-p = slice expanded 32 96 in
+      let k-seed = slice expanded 96 128 in
+      let a-hat = expand-a rho k l in
+      let s1 = expand-s-vec rho-p 0 l eta in
+      let s2 = expand-s-vec rho-p l k eta in
+      let s1-hat = map poly-ntt s1 in
+      let s2-hat = map poly-ntt s2 in
+      let t = poly-vec-add (map poly-inv-ntt (mat-vec-mul a-hat s1-hat)) s2 in
+      let t1 = map poly-power2round-hi t in
+      let t0 = map poly-power2round-lo t in
+      let pk-bytes = pk-encode rho t1 in
+      let tr = shake256-sum pk-bytes 64 in
+      let sk-bytes = sk-encode p rho k-seed tr s1 s2 t0 in
+      let t0-hat = map poly-ntt t0 in
+      let t1-scaled-hat = map poly-t1-ntt t1 in
+      let pk = MlDsaPublicKey p pk-bytes t1-scaled-hat a-hat tr in
+      Ok (MlDsaPrivateKey sk-bytes k-seed s1-hat s2-hat t0-hat pk)
+
+  -- | Parse and validate an encoded ML-DSA public key (FIPS 204 pkDecode).
+  mldsa-public-key :: MlDsaParameters -> Bytes -> Result MlDsaError MlDsaPublicKey
+  mldsa-public-key p b =
+    if not (bytes-len b == mldsa-public-key-size p) then Err MlDsaInvalidPublicKey
+    else
+      let k = param-k p in
+      let l = param-l p in
+      let rho = slice b 0 32 in
+      let t1 = unpack-t1-vec b 32 k in
+      let a-hat = expand-a rho k l in
+      let t1-scaled-hat = map poly-t1-ntt t1 in
+      let tr = shake256-sum b 64 in
+      Ok (MlDsaPublicKey p (copy b) t1-scaled-hat a-hat tr)
+
+  -- | Parse and validate an encoded ML-DSA private key (FIPS 204 skDecode), checking secret bounds and public-key consistency.
+  mldsa-private-key :: MlDsaParameters -> Bytes -> Result MlDsaError MlDsaPrivateKey
+  mldsa-private-key p b =
+    if not (bytes-len b == mldsa-private-key-size p) then Err MlDsaInvalidPrivateKey
+    else
+      let k = param-k p in
+      let l = param-l p in
+      let eta = param-eta p in
+      let sb = param-s-poly-bytes p in
+      let rho = slice b 0 32 in
+      let k-seed = slice b 32 64 in
+      let tr = slice b 64 128 in
+      let off-s2 = 128 + l * sb in
+      let off-t0 = off-s2 + k * sb in
+      case unpack-eta-vec b 128 l eta Nil of
+        None -> Err MlDsaInvalidPrivateKey
+        Some s1 ->
+          case unpack-eta-vec b off-s2 k eta Nil of
+            None -> Err MlDsaInvalidPrivateKey
+            Some s2 ->
+              let t0 = unpack-t0-vec b off-t0 k in
+              let a-hat = expand-a rho k l in
+              let s1-hat = map poly-ntt s1 in
+              let s2-hat = map poly-ntt s2 in
+              let t = poly-vec-add (map poly-inv-ntt (mat-vec-mul a-hat s1-hat)) s2 in
+              let t1 = map poly-power2round-hi t in
+              let t0-check = map poly-power2round-lo t in
+              let pk-bytes = pk-encode rho t1 in
+              let tr-check = shake256-sum pk-bytes 64 in
+              if poly-vec-equal t0 t0-check && constant-bytes-equal tr tr-check then
+                let t0-hat = map poly-ntt t0 in
+                let t1-scaled-hat = map poly-t1-ntt t1 in
+                let pk = MlDsaPublicKey p pk-bytes t1-scaled-hat a-hat tr in
+                Ok (MlDsaPrivateKey (copy b) k-seed s1-hat s2-hat t0-hat pk)
+              else Err MlDsaInvalidPrivateKey
+
+  -- ---------------------------------------------------------------------
+  -- Signing and verification (FIPS 204 Algorithms 2, 3, 7, and 8).
+  -- ---------------------------------------------------------------------
+
+  -- | Pure ML-DSA message framing: 0x00 || len(ctx) || ctx || msg.
+  frame-message :: Bytes -> Bytes -> Result MlDsaError Bytes
+  frame-message msg ctx =
+    let clen = bytes-len ctx in
+    if clen > 255 then Err (MlDsaContextTooLong clen)
+    else Ok (bytes-concat [one 0, one clen, ctx, msg])
+
+  -- | Produce a deterministic pure ML-DSA signature (FIPS 204 Algorithms 2 and 7 with rnd = 0^32).
+  mldsa-sign-deterministic :: MlDsaPrivateKey -> Bytes -> Bytes -> Result MlDsaError Bytes
+  mldsa-sign-deterministic sk msg ctx = mldsa-sign-with sk msg ctx (bytes-new 32)
+
+  -- | Produce a pure ML-DSA signature using 32 bytes of explicit randomness (FIPS 204 Algorithms 2 and 7).
+  mldsa-sign-with :: MlDsaPrivateKey -> Bytes -> Bytes -> Bytes -> Result MlDsaError Bytes
+  mldsa-sign-with sk msg ctx rnd =
+    if not (bytes-len rnd == 32) then Err (MlDsaInvalidRandomnessSize (bytes-len rnd))
+    else case frame-message msg ctx of
+      Err e -> Err e
+      Ok m-prime -> case sk of
+        MlDsaPrivateKey skb k-seed s1h s2h t0h pk -> case pk of
+          MlDsaPublicKey p pkb t1h ah tr ->
+            let mu = shake256-sum (bytes-concat [tr, m-prime]) 64 in
+            let rho-pp = shake256-sum (bytes-concat [k-seed, rnd, mu]) 64 in
+            sign-attempt sk mu rho-pp 0
+
+  -- | One rejection-sampling iteration of ML-DSA.Sign_internal starting at mask counter kappa.
+  sign-attempt :: MlDsaPrivateKey -> Bytes -> Bytes -> Nat -> Result MlDsaError Bytes
+  sign-attempt sk mu rho-pp kappa = case sk of
+    MlDsaPrivateKey skb k-seed s1h s2h t0h pk -> case pk of
+      MlDsaPublicKey p pkb t1h ah tr ->
+        let l = param-l p in
+        if kappa + l > 65535 then Err MlDsaSigningFailed
+        else
+          let gamma1 = param-gamma1 p in
+          let gamma2 = param-gamma2 p in
+          let beta = param-beta p in
+          let y = expand-mask p rho-pp kappa in
+          let w = map poly-inv-ntt (mat-vec-mul ah (map poly-ntt y)) in
+          let w1 = map (poly-high-bits gamma2) w in
+          let ctilde = shake256-sum (bytes-concat [mu, w1-encode p w1]) (param-ctilde-size p) in
+          let c-hat = poly-ntt (sample-in-ball ctilde (param-tau p)) in
+          let cs1 = map (poly-mul-inv-ntt c-hat) s1h in
+          let z = poly-vec-add y cs1 in
+          if vec-inf-norm-ge z (wrapping-sub-i64 gamma1 beta) then
+            sign-attempt sk mu rho-pp (kappa + l)
+          else
+            let cs2 = map (poly-mul-inv-ntt c-hat) s2h in
+            let w-cs2 = poly-vec-sub w cs2 in
+            if vec-low-bits-ge w-cs2 gamma2 (wrapping-sub-i64 gamma2 beta) then
+              sign-attempt sk mu rho-pp (kappa + l)
+            else
+              let ct0 = map (poly-mul-inv-ntt c-hat) t0h in
+              if vec-inf-norm-ge ct0 gamma2 then
+                sign-attempt sk mu rho-pp (kappa + l)
+              else
+                case make-hint-vec gamma2 ct0 w-cs2 of
+                  (h, weight) ->
+                    if weight > param-omega p then
+                      sign-attempt sk mu rho-pp (kappa + l)
+                    else
+                      Ok (sig-encode p ctilde z h)
+
+  -- | Verify a pure ML-DSA signature over msg and ctx (FIPS 204 Algorithms 3 and 8).
+  mldsa-verify :: MlDsaPublicKey -> Bytes -> Bytes -> Bytes -> Bool
+  mldsa-verify pk msg ctx sig = case pk of
+    MlDsaPublicKey p pkb t1-scaled-hat ah tr ->
+      if bytes-len ctx > 255 || not (bytes-len sig == mldsa-signature-size p) then False
+      else
+        let clen = param-ctilde-size p in
+        let l = param-l p in
+        let k = param-k p in
+        let zb = param-z-poly-bytes p in
+        let gamma1 = param-gamma1 p in
+        let gamma2 = param-gamma2 p in
+        let beta = param-beta p in
+        let ctilde = slice sig 0 clen in
+        let z = unpack-z-vec p sig clen l in
+        let hint-off = clen + l * zb in
+        if vec-inf-norm-ge z (wrapping-sub-i64 gamma1 beta) then False
+        else case hint-bit-unpack sig (HintLayout hint-off (param-omega p) k) of
+          None -> False
+          Some h ->
+            let m-prime = bytes-concat [one 0, one (bytes-len ctx), ctx, msg] in
+            let mu = shake256-sum (bytes-concat [tr, m-prime]) 64 in
+            let c-hat = poly-ntt (sample-in-ball ctilde (param-tau p)) in
+            let az = mat-vec-mul ah (map poly-ntt z) in
+            let ct1 = map (poly-pointwise-mul c-hat) t1-scaled-hat in
+            let w-approx = map poly-inv-ntt (poly-vec-sub az ct1) in
+            let w1-p = use-hint-vec gamma2 h w-approx in
+            let ctilde-p = shake256-sum (bytes-concat [mu, w1-encode p w1-p]) clen in
+            constant-bytes-equal ctilde ctilde-p
+
+  -- ---------------------------------------------------------------------
+  -- Modular arithmetic modulo q = 8380417.
+  -- ---------------------------------------------------------------------
+
+  -- | Add two field elements in [0, q - 1] modulo q = 8380417.
+  add-q :: I64 -> I64 -> I64
+  add-q a b =
+    let s = wrapping-add-i64 a b in
+    if ge-i64 s 8380417 then wrapping-sub-i64 s 8380417 else s
+
+  -- | Subtract two field elements in [0, q - 1] modulo q = 8380417.
+  sub-q :: I64 -> I64 -> I64
+  sub-q a b =
+    let d = wrapping-sub-i64 a b in
+    if lt-i64 d 0 then wrapping-add-i64 d 8380417 else d
+
+  -- | Multiply two field elements in [0, q - 1] modulo q = 8380417.
+  mul-q :: I64 -> I64 -> I64
+  mul-q a b =
+    let prod = wrapping-mul-i64 a b in
+    wrapping-u64-to-i64 (rem-u64 (wrapping-i64-to-u64 prod) 8380417)
+
+  -- | Map a signed residue in [-(q - 1), q - 1] into [0, q - 1].
+  from-signed-q :: I64 -> I64
+  from-signed-q x = if lt-i64 x 0 then wrapping-add-i64 x 8380417 else x
+
+  -- | Centered representative mod+- q in [-(q - 1)/2, (q - 1)/2].
+  center-q :: I64 -> I64
+  center-q x = if gt-i64 x 4190208 then wrapping-sub-i64 x 8380417 else x
+
+  -- | Infinity norm |x mod+- q| for x in [0, q - 1].
+  abs-q :: I64 -> I64
+  abs-q x = if gt-i64 x 4190208 then wrapping-sub-i64 8380417 x else x
+
+  -- | Absolute value of a small signed machine integer.
+  abs-i64 :: I64 -> I64
+  abs-i64 x = if lt-i64 x 0 then wrapping-sub-i64 0 x else x
+
+  -- ---------------------------------------------------------------------
+  -- Rounding, decomposition, and hints (FIPS 204 Algorithms 35-40).
+  -- ---------------------------------------------------------------------
+
+  -- | High bits r1 of Power2Round(r) for r in [0, q - 1].
+  power2round-hi :: I64 -> I64
+  power2round-hi r = wrapping-shr-i64 (wrapping-add-i64 r 4095) 13
+
+  -- | Low bits r0 of Power2Round(r), reduced into [0, q - 1].
+  power2round-lo :: I64 -> I64
+  power2round-lo r = from-signed-q (wrapping-sub-i64 r (wrapping-shl-i64 (power2round-hi r) 13))
+
+  -- | Compute r0 = r mod+- (2 * gamma2) before the wrap-around adjustment.
+  decompose-raw-r0 :: I64 -> I64 -> I64
+  decompose-raw-r0 r gamma2 =
+    let alpha = if eq-i64 gamma2 95232 then (190464 :: I64) else (523776 :: I64) in
+    let rem-u = if eq-i64 gamma2 95232 then rem-u64 (wrapping-i64-to-u64 r) 190464 else rem-u64 (wrapping-i64-to-u64 r) 523776 in
+    let rem-i = wrapping-u64-to-i64 rem-u in
+    if gt-i64 rem-i gamma2 then wrapping-sub-i64 rem-i alpha else rem-i
+
+  -- | HighBits(r) from FIPS 204 Algorithm 37.
+  high-bits-coeff :: I64 -> I64 -> I64
+  high-bits-coeff r gamma2 =
+    let r0 = decompose-raw-r0 r gamma2 in
+    let diff = wrapping-sub-i64 r r0 in
+    if eq-i64 diff 8380416 then 0
+    else if eq-i64 gamma2 95232 then wrapping-u64-to-i64 (div-u64 (wrapping-i64-to-u64 diff) 190464)
+    else wrapping-u64-to-i64 (div-u64 (wrapping-i64-to-u64 diff) 523776)
+
+  -- | LowBits(r) from FIPS 204 Algorithm 38 as a signed value in [-gamma2, gamma2].
+  low-bits-coeff :: I64 -> I64 -> I64
+  low-bits-coeff r gamma2 =
+    let r0 = decompose-raw-r0 r gamma2 in
+    let diff = wrapping-sub-i64 r r0 in
+    if eq-i64 diff 8380416 then wrapping-sub-i64 r0 1 else r0
+
+  -- | MakeHint(z, r) from FIPS 204 Algorithm 39.
+  make-hint-coeff :: I64 -> I64 -> I64 -> I64
+  make-hint-coeff z r gamma2 =
+    let r1 = high-bits-coeff r gamma2 in
+    let v1 = high-bits-coeff (add-q r z) gamma2 in
+    if eq-i64 r1 v1 then 0 else 1
+
+  -- | UseHint(h, r) from FIPS 204 Algorithm 40.
+  use-hint-coeff :: I64 -> I64 -> I64 -> I64
+  use-hint-coeff h r gamma2 =
+    let m = if eq-i64 gamma2 95232 then (44 :: I64) else (16 :: I64) in
+    let r0-raw = decompose-raw-r0 r gamma2 in
+    let diff = wrapping-sub-i64 r r0-raw in
+    let is-wrap = eq-i64 diff 8380416 in
+    let r0 = if is-wrap then wrapping-sub-i64 r0-raw 1 else r0-raw in
+    let r1 = (
+      if is-wrap then (0 :: I64)
+      else if eq-i64 gamma2 95232 then wrapping-u64-to-i64 (div-u64 (wrapping-i64-to-u64 diff) 190464)
+      else wrapping-u64-to-i64 (div-u64 (wrapping-i64-to-u64 diff) 523776)
+    ) in
+    if eq-i64 h 0 then r1
+    else if gt-i64 r0 0 then
+      let inc = wrapping-add-i64 r1 1 in
+      if eq-i64 inc m then 0 else inc
+    else if eq-i64 r1 0 then wrapping-sub-i64 m 1
+    else wrapping-sub-i64 r1 1
+
+  -- ---------------------------------------------------------------------
+  -- Polynomial storage (1024-byte LE U32 coefficient arrays) and operations.
+  -- ---------------------------------------------------------------------
+
+  -- | Read coefficient idx (0..255) from a 1024-byte polynomial buffer.
+  poly-get :: Bytes -> I64 -> I64
+  poly-get poly idx =
+    let off = wrapping-shl-i64 idx 2 in
+    if 0 <= off && off <= 1020 && 1024 <= bytes-len-i64 poly then
+      u32-to-i64 (bytes-load-le32-at poly off)
+    else 0
+
+  -- | Write coefficient idx (0..255) into a 1024-byte polynomial buffer.
+  poly-set :: Bytes -> I64 -> I64 -> Unit
+  poly-set poly idx val =
+    let off = wrapping-shl-i64 idx 2 in
+    if 0 <= off && off <= 1020 && 1024 <= bytes-len-i64 poly then
+      bytes-store-le32-at poly off (wrapping-i64-to-u32 val)
+    else ()
+
+  -- | Allocate a fresh zero polynomial (1024 bytes).
+  poly-zero :: Bytes
+  poly-zero = bytes-new 1024
+
+  -- | Copy a 1024-byte polynomial into fresh storage.
+  poly-copy :: Bytes -> Bytes
+  poly-copy poly =
+    let out = bytes-new 1024 in
+    if 1024 <= bytes-len poly then let c = bytes-copy-range out poly 0 0 1024 in out else out
+
+  -- | Add two polynomials coefficientwise modulo q.
+  poly-add :: Bytes -> Bytes -> Bytes
+  poly-add a b =
+    let out = bytes-new 1024 in
+    let done = poly-add-loop a b out 0 in out
+
+  -- | Tail loop for poly-add.
+  poly-add-loop :: Bytes -> Bytes -> Bytes -> I64 -> Unit
+  poly-add-loop a b out i =
+    if lt-i64 i 256 then
+      let w = poly-set out i (add-q (poly-get a i) (poly-get b i)) in
+      poly-add-loop a b out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Subtract two polynomials coefficientwise modulo q.
+  poly-sub :: Bytes -> Bytes -> Bytes
+  poly-sub a b =
+    let out = bytes-new 1024 in
+    let done = poly-sub-loop a b out 0 in out
+
+  -- | Tail loop for poly-sub.
+  poly-sub-loop :: Bytes -> Bytes -> Bytes -> I64 -> Unit
+  poly-sub-loop a b out i =
+    if lt-i64 i 256 then
+      let w = poly-set out i (sub-q (poly-get a i) (poly-get b i)) in
+      poly-sub-loop a b out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Pointwise NTT-domain multiplication of two polynomials modulo q.
+  poly-pointwise-mul :: Bytes -> Bytes -> Bytes
+  poly-pointwise-mul a b =
+    let out = bytes-new 1024 in
+    let done = poly-mul-loop a b out 0 in out
+
+  -- | Tail loop for poly-pointwise-mul.
+  poly-mul-loop :: Bytes -> Bytes -> Bytes -> I64 -> Unit
+  poly-mul-loop a b out i =
+    if lt-i64 i 256 then
+      let w = poly-set out i (mul-q (poly-get a i) (poly-get b i)) in
+      poly-mul-loop a b out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Accumulate a pointwise NTT-domain product into an existing accumulator buffer in place.
+  poly-mul-acc-into :: Bytes -> Bytes -> Bytes -> I64 -> Unit
+  poly-mul-acc-into acc a b i =
+    if lt-i64 i 256 then
+      let cur = poly-get acc i in
+      let prod = mul-q (poly-get a i) (poly-get b i) in
+      let w = poly-set acc i (add-q cur prod) in
+      poly-mul-acc-into acc a b (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Multiply two NTT-domain polynomials and transform the result back with inverse NTT.
+  poly-mul-inv-ntt :: Bytes -> Bytes -> Bytes
+  poly-mul-inv-ntt a b = poly-inv-ntt (poly-pointwise-mul a b)
+
+  -- | Shift a t1 polynomial left by d = 13 bits and apply the forward NTT.
+  poly-t1-ntt :: Bytes -> Bytes
+  poly-t1-ntt poly =
+    let out = bytes-new 1024 in
+    let done = poly-shl13-loop poly out 0 in
+    poly-ntt out
+
+  -- | Tail loop multiplying every coefficient by 2^13.
+  poly-shl13-loop :: Bytes -> Bytes -> I64 -> Unit
+  poly-shl13-loop poly out i =
+    if lt-i64 i 256 then
+      let w = poly-set out i (wrapping-shl-i64 (poly-get poly i) 13) in
+      poly-shl13-loop poly out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Apply Power2Round high-bits extraction across a polynomial.
+  poly-power2round-hi :: Bytes -> Bytes
+  poly-power2round-hi poly =
+    let out = bytes-new 1024 in
+    let done = poly-p2r-hi-loop poly out 0 in out
+
+  -- | Tail loop for poly-power2round-hi.
+  poly-p2r-hi-loop :: Bytes -> Bytes -> I64 -> Unit
+  poly-p2r-hi-loop poly out i =
+    if lt-i64 i 256 then
+      let w = poly-set out i (power2round-hi (poly-get poly i)) in
+      poly-p2r-hi-loop poly out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Apply Power2Round low-bits extraction across a polynomial.
+  poly-power2round-lo :: Bytes -> Bytes
+  poly-power2round-lo poly =
+    let out = bytes-new 1024 in
+    let done = poly-p2r-lo-loop poly out 0 in out
+
+  -- | Tail loop for poly-power2round-lo.
+  poly-p2r-lo-loop :: Bytes -> Bytes -> I64 -> Unit
+  poly-p2r-lo-loop poly out i =
+    if lt-i64 i 256 then
+      let w = poly-set out i (power2round-lo (poly-get poly i)) in
+      poly-p2r-lo-loop poly out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Apply HighBits across a polynomial.
+  poly-high-bits :: I64 -> Bytes -> Bytes
+  poly-high-bits gamma2 poly =
+    let out = bytes-new 1024 in
+    let done = poly-hb-loop gamma2 poly out 0 in out
+
+  -- | Tail loop for poly-high-bits.
+  poly-hb-loop :: I64 -> Bytes -> Bytes -> I64 -> Unit
+  poly-hb-loop gamma2 poly out i =
+    if lt-i64 i 256 then
+      let w = poly-set out i (high-bits-coeff (poly-get poly i) gamma2) in
+      poly-hb-loop gamma2 poly out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Check whether any coefficient of poly has infinity norm >= bound.
+  poly-inf-norm-ge :: Bytes -> I64 -> I64 -> Bool
+  poly-inf-norm-ge poly bound i =
+    if lt-i64 i 256 then
+      if ge-i64 (abs-q (poly-get poly i)) bound then True
+      else poly-inf-norm-ge poly bound (wrapping-add-i64 i 1)
+    else False
+
+  -- | Check whether any polynomial in a vector has infinity norm >= bound.
+  vec-inf-norm-ge :: List Bytes -> I64 -> Bool
+  vec-inf-norm-ge vs bound = case vs of
+    Nil -> False
+    Cons v rest -> if poly-inf-norm-ge v bound 0 then True else vec-inf-norm-ge rest bound
+
+  -- | Check whether any coefficient of LowBits(poly) has magnitude >= bound.
+  poly-low-bits-ge :: Bytes -> I64 -> I64 -> I64 -> Bool
+  poly-low-bits-ge poly gamma2 bound i =
+    if lt-i64 i 256 then
+      let r0 = low-bits-coeff (poly-get poly i) gamma2 in
+      if ge-i64 (abs-i64 r0) bound then True
+      else poly-low-bits-ge poly gamma2 bound (wrapping-add-i64 i 1)
+    else False
+
+  -- | Check whether any polynomial in a vector has LowBits infinity norm >= bound.
+  vec-low-bits-ge :: List Bytes -> I64 -> I64 -> Bool
+  vec-low-bits-ge vs gamma2 bound = case vs of
+    Nil -> False
+    Cons v rest -> if poly-low-bits-ge v gamma2 bound 0 then True else vec-low-bits-ge rest gamma2 bound
+
+  -- | Compute hints for one polynomial pair (-ct0, w - cs2 + ct0) and return (hint-poly, weight).
+  make-hint-poly :: I64 -> Bytes -> Bytes -> (Bytes, Nat)
+  make-hint-poly gamma2 ct0 w-cs2 =
+    let out = bytes-new 1024 in
+    let w = make-hint-loop gamma2 ct0 w-cs2 out 0 0 in
+    (out, w)
+
+  -- | Tail loop for make-hint-poly.
+  make-hint-loop :: I64 -> Bytes -> Bytes -> Bytes -> I64 -> Nat -> Nat
+  make-hint-loop gamma2 ct0 w-cs2 out i weight =
+    if lt-i64 i 256 then
+      let a = poly-get ct0 i in
+      let b = poly-get w-cs2 i in
+      let neg-a = sub-q 0 a in
+      let bit = make-hint-coeff neg-a (add-q b a) gamma2 in
+      let stored = poly-set out i bit in
+      let next-w = if eq-i64 bit 1 then weight + 1 else weight in
+      make-hint-loop gamma2 ct0 w-cs2 out (wrapping-add-i64 i 1) next-w
+    else weight
+
+  -- | Compute the hint vector and total Hamming weight over k polynomials.
+  make-hint-vec :: I64 -> List Bytes -> List Bytes -> (List Bytes, Nat)
+  make-hint-vec gamma2 ct0s w-cs2s = make-hint-vec-loop gamma2 ct0s w-cs2s Nil 0
+
+  -- | Tail loop for make-hint-vec.
+  make-hint-vec-loop :: I64 -> List Bytes -> List Bytes -> List Bytes -> Nat -> (List Bytes, Nat)
+  make-hint-vec-loop gamma2 ct0s w-cs2s acc weight = case ct0s of
+    Nil -> (reverse acc, weight)
+    Cons a rest-a -> case w-cs2s of
+      Nil -> (reverse acc, weight)
+      Cons b rest-b -> case make-hint-poly gamma2 a b of
+        (h, hw) -> make-hint-vec-loop gamma2 rest-a rest-b (Cons h acc) (weight + hw)
+
+  -- | Apply UseHint across one polynomial pair (h, w-approx).
+  use-hint-poly :: I64 -> Bytes -> Bytes -> Bytes
+  use-hint-poly gamma2 h w =
+    let out = bytes-new 1024 in
+    let done = use-hint-loop gamma2 h w out 0 in out
+
+  -- | Tail loop for use-hint-poly.
+  use-hint-loop :: I64 -> Bytes -> Bytes -> Bytes -> I64 -> Unit
+  use-hint-loop gamma2 h w out i =
+    if lt-i64 i 256 then
+      let val = use-hint-coeff (poly-get h i) (poly-get w i) gamma2 in
+      let stored = poly-set out i val in
+      use-hint-loop gamma2 h w out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Apply UseHint across a vector of polynomials.
+  use-hint-vec :: I64 -> List Bytes -> List Bytes -> List Bytes
+  use-hint-vec gamma2 hs ws = use-hint-vec-loop gamma2 hs ws Nil
+
+  -- | Tail loop for use-hint-vec.
+  use-hint-vec-loop :: I64 -> List Bytes -> List Bytes -> List Bytes -> List Bytes
+  use-hint-vec-loop gamma2 hs ws acc = case hs of
+    Nil -> reverse acc
+    Cons h rest-h -> case ws of
+      Nil -> reverse acc
+      Cons w rest-w -> use-hint-vec-loop gamma2 rest-h rest-w (Cons (use-hint-poly gamma2 h w) acc)
+
+  -- | Add two polynomial vectors elementwise.
+  poly-vec-add :: List Bytes -> List Bytes -> List Bytes
+  poly-vec-add xs ys = poly-vec-add-loop xs ys Nil
+
+  -- | Tail loop for poly-vec-add.
+  poly-vec-add-loop :: List Bytes -> List Bytes -> List Bytes -> List Bytes
+  poly-vec-add-loop xs ys acc = case xs of
+    Nil -> reverse acc
+    Cons x rx -> case ys of
+      Nil -> reverse acc
+      Cons y ry -> poly-vec-add-loop rx ry (Cons (poly-add x y) acc)
+
+  -- | Subtract two polynomial vectors elementwise.
+  poly-vec-sub :: List Bytes -> List Bytes -> List Bytes
+  poly-vec-sub xs ys = poly-vec-sub-loop xs ys Nil
+
+  -- | Tail loop for poly-vec-sub.
+  poly-vec-sub-loop :: List Bytes -> List Bytes -> List Bytes -> List Bytes
+  poly-vec-sub-loop xs ys acc = case xs of
+    Nil -> reverse acc
+    Cons x rx -> case ys of
+      Nil -> reverse acc
+      Cons y ry -> poly-vec-sub-loop rx ry (Cons (poly-sub x y) acc)
+
+  -- | Check whether two polynomial vectors are byte-for-byte identical.
+  poly-vec-equal :: List Bytes -> List Bytes -> Bool
+  poly-vec-equal xs ys = case xs of
+    Nil -> (case ys of Nil -> True; Cons _ _ -> False)
+    Cons x rx -> case ys of
+      Nil -> False
+      Cons y ry -> constant-bytes-equal x y && poly-vec-equal rx ry
+
+  -- | Multiply an NTT-domain matrix A-hat (k rows of l polynomials) by an NTT-domain vector v (length l).
+  mat-vec-mul :: List (List Bytes) -> List Bytes -> List Bytes
+  mat-vec-mul rows vec = mat-vec-mul-loop rows vec Nil
+
+  -- | Tail loop over rows for mat-vec-mul.
+  mat-vec-mul-loop :: List (List Bytes) -> List Bytes -> List Bytes -> List Bytes
+  mat-vec-mul-loop rows vec acc = case rows of
+    Nil -> reverse acc
+    Cons row rest ->
+      let out = poly-zero in
+      let done = dot-into out row vec in
+      mat-vec-mul-loop rest vec (Cons out acc)
+
+  -- | Accumulate the NTT-domain inner product of row and vec into out.
+  dot-into :: Bytes -> List Bytes -> List Bytes -> Unit
+  dot-into out row vec = case row of
+    Nil -> ()
+    Cons a ra -> case vec of
+      Nil -> ()
+      Cons b rb ->
+        let step = poly-mul-acc-into out a b 0 in
+        dot-into out ra rb
+
+  -- ---------------------------------------------------------------------
+  -- 256-point NTT and inverse NTT (FIPS 204 Algorithms 41, 42, Appendix B).
+  -- ---------------------------------------------------------------------
+
+  -- | Forward 256-point NTT (FIPS 204 Algorithm 41).
+  poly-ntt :: Bytes -> Bytes
+  poly-ntt poly =
+    let out = poly-copy poly in
+    let done = ntt-layer out 128 0 in out
+
+  -- | Iterate NTT butterfly layers from len = 128 down to 1.
+  ntt-layer :: Bytes -> I64 -> I64 -> Unit
+  ntt-layer out len m =
+    if ge-i64 len 1 then
+      let next-m = ntt-blocks out len 0 m in
+      ntt-layer out (wrapping-shr-i64 len 1) next-m
+    else ()
+
+  -- | Process all blocks of size 2 * len in one forward NTT layer.
+  ntt-blocks :: Bytes -> I64 -> I64 -> I64 -> I64
+  ntt-blocks out len start m =
+    if lt-i64 start 256 then
+      let m1 = wrapping-add-i64 m 1 in
+      let z = zeta-at m1 in
+      let done = ntt-butterfly out start (wrapping-add-i64 start len) len z in
+      ntt-blocks out len (wrapping-add-i64 start (wrapping-shl-i64 len 1)) m1
+    else m
+
+  -- | Cooley-Tukey butterfly loop for one forward NTT block.
+  ntt-butterfly :: Bytes -> I64 -> I64 -> I64 -> I64 -> Unit
+  ntt-butterfly out j limit len z =
+    if lt-i64 j limit then
+      let j2 = wrapping-add-i64 j len in
+      let a = poly-get out j in
+      let b = poly-get out j2 in
+      let t = mul-q z b in
+      let w1 = poly-set out j (add-q a t) in
+      let w2 = poly-set out j2 (sub-q a t) in
+      ntt-butterfly out (wrapping-add-i64 j 1) limit len z
+    else ()
+
+  -- | Inverse 256-point NTT (FIPS 204 Algorithm 42), including the 256^-1 mod q scaling.
+  poly-inv-ntt :: Bytes -> Bytes
+  poly-inv-ntt poly =
+    let out = poly-copy poly in
+    let done = inv-ntt-layer out 1 256 in
+    let scaled = inv-ntt-scale out 0 in out
+
+  -- | Iterate inverse NTT layers from len = 1 up to 128.
+  inv-ntt-layer :: Bytes -> I64 -> I64 -> Unit
+  inv-ntt-layer out len m =
+    if lt-i64 len 256 then
+      let next-m = inv-ntt-blocks out len 0 m in
+      inv-ntt-layer out (wrapping-shl-i64 len 1) next-m
+    else ()
+
+  -- | Process all blocks of size 2 * len in one inverse NTT layer.
+  inv-ntt-blocks :: Bytes -> I64 -> I64 -> I64 -> I64
+  inv-ntt-blocks out len start m =
+    if lt-i64 start 256 then
+      let m1 = wrapping-sub-i64 m 1 in
+      let z = sub-q 0 (zeta-at m1) in
+      let done = inv-ntt-butterfly out start (wrapping-add-i64 start len) len z in
+      inv-ntt-blocks out len (wrapping-add-i64 start (wrapping-shl-i64 len 1)) m1
+    else m
+
+  -- | Gentleman-Sande butterfly loop for one inverse NTT block.
+  inv-ntt-butterfly :: Bytes -> I64 -> I64 -> I64 -> I64 -> Unit
+  inv-ntt-butterfly out j limit len z =
+    if lt-i64 j limit then
+      let j2 = wrapping-add-i64 j len in
+      let a = poly-get out j in
+      let b = poly-get out j2 in
+      let w1 = poly-set out j (add-q a b) in
+      let w2 = poly-set out j2 (mul-q z (sub-q a b)) in
+      inv-ntt-butterfly out (wrapping-add-i64 j 1) limit len z
+    else ()
+
+  -- | Multiply every coefficient by f = 256^-1 mod q = 8347681.
+  inv-ntt-scale :: Bytes -> I64 -> Unit
+  inv-ntt-scale out i =
+    if lt-i64 i 256 then
+      let w = poly-set out i (mul-q (poly-get out i) 8347681) in
+      inv-ntt-scale out (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Look up zetas[m] = 1753^BitRev8(m) mod q (FIPS 204 Appendix B).
+  zeta-at :: I64 -> I64
+  zeta-at m = if lt-i64 m 128 then zeta-lo m else zeta-hi m
+
+  -- | First half (indices 0..127) of the FIPS 204 NTT zeta table.
+  zeta-lo :: I64 -> I64
+  zeta-lo m = case m of
+    0 -> 0; 1 -> 4808194; 2 -> 3765607; 3 -> 3761513; 4 -> 5178923; 5 -> 5496691; 6 -> 5234739; 7 -> 5178987
+    8 -> 7778734; 9 -> 3542485; 10 -> 2682288; 11 -> 2129892; 12 -> 3764867; 13 -> 7375178; 14 -> 557458; 15 -> 7159240
+    16 -> 5010068; 17 -> 4317364; 18 -> 2663378; 19 -> 6705802; 20 -> 4855975; 21 -> 7946292; 22 -> 676590; 23 -> 7044481
+    24 -> 5152541; 25 -> 1714295; 26 -> 2453983; 27 -> 1460718; 28 -> 7737789; 29 -> 4795319; 30 -> 2815639; 31 -> 2283733
+    32 -> 3602218; 33 -> 3182878; 34 -> 2740543; 35 -> 4793971; 36 -> 5269599; 37 -> 2101410; 38 -> 3704823; 39 -> 1159875
+    40 -> 394148; 41 -> 928749; 42 -> 1095468; 43 -> 4874037; 44 -> 2071829; 45 -> 4361428; 46 -> 3241972; 47 -> 2156050
+    48 -> 3415069; 49 -> 1759347; 50 -> 7562881; 51 -> 4805951; 52 -> 3756790; 53 -> 6444618; 54 -> 6663429; 55 -> 4430364
+    56 -> 5483103; 57 -> 3192354; 58 -> 556856; 59 -> 3870317; 60 -> 2917338; 61 -> 1853806; 62 -> 3345963; 63 -> 1858416
+    64 -> 3073009; 65 -> 1277625; 66 -> 5744944; 67 -> 3852015; 68 -> 4183372; 69 -> 5157610; 70 -> 5258977; 71 -> 8106357
+    72 -> 2508980; 73 -> 2028118; 74 -> 1937570; 75 -> 4564692; 76 -> 2811291; 77 -> 5396636; 78 -> 7270901; 79 -> 4158088
+    80 -> 1528066; 81 -> 482649; 82 -> 1148858; 83 -> 5418153; 84 -> 7814814; 85 -> 169688; 86 -> 2462444; 87 -> 5046034
+    88 -> 4213992; 89 -> 4892034; 90 -> 1987814; 91 -> 5183169; 92 -> 1736313; 93 -> 235407; 94 -> 5130263; 95 -> 3258457
+    96 -> 5801164; 97 -> 1787943; 98 -> 5989328; 99 -> 6125690; 100 -> 3482206; 101 -> 4197502; 102 -> 7080401; 103 -> 6018354
+    104 -> 7062739; 105 -> 2461387; 106 -> 3035980; 107 -> 621164; 108 -> 3901472; 109 -> 7153756; 110 -> 2925816; 111 -> 3374250
+    112 -> 1356448; 113 -> 5604662; 114 -> 2683270; 115 -> 5601629; 116 -> 4912752; 117 -> 2312838; 118 -> 7727142; 119 -> 7921254
+    120 -> 348812; 121 -> 8052569; 122 -> 1011223; 123 -> 6026202; 124 -> 4561790; 125 -> 6458164; 126 -> 6143691; 127 -> 1744507
+    _ -> 0
+
+  -- | Second half (indices 128..255) of the FIPS 204 NTT zeta table.
+  zeta-hi :: I64 -> I64
+  zeta-hi m = case m of
+    128 -> 1753; 129 -> 6444997; 130 -> 5720892; 131 -> 6924527; 132 -> 2660408; 133 -> 6600190; 134 -> 8321269; 135 -> 2772600
+    136 -> 1182243; 137 -> 87208; 138 -> 636927; 139 -> 4415111; 140 -> 4423672; 141 -> 6084020; 142 -> 5095502; 143 -> 4663471
+    144 -> 8352605; 145 -> 822541; 146 -> 1009365; 147 -> 5926272; 148 -> 6400920; 149 -> 1596822; 150 -> 4423473; 151 -> 4620952
+    152 -> 6695264; 153 -> 4969849; 154 -> 2678278; 155 -> 4611469; 156 -> 4829411; 157 -> 635956; 158 -> 8129971; 159 -> 5925040
+    160 -> 4234153; 161 -> 6607829; 162 -> 2192938; 163 -> 6653329; 164 -> 2387513; 165 -> 4768667; 166 -> 8111961; 167 -> 5199961
+    168 -> 3747250; 169 -> 2296099; 170 -> 1239911; 171 -> 4541938; 172 -> 3195676; 173 -> 2642980; 174 -> 1254190; 175 -> 8368000
+    176 -> 2998219; 177 -> 141835; 178 -> 8291116; 179 -> 2513018; 180 -> 7025525; 181 -> 613238; 182 -> 7070156; 183 -> 6161950
+    184 -> 7921677; 185 -> 6458423; 186 -> 4040196; 187 -> 4908348; 188 -> 2039144; 189 -> 6500539; 190 -> 7561656; 191 -> 6201452
+    192 -> 6757063; 193 -> 2105286; 194 -> 6006015; 195 -> 6346610; 196 -> 586241; 197 -> 7200804; 198 -> 527981; 199 -> 5637006
+    200 -> 6903432; 201 -> 1994046; 202 -> 2491325; 203 -> 6987258; 204 -> 507927; 205 -> 7192532; 206 -> 7655613; 207 -> 6545891
+    208 -> 5346675; 209 -> 8041997; 210 -> 2647994; 211 -> 3009748; 212 -> 5767564; 213 -> 4148469; 214 -> 749577; 215 -> 4357667
+    216 -> 3980599; 217 -> 2569011; 218 -> 6764887; 219 -> 1723229; 220 -> 1665318; 221 -> 2028038; 222 -> 1163598; 223 -> 5011144
+    224 -> 3994671; 225 -> 8368538; 226 -> 7009900; 227 -> 3020393; 228 -> 3363542; 229 -> 214880; 230 -> 545376; 231 -> 7609976
+    232 -> 3105558; 233 -> 7277073; 234 -> 508145; 235 -> 7826699; 236 -> 860144; 237 -> 3430436; 238 -> 140244; 239 -> 6866265
+    240 -> 6195333; 241 -> 3123762; 242 -> 2358373; 243 -> 6187330; 244 -> 5365997; 245 -> 6663603; 246 -> 2926054; 247 -> 7987710
+    248 -> 8077412; 249 -> 3531229; 250 -> 4405932; 251 -> 4606686; 252 -> 1900052; 253 -> 7598542; 254 -> 1054478; 255 -> 7648983
+    _ -> 0
+
+  -- ---------------------------------------------------------------------
+  -- Sampling (FIPS 204 Algorithms 29-34).
+  -- ---------------------------------------------------------------------
+
+  -- | Sample the k x l matrix A-hat in the NTT domain from rho (FIPS 204 Algorithm 32).
+  expand-a :: Bytes -> Nat -> Nat -> List (List Bytes)
+  expand-a rho k l = expand-a-rows rho k l 0 Nil
+
+  -- | Tail loop over rows r = 0..k-1 of ExpandA.
+  expand-a-rows :: Bytes -> Nat -> Nat -> Nat -> List (List Bytes) -> List (List Bytes)
+  expand-a-rows rho k l r acc =
+    if r >= k then reverse acc
+    else expand-a-rows rho k l (r + 1) (Cons (expand-a-row rho l r 0 Nil) acc)
+
+  -- | Tail loop over columns s = 0..l-1 of row r in ExpandA.
+  expand-a-row :: Bytes -> Nat -> Nat -> Nat -> List Bytes -> List Bytes
+  expand-a-row rho l r s acc =
+    if s >= l then reverse acc
+    else
+      let poly = rej-ntt-poly (bytes-concat [rho, one s, one r]) in
+      expand-a-row rho l r (s + 1) (Cons poly acc)
+
+  -- | Rejection-sample one NTT-domain polynomial from SHAKE128(seed) (FIPS 204 Algorithm 30).
+  rej-ntt-poly :: Bytes -> Bytes
+  rej-ntt-poly seed = case shake-read (sha3-state-update shake128-state seed) 840 of
+    (stream, reader) ->
+      let out = poly-zero in
+      let done = rej-ntt-loop stream reader 0 out 0 in out
+
+  -- | Tail loop for RejNTTPoly, reading more SHAKE128 blocks as needed.
+  rej-ntt-loop :: Bytes -> ShakeReader -> Nat -> Bytes -> I64 -> Unit
+  rej-ntt-loop stream reader pos out count =
+    if ge-i64 count 256 then ()
+    else if pos + 3 > bytes-len stream then
+      (case shake-reader-read reader 168 of
+        (more, next) -> rej-ntt-loop (bytes-concat [slice stream pos (bytes-len stream), more]) next 0 out count)
+    else
+      let b0 = small (at stream pos) in
+      let b1 = small (at stream (pos + 1)) in
+      let b2 = bit-and-i64 (small (at stream (pos + 2))) 127 in
+      let val = bit-or-i64 b0 (bit-or-i64 (wrapping-shl-i64 b1 8) (wrapping-shl-i64 b2 16)) in
+      if lt-i64 val 8380417 then
+        let w = poly-set out count val in
+        rej-ntt-loop stream reader (pos + 3) out (wrapping-add-i64 count 1)
+      else rej-ntt-loop stream reader (pos + 3) out count
+
+  -- | Sample count bounded-secret polynomials starting at counter start (FIPS 204 Algorithm 33).
+  expand-s-vec :: Bytes -> Nat -> Nat -> Nat -> List Bytes
+  expand-s-vec rho-p start count eta = expand-s-loop rho-p start count eta Nil
+
+  -- | Tail loop for ExpandS.
+  expand-s-loop :: Bytes -> Nat -> Nat -> Nat -> List Bytes -> List Bytes
+  expand-s-loop rho-p idx left eta acc =
+    if left == 0 then reverse acc
+    else
+      let poly = rej-bounded-poly (bytes-concat [rho-p, le16 idx]) eta in
+      expand-s-loop rho-p (idx + 1) (left - 1) eta (Cons poly acc)
+
+  -- | Rejection-sample one secret polynomial with coefficients in [-eta, eta] (FIPS 204 Algorithm 31).
+  rej-bounded-poly :: Bytes -> Nat -> Bytes
+  rej-bounded-poly seed eta = case shake-read (sha3-state-update shake256-state seed) 272 of
+    (stream, reader) ->
+      let out = poly-zero in
+      let done = rej-bounded-loop stream reader 0 out 0 eta in out
+
+  -- | Tail loop for RejBoundedPoly.
+  rej-bounded-loop :: Bytes -> ShakeReader -> Nat -> Bytes -> I64 -> Nat -> Unit
+  rej-bounded-loop stream reader pos out count eta =
+    if ge-i64 count 256 then ()
+    else if pos >= bytes-len stream then
+      (case shake-reader-read reader 136 of (more, next) -> rej-bounded-loop more next 0 out count eta)
+    else
+      let byte-val = small (at stream pos) in
+      let lo = bit-and-i64 byte-val 15 in
+      let hi = wrapping-shr-i64 byte-val 4 in
+      let c1 = accept-bounded-nibble out count lo eta in
+      let c2 = if lt-i64 c1 256 then accept-bounded-nibble out c1 hi eta else c1 in
+      rej-bounded-loop stream reader (pos + 1) out c2 eta
+
+  -- | Accept one half-byte candidate per FIPS 204 Algorithm 15 (CoeffFromHalfByte).
+  accept-bounded-nibble :: Bytes -> I64 -> I64 -> Nat -> I64
+  accept-bounded-nibble out count nib eta =
+    if eta == 2 then
+      if lt-i64 nib 15 then
+        let m = wrapping-u64-to-i64 (rem-u64 (wrapping-i64-to-u64 nib) 5) in
+        let w = poly-set out count (from-signed-q (wrapping-sub-i64 2 m)) in
+        wrapping-add-i64 count 1
+      else count
+    else
+      if lt-i64 nib 9 then
+        let w = poly-set out count (from-signed-q (wrapping-sub-i64 4 nib)) in
+        wrapping-add-i64 count 1
+      else count
+
+  -- | Sample the l-element masking vector y from rho'' and counter kappa (FIPS 204 Algorithm 34).
+  expand-mask :: MlDsaParameters -> Bytes -> Nat -> List Bytes
+  expand-mask p rho-pp kappa = expand-mask-loop p rho-pp kappa 0 Nil
+
+  -- | Tail loop for ExpandMask.
+  expand-mask-loop :: MlDsaParameters -> Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  expand-mask-loop p rho-pp kappa r acc =
+    if r >= param-l p then reverse acc
+    else
+      let v = shake256-sum (bytes-concat [rho-pp, le16 (kappa + r)]) (param-z-poly-bytes p) in
+      let poly = unpack-z-poly p v 0 in
+      expand-mask-loop p rho-pp kappa (r + 1) (Cons poly acc)
+
+  -- | Sample a challenge polynomial c with tau entries in {-1, 1} (FIPS 204 Algorithm 29).
+  sample-in-ball :: Bytes -> Nat -> Bytes
+  sample-in-ball ctilde tau = case shake-read (sha3-state-update shake256-state ctilde) 272 of
+    (stream, reader) ->
+      let signs = if 8 <= bytes-len stream then bytes-load-le64 stream 0 else 0 in
+      let poly = poly-zero in
+      let start = if tau <= 256 then 256 - tau else 256 in
+      let done = sample-ball-loop stream reader 8 poly start signs in poly
+
+  -- | Tail loop for SampleInBall.
+  sample-ball-loop :: Bytes -> ShakeReader -> Nat -> Bytes -> Nat -> U64 -> Unit
+  sample-ball-loop stream reader pos poly i signs =
+    if i >= 256 then ()
+    else if pos >= bytes-len stream then
+      (case shake-reader-read reader 136 of (more, next) -> sample-ball-loop more next 0 poly i signs)
+    else
+      let j = at stream pos in
+      if j > i then sample-ball-loop stream reader (pos + 1) poly i signs
+      else
+        let ji = small j in
+        let ii = small i in
+        let prev = poly-get poly ji in
+        let w1 = poly-set poly ii prev in
+        let coeff = if ne-u64 (bit-and-u64 signs 1) 0 then (8380416 :: I64) else (1 :: I64) in
+        let w2 = poly-set poly ji coeff in
+        sample-ball-loop stream reader (pos + 1) poly (i + 1) (wrapping-shr-u64 signs 1)
+
+  -- ---------------------------------------------------------------------
+  -- Key, commitment, and signature encoding (FIPS 204 Algorithms 16-28).
+  -- ---------------------------------------------------------------------
+
+  -- | Encode a public key as rho || SimpleBitPack_10(t1) (FIPS 204 Algorithm 22).
+  pk-encode :: Bytes -> List Bytes -> Bytes
+  pk-encode rho t1 = bytes-concat (Cons rho (map pack-t1 t1))
+
+  -- | Encode a private key as rho || K || tr || s1 || s2 || t0 (FIPS 204 Algorithm 24).
+  sk-encode :: MlDsaParameters -> Bytes -> Bytes -> Bytes -> List Bytes -> List Bytes -> List Bytes -> Bytes
+  sk-encode p rho k-seed tr s1 s2 t0 =
+    let eta = param-eta p in
+    let pack-s = if eta == 2 then pack-eta2 else pack-eta4 in
+    bytes-concat [rho, k-seed, tr, bytes-concat (map pack-s s1), bytes-concat (map pack-s s2), bytes-concat (map pack-t0 t0)]
+
+  -- | Encode the high-bits vector w1 for challenge hashing (FIPS 204 Algorithm 28).
+  w1-encode :: MlDsaParameters -> List Bytes -> Bytes
+  w1-encode p w1 =
+    let packer = case p of MlDsa44 -> pack-w1-six; MlDsa65 -> pack-w1-four; MlDsa87 -> pack-w1-four in
+    bytes-concat (map packer w1)
+
+  -- | Encode a signature as ctilde || BitPack(z) || HintBitPack(h) (FIPS 204 Algorithm 26).
+  sig-encode :: MlDsaParameters -> Bytes -> List Bytes -> List Bytes -> Bytes
+  sig-encode p ctilde z h =
+    let packer = case p of MlDsa44 -> pack-z18; MlDsa65 -> pack-z20; MlDsa87 -> pack-z20 in
+    bytes-concat [ctilde, bytes-concat (map packer z), hint-bit-pack h (param-omega p) (param-k p)]
+
+  -- | Pack one t1 polynomial (256 coefficients in [0, 1023]) into 320 bytes (10 bits each).
+  pack-t1 :: Bytes -> Bytes
+  pack-t1 poly =
+    let out = bytes-new 320 in
+    let done = pack-t1-loop poly out 0 in out
+
+  -- | Tail loop packing 4 ten-bit coefficients into 5 bytes.
+  pack-t1-loop :: Bytes -> Bytes -> I64 -> Unit
+  pack-t1-loop poly out g =
+    if lt-i64 g 64 then
+      let ci = wrapping-shl-i64 g 2 in
+      let bi = wrapping-mul-i64 g 5 in
+      let c0 = poly-get poly ci in
+      let c1 = poly-get poly (wrapping-add-i64 ci 1) in
+      let c2 = poly-get poly (wrapping-add-i64 ci 2) in
+      let c3 = poly-get poly (wrapping-add-i64 ci 3) in
+      let w0 = put-at out bi (bit-and-i64 c0 255) in
+      let w1 = put-at out (wrapping-add-i64 bi 1) (bit-or-i64 (wrapping-shr-i64 c0 8) (wrapping-shl-i64 (bit-and-i64 c1 63) 2)) in
+      let w2 = put-at out (wrapping-add-i64 bi 2) (bit-or-i64 (wrapping-shr-i64 c1 6) (wrapping-shl-i64 (bit-and-i64 c2 15) 4)) in
+      let w3 = put-at out (wrapping-add-i64 bi 3) (bit-or-i64 (wrapping-shr-i64 c2 4) (wrapping-shl-i64 (bit-and-i64 c3 3) 6)) in
+      let w4 = put-at out (wrapping-add-i64 bi 4) (wrapping-shr-i64 c3 2) in
+      pack-t1-loop poly out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack one 320-byte t1 polynomial at offset off.
+  unpack-t1 :: Bytes -> Nat -> Bytes
+  unpack-t1 b off =
+    let out = poly-zero in
+    let done = unpack-t1-loop b (small off) out 0 in out
+
+  -- | Tail loop unpacking 5 bytes into 4 ten-bit coefficients.
+  unpack-t1-loop :: Bytes -> I64 -> Bytes -> I64 -> Unit
+  unpack-t1-loop b off out g =
+    if lt-i64 g 64 then
+      let ci = wrapping-shl-i64 g 2 in
+      let bi = wrapping-add-i64 off (wrapping-mul-i64 g 5) in
+      let b0 = get-at b bi in
+      let b1 = get-at b (wrapping-add-i64 bi 1) in
+      let b2 = get-at b (wrapping-add-i64 bi 2) in
+      let b3 = get-at b (wrapping-add-i64 bi 3) in
+      let b4 = get-at b (wrapping-add-i64 bi 4) in
+      let c0 = bit-and-i64 (bit-or-i64 b0 (wrapping-shl-i64 b1 8)) 1023 in
+      let c1 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b1 2) (wrapping-shl-i64 b2 6)) 1023 in
+      let c2 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b2 4) (wrapping-shl-i64 b3 4)) 1023 in
+      let c3 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b3 6) (wrapping-shl-i64 b4 2)) 1023 in
+      let w0 = poly-set out ci c0 in
+      let w1 = poly-set out (wrapping-add-i64 ci 1) c1 in
+      let w2 = poly-set out (wrapping-add-i64 ci 2) c2 in
+      let w3 = poly-set out (wrapping-add-i64 ci 3) c3 in
+      unpack-t1-loop b off out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack k packed t1 polynomials starting at offset off.
+  unpack-t1-vec :: Bytes -> Nat -> Nat -> List Bytes
+  unpack-t1-vec b off count = unpack-t1-vec-loop b off count Nil
+
+  -- | Tail loop for unpack-t1-vec.
+  unpack-t1-vec-loop :: Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  unpack-t1-vec-loop b off count acc =
+    if count == 0 then reverse acc
+    else unpack-t1-vec-loop b (off + 320) (count - 1) (Cons (unpack-t1 b off) acc)
+
+  -- | Pack one t0 polynomial (coefficients in [-4095, 4096]) into 416 bytes (13 bits each).
+  pack-t0 :: Bytes -> Bytes
+  pack-t0 poly =
+    let out = bytes-new 416 in
+    let done = pack-t0-loop poly out 0 in out
+
+  -- | Tail loop packing 8 thirteen-bit values (4096 - t0) into 13 bytes.
+  pack-t0-loop :: Bytes -> Bytes -> I64 -> Unit
+  pack-t0-loop poly out g =
+    if lt-i64 g 32 then
+      let ci = wrapping-shl-i64 g 3 in
+      let bi = wrapping-mul-i64 g 13 in
+      let u0 = wrapping-sub-i64 4096 (center-q (poly-get poly ci)) in
+      let u1 = wrapping-sub-i64 4096 (center-q (poly-get poly (wrapping-add-i64 ci 1))) in
+      let u2 = wrapping-sub-i64 4096 (center-q (poly-get poly (wrapping-add-i64 ci 2))) in
+      let u3 = wrapping-sub-i64 4096 (center-q (poly-get poly (wrapping-add-i64 ci 3))) in
+      let u4 = wrapping-sub-i64 4096 (center-q (poly-get poly (wrapping-add-i64 ci 4))) in
+      let u5 = wrapping-sub-i64 4096 (center-q (poly-get poly (wrapping-add-i64 ci 5))) in
+      let u6 = wrapping-sub-i64 4096 (center-q (poly-get poly (wrapping-add-i64 ci 6))) in
+      let u7 = wrapping-sub-i64 4096 (center-q (poly-get poly (wrapping-add-i64 ci 7))) in
+      let w0 = put-at out bi (bit-and-i64 u0 255) in
+      let w1 = put-at out (wrapping-add-i64 bi 1) (bit-or-i64 (wrapping-shr-i64 u0 8) (wrapping-shl-i64 (bit-and-i64 u1 7) 5)) in
+      let w2 = put-at out (wrapping-add-i64 bi 2) (bit-and-i64 (wrapping-shr-i64 u1 3) 255) in
+      let w3 = put-at out (wrapping-add-i64 bi 3) (bit-or-i64 (wrapping-shr-i64 u1 11) (wrapping-shl-i64 (bit-and-i64 u2 63) 2)) in
+      let w4 = put-at out (wrapping-add-i64 bi 4) (bit-or-i64 (wrapping-shr-i64 u2 6) (wrapping-shl-i64 (bit-and-i64 u3 1) 7)) in
+      let w5 = put-at out (wrapping-add-i64 bi 5) (bit-and-i64 (wrapping-shr-i64 u3 1) 255) in
+      let w6 = put-at out (wrapping-add-i64 bi 6) (bit-or-i64 (wrapping-shr-i64 u3 9) (wrapping-shl-i64 (bit-and-i64 u4 15) 4)) in
+      let w7 = put-at out (wrapping-add-i64 bi 7) (bit-and-i64 (wrapping-shr-i64 u4 4) 255) in
+      let w8 = put-at out (wrapping-add-i64 bi 8) (bit-or-i64 (wrapping-shr-i64 u4 12) (wrapping-shl-i64 (bit-and-i64 u5 127) 1)) in
+      let w9 = put-at out (wrapping-add-i64 bi 9) (bit-or-i64 (wrapping-shr-i64 u5 7) (wrapping-shl-i64 (bit-and-i64 u6 3) 6)) in
+      let w10 = put-at out (wrapping-add-i64 bi 10) (bit-and-i64 (wrapping-shr-i64 u6 2) 255) in
+      let w11 = put-at out (wrapping-add-i64 bi 11) (bit-or-i64 (wrapping-shr-i64 u6 10) (wrapping-shl-i64 (bit-and-i64 u7 31) 3)) in
+      let w12 = put-at out (wrapping-add-i64 bi 12) (wrapping-shr-i64 u7 5) in
+      pack-t0-loop poly out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack one 416-byte t0 polynomial at offset off.
+  unpack-t0 :: Bytes -> Nat -> Bytes
+  unpack-t0 b off =
+    let out = poly-zero in
+    let done = unpack-t0-loop b (small off) out 0 in out
+
+  -- | Tail loop unpacking 13 bytes into 8 thirteen-bit t0 coefficients.
+  unpack-t0-loop :: Bytes -> I64 -> Bytes -> I64 -> Unit
+  unpack-t0-loop b off out g =
+    if lt-i64 g 32 then
+      let ci = wrapping-shl-i64 g 3 in
+      let bi = wrapping-add-i64 off (wrapping-mul-i64 g 13) in
+      let b0 = get-at b bi in
+      let b1 = get-at b (wrapping-add-i64 bi 1) in
+      let b2 = get-at b (wrapping-add-i64 bi 2) in
+      let b3 = get-at b (wrapping-add-i64 bi 3) in
+      let b4 = get-at b (wrapping-add-i64 bi 4) in
+      let b5 = get-at b (wrapping-add-i64 bi 5) in
+      let b6 = get-at b (wrapping-add-i64 bi 6) in
+      let b7 = get-at b (wrapping-add-i64 bi 7) in
+      let b8 = get-at b (wrapping-add-i64 bi 8) in
+      let b9 = get-at b (wrapping-add-i64 bi 9) in
+      let b10 = get-at b (wrapping-add-i64 bi 10) in
+      let b11 = get-at b (wrapping-add-i64 bi 11) in
+      let b12 = get-at b (wrapping-add-i64 bi 12) in
+      let u0 = bit-and-i64 (bit-or-i64 b0 (wrapping-shl-i64 b1 8)) 8191 in
+      let u1 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b1 5) (bit-or-i64 (wrapping-shl-i64 b2 3) (wrapping-shl-i64 b3 11))) 8191 in
+      let u2 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b3 2) (wrapping-shl-i64 b4 6)) 8191 in
+      let u3 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b4 7) (bit-or-i64 (wrapping-shl-i64 b5 1) (wrapping-shl-i64 b6 9))) 8191 in
+      let u4 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b6 4) (bit-or-i64 (wrapping-shl-i64 b7 4) (wrapping-shl-i64 b8 12))) 8191 in
+      let u5 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b8 1) (wrapping-shl-i64 b9 7)) 8191 in
+      let u6 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b9 6) (bit-or-i64 (wrapping-shl-i64 b10 2) (wrapping-shl-i64 b11 10))) 8191 in
+      let u7 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b11 3) (wrapping-shl-i64 b12 5)) 8191 in
+      let w0 = poly-set out ci (from-signed-q (wrapping-sub-i64 4096 u0)) in
+      let w1 = poly-set out (wrapping-add-i64 ci 1) (from-signed-q (wrapping-sub-i64 4096 u1)) in
+      let w2 = poly-set out (wrapping-add-i64 ci 2) (from-signed-q (wrapping-sub-i64 4096 u2)) in
+      let w3 = poly-set out (wrapping-add-i64 ci 3) (from-signed-q (wrapping-sub-i64 4096 u3)) in
+      let w4 = poly-set out (wrapping-add-i64 ci 4) (from-signed-q (wrapping-sub-i64 4096 u4)) in
+      let w5 = poly-set out (wrapping-add-i64 ci 5) (from-signed-q (wrapping-sub-i64 4096 u5)) in
+      let w6 = poly-set out (wrapping-add-i64 ci 6) (from-signed-q (wrapping-sub-i64 4096 u6)) in
+      let w7 = poly-set out (wrapping-add-i64 ci 7) (from-signed-q (wrapping-sub-i64 4096 u7)) in
+      unpack-t0-loop b off out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack k packed t0 polynomials starting at offset off.
+  unpack-t0-vec :: Bytes -> Nat -> Nat -> List Bytes
+  unpack-t0-vec b off count = unpack-t0-vec-loop b off count Nil
+
+  -- | Tail loop for unpack-t0-vec.
+  unpack-t0-vec-loop :: Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  unpack-t0-vec-loop b off count acc =
+    if count == 0 then reverse acc
+    else unpack-t0-vec-loop b (off + 416) (count - 1) (Cons (unpack-t0 b off) acc)
+
+  -- | Pack one eta = 2 secret polynomial into 96 bytes (3 bits per coefficient).
+  pack-eta2 :: Bytes -> Bytes
+  pack-eta2 poly =
+    let out = bytes-new 96 in
+    let done = pack-eta2-loop poly out 0 in out
+
+  -- | Tail loop packing 8 three-bit values (2 - s) into 3 bytes.
+  pack-eta2-loop :: Bytes -> Bytes -> I64 -> Unit
+  pack-eta2-loop poly out g =
+    if lt-i64 g 32 then
+      let ci = wrapping-shl-i64 g 3 in
+      let bi = wrapping-mul-i64 g 3 in
+      let u0 = wrapping-sub-i64 2 (center-q (poly-get poly ci)) in
+      let u1 = wrapping-sub-i64 2 (center-q (poly-get poly (wrapping-add-i64 ci 1))) in
+      let u2 = wrapping-sub-i64 2 (center-q (poly-get poly (wrapping-add-i64 ci 2))) in
+      let u3 = wrapping-sub-i64 2 (center-q (poly-get poly (wrapping-add-i64 ci 3))) in
+      let u4 = wrapping-sub-i64 2 (center-q (poly-get poly (wrapping-add-i64 ci 4))) in
+      let u5 = wrapping-sub-i64 2 (center-q (poly-get poly (wrapping-add-i64 ci 5))) in
+      let u6 = wrapping-sub-i64 2 (center-q (poly-get poly (wrapping-add-i64 ci 6))) in
+      let u7 = wrapping-sub-i64 2 (center-q (poly-get poly (wrapping-add-i64 ci 7))) in
+      let b0 = bit-or-i64 u0 (bit-or-i64 (wrapping-shl-i64 u1 3) (wrapping-shl-i64 (bit-and-i64 u2 3) 6)) in
+      let b1 = bit-or-i64 (wrapping-shr-i64 u2 2) (bit-or-i64 (wrapping-shl-i64 u3 1) (bit-or-i64 (wrapping-shl-i64 u4 4) (wrapping-shl-i64 (bit-and-i64 u5 1) 7))) in
+      let b2 = bit-or-i64 (wrapping-shr-i64 u5 1) (bit-or-i64 (wrapping-shl-i64 u6 2) (wrapping-shl-i64 u7 5)) in
+      let w0 = put-at out bi b0 in
+      let w1 = put-at out (wrapping-add-i64 bi 1) b1 in
+      let w2 = put-at out (wrapping-add-i64 bi 2) b2 in
+      pack-eta2-loop poly out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack one 96-byte eta = 2 secret polynomial, rejecting values above 4.
+  unpack-eta2 :: Bytes -> Nat -> Option Bytes
+  unpack-eta2 b off =
+    let out = poly-zero in
+    if unpack-eta2-loop b (small off) out 0 then Some out else None
+
+  -- | Tail loop unpacking 3 bytes into 8 bounded eta = 2 coefficients.
+  unpack-eta2-loop :: Bytes -> I64 -> Bytes -> I64 -> Bool
+  unpack-eta2-loop b off out g =
+    if lt-i64 g 32 then
+      let ci = wrapping-shl-i64 g 3 in
+      let bi = wrapping-add-i64 off (wrapping-mul-i64 g 3) in
+      let b0 = get-at b bi in
+      let b1 = get-at b (wrapping-add-i64 bi 1) in
+      let b2 = get-at b (wrapping-add-i64 bi 2) in
+      let u0 = bit-and-i64 b0 7 in
+      let u1 = bit-and-i64 (wrapping-shr-i64 b0 3) 7 in
+      let u2 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b0 6) (wrapping-shl-i64 b1 2)) 7 in
+      let u3 = bit-and-i64 (wrapping-shr-i64 b1 1) 7 in
+      let u4 = bit-and-i64 (wrapping-shr-i64 b1 4) 7 in
+      let u5 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b1 7) (wrapping-shl-i64 b2 1)) 7 in
+      let u6 = bit-and-i64 (wrapping-shr-i64 b2 2) 7 in
+      let u7 = bit-and-i64 (wrapping-shr-i64 b2 5) 7 in
+      if gt-i64 u0 4 || gt-i64 u1 4 || gt-i64 u2 4 || gt-i64 u3 4 || gt-i64 u4 4 || gt-i64 u5 4 || gt-i64 u6 4 || gt-i64 u7 4 then False
+      else
+        let w0 = poly-set out ci (from-signed-q (wrapping-sub-i64 2 u0)) in
+        let w1 = poly-set out (wrapping-add-i64 ci 1) (from-signed-q (wrapping-sub-i64 2 u1)) in
+        let w2 = poly-set out (wrapping-add-i64 ci 2) (from-signed-q (wrapping-sub-i64 2 u2)) in
+        let w3 = poly-set out (wrapping-add-i64 ci 3) (from-signed-q (wrapping-sub-i64 2 u3)) in
+        let w4 = poly-set out (wrapping-add-i64 ci 4) (from-signed-q (wrapping-sub-i64 2 u4)) in
+        let w5 = poly-set out (wrapping-add-i64 ci 5) (from-signed-q (wrapping-sub-i64 2 u5)) in
+        let w6 = poly-set out (wrapping-add-i64 ci 6) (from-signed-q (wrapping-sub-i64 2 u6)) in
+        let w7 = poly-set out (wrapping-add-i64 ci 7) (from-signed-q (wrapping-sub-i64 2 u7)) in
+        unpack-eta2-loop b off out (wrapping-add-i64 g 1)
+    else True
+
+  -- | Pack one eta = 4 secret polynomial into 128 bytes (4 bits per coefficient).
+  pack-eta4 :: Bytes -> Bytes
+  pack-eta4 poly =
+    let out = bytes-new 128 in
+    let done = pack-eta4-loop poly out 0 in out
+
+  -- | Tail loop packing 2 four-bit values (4 - s) into 1 byte.
+  pack-eta4-loop :: Bytes -> Bytes -> I64 -> Unit
+  pack-eta4-loop poly out g =
+    if lt-i64 g 128 then
+      let ci = wrapping-shl-i64 g 1 in
+      let u0 = wrapping-sub-i64 4 (center-q (poly-get poly ci)) in
+      let u1 = wrapping-sub-i64 4 (center-q (poly-get poly (wrapping-add-i64 ci 1))) in
+      let w = put-at out g (bit-or-i64 u0 (wrapping-shl-i64 u1 4)) in
+      pack-eta4-loop poly out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack one 128-byte eta = 4 secret polynomial, rejecting values above 8.
+  unpack-eta4 :: Bytes -> Nat -> Option Bytes
+  unpack-eta4 b off =
+    let out = poly-zero in
+    if unpack-eta4-loop b (small off) out 0 then Some out else None
+
+  -- | Tail loop unpacking 1 byte into 2 bounded eta = 4 coefficients.
+  unpack-eta4-loop :: Bytes -> I64 -> Bytes -> I64 -> Bool
+  unpack-eta4-loop b off out g =
+    if lt-i64 g 128 then
+      let ci = wrapping-shl-i64 g 1 in
+      let byte-val = get-at b (wrapping-add-i64 off g) in
+      let u0 = bit-and-i64 byte-val 15 in
+      let u1 = wrapping-shr-i64 byte-val 4 in
+      if gt-i64 u0 8 || gt-i64 u1 8 then False
+      else
+        let w0 = poly-set out ci (from-signed-q (wrapping-sub-i64 4 u0)) in
+        let w1 = poly-set out (wrapping-add-i64 ci 1) (from-signed-q (wrapping-sub-i64 4 u1)) in
+        unpack-eta4-loop b off out (wrapping-add-i64 g 1)
+    else True
+
+  -- | Unpack count bounded secret polynomials at offset off.
+  unpack-eta-vec :: Bytes -> Nat -> Nat -> Nat -> List Bytes -> Option (List Bytes)
+  unpack-eta-vec b off count eta acc =
+    if count == 0 then Some (reverse acc)
+    else
+      let step = if eta == 2 then (96 :: Nat) else (128 :: Nat) in
+      let decoded = if eta == 2 then unpack-eta2 b off else unpack-eta4 b off in
+      case decoded of
+        None -> None
+        Some poly -> unpack-eta-vec b (off + step) (count - 1) eta (Cons poly acc)
+
+  -- | Pack one ML-DSA-44 w1 polynomial (coefficients in [0, 43]) into 192 bytes (6 bits each).
+  pack-w1-six :: Bytes -> Bytes
+  pack-w1-six poly =
+    let out = bytes-new 192 in
+    let done = pack-w1-six-loop poly out 0 in out
+
+  -- | Tail loop packing 4 six-bit coefficients into 3 bytes.
+  pack-w1-six-loop :: Bytes -> Bytes -> I64 -> Unit
+  pack-w1-six-loop poly out g =
+    if lt-i64 g 64 then
+      let ci = wrapping-shl-i64 g 2 in
+      let bi = wrapping-mul-i64 g 3 in
+      let c0 = poly-get poly ci in
+      let c1 = poly-get poly (wrapping-add-i64 ci 1) in
+      let c2 = poly-get poly (wrapping-add-i64 ci 2) in
+      let c3 = poly-get poly (wrapping-add-i64 ci 3) in
+      let w0 = put-at out bi (bit-or-i64 c0 (wrapping-shl-i64 (bit-and-i64 c1 3) 6)) in
+      let w1 = put-at out (wrapping-add-i64 bi 1) (bit-or-i64 (wrapping-shr-i64 c1 2) (wrapping-shl-i64 (bit-and-i64 c2 15) 4)) in
+      let w2 = put-at out (wrapping-add-i64 bi 2) (bit-or-i64 (wrapping-shr-i64 c2 4) (wrapping-shl-i64 c3 2)) in
+      pack-w1-six-loop poly out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Pack one ML-DSA-65/87 w1 polynomial (coefficients in [0, 15]) into 128 bytes (4 bits each).
+  pack-w1-four :: Bytes -> Bytes
+  pack-w1-four poly =
+    let out = bytes-new 128 in
+    let done = pack-w1-four-loop poly out 0 in out
+
+  -- | Tail loop packing 2 four-bit coefficients into 1 byte.
+  pack-w1-four-loop :: Bytes -> Bytes -> I64 -> Unit
+  pack-w1-four-loop poly out g =
+    if lt-i64 g 128 then
+      let ci = wrapping-shl-i64 g 1 in
+      let c0 = poly-get poly ci in
+      let c1 = poly-get poly (wrapping-add-i64 ci 1) in
+      let w = put-at out g (bit-or-i64 c0 (wrapping-shl-i64 c1 4)) in
+      pack-w1-four-loop poly out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Pack one ML-DSA-44 z polynomial (gamma1 = 2^17) into 576 bytes (18 bits each).
+  pack-z18 :: Bytes -> Bytes
+  pack-z18 poly =
+    let out = bytes-new 576 in
+    let done = pack-z18-loop poly out 0 in out
+
+  -- | Tail loop packing 4 eighteen-bit values (2^17 - z) into 9 bytes.
+  pack-z18-loop :: Bytes -> Bytes -> I64 -> Unit
+  pack-z18-loop poly out g =
+    if lt-i64 g 64 then
+      let ci = wrapping-shl-i64 g 2 in
+      let bi = wrapping-mul-i64 g 9 in
+      let u0 = wrapping-sub-i64 131072 (center-q (poly-get poly ci)) in
+      let u1 = wrapping-sub-i64 131072 (center-q (poly-get poly (wrapping-add-i64 ci 1))) in
+      let u2 = wrapping-sub-i64 131072 (center-q (poly-get poly (wrapping-add-i64 ci 2))) in
+      let u3 = wrapping-sub-i64 131072 (center-q (poly-get poly (wrapping-add-i64 ci 3))) in
+      let w0 = put-at out bi (bit-and-i64 u0 255) in
+      let w1 = put-at out (wrapping-add-i64 bi 1) (bit-and-i64 (wrapping-shr-i64 u0 8) 255) in
+      let w2 = put-at out (wrapping-add-i64 bi 2) (bit-or-i64 (wrapping-shr-i64 u0 16) (wrapping-shl-i64 (bit-and-i64 u1 63) 2)) in
+      let w3 = put-at out (wrapping-add-i64 bi 3) (bit-and-i64 (wrapping-shr-i64 u1 6) 255) in
+      let w4 = put-at out (wrapping-add-i64 bi 4) (bit-or-i64 (wrapping-shr-i64 u1 14) (wrapping-shl-i64 (bit-and-i64 u2 15) 4)) in
+      let w5 = put-at out (wrapping-add-i64 bi 5) (bit-and-i64 (wrapping-shr-i64 u2 4) 255) in
+      let w6 = put-at out (wrapping-add-i64 bi 6) (bit-or-i64 (wrapping-shr-i64 u2 12) (wrapping-shl-i64 (bit-and-i64 u3 3) 6)) in
+      let w7 = put-at out (wrapping-add-i64 bi 7) (bit-and-i64 (wrapping-shr-i64 u3 2) 255) in
+      let w8 = put-at out (wrapping-add-i64 bi 8) (wrapping-shr-i64 u3 10) in
+      pack-z18-loop poly out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack one 576-byte ML-DSA-44 z or y polynomial at offset off.
+  unpack-z18 :: Bytes -> Nat -> Bytes
+  unpack-z18 b off =
+    let out = poly-zero in
+    let done = unpack-z18-loop b (small off) out 0 in out
+
+  -- | Tail loop unpacking 9 bytes into 4 eighteen-bit z/y coefficients.
+  unpack-z18-loop :: Bytes -> I64 -> Bytes -> I64 -> Unit
+  unpack-z18-loop b off out g =
+    if lt-i64 g 64 then
+      let ci = wrapping-shl-i64 g 2 in
+      let bi = wrapping-add-i64 off (wrapping-mul-i64 g 9) in
+      let b0 = get-at b bi in
+      let b1 = get-at b (wrapping-add-i64 bi 1) in
+      let b2 = get-at b (wrapping-add-i64 bi 2) in
+      let b3 = get-at b (wrapping-add-i64 bi 3) in
+      let b4 = get-at b (wrapping-add-i64 bi 4) in
+      let b5 = get-at b (wrapping-add-i64 bi 5) in
+      let b6 = get-at b (wrapping-add-i64 bi 6) in
+      let b7 = get-at b (wrapping-add-i64 bi 7) in
+      let b8 = get-at b (wrapping-add-i64 bi 8) in
+      let u0 = bit-and-i64 (bit-or-i64 b0 (bit-or-i64 (wrapping-shl-i64 b1 8) (wrapping-shl-i64 b2 16))) 262143 in
+      let u1 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b2 2) (bit-or-i64 (wrapping-shl-i64 b3 6) (wrapping-shl-i64 b4 14))) 262143 in
+      let u2 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b4 4) (bit-or-i64 (wrapping-shl-i64 b5 4) (wrapping-shl-i64 b6 12))) 262143 in
+      let u3 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b6 6) (bit-or-i64 (wrapping-shl-i64 b7 2) (wrapping-shl-i64 b8 10))) 262143 in
+      let w0 = poly-set out ci (from-signed-q (wrapping-sub-i64 131072 u0)) in
+      let w1 = poly-set out (wrapping-add-i64 ci 1) (from-signed-q (wrapping-sub-i64 131072 u1)) in
+      let w2 = poly-set out (wrapping-add-i64 ci 2) (from-signed-q (wrapping-sub-i64 131072 u2)) in
+      let w3 = poly-set out (wrapping-add-i64 ci 3) (from-signed-q (wrapping-sub-i64 131072 u3)) in
+      unpack-z18-loop b off out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Pack one ML-DSA-65/87 z polynomial (gamma1 = 2^19) into 640 bytes (20 bits each).
+  pack-z20 :: Bytes -> Bytes
+  pack-z20 poly =
+    let out = bytes-new 640 in
+    let done = pack-z20-loop poly out 0 in out
+
+  -- | Tail loop packing 2 twenty-bit values (2^19 - z) into 5 bytes.
+  pack-z20-loop :: Bytes -> Bytes -> I64 -> Unit
+  pack-z20-loop poly out g =
+    if lt-i64 g 128 then
+      let ci = wrapping-shl-i64 g 1 in
+      let bi = wrapping-mul-i64 g 5 in
+      let u0 = wrapping-sub-i64 524288 (center-q (poly-get poly ci)) in
+      let u1 = wrapping-sub-i64 524288 (center-q (poly-get poly (wrapping-add-i64 ci 1))) in
+      let w0 = put-at out bi (bit-and-i64 u0 255) in
+      let w1 = put-at out (wrapping-add-i64 bi 1) (bit-and-i64 (wrapping-shr-i64 u0 8) 255) in
+      let w2 = put-at out (wrapping-add-i64 bi 2) (bit-or-i64 (wrapping-shr-i64 u0 16) (wrapping-shl-i64 (bit-and-i64 u1 15) 4)) in
+      let w3 = put-at out (wrapping-add-i64 bi 3) (bit-and-i64 (wrapping-shr-i64 u1 4) 255) in
+      let w4 = put-at out (wrapping-add-i64 bi 4) (wrapping-shr-i64 u1 12) in
+      pack-z20-loop poly out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack one 640-byte ML-DSA-65/87 z or y polynomial at offset off.
+  unpack-z20 :: Bytes -> Nat -> Bytes
+  unpack-z20 b off =
+    let out = poly-zero in
+    let done = unpack-z20-loop b (small off) out 0 in out
+
+  -- | Tail loop unpacking 5 bytes into 2 twenty-bit z/y coefficients.
+  unpack-z20-loop :: Bytes -> I64 -> Bytes -> I64 -> Unit
+  unpack-z20-loop b off out g =
+    if lt-i64 g 128 then
+      let ci = wrapping-shl-i64 g 1 in
+      let bi = wrapping-add-i64 off (wrapping-mul-i64 g 5) in
+      let b0 = get-at b bi in
+      let b1 = get-at b (wrapping-add-i64 bi 1) in
+      let b2 = get-at b (wrapping-add-i64 bi 2) in
+      let b3 = get-at b (wrapping-add-i64 bi 3) in
+      let b4 = get-at b (wrapping-add-i64 bi 4) in
+      let u0 = bit-and-i64 (bit-or-i64 b0 (bit-or-i64 (wrapping-shl-i64 b1 8) (wrapping-shl-i64 b2 16))) 1048575 in
+      let u1 = bit-and-i64 (bit-or-i64 (wrapping-shr-i64 b2 4) (bit-or-i64 (wrapping-shl-i64 b3 4) (wrapping-shl-i64 b4 12))) 1048575 in
+      let w0 = poly-set out ci (from-signed-q (wrapping-sub-i64 524288 u0)) in
+      let w1 = poly-set out (wrapping-add-i64 ci 1) (from-signed-q (wrapping-sub-i64 524288 u1)) in
+      unpack-z20-loop b off out (wrapping-add-i64 g 1)
+    else ()
+
+  -- | Unpack one z/y polynomial according to the parameter set.
+  unpack-z-poly :: MlDsaParameters -> Bytes -> Nat -> Bytes
+  unpack-z-poly p b off = case p of
+    MlDsa44 -> unpack-z18 b off
+    MlDsa65 -> unpack-z20 b off
+    MlDsa87 -> unpack-z20 b off
+
+  -- | Unpack l packed z polynomials from a signature starting at offset off.
+  unpack-z-vec :: MlDsaParameters -> Bytes -> Nat -> Nat -> List Bytes
+  unpack-z-vec p b off count = unpack-z-vec-loop p b off count Nil
+
+  -- | Tail loop for unpack-z-vec.
+  unpack-z-vec-loop :: MlDsaParameters -> Bytes -> Nat -> Nat -> List Bytes -> List Bytes
+  unpack-z-vec-loop p b off count acc =
+    if count == 0 then reverse acc
+    else unpack-z-vec-loop p b (off + param-z-poly-bytes p) (count - 1) (Cons (unpack-z-poly p b off) acc)
+
+  -- | Layout parameters for unpacking a hint section: byte offset, omega, and k.
+  data HintLayout where
+    -- | Offset in the signature buffer, maximum hint count omega, and polynomial count k.
+    HintLayout :: Nat -> Nat -> Nat -> HintLayout
+
+  -- | Encode a hint vector into omega + k bytes (FIPS 204 Algorithm 20).
+  hint-bit-pack :: List Bytes -> Nat -> Nat -> Bytes
+  hint-bit-pack hs omega k =
+    let out = bytes-new (omega + k) in
+    let done = hint-pack-polys out hs 0 0 omega in out
+
+  -- | Tail loop encoding each hint polynomial into out.
+  hint-pack-polys :: Bytes -> List Bytes -> Nat -> Nat -> Nat -> Unit
+  hint-pack-polys out hs i idx omega = case hs of
+    Nil -> ()
+    Cons h rest ->
+      let next-idx = hint-pack-scan out h 0 idx in
+      let mark = put out (omega + i) next-idx in
+      hint-pack-polys out rest (i + 1) next-idx omega
+
+  -- | Scan one hint polynomial and append non-zero coefficient indices into out.
+  hint-pack-scan :: Bytes -> Bytes -> I64 -> Nat -> Nat
+  hint-pack-scan out h j idx =
+    if lt-i64 j 256 then
+      if ne-i64 (poly-get h j) 0 then
+        let w = put out idx (nat-from-i64 (mask-i64 j 255)) in
+        hint-pack-scan out h (wrapping-add-i64 j 1) (idx + 1)
+      else hint-pack-scan out h (wrapping-add-i64 j 1) idx
+    else idx
+
+  -- | Decode a hint vector from omega + k bytes, enforcing FIPS 204 Algorithm 21 canonical checks.
+  hint-bit-unpack :: Bytes -> HintLayout -> Option (List Bytes)
+  hint-bit-unpack sig layout = hint-unpack-polys sig layout 0 0 Nil
+
+  -- | Tail loop decoding each hint polynomial and verifying trailing zeros.
+  hint-unpack-polys :: Bytes -> HintLayout -> Nat -> Nat -> List Bytes -> Option (List Bytes)
+  hint-unpack-polys sig layout i idx acc = case layout of
+    HintLayout off omega k ->
+      if i >= k then
+        if hint-zeros-tail sig off idx omega then Some (reverse acc) else None
+      else
+        let limit = at sig (off + omega + i) in
+        if limit < idx || limit > omega then None
+        else
+          let poly = poly-zero in
+          case hint-unpack-indices sig off poly idx limit (-1) of
+            None -> None
+            Some done -> hint-unpack-polys sig layout (i + 1) limit (Cons poly acc)
+
+  -- | Set hint bits for indices in [idx, limit), rejecting non-increasing positions.
+  hint-unpack-indices :: Bytes -> Nat -> Bytes -> Nat -> Nat -> I64 -> Option Unit
+  hint-unpack-indices sig off poly idx limit prev =
+    if idx >= limit then Some ()
+    else
+      let pos = small (at sig (off + idx)) in
+      if le-i64 pos prev then None
+      else
+        let w = poly-set poly pos 1 in
+        hint-unpack-indices sig off poly (idx + 1) limit pos
+
+  -- | Verify that all unused hint slots in [idx, omega) are zero.
+  hint-zeros-tail :: Bytes -> Nat -> Nat -> Nat -> Bool
+  hint-zeros-tail sig off idx omega =
+    if idx >= omega then True
+    else if not (at sig (off + idx) == 0) then False
+    else hint-zeros-tail sig off (idx + 1) omega
+
+  -- ---------------------------------------------------------------------
+  -- Byte helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Read a byte at a natural index, or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Store a byte at a natural index when both index and value fit.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | Read a byte at a machine integer index, or zero when out of range.
+  get-at :: Bytes -> I64 -> I64
+  get-at b i = if 0 <= i && i < bytes-len-i64 b then u8-to-i64 (bytes-get-u8-at b i) else 0
+
+  -- | Store the low 8 bits of a machine integer at a machine integer index.
+  put-at :: Bytes -> I64 -> I64 -> Unit
+  put-at b i v = if 0 <= i && i < bytes-len-i64 b then bytes-set-u8-at b i (wrapping-i64-to-u8 v) else ()
+
+  -- | One-byte buffer.
+  one :: Nat -> Bytes
+  one v = let out = bytes-new 1 in let w = put out 0 v in out
+
+  -- | Two-byte little-endian buffer for a 16-bit counter.
+  le16 :: Nat -> Bytes
+  le16 v =
+    let out = bytes-new 2 in
+    let w0 = put out 0 (nat-rem v 256) in
+    let w1 = put out 1 (nat-rem (nat-div v 256) 256) in out
+
+  -- | Copy bytes[x, y) into fresh storage.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b x y =
+    let n = if x <= y then y - x else 0 in
+    let out = bytes-new n in
+    if x + n <= bytes-len b then let c = bytes-copy-range out b 0 x n in out else out
+
+  -- | Make an independent copy of a byte buffer.
+  copy :: Bytes -> Bytes
+  copy b = slice b 0 (bytes-len b)
+
+  -- | Convert a small natural number below 2^32 into an I64.
+  small :: Nat -> I64
+  small n = if n < 4294967296 then nat-to-i64 n else 0

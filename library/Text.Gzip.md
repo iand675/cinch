@@ -10,15 +10,16 @@ Import with `import Text.Gzip`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Text.Zlib](Text.Zlib.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Text.Flate](Text.Flate.md), [Text.Zlib](Text.Zlib.md).
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Gzip](Text.Gzip.md), [Text.Zlib](Text.Zlib.md).
+Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Flate](Text.Flate.md), [Text.Gzip](Text.Gzip.md), [Text.Zlib](Text.Zlib.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 Whole-buffer gzip members (RFC 1952). Decoding accepts stored, fixed and
 dynamic DEFLATE blocks and checks each member's header, CRC-32 and ISIZE.
-Encoders use a zero timestamp and unknown OS. Choose stored blocks or a
+Encoders use a zero timestamp and unknown OS. Choose default DEFLATE
+compression, an explicit compression level, stored blocks, or a
 fixed-Huffman run encoder with stored fallback.
 
 </details>
@@ -33,7 +34,7 @@ fixed-Huffman run encoder with stored fallback.
 
 Errors distinguish malformed framing, truncation, compressed data and trailer mismatches.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 19
+[Source](/reference-sources/Text.Gzip.cinch) · line 21
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GzipInvalidHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span></code></pre>
 
@@ -55,7 +56,7 @@ Errors distinguish malformed framing, truncation, compressed data and trailer mi
 
 Decode a complete sequence of one or more members in order.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 109
+[Source](/reference-sources/Text.Gzip.cinch) · line 138
 
 <a id="value-677a69702d6465636f64652d6d656d626572"></a>
 
@@ -65,7 +66,7 @@ Decode a complete sequence of one or more members in order.
 
 Decode one member at an absolute byte position and return the next position.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 49
+[Source](/reference-sources/Text.Gzip.cinch) · line 78
 
 <a id="value-677a69702d656e636f6465"></a>
 
@@ -73,9 +74,20 @@ Decode one member at an absolute byte position and return the next position.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gzip-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-Encode one member with no optional header fields.
+Encode one member using default DEFLATE compression with no optional header fields.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 27
+[Source](/reference-sources/Text.Gzip.cinch) · line 39
+
+<a id="value-677a69702d656e636f64652d6c6576656c"></a>
+
+## `gzip-encode-level`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gzip-encode-level</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+
+Encode one member at the given DEFLATE compression level, falling back
+to stored blocks if the level is invalid.
+
+[Source](/reference-sources/Text.Gzip.cinch) · line 44
 
 <a id="value-677a69702d656e636f64652d726c65"></a>
 
@@ -86,8 +98,18 @@ Encode one member with no optional header fields.
 Encode runs using distance-one matches, falling back to stored blocks
 for data that would expand beyond the stored representation.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 32
+[Source](/reference-sources/Text.Gzip.cinch) · line 57
+
+<a id="value-677a69702d656e636f64652d73746f726564"></a>
+
+## `gzip-encode-stored`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gzip-encode-stored</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Encode one member using uncompressed stored DEFLATE blocks.
+
+[Source](/reference-sources/Text.Gzip.cinch) · line 52
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Gzip.cinch`. Source SHA-256: `a94c55457e743050595f6fdb22931c834ca66a352cb820372ecaba7728c8a403`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Gzip.cinch`. Source SHA-256: `7ac2f8798fa769f58a47ad698de9a07fdd3a2e2eb35b0d3e566755f79b891270`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

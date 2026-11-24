@@ -1,6 +1,6 @@
 # Text.Zip
 
-Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or deflated archives.
+Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or Text.Flate-compressed deflated archives.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -10,9 +10,9 @@ Import with `import Text.Zip`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Checksum](Text.Checksum.md), [Text.Flate](Text.Flate.md), [Text.Zlib](Text.Zlib.md).
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md), [Text.Zip](Text.Zip.md), [Text.Zlib](Text.Zlib.md).
+Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md), [Text.Flate](Text.Flate.md), [Text.Zip](Text.Zip.md), [Text.Zlib](Text.Zlib.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -39,7 +39,7 @@ UTC; names and comments are raw bytes.
 
 A parsed archive: its entries in directory order and its comment.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 75
+[Source](/reference-sources/Text.Zip.cinch) · line 76
 
 <a id="type-5a6970456e747279"></a>
 
@@ -51,7 +51,7 @@ A central directory entry: name, comment, extra fields, creator version, flags, 
 and date, CRC-32, compressed and uncompressed sizes, external attributes, local header offset and
 the modification time in Unix seconds.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 70
+[Source](/reference-sources/Text.Zip.cinch) · line 71
 
 <a id="type-5a69704572726f72"></a>
 
@@ -61,7 +61,7 @@ the modification time in Unix seconds.
 
 A malformed archive, an unsupported entry or corrupted data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 40
+[Source](/reference-sources/Text.Zip.cinch) · line 41
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZipNotFound</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span></code></pre>
 
@@ -83,9 +83,9 @@ A malformed archive, an unsupported entry or corrupted data.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZipFile</span></code></pre>
 
-A file to write: name, comment, method, Unix mode (zero for none), modification time and data.
+A file to write: name, comment, method, compression level, Unix mode (zero for none), modification time and data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 320
+[Source](/reference-sources/Text.Zip.cinch) · line 321
 
 # Values
 
@@ -97,7 +97,7 @@ A file to write: name, comment, method, Unix mode (zero for none), modification 
 
 Archive comment.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 136
+[Source](/reference-sources/Text.Zip.cinch) · line 137
 
 <a id="value-7a69702d6465666c617465"></a>
 
@@ -107,7 +107,7 @@ Archive comment.
 
 Method code for DEFLATE data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 36
+[Source](/reference-sources/Text.Zip.cinch) · line 37
 
 <a id="value-7a69702d656e7472696573"></a>
 
@@ -117,7 +117,7 @@ Method code for DEFLATE data.
 
 Entries in central directory order.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 132
+[Source](/reference-sources/Text.Zip.cinch) · line 133
 
 <a id="value-7a69702d656e7472792d636f6d6d656e74"></a>
 
@@ -127,7 +127,7 @@ Entries in central directory order.
 
 Entry comment.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 84
+[Source](/reference-sources/Text.Zip.cinch) · line 85
 
 <a id="value-7a69702d656e7472792d636f6d707265737365642d73697a65"></a>
 
@@ -137,7 +137,7 @@ Entry comment.
 
 Compressed size in bytes.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 108
+[Source](/reference-sources/Text.Zip.cinch) · line 109
 
 <a id="value-7a69702d656e7472792d6372633332"></a>
 
@@ -147,7 +147,7 @@ Compressed size in bytes.
 
 Recorded CRC-32 of the uncompressed data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 104
+[Source](/reference-sources/Text.Zip.cinch) · line 105
 
 <a id="value-7a69702d656e7472792d63726561746f72"></a>
 
@@ -157,7 +157,7 @@ Recorded CRC-32 of the uncompressed data.
 
 Version made by: the high byte names the creating system (3 is Unix).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 92
+[Source](/reference-sources/Text.Zip.cinch) · line 93
 
 <a id="value-7a69702d656e7472792d65787465726e616c2d6174747273"></a>
 
@@ -167,7 +167,7 @@ Version made by: the high byte names the creating system (3 is Unix).
 
 External attributes; for Unix creators the high sixteen bits hold the mode.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 116
+[Source](/reference-sources/Text.Zip.cinch) · line 117
 
 <a id="value-7a69702d656e7472792d6578747261"></a>
 
@@ -177,7 +177,7 @@ External attributes; for Unix creators the high sixteen bits hold the mode.
 
 Raw central directory extra fields.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 88
+[Source](/reference-sources/Text.Zip.cinch) · line 89
 
 <a id="value-7a69702d656e7472792d666c616773"></a>
 
@@ -187,7 +187,7 @@ Raw central directory extra fields.
 
 General-purpose flags (bit 3: data descriptor, bit 11: UTF-8 name).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 96
+[Source](/reference-sources/Text.Zip.cinch) · line 97
 
 <a id="value-7a69702d656e7472792d69732d6469726563746f7279"></a>
 
@@ -197,7 +197,7 @@ General-purpose flags (bit 3: data descriptor, bit 11: UTF-8 name).
 
 Whether the entry names a directory (its name ends with a slash).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 128
+[Source](/reference-sources/Text.Zip.cinch) · line 129
 
 <a id="value-7a69702d656e7472792d6d6574686f64"></a>
 
@@ -207,7 +207,7 @@ Whether the entry names a directory (its name ends with a slash).
 
 Compression method.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 100
+[Source](/reference-sources/Text.Zip.cinch) · line 101
 
 <a id="value-7a69702d656e7472792d6d6f6465"></a>
 
@@ -217,7 +217,7 @@ Compression method.
 
 Unix permission and type bits for Unix creators, otherwise zero.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 124
+[Source](/reference-sources/Text.Zip.cinch) · line 125
 
 <a id="value-7a69702d656e7472792d6d6f646966696564"></a>
 
@@ -227,7 +227,7 @@ Unix permission and type bits for Unix creators, otherwise zero.
 
 Modification time in Unix seconds: the extended timestamp when present, otherwise the MS-DOS fields as UTC.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 120
+[Source](/reference-sources/Text.Zip.cinch) · line 121
 
 <a id="value-7a69702d656e7472792d6e616d65"></a>
 
@@ -237,7 +237,7 @@ Modification time in Unix seconds: the extended timestamp when present, otherwis
 
 Entry name.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 80
+[Source](/reference-sources/Text.Zip.cinch) · line 81
 
 <a id="value-7a69702d656e7472792d73697a65"></a>
 
@@ -247,7 +247,7 @@ Entry name.
 
 Uncompressed size in bytes.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 112
+[Source](/reference-sources/Text.Zip.cinch) · line 113
 
 <a id="value-7a69702d6572726f722d6d657373616765"></a>
 
@@ -257,7 +257,7 @@ Uncompressed size in bytes.
 
 Render a zip error.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 57
+[Source](/reference-sources/Text.Zip.cinch) · line 58
 
 <a id="value-7a69702d66696c65"></a>
 
@@ -268,7 +268,7 @@ Render a zip error.
 A file with the given name, method and data, no mode, no comment and no modification time.
 Names ending in a slash are written as directories, always stored and without data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 326
+[Source](/reference-sources/Text.Zip.cinch) · line 327
 
 <a id="value-7a69702d66696c652d776974682d636f6d6d656e74"></a>
 
@@ -278,7 +278,18 @@ Names ending in a slash are written as directories, always stored and without da
 
 Attach a per-file comment.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 338
+[Source](/reference-sources/Text.Zip.cinch) · line 344
+
+<a id="value-7a69702d66696c652d776974682d6c6576656c"></a>
+
+## `zip-file-with-level`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-file-with-level</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span>)))</code></pre>
+
+A deflated file with the given name, compression level and data, no mode, no comment and no modification time.
+Names ending in a slash are written as directories, always stored and without data.
+
+[Source](/reference-sources/Text.Zip.cinch) · line 332
 
 <a id="value-7a69702d66696c652d776974682d6d6f6465"></a>
 
@@ -288,7 +299,7 @@ Attach a per-file comment.
 
 Record Unix permission and type bits (for example 0o100644 for a regular file or 0o40755 for a directory).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 330
+[Source](/reference-sources/Text.Zip.cinch) · line 336
 
 <a id="value-7a69702d66696c652d776974682d6d6f646966696564"></a>
 
@@ -298,7 +309,7 @@ Record Unix permission and type bits (for example 0o100644 for a regular file or
 
 Record a modification time in Unix seconds (UTC).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 334
+[Source](/reference-sources/Text.Zip.cinch) · line 340
 
 <a id="value-7a69702d6f70656e"></a>
 
@@ -309,7 +320,7 @@ Record a modification time in Unix seconds (UTC).
 Read and verify an entry's data: stored bytes are copied, DEFLATE data is inflated, and the CRC-32
 and uncompressed size must match the directory.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 290
+[Source](/reference-sources/Text.Zip.cinch) · line 291
 
 <a id="value-7a69702d72656164"></a>
 
@@ -319,7 +330,7 @@ and uncompressed size must match the directory.
 
 Parse the central directory of a complete archive.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 178
+[Source](/reference-sources/Text.Zip.cinch) · line 179
 
 <a id="value-7a69702d73746f7265"></a>
 
@@ -329,7 +340,7 @@ Parse the central directory of a complete archive.
 
 Method code for uncompressed data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 32
+[Source](/reference-sources/Text.Zip.cinch) · line 33
 
 <a id="value-7a69702d7772697465"></a>
 
@@ -339,8 +350,8 @@ Method code for uncompressed data.
 
 Write files and an archive comment as a complete archive.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 342
+[Source](/reference-sources/Text.Zip.cinch) · line 348
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zip.cinch`. Source SHA-256: `ffbb8942b896c6de9979d22637871b4673d6c7dcae70bdaaf408e8b7713e6ddd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zip.cinch`. Source SHA-256: `8226fb28cfa60abd53303f000604f758d63cfc6dfa3637e482672bf0a502671a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

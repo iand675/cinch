@@ -61,7 +61,7 @@ Copy only the current cycle into a fresh arena, preserving ordinary value sharin
 Releasing old cursors after this operation can release unrelated subrings
 retained by the old joined arena.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 393
+[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 380
 
 <a id="value-72696e672d666f722d65616368"></a>
 
@@ -73,7 +73,7 @@ Visit at most the original cycle length through current links, with None perform
 Value mutations are observed at each visit. Structural callback mutations
 may change the visit set, but cannot create an unbounded traversal here.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 427
+[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 414
 
 <a id="value-72696e672d66726f6d2d6c697374"></a>
 
@@ -83,7 +83,7 @@ may change the visit set, but cannot create an unbounded traversal here.
 
 Construct a circular sequence in source order, returning None for empty input.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 376
+[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 363
 
 <a id="value-72696e672d6c656e677468"></a>
 
@@ -109,7 +109,7 @@ leaves the cycle unchanged. After resolving forwarding chains, same-arena
 link updates take constant time. Distinct-arena links move the smaller
 complete backing arena; forwarding depth grows at most logarithmically.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 349
+[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 336
 
 <a id="value-72696e672d6d6f7665"></a>
 
@@ -214,7 +214,7 @@ Construct one nonempty, self-linked node without a fallible size conversion.
 
 Copy one cycle's current values into an immutable list, or return Nil for None.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 411
+[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 398
 
 <a id="value-72696e672d756e6c696e6b"></a>
 
@@ -226,7 +226,7 @@ Remove the positive count modulo the current cycle length, returning its origina
 Nonpositive counts return None unchanged. A positive multiple of the cycle
 length leaves links unchanged and still returns Some original-successor.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 356
+[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 343
 
 <a id="value-72696e672d76616c7565"></a>
 
@@ -240,4 +240,4 @@ Read a cursor's current value through its canonical node owner.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Ring.cinch`. Source SHA-256: `9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Ring.cinch`. Source SHA-256: `ffbcfc7cfcd54354e261bf018d6f4758ca2f2c103f16fd0205fe7e3b687cc0dc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

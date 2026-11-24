@@ -12,7 +12,7 @@ Import with `import Effect.Ascii85`. Selected exports may already be in Prelude.
 
 [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Ascii85](Text.Ascii85.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Ascii85](Effect.Ascii85.md), [Effect.Stream](Effect.Stream.md), [Text.Ascii85](Text.Ascii85.md).
+Non-embedded source closure: [Effect.Ascii85](Effect.Ascii85.md), [Effect.Stream](Effect.Stream.md), [Text.Ascii85](Text.Ascii85.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

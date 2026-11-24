@@ -10,7 +10,7 @@ Import with `import Text.Pem`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Wide](Data.Wide.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
 
 Non-embedded source closure: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Pem](Text.Pem.md).
 
@@ -34,7 +34,7 @@ standard padded Base64 alphabet at 64 columns. Writers retain continuations.
 
 An immutable envelope; labels and metadata may contain arbitrary non-UTF8 bytes.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 33
+[Source](/reference-sources/Text.Pem.cinch) · line 34
 
 <a id="type-50656d4572726f72"></a>
 
@@ -44,7 +44,7 @@ An immutable envelope; labels and metadata may contain arbitrary non-UTF8 bytes.
 
 Encoding validation or transport failure, with no implicit sink closure.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 38
+[Source](/reference-sources/Text.Pem.cinch) · line 39
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PemInvalidHeaderKey</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Pem</span>.<span class="tok-constructor">PemError</span>)</code></pre>
 
@@ -58,7 +58,7 @@ Encoding validation or transport failure, with no implicit sink closure.
 
 Immutable header metadata; construction and byte observations copy caller storage.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 28
+[Source](/reference-sources/Text.Pem.cinch) · line 29
 
 # Values
 
@@ -70,7 +70,7 @@ Immutable header metadata; construction and byte observations copy caller storag
 
 Construct an immutable envelope; duplicate byte keys use the final supplied value.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 153
+[Source](/reference-sources/Text.Pem.cinch) · line 154
 
 <a id="value-70656d2d626c6f636b2d6279746573"></a>
 
@@ -80,7 +80,7 @@ Construct an immutable envelope; duplicate byte keys use the final supplied valu
 
 Observe an independently mutable copy of the decoded payload.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 161
+[Source](/reference-sources/Text.Pem.cinch) · line 162
 
 <a id="value-70656d2d626c6f636b2d68656164657273"></a>
 
@@ -90,7 +90,7 @@ Observe an independently mutable copy of the decoded payload.
 
 Observe immutable unique headers in byte-lexicographic key order.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 165
+[Source](/reference-sources/Text.Pem.cinch) · line 166
 
 <a id="value-70656d2d626c6f636b2d74797065"></a>
 
@@ -100,7 +100,7 @@ Observe immutable unique headers in byte-lexicographic key order.
 
 Observe an independently mutable copy of the exact label bytes.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 157
+[Source](/reference-sources/Text.Pem.cinch) · line 158
 
 <a id="value-70656d2d6465636f6465"></a>
 
@@ -113,7 +113,7 @@ Candidates start at a line boundary relative to recovery's current slice. Malfor
 candidates are skipped by END trailer; absence or terminal malformed metadata returns
 None and a fresh copy of the complete original input. Labels and headers preserve bytes.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 579
+[Source](/reference-sources/Text.Pem.cinch) · line 517
 
 <a id="value-70656d2d656e636f64652d6279746573"></a>
 
@@ -125,7 +125,7 @@ Encode a complete fresh envelope or refuse a colon-bearing key without returning
 Arbitrary labels and values are retained exactly, including line breaks; only header keys
 containing a colon are refused. Empty payloads add no body line. Metadata is deterministic.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 683
+[Source](/reference-sources/Text.Pem.cinch) · line 606
 
 <a id="value-70656d2d6572726f722d6d657373616765"></a>
 
@@ -135,7 +135,7 @@ containing a colon are refused. Empty payloads add no body line. Metadata is det
 
 Explain a header refusal or identify a retained underlying stream failure.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 45
+[Source](/reference-sources/Text.Pem.cinch) · line 46
 
 <a id="value-70656d2d66696e642d686561646572"></a>
 
@@ -145,7 +145,7 @@ Explain a header refusal or identify a retained underlying stream failure.
 
 Find an exact case-sensitive byte key, returning a fresh mutable value when present.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 169
+[Source](/reference-sources/Text.Pem.cinch) · line 170
 
 <a id="value-70656d2d686561646572"></a>
 
@@ -155,7 +155,7 @@ Find an exact case-sensitive byte key, returning a fresh mutable value when pres
 
 Construct immutable byte metadata without validating or discarding unusual keys or values.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 61
+[Source](/reference-sources/Text.Pem.cinch) · line 62
 
 <a id="value-70656d2d6865616465722d6b6579"></a>
 
@@ -165,7 +165,7 @@ Construct immutable byte metadata without validating or discarding unusual keys 
 
 Observe an independently mutable copy of a header key.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 65
+[Source](/reference-sources/Text.Pem.cinch) · line 66
 
 <a id="value-70656d2d6865616465722d76616c7565"></a>
 
@@ -175,7 +175,7 @@ Observe an independently mutable copy of a header key.
 
 Observe an independently mutable copy of a header value.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 69
+[Source](/reference-sources/Text.Pem.cinch) · line 70
 
 <a id="value-70656d2d776974682d6279746573"></a>
 
@@ -185,7 +185,7 @@ Observe an independently mutable copy of a header value.
 
 Replace payload bytes with an owned snapshot while preserving metadata and the original block.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 211
+[Source](/reference-sources/Text.Pem.cinch) · line 212
 
 <a id="value-70656d2d776974682d686561646572"></a>
 
@@ -195,7 +195,7 @@ Replace payload bytes with an owned snapshot while preserving metadata and the o
 
 Replace or add a header persistently; both blocks retain immutable independently observable metadata.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 181
+[Source](/reference-sources/Text.Pem.cinch) · line 182
 
 <a id="value-70656d2d776974682d68656164657273"></a>
 
@@ -205,7 +205,7 @@ Replace or add a header persistently; both blocks retain immutable independently
 
 Replace all metadata persistently, with sorted last-key-wins semantics and immutable payload sharing.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 203
+[Source](/reference-sources/Text.Pem.cinch) · line 204
 
 <a id="value-70656d2d776974682d74797065"></a>
 
@@ -215,7 +215,7 @@ Replace all metadata persistently, with sorted last-key-wins semantics and immut
 
 Replace a label with an owned snapshot, preserving the original block and shared immutable fields.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 207
+[Source](/reference-sources/Text.Pem.cinch) · line 208
 
 <a id="value-70656d2d776974686f75742d686561646572"></a>
 
@@ -225,7 +225,7 @@ Replace a label with an owned snapshot, preserving the original block and shared
 
 Remove a byte key persistently without copying unrelated private payload storage.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 185
+[Source](/reference-sources/Text.Pem.cinch) · line 186
 
 <a id="value-70656d2d7772697465"></a>
 
@@ -238,8 +238,8 @@ Validate all keys before any callback. Positive short writes are retried; zero p
 invalid counts and sink errors preserve the advanced writer and never replay accepted
 output. Chunk boundaries are unspecified. This operation never flushes or closes its sink.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 753
+[Source](/reference-sources/Text.Pem.cinch) · line 676
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Pem.cinch`. Source SHA-256: `9478c3c41a71436180df02c7ac175c309f790f39d131440895f0a81c7f733efd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Pem.cinch`. Source SHA-256: `f016de7c8f179c682558e7e8dc8eb65ef913a60cd9f4d10dcd9914aa65dc43c6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

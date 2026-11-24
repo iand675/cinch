@@ -5,16 +5,16 @@
 -- numeric replacements. Unknown references remain unchanged. Reference expansion
 -- is a single pass: newly decoded ampersands are not decoded again.
 -- Byte APIs preserve unrelated arbitrary bytes; text APIs preserve valid UTF-8.
--- All returned byte buffers are fresh. Complete scanning blocks use LLVM SIMD;
--- private machine-counter loops retain their source until exact loads finish.
+-- All returned byte buffers are fresh. Complete scanning blocks use portable
+-- 16-byte SIMD classification over checked byte buffers.
 module Text.Html where
 
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Machine
   import Data.Nat
   import Data.Option
   import Data.String
+  import Data.Wide
 
   export html-escape, html-unescape, html-escape-bytes, html-unescape-bytes, html-escaped-length
 
@@ -22,141 +22,138 @@ module Text.Html where
   word-natural :: U64 -> Nat
   word-natural word = u32-to-nat (wrapping-u64-to-u32 word) + u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 word 32)) * 4294967296
 
-  -- | Preserve the backing owner until a strict private traversal has returned.
-  hold-source :: forall a. Bytes -> a -> a
-  hold-source source value = case bytes-len source of _ -> value
+  -- | Classify sixteen bytes for any HTML-escaped byte, returning a 16-bit lane mask.
+  escape-mask16 :: U128 -> U32
+  escape-mask16 v =
+    let amp = simd-u8x16-cmpeq v (simd-u8x16-splat 38) in
+    let apos = simd-u8x16-cmpeq v (simd-u8x16-splat 39) in
+    let quot = simd-u8x16-cmpeq v (simd-u8x16-splat 34) in
+    let lt = simd-u8x16-cmpeq v (simd-u8x16-splat 60) in
+    let gt = simd-u8x16-cmpeq v (simd-u8x16-splat 62) in
+    let any = bit-or-u128 (bit-or-u128 (bit-or-u128 apos quot) (bit-or-u128 lt gt)) amp in
+    simd-u8x16-movemask any
 
-  -- | Load one complete native word for order-independent SIMD classification.
-  prim load-eight :: I64 -> U64 where
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %value = load i64, ptr %p, align 1
-      ret i64 %value
-    }
-
-  -- | Load exactly one remaining source byte; no scalar fringe is overread.
-  prim load-one :: I64 -> U8 where
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %value = load i8, ptr %p, align 1
-      ret i8 %value
-    }
-
-  -- | Classify eight independent bytes; mode zero recognizes escaping bytes and mode one only ampersands.
-  -- Only whether the mask is zero matters, so vector bit ordering is irrelevant.
-  prim special-eight :: U64 -> U8 -> U8 where
-    llvm {
-      %v = bitcast i64 %0 to <8 x i8>
-      %amp = icmp eq <8 x i8> %v, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
-      %single = icmp eq <8 x i8> %v, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
-      %double = icmp eq <8 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %less = icmp eq <8 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %greater = icmp eq <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %quote = or <8 x i1> %single, %double
-      %angle = or <8 x i1> %less, %greater
-      %a = or <8 x i1> %quote, %angle
-      %all = or <8 x i1> %a, %amp
-      %decode = icmp ne i8 %1, 0
-      %selected = select i1 %decode, <8 x i1> %amp, <8 x i1> %all
-      %mask = bitcast <8 x i1> %selected to i8
-      ret i8 %mask
-    }
-
-  -- | Sum exact escape expansion in eight bytes using SIMD classification and SWAR population counts.
-  prim extra-eight :: U64 -> U64 where
-    llvm {
-      %v = bitcast i64 %0 to <8 x i8>
-      %amp = icmp eq <8 x i8> %v, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
-      %single = icmp eq <8 x i8> %v, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
-      %double = icmp eq <8 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %less = icmp eq <8 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %greater = icmp eq <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %quotes = or <8 x i1> %single, %double
-      %four = or <8 x i1> %quotes, %amp
-      %three = or <8 x i1> %less, %greater
-      %fm = bitcast <8 x i1> %four to i8
-      %tm = bitcast <8 x i1> %three to i8
-      %f = zext i8 %fm to i64
-      %t = zext i8 %tm to i64
-      %fs = lshr i64 %f, 1
-      %ts = lshr i64 %t, 1
-      %fa = and i64 %fs, 85
-      %ta = and i64 %ts, 85
-      %fb = sub i64 %f, %fa
-      %tb = sub i64 %t, %ta
-      %fc = and i64 %fb, 51
-      %tc = and i64 %tb, 51
-      %fd = lshr i64 %fb, 2
-      %td = lshr i64 %tb, 2
-      %fe = and i64 %fd, 51
-      %te = and i64 %td, 51
-      %ff = add i64 %fc, %fe
-      %tf = add i64 %tc, %te
-      %fg = lshr i64 %ff, 4
-      %tg = lshr i64 %tf, 4
-      %fh = add i64 %ff, %fg
-      %th = add i64 %tf, %tg
-      %fn = and i64 %fh, 15
-      %tn = and i64 %th, 15
-      %fx = mul i64 %fn, 4
-      %tx = mul i64 %tn, 3
-      %value = add i64 %fx, %tx
-      ret i64 %value
-    }
+  -- | Sum exact escape expansion in sixteen bytes using 128-bit SIMD classification and population counts.
+  extra-sixteen :: U128 -> U64
+  extra-sixteen v =
+    let amp = simd-u8x16-cmpeq v (simd-u8x16-splat 38) in
+    let apos = simd-u8x16-cmpeq v (simd-u8x16-splat 39) in
+    let quot = simd-u8x16-cmpeq v (simd-u8x16-splat 34) in
+    let lt = simd-u8x16-cmpeq v (simd-u8x16-splat 60) in
+    let gt = simd-u8x16-cmpeq v (simd-u8x16-splat 62) in
+    let four = bit-or-u128 (bit-or-u128 apos quot) amp in
+    let three = bit-or-u128 lt gt in
+    let fn = u32-to-u64 (count-ones-u32 (simd-u8x16-movemask four)) in
+    let tn = u32-to-u64 (count-ones-u32 (simd-u8x16-movemask three)) in
+    wrapping-add-u64 (wrapping-shl-u64 fn 2) (wrapping-mul-u64 tn 3)
 
   -- | Exact extra byte count for one scalar input byte.
   extra-byte :: U8 -> U64
   extra-byte byte = if eq-u8 byte 38 || eq-u8 byte 39 || eq-u8 byte 34 then 4 else if eq-u8 byte 60 || eq-u8 byte 62 then 3 else 0
 
-  -- | Count expansion with exact complete loads and bounded unsigned counters.
-  count-extra :: I64 -> U64 -> U64 -> U64
-  count-extra address remaining total =
-    if ge-u64 remaining 8 then count-extra (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) (wrapping-add-u64 total (extra-eight (load-eight address)))
-    else if ne-u64 remaining 0 then count-extra (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (wrapping-add-u64 total (extra-byte (load-one address)))
+  -- | Count expansion across remaining scalar bytes after complete sixteen-byte blocks.
+  count-extra-tail :: Bytes -> I64 -> U64 -> U64
+  count-extra-tail input i total =
+    if 0 <= i && i < bytes-len-i64 input then
+      count-extra-tail input (wrapping-add-i64 i 1) (wrapping-add-u64 total (extra-byte (bytes-get-u8-at input i)))
     else total
+
+  -- | Count expansion with exact sixteen-byte SIMD loads and bounded machine counters.
+  count-extra :: Bytes -> I64 -> U64 -> U64
+  count-extra input i total =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= i then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let ni = nat-from-i64 i in
+        if ni <= nn - 16 then
+          let delta = extra-sixteen (bytes-load-u128-at input i) in
+          count-extra input (wrapping-add-i64 i 16) (wrapping-add-u64 total delta)
+        else count-extra-tail input i total
+      else count-extra-tail input i total
+    else count-extra-tail input i total
 
   -- | Preserve exact natural arithmetic even for a conceptual buffer whose expansion exceeds one machine word.
   count-extra-natural :: Bytes -> Nat -> Nat -> Nat
   count-extra-natural input i total = if i < bytes-len input then
-    count-extra-natural input (i + 1) (total + word-natural (extra-byte (wrapping-i64-to-u8 (nat-to-i64 (bytes-get input i)))))
+    count-extra-natural input (i + 1) (total + word-natural (extra-byte (bytes-get-u8 input i)))
     else total
 
   -- | Exact escaped byte count. Only five ASCII bytes expand; all other bytes retain their size.
   html-escaped-length :: Bytes -> Nat
   html-escaped-length input =
     let n = bytes-len input in
-    if n <= 4611686018427387903 then n + word-natural (hold-source input (count-extra (bytes-data input) (wrapping-i64-to-u64 (nat-to-i64 n)) 0))
+    if n <= 4611686018427387903 then n + word-natural (count-extra input 0 0)
     else n + count-extra-natural input 0 0
 
-  -- | Find a special byte in an exact fringe of at most eight bytes.
-  find-fringe :: I64 -> U64 -> U8 -> U64 -> U64
-  find-fringe address remaining mode count =
-    if eq-u64 remaining 0 then count
-    else let byte = load-one address in
-      if eq-u8 byte 38 || (eq-u8 mode 0 && (eq-u8 byte 39 || eq-u8 byte 34 || eq-u8 byte 60 || eq-u8 byte 62)) then count
-      else find-fringe (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) mode (wrapping-add-u64 count 1)
+  -- | Find an HTML-escaped byte in an exact scalar fringe.
+  find-fringe-escape :: Bytes -> I64 -> I64
+  find-fringe-escape input i =
+    if 0 <= i && i < bytes-len-i64 input then
+      let byte = bytes-get-u8-at input i in
+      if eq-u8 byte 38 || eq-u8 byte 39 || eq-u8 byte 34 || eq-u8 byte 60 || eq-u8 byte 62 then i
+      else find-fringe-escape input (wrapping-add-i64 i 1)
+    else bytes-len-i64 input
 
-  -- | Skip complete ordinary spans in SIMD and stop before the next special byte or interval end.
-  find-special :: I64 -> U64 -> U8 -> U64 -> U64
-  find-special address remaining mode count =
-    if ge-u64 remaining 8 then
-      if eq-u8 (special-eight (load-eight address) mode) 0 then
-        find-special (wrapping-add-i64 address 8) (wrapping-sub-u64 remaining 8) mode (wrapping-add-u64 count 8)
-      else find-fringe address 8 mode count
-    else find-fringe address remaining mode count
+  -- | Skip complete ordinary spans in 16-byte SIMD and stop at the next HTML-escaped byte or end.
+  find-special-escape :: Bytes -> I64 -> I64
+  find-special-escape input i =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= i then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let ni = nat-from-i64 i in
+        if ni <= nn - 16 then
+          if eq-u32 (escape-mask16 (bytes-load-u128-at input i)) 0 then
+            find-special-escape input (wrapping-add-i64 i 16)
+          else find-fringe-escape input i
+        else find-fringe-escape input i
+      else find-fringe-escape input i
+    else find-fringe-escape input i
 
-  -- | Return an immediately special byte without repeatedly classifying its following block.
-  find-entry :: I64 -> U64 -> U8 -> U64
-  find-entry address remaining mode =
-    if eq-u64 remaining 0 then 0
-    else if eq-u64 (find-fringe address 1 mode 0) 0 then 0
-    else find-special address remaining mode 0
+  -- | Find an ampersand in an exact scalar fringe.
+  find-fringe-amp :: Bytes -> I64 -> I64
+  find-fringe-amp input i =
+    if 0 <= i && i < bytes-len-i64 input then
+      if eq-u8 (bytes-get-u8-at input i) 38 then i
+      else find-fringe-amp input (wrapping-add-i64 i 1)
+    else bytes-len-i64 input
 
-  -- | Return the next source byte needing interpretation, retaining its owner throughout the raw scan.
+  -- | Skip complete non-ampersand spans in 16-byte SIMD and stop at the next ampersand or end.
+  find-special-amp :: Bytes -> I64 -> I64
+  find-special-amp input i =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= i then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let ni = nat-from-i64 i in
+        if ni <= nn - 16 then
+          let mask = simd-u8x16-movemask (simd-u8x16-cmpeq (bytes-load-u128-at input i) (simd-u8x16-splat 38)) in
+          if eq-u32 mask 0 then
+            find-special-amp input (wrapping-add-i64 i 16)
+          else find-fringe-amp input i
+        else find-fringe-amp input i
+      else find-fringe-amp input i
+    else find-fringe-amp input i
+
+  -- | Return the next source byte needing interpretation without re-scanning an immediately special byte.
   next-special :: Bytes -> Nat -> U8 -> Nat
-  next-special input start mode = if start <= bytes-len input then
-    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
-    start + word-natural (hold-source input (find-entry address (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input - start))) mode))
+  next-special input start mode =
+    if start < bytes-len input then
+      let si = nat-to-i64 start in
+      if 0 <= si && si < bytes-len-i64 input then
+        let first = bytes-get-u8-at input si in
+        if eq-u8 mode 0 then
+          if eq-u8 first 38 || eq-u8 first 39 || eq-u8 first 34 || eq-u8 first 60 || eq-u8 first 62 then start
+          else
+            let found = find-special-escape input (wrapping-add-i64 si 1) in
+            if 0 <= found then nat-from-i64 found else bytes-len input
+        else
+          if eq-u8 first 38 then start
+          else
+            let found = find-special-amp input (wrapping-add-i64 si 1) in
+            if 0 <= found then nat-from-i64 found else bytes-len input
+      else bytes-len input
     else bytes-len input
 
   -- | A private replacement whose low bytes are UTF-8 and whose top byte stores its byte count.
@@ -167,29 +164,23 @@ module Text.Html where
   store-packed :: Bytes -> Nat -> U64 -> Nat -> Unit
   store-packed out at word count =
     if count >= 4 && at + 4 <= bytes-len out then
-      let written = bytes-write-le32 out at (wrapping-u64-to-u32 word) in
+      let written = bytes-store-le32 out at (wrapping-u64-to-u32 word) in
       store-packed out (at + 4) (wrapping-shr-u64 word 32) (count - 4)
-    else if count == 1 && at < bytes-len out then bytes-set out at (u8-to-nat (wrapping-u64-to-u8 word))
+    else if count == 1 && at < bytes-len out then bytes-set-u8 out at (wrapping-u64-to-u8 word)
     else if count > 0 && at < bytes-len out then
-      let written = bytes-set out at (u8-to-nat (wrapping-u64-to-u8 word)) in
+      let written = bytes-set-u8 out at (wrapping-u64-to-u8 word) in
       store-packed out (at + 1) (wrapping-shr-u64 word 8) (count - 1)
     else ()
 
   -- | Pack the offset and byte count of one escape spelling in the private complete table.
-  prim escape-span :: U8 -> U64 where
-    llvm {
-      %amp = icmp eq i8 %0, 38
-      %single = icmp eq i8 %0, 39
-      %double = icmp eq i8 %0, 34
-      %less = icmp eq i8 %0, 60
-      %greater = icmp eq i8 %0, 62
-      %a = select i1 %greater, i64 1043, i64 0
-      %b = select i1 %less, i64 1039, i64 %a
-      %c = select i1 %double, i64 1290, i64 %b
-      %d = select i1 %single, i64 1285, i64 %c
-      %value = select i1 %amp, i64 1280, i64 %d
-      ret i64 %value
-    }
+  escape-span :: U8 -> U64
+  escape-span byte =
+    if eq-u8 byte 38 then 1280
+    else if eq-u8 byte 39 then 1285
+    else if eq-u8 byte 34 then 1290
+    else if eq-u8 byte 60 then 1039
+    else if eq-u8 byte 62 then 1043
+    else 0
 
   -- | Copy ordinary runs once and emit only the five exact escape spellings between them.
   escape-from :: Bytes -> Nat -> Bytes -> Nat -> Bytes -> Unit
@@ -199,7 +190,7 @@ module Text.Html where
       let copied = if start < stop then bytes-copy-range out input oi start (stop - start) else () in
       let next = oi + stop - start in
       if stop < bytes-len input then
-        let byte = wrapping-i64-to-u8 (nat-to-i64 (bytes-get input stop)) in
+        let byte = bytes-get-u8 input stop in
         let span = escape-span byte in
         let offset = u8-to-nat (wrapping-u64-to-u8 span) in
         let n = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 span 8)) in
@@ -233,55 +224,53 @@ module Text.Html where
 
   -- | Whether a byte is an ASCII letter or digit used in a named reference.
   entity-byte :: U8 -> Bool
-  entity-byte byte = (ge-u8 byte 97 && le-u8 byte 122) || (ge-u8 byte 65 && le-u8 byte 90) || (ge-u8 byte 48 && le-u8 byte 57)
+  entity-byte byte =
+    let folded = bit-or-u8 byte 32 in
+    lt-u8 (wrapping-sub-u8 folded 97) 26 || lt-u8 (wrapping-sub-u8 byte 48) 10
 
-  -- | Scan a bounded name with exact byte loads and machine counters, stopping at one semicolon.
-  scan-name :: I64 -> U64 -> U64 -> U64 -> U64
-  scan-name address remaining limit count =
-    if eq-u64 remaining 0 || eq-u64 limit 0 then count
-    else let byte = load-one address in
-      if entity-byte byte then scan-name (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (wrapping-sub-u64 limit 1) (wrapping-add-u64 count 1)
+  -- | Scan a bounded name with exact checked byte loads and machine counters, stopping at one semicolon.
+  scan-name :: Bytes -> I64 -> U64 -> U64 -> U64
+  scan-name input i limit count =
+    if eq-u64 limit 0 then count
+    else if 0 <= i && i < bytes-len-i64 input then
+      let byte = bytes-get-u8-at input i in
+      if entity-byte byte then scan-name input (wrapping-add-i64 i 1) (wrapping-sub-u64 limit 1) (wrapping-add-u64 count 1)
       else if eq-u8 byte 59 then wrapping-add-u64 count 1 else count
+    else count
 
   -- | Scan no more than the longest possible complete name plus one sentinel byte.
   named-end :: Bytes -> Nat -> Nat
   named-end input start = if start <= bytes-len input then
-    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
-    start + word-natural (hold-source input (scan-name address (wrapping-i64-to-u64 (nat-to-i64 (bytes-len input - start))) 33 0))
+    start + word-natural (scan-name input (nat-to-i64 start) 33 0)
     else bytes-len input
 
   -- | Pack fewer than eight checked name bytes without reading beyond the source.
-  name-fringe :: I64 -> U64 -> U64 -> U32 -> U64
-  name-fringe address n word shift = if ne-u64 n 0 then
-    let byte = u8-to-u64 (load-one address) in
-    name-fringe (wrapping-add-i64 address 1) (wrapping-sub-u64 n 1) (bit-or-u64 word (wrapping-shl-u64 byte shift)) (wrapping-add-u32 shift 8)
+  name-fringe :: Bytes -> I64 -> U64 -> U64 -> U32 -> U64
+  name-fringe input i n word shift =
+    if ne-u64 n 0 && 0 <= i && i < bytes-len-i64 input then
+      let byte = u8-to-u64 (bytes-get-u8-at input i) in
+      name-fringe input (wrapping-add-i64 i 1) (wrapping-sub-u64 n 1) (bit-or-u64 word (wrapping-shl-u64 byte shift)) (wrapping-add-u32 shift 8)
     else word
 
   -- | Read one normalized little-endian name word, with zeroes beyond its checked name interval.
   name-word :: Bytes -> Nat -> Nat -> Nat -> U64
   name-word input start n offset = if offset < n then
     let at = start + offset in let remaining = n - offset in
-    if remaining >= 8 && at + 8 <= bytes-len input then bytes-read-le64 input at
+    if remaining >= 8 && at + 8 <= bytes-len input then bytes-load-le64 input at
     else if remaining < 8 && at + remaining <= bytes-len input then
-      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
-      hold-source input (name-fringe address (wrapping-i64-to-u64 (nat-to-i64 remaining)) 0 0)
+      name-fringe input (nat-to-i64 at) (wrapping-i64-to-u64 (nat-to-i64 remaining)) 0 0
     else 0
     else 0
 
   -- | Hash four normalized words and a length with deterministic unsigned wrapping.
   -- Every generated leaf also checks the complete name, making collisions harmless.
-  prim entity-name-hash :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 where
-    llvm {
-      %a = mul i64 %0, 11400714785074694791
-      %b = mul i64 %1, 14029467366897019727
-      %c = mul i64 %2, 1609587929392839161
-      %d = mul i64 %3, 9650029242287828579
-      %ab = xor i64 %a, %b
-      %cd = xor i64 %c, %d
-      %both = xor i64 %ab, %cd
-      %value = xor i64 %both, %4
-      ret i64 %value
-    }
+  entity-name-hash :: U64 -> U64 -> U64 -> U64 -> U64 -> U64
+  entity-name-hash w0 w1 w2 w3 len =
+    let a = wrapping-mul-u64 w0 11400714785074694791 in
+    let b = wrapping-mul-u64 w1 14029467366897019727 in
+    let c = wrapping-mul-u64 w2 1609587929392839161 in
+    let d = wrapping-mul-u64 w3 9650029242287828579 in
+    bit-xor-u64 (bit-xor-u64 (bit-xor-u64 a b) (bit-xor-u64 c d)) len
 
   -- | Match one complete name using four packed source words without allocating a temporary name.
   lookup-name :: Bytes -> Nat -> Nat -> U64
@@ -338,46 +327,26 @@ module Text.Html where
     else value
 
   -- | Pack one validated scalar as UTF-8 together with its exact encoded length.
-  prim pack-scalar :: U32 -> U64 where
-    llvm {
-      %a = zext i32 %0 to i64
-      %one = icmp ult i64 %a, 128
-      %two = icmp ult i64 %a, 2048
-      %three = icmp ult i64 %a, 65536
-      %b1 = and i64 %a, 63
-      %tail1 = or i64 %b1, 128
-      %s1 = shl i64 %tail1, 8
-      %s2 = shl i64 %tail1, 16
-      %s3 = shl i64 %tail1, 24
-      %a6 = lshr i64 %a, 6
-      %a12 = lshr i64 %a, 12
-      %a18 = lshr i64 %a, 18
-      %lead2 = or i64 %a6, 192
-      %v2 = or i64 %lead2, %s1
-      %b2 = and i64 %a6, 63
-      %tail2 = or i64 %b2, 128
-      %t21 = shl i64 %tail2, 8
-      %t22 = shl i64 %tail2, 16
-      %lead3 = or i64 %a12, 224
-      %v3a = or i64 %lead3, %t21
-      %v3 = or i64 %v3a, %s2
-      %b3 = and i64 %a12, 63
-      %tail3 = or i64 %b3, 128
-      %t31 = shl i64 %tail3, 8
-      %lead4 = or i64 %a18, 240
-      %v4a = or i64 %lead4, %t31
-      %v4b = or i64 %v4a, %t22
-      %v4 = or i64 %v4b, %s3
-      %v34 = select i1 %three, i64 %v3, i64 %v4
-      %v234 = select i1 %two, i64 %v2, i64 %v34
-      %v = select i1 %one, i64 %a, i64 %v234
-      %n34 = select i1 %three, i64 3, i64 4
-      %n234 = select i1 %two, i64 2, i64 %n34
-      %n = select i1 %one, i64 1, i64 %n234
-      %length = shl i64 %n, 56
-      %value = or i64 %v, %length
-      ret i64 %value
-    }
+  pack-scalar :: U32 -> U64
+  pack-scalar scalar =
+    let a = u32-to-u64 scalar in
+    if lt-u64 a 128 then
+      bit-or-u64 a 72057594037927936
+    else if lt-u64 a 2048 then
+      let lead = bit-or-u64 (wrapping-shr-u64 a 6) 192 in
+      let tail = bit-or-u64 (bit-and-u64 a 63) 128 in
+      bit-or-u64 (bit-or-u64 lead (wrapping-shl-u64 tail 8)) 144115188075855872
+    else if lt-u64 a 65536 then
+      let lead = bit-or-u64 (wrapping-shr-u64 a 12) 224 in
+      let b1 = bit-or-u64 (bit-and-u64 (wrapping-shr-u64 a 6) 63) 128 in
+      let b2 = bit-or-u64 (bit-and-u64 a 63) 128 in
+      bit-or-u64 (bit-or-u64 lead (bit-or-u64 (wrapping-shl-u64 b1 8) (wrapping-shl-u64 b2 16))) 216172782113783808
+    else
+      let lead = bit-or-u64 (wrapping-shr-u64 a 18) 240 in
+      let b1 = bit-or-u64 (bit-and-u64 (wrapping-shr-u64 a 12) 63) 128 in
+      let b2 = bit-or-u64 (bit-and-u64 (wrapping-shr-u64 a 6) 63) 128 in
+      let b3 = bit-or-u64 (bit-and-u64 a 63) 128 in
+      bit-or-u64 (bit-or-u64 (bit-or-u64 lead (wrapping-shl-u64 b1 8)) (bit-or-u64 (wrapping-shl-u64 b2 16) (wrapping-shl-u64 b3 24))) 288230376151711744
 
   -- | Finish numeric parsing, preserving short malformed prefixes and exact delimiter consumption.
   finish-numeric :: Nat -> Nat -> U32 -> HtmlReference

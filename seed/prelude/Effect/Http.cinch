@@ -82,6 +82,7 @@
 --     to avoid, and no API here produces it).
 module Effect.Http where
 
+  import Crypto.Tls
   import Data.Bytes
   import Data.Bool
   import Data.Char
@@ -91,16 +92,17 @@ module Effect.Http where
   import Data.Result
   import Data.String
   import Effect.Net
+  import Effect.Tls
   import Relation.Eq
   import Relation.Ord
   import Text.Show (nat-to-string)
   import Text.Uri
 
-  export HttpError, HttpBadStatusLine, HttpBadHeaderLine, HttpUnsupportedTransferEncoding, HttpBodyTooLarge, HttpTruncatedBody, HttpBadUrl, HttpNoTls, HttpUnsupportedScheme, HttpNetworkError
+  export HttpError, HttpBadStatusLine, HttpBadHeaderLine, HttpUnsupportedTransferEncoding, HttpBodyTooLarge, HttpTruncatedBody, HttpBadUrl, HttpNoTls, HttpUnsupportedScheme, HttpNetworkError, HttpTlsError
   export render-http-error
   export HttpRequest, MkHttpRequest, http-request-method, http-request-host, http-request-port, http-request-path, http-request-headers, http-request-body
   export HttpResponse, MkHttpResponse, http-status, http-reason, http-headers, http-header, http-header-all, http-body
-  export http-request, http-request-max, http-get, max-response-bytes
+  export http-request, http-request-max, http-get, http-request-tls, http-request-tls-max, http-get-tls, max-response-bytes
 
 
   -- -------------------------------------------------------------------
@@ -119,6 +121,8 @@ module Effect.Http where
     HttpNoTls :: HttpError
     HttpUnsupportedScheme :: HttpError
     HttpNetworkError :: NetError -> HttpError
+    -- | The TLS 1.3 transport failed during handshake or record transfer.
+    HttpTlsError :: TlsIoError -> HttpError
 
   -- The diagnostic line for a named error.
   render-http-error :: HttpError -> String
@@ -132,6 +136,7 @@ module Effect.Http where
     HttpNoTls -> "https requires TLS, which this plaintext-only client does not provide"
     HttpUnsupportedScheme -> "unsupported URL scheme (only http is sent)"
     HttpNetworkError n -> "socket error"
+    HttpTlsError te -> tls-io-error-message te
 
   -- The default bound on a whole received response, in bytes (the
   -- no-framing case and the header section share it).
@@ -559,6 +564,12 @@ module Effect.Http where
     None -> ""
     Some b -> string-concat "Content-Length: " (string-concat (nat-to-string (bytes-len b)) "\r\n")
 
+  -- | Build the synthetic Host header line unless the caller already provided one.
+  host-line-for :: String -> List (String, String) -> String
+  host-line-for host headers = case header-lookup headers "host" of
+    Some _ -> ""
+    None -> header-line "Host" host
+
   -- The whole head: request line, `Host`, `Connection: close`, the
   -- caller's headers, the computed `Content-Length` (when a body is
   -- present) and the blank line, flattened once (nesting `string-concat`
@@ -567,7 +578,7 @@ module Effect.Http where
   render-head q = case q of
     MkHttpRequest method host _ path headers body ->
       string-concat-all (Cons (request-line method path)
-        (Cons (header-line "Host" host)
+        (Cons (host-line-for host headers)
           (Cons (header-line "Connection" "close")
             (header-pieces headers (Cons (content-length-line body) (Cons "\r\n" Nil))))))
 
@@ -602,9 +613,31 @@ module Effect.Http where
           Ok rev -> case net-close s of
             _ -> parse-response (bytes-from-list (reverse rev))
 
+  -- | Send `q` over a fresh TLS 1.3 connection using `cfg` and read the whole reply.
+  -- Uses `max-response-bytes` as the received byte cap; see `http-request-tls-max` for an explicit bound.
+  http-request-tls :: forall r. using (io :: Io r) => TlsConfig -> HttpRequest ->{IO r} Result HttpError HttpResponse
+  http-request-tls cfg q = http-request-tls-max max-response-bytes cfg q
+
+  -- | Send `q` over a fresh TLS 1.3 connection using `cfg`, bounded by `bound` received bytes.
+  http-request-tls-max :: forall r. using (io :: Io r) => Nat -> TlsConfig -> HttpRequest ->{IO r} Result HttpError HttpResponse
+  http-request-tls-max bound cfg q = case q of
+    MkHttpRequest _ host port _ _ _ -> case tls-dial host port cfg of
+      Err te -> Err (HttpTlsError te)
+      Ok conn -> case tls-write conn (render-request q) of
+        Err te -> close-tls-then conn (HttpTlsError te)
+        Ok (_, conn1) -> case read-tls-response conn1 bound Nil 0 of
+          Err (e, conn-err) -> close-tls-then conn-err e
+          Ok (rev, conn2) -> case tls-close conn2 of
+            _ -> parse-response (bytes-from-list (reverse rev))
+
   -- Close the socket, then hand back the (already named) error.
   close-then :: forall r. using (io :: Io r) => Socket -> HttpError ->{IO r} Result HttpError HttpResponse
   close-then s e = case net-close s of
+    _ -> Err e
+
+  -- | Close a TLS 1.3 connection, then return the named HTTP error.
+  close-tls-then :: forall r. using (io :: Io r) => TlsConn r -> HttpError ->{IO r} Result HttpError HttpResponse
+  close-tls-then conn e = case tls-close conn of
     _ -> Err e
 
   -- Read to end of stream into a reversed byte accumulator, bounded by
@@ -617,6 +650,16 @@ module Effect.Http where
       Ok b -> case bytes-len b == 0 of
         True -> Ok acc
         False -> read-response s bound (append-bytes-rev acc b 0) (count + bytes-len b)
+
+  -- | Read decrypted response bytes from a TLS 1.3 connection until EOF, bounded by `bound`.
+  read-tls-response :: forall r. using (io :: Io r) => TlsConn r -> Nat -> List (InRange 0 255 Nat) -> Nat ->{IO r} Result (HttpError, TlsConn r) (List (InRange 0 255 Nat), TlsConn r)
+  read-tls-response conn bound acc count = case count >= bound of
+    True -> Err (HttpBodyTooLarge, conn)
+    False -> case tls-read conn 4096 of
+      Err te -> Err (HttpTlsError te, conn)
+      Ok (b, conn2) -> case bytes-len b == 0 of
+        True -> Ok (acc, conn2)
+        False -> read-tls-response conn2 bound (append-bytes-rev acc b 0) (count + bytes-len b)
 
   -- Parse a whole reply from its bytes: find the head, split it, parse the
   -- status line and headers, choose a framing and decode the body.
@@ -671,4 +714,25 @@ module Effect.Http where
             None -> http-request (MkHttpRequest "GET" host 80 (get-target u) Nil None)
         False -> case scheme == "https" of
           True -> Err HttpNoTls
+          False -> Err HttpUnsupportedScheme
+
+  -- | GET `url` over HTTP or HTTPS using `cfg` for TLS 1.3 connections.
+  -- Accepts `https://` (default port 443) and `http://` (default port 80).
+  http-get-tls :: forall r. using (io :: Io r) => TlsConfig -> String ->{IO r} Result HttpError HttpResponse
+  http-get-tls cfg url = case uri-parse url of
+    Err _ -> Err HttpBadUrl
+    Ok u -> case uri-scheme u of
+      None -> Err HttpUnsupportedScheme
+      Some scheme -> case scheme == "https" of
+        True -> case uri-host u of
+          None -> Err HttpBadUrl
+          Some host -> case uri-port u of
+            Some p -> http-request-tls cfg (MkHttpRequest "GET" host p (get-target u) Nil None)
+            None -> http-request-tls cfg (MkHttpRequest "GET" host 443 (get-target u) Nil None)
+        False -> case scheme == "http" of
+          True -> case uri-host u of
+            None -> Err HttpBadUrl
+            Some host -> case uri-port u of
+              Some p -> http-request (MkHttpRequest "GET" host p (get-target u) Nil None)
+              None -> http-request (MkHttpRequest "GET" host 80 (get-target u) Nil None)
           False -> Err HttpUnsupportedScheme

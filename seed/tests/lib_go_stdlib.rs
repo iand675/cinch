@@ -108,10 +108,10 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
     let (module, helpers, expected) = match name {
         "fixed-width" => ("Text.Binary", FIXED_WIDTH_CHECKS, "@llvm.bswap.i64"),
         "varints" => ("Text.Binary", VARINT_CHECKS, "lshr i64"),
-        "hex" => ("Text.Hex", HEX_CHECKS, "shufflevector <4 x i8>"),
-        "base32" => ("Text.Base32", BASE32_CHECKS, "lshr <8 x i16>"),
-        "base32-long-prefix-tails" => ("Text.Base32", BASE32_CHECKS, "icmp uge <8 x i8>"),
-        "checksums" | "checksums-portable" => ("Text.Checksum", "", "@llvm.vector.reduce.add.v16i32"),
+        "hex" => ("Text.Hex", HEX_CHECKS, "shufflevector <16 x i8>"),
+        "base32" => ("Text.Base32", BASE32_CHECKS, "icmp ugt <16 x i8>"),
+        "base32-long-prefix-tails" => ("Text.Base32", BASE32_CHECKS, "icmp ult <16 x i8>"),
+        "checksums" | "checksums-portable" => ("Text.Checksum", "", "load i128"),
         "fnv" => ("Text.Fnv", "", "mul i64"),
         _ => panic!("unknown consumer {name}"),
     };
@@ -165,20 +165,52 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
         ir.contains(expected),
         "{name}: acceleration kernel missing from emitted LLVM"
     );
-    if let Some(symbol) = match name {
-        "fnv" => Some("Text.Fnv.fnv64-word.llvm"),
-        "varints" => Some("Text.Binary.compress-varint8.llvm"),
+    if let Some((symbol, prim_callee)) = match name {
+        "fnv" => Some(("Text.Fnv.fnv64-loop", "cinch.prim.wrappingMulU64")),
+        "varints" => Some((
+            "Text.Binary.binary-read-uvarint",
+            "cinch.prim.trailingZerosU64",
+        )),
         _ => None,
     } {
-        let escaped: String = symbol.bytes().map(|byte| format!("\\{byte:02X}")).collect();
-        let names = [format!("@\"{symbol}\"("), format!("@\"{escaped}\"(")];
-        let mut lines = ir.lines();
-        lines.find(|line| line.starts_with("define ") && names.iter().any(|name| line.contains(name)))
-            .unwrap_or_else(|| panic!("{symbol}: missing LLVM definition"));
-        assert!(lines.take_while(|line| *line != "}").any(|line| line.contains(expected)),
-            "{symbol}: missing {expected} in the kernel");
-        assert!(ir.lines().any(|line| line.contains("call ") && names.iter().any(|name| line.contains(name))),
-            "{symbol}: missing kernel call");
+        let has_line = |prefix: &str, sym: &str| {
+            let escaped: String = sym.bytes().map(|byte| format!("\\{byte:02X}")).collect();
+            let names = [format!("@\"{sym}\"("), format!("@\"{escaped}\"(")];
+            ir.lines()
+                .any(|line| line.contains(prefix) && names.iter().any(|n| line.contains(n)))
+        };
+        assert!(
+            ir.lines().any(|line| {
+                let escaped: String = symbol.bytes().map(|byte| format!("\\{byte:02X}")).collect();
+                line.starts_with("define ")
+                    && (line.contains(&format!("@\"{symbol}\"("))
+                        || line.contains(&format!("@\"{escaped}\"(")))
+            }),
+            "{symbol}: missing LLVM definition"
+        );
+        assert!(has_line("call ", symbol), "{symbol}: missing kernel call");
+        assert!(
+            ir.lines().any(|line| {
+                let escaped: String = prim_callee
+                    .bytes()
+                    .map(|byte| format!("\\{byte:02X}"))
+                    .collect();
+                line.starts_with("define ")
+                    && (line.contains(&format!("@\"{prim_callee}\"("))
+                        || line.contains(&format!("@\"{escaped}\"(")))
+            }),
+            "{prim_callee}: missing primitive LLVM definition"
+        );
+        assert!(
+            has_line("call ", prim_callee),
+            "{prim_callee}: missing primitive call"
+        );
+        if name == "varints" {
+            assert!(
+                ir.contains("@llvm.cttz.i64"),
+                "varints: missing SWAR trailing-zeros scan"
+            );
+        }
     }
     if name == "checksums-portable" {
         assert!(
@@ -238,67 +270,55 @@ fn new_library_declarations_have_canonical_documentation() {
     }
 }
 
-/// Extract a complete primitive declaration for independent target compilation.
-fn primitive(source: &str, name: &str) -> String {
-    let marker = format!("  prim {name} ::");
-    let start = source.find(&marker).unwrap();
-    let mut declaration = String::new();
-    for (i, line) in source[start..].lines().enumerate() {
-        if i > 0
-            && line.starts_with("  ")
-            && line
-                .as_bytes()
-                .get(2)
-                .is_some_and(|b| !b.is_ascii_whitespace() && *b != b'-')
-        {
-            break;
-        }
-        declaration.push_str(line);
-        declaration.push('\n');
-    }
-    declaration.push('\n');
-    declaration
-}
-
-/// Compile the actual kernels for 32-bit WebAssembly, AArch64 with/without CRC
-/// and big-endian PowerPC. This catches unavailable instructions, bad constraints
-/// and missing intrinsic declarations without claiming execution on foreign hardware.
+/// Compile the real checksum, hex, base32 and FNV modules for 32-bit WebAssembly,
+/// AArch64 (with and without ArmCrc32) and big-endian PowerPC. This catches
+/// unavailable instructions, bad constraints and missing intrinsic declarations
+/// without claiming execution on foreign hardware.
 #[test]
 fn inline_kernels_compile_for_portable_arm_crc_and_big_endian_targets() {
-    let mut source = String::from("module Main where\n  import Data.Machine\n  signature ArmCrc32 where\n    arm-crc32-evidence :: Unit -> Unit\n\n");
-    let checksum = include_str!("../prelude/Text/Checksum.cinch");
-    source.push_str(&primitive(include_str!("../prelude/Text/Adler32.cinch"), "adler16"));
-    source.push_str(&primitive(include_str!("../prelude/Text/Adler32.cinch"), "reduce-sums"));
-    source.push_str(&primitive(
+    let source = [
+        include_str!("../prelude/Data/Bytes/Word.cinch"),
+        include_str!("../prelude/Text/Binary.cinch"),
+        include_str!("../prelude/Text/Adler32.cinch"),
         include_str!("../prelude/Text/Crc64.cinch"),
-        "crc64-word",
-    ));
-    for name in [
-        "table-pair", "pair-low", "pair-high", "network-word",
-        "slice-eight", "slice-one", "input-word", "input-byte",
-    ] {
-        source.push_str(&primitive(
-            include_str!("../prelude/Text/Crc64.cinch"),
-            name,
-        ));
-    }
-    for name in [
-        "crc32-word",
-        "crc32c-available",
-        "crc32c-word",
-        "crc32-ieee-word",
-    ] {
-        source.push_str(&primitive(checksum, name));
-    }
-    source.push_str(&primitive(
+        include_str!("../prelude/Text/Checksum.cinch"),
         include_str!("../prelude/Text/Hex.cinch"),
-        "encode4",
-    ));
-    source.push_str(&primitive(
         include_str!("../prelude/Text/Base32.cinch"),
-        "encode5",
-    ));
-    source.push_str("  main :: Int\n  main = if eq-u32 (reduce-sums 65521 65521) 0 && eq-u64 (adler16 0 0) 0 && eq-u32 (crc32c-word 0 0) 0 && eq-u32 (crc32-ieee-word 0 0) 0 && eq-u32 (crc32-word 0 0 0) 0 && eq-u64 (crc64-word 0 0 0) 0 && eq-u64 (encode4 0) 0x3030303030303030 && eq-u64 (encode5 0 0) 0x4141414141414141 then 0 else 1\n");
+        include_str!("../prelude/Text/Fnv.cinch"),
+        r#"-- | Root public checksum, hex, base32 and FNV workers in portable foreign objects.
+module Main where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Machine
+  import Data.String
+  import Text.Adler32 as Adler
+  import Text.Crc64 as Crc64
+  import Text.Checksum as Checksum
+  import Text.Hex
+  import Text.Base32
+  import Text.Fnv
+
+  -- | Exercise Adler-32, slicing-by-4 CRC-32, CRC-64 tables, SIMD hex/base32 and FNV-64.
+  main :: Int
+  main =
+    let input = bytes-new 32 in
+    let a = Adler.adler32-sum input in
+    let c-ieee = Checksum.crc32-sum input in
+    let c-cast = Checksum.crc32-with Checksum.crc32-castagnoli input in
+    let c-koop = Checksum.crc32-with Checksum.crc32-koopman input in
+    let c-custom = Checksum.crc32-with 0x12345678 input in
+    let t = Crc64.crc64-table Crc64.crc64-iso in
+    let c64 = Crc64.crc64-table-sum t input in
+    let c64-short = Crc64.crc64-sum Crc64.crc64-ecma input in
+    let h = hex-encode input in
+    let b32 = base32-encode Base32Standard input in
+    let f = fnv64 input in
+    let mix32 = bit-xor-u32 (bit-xor-u32 a c-ieee) (bit-xor-u32 (bit-xor-u32 c-cast c-koop) c-custom) in
+    let mix64 = bit-xor-u64 (bit-xor-u64 c64 c64-short) f in
+    if ne-u32 mix32 0 && ne-u64 mix64 0 && not (h == b32) then 0 else 1
+"#,
+    ]
+    .join("\n");
     let dir = tempfile::tempdir().unwrap();
     for (name, triple, arch, endian, crc) in [
         (
@@ -334,7 +354,8 @@ fn inline_kernels_compile_for_portable_arm_crc_and_big_endian_targets() {
             cinch::driver::target_profile(&cinch::driver::DriverOptions {
                 target: Some(triple.into()),
                 ..Default::default()
-            }).unwrap()
+            })
+            .unwrap()
         } else {
             cinch::core::TargetProfile::native()
         };
@@ -360,11 +381,36 @@ fn inline_kernels_compile_for_portable_arm_crc_and_big_endian_targets() {
             !ir.contains("crc32q"),
             "{name}: x86 instruction leaked into foreign target"
         );
-        assert_eq!(
-            ir.contains("crc32cx"),
-            crc,
-            "{name}: CRC capability selection"
+        assert!(
+            !ir.contains("crc32cx"),
+            "{name}: inline asm crc32cx should not appear in pure slicing-by-4 checksum"
         );
+        assert!(
+            ir.contains("load i128"),
+            "{name}: missing 128-bit Adler-32 block load"
+        );
+        assert!(
+            ir.contains("switch "),
+            "{name}: missing CRC-32 slicing table switch"
+        );
+        assert!(
+            ir.contains("shufflevector <16 x i8>"),
+            "{name}: missing SIMD hex/base32 splat"
+        );
+        assert!(
+            ir.contains("mul i64"),
+            "{name}: missing 64-bit multiply in FNV/Adler-32"
+        );
+        assert!(
+            ir.contains("@llvm.bswap.i64"),
+            "{name}: missing 64-bit network-order byte swap"
+        );
+        if endian == "big" {
+            assert!(
+                ir.contains("@llvm.bswap.i128"),
+                "{name}: missing big-endian 128-bit swap"
+            );
+        }
         let path = dir.path().join(format!("{name}.ll"));
         std::fs::write(&path, ir).unwrap();
         let output = std::process::Command::new(

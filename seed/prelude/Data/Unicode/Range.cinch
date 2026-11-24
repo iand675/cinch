@@ -226,51 +226,34 @@ module Data.Unicode.Range where
     case triple of None -> None; Some fields -> case fields of (low, high, stride) -> Some (MkUnicodeRange32 low high stride)
     else None
 
-  -- | Read one exact little-endian field from a proved private complete interval record.
-  prim load-range-word :: I64 -> U32 where
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %value = load i32, ptr %p, align 1
-      ret i32 %value
-    } when endian little
-    unsafe llvm {
-      %p = inttoptr i64 %0 to ptr
-      %value = load i32, ptr %p, align 1
-      %result = call i32 @llvm.bswap.i32(i32 %value)
-      ret i32 %result
-    } when endian big
+  -- | Read one exact little-endian field from a checked private complete interval record.
+  load-range-word :: Bytes -> I64 -> U32
+  load-range-word bytes offset =
+    let n = bytes-len-i64 bytes in
+    if 4 <= n && 0 <= offset then
+      let nn = nat-from-i64 n in
+      let no = nat-from-i64 offset in
+      if 4 <= nn && no <= nn - 4 then bytes-load-le32 bytes no else 0
+    else 0
 
   -- | Test a bounded strided interval with a sanitized divisor even for malformed private inputs.
-  prim strided-member :: U32 -> U32 -> U32 -> U32 -> Bool where
-    llvm {
-      %stride-valid = icmp ne i32 %3, 0
-      %stride = select i1 %stride-valid, i32 %3, i32 1
-      %delta = sub i32 %0, %1
-      %remainder = urem i32 %delta, %stride
-      %landed = icmp eq i32 %remainder, 0
-      %lower = icmp uge i32 %0, %1
-      %upper = icmp ule i32 %0, %2
-      %bounded = and i1 %lower, %upper
-      %admitted = and i1 %bounded, %stride-valid
-      %yes = and i1 %admitted, %landed
-      %result = zext i1 %yes to i8
-      ret i8 %result
-    }
-
-  -- | Search complete private interval records using only machine indices and exact field loads.
-  custom-member :: I64 -> U64 -> U64 -> U32 -> Bool
-  custom-member base low high cp = if lt-u64 low high then
-    let middle = wrapping-shr-u64 (wrapping-add-u64 low high) 1 in
-    let offset = wrapping-mul-u64 middle 12 in let address = wrapping-add-i64 base (wrapping-u64-to-i64 offset) in
-    let lower = load-range-word address in let high-address = wrapping-add-i64 address 4 in let upper = load-range-word high-address in
-    if lt-u32 cp lower then custom-member base low middle cp
-    else if gt-u32 cp upper then custom-member base (wrapping-add-u64 middle 1) high cp
-    else let stride-address = wrapping-add-i64 address 8 in let stride = load-range-word stride-address in strided-member cp lower upper stride
+  strided-member :: U32 -> U32 -> U32 -> U32 -> Bool
+  strided-member cp lower upper stride =
+    if stride /= 0 && ge-u32 cp lower && le-u32 cp upper then
+      eq-u32 stride 1 || eq-u32 (rem-u32 (wrapping-sub-u32 cp lower) stride) 0
     else False
 
-  -- | Retain private interval storage until its raw machine search has completed.
-  hold-table :: forall a. Bytes -> a -> a
-  hold-table bytes value = case bytes-len bytes of _ -> value
+  -- | Search complete private interval records using only machine indices and exact field loads.
+  custom-member :: Bytes -> U64 -> U64 -> U32 -> Bool
+  custom-member bytes low high cp = if lt-u64 low high then
+    let middle = wrapping-shr-u64 (wrapping-add-u64 low high) 1 in
+    let offset = wrapping-u64-to-i64 (wrapping-mul-u64 middle 12) in
+    let lower = load-range-word bytes offset in
+    let upper = load-range-word bytes (wrapping-add-i64 offset 4) in
+    if lt-u32 cp lower then custom-member bytes low middle cp
+    else if gt-u32 cp upper then custom-member bytes (wrapping-add-u64 middle 1) high cp
+    else let stride = load-range-word bytes (wrapping-add-i64 offset 8) in strided-member cp lower upper stride
+    else False
 
   -- | Test a built-in category/script/property descriptor directly against the complete class word.
   builtin-member :: U32 -> U32 -> Bool
@@ -290,7 +273,7 @@ module Data.Unicode.Range where
       BuiltinTable index -> builtin-member index raw
       OwnedTable bytes small wide latin -> let count = small + wide in
         if count <= 1114112 && count * 12 <= bytes-len bytes then
-          let n = wrapping-i64-to-u64 (nat-to-i64 count) in hold-table bytes (custom-member (bytes-data bytes) 0 n raw)
+          let n = wrapping-i64-to-u64 (nat-to-i64 count) in custom-member bytes 0 n raw
         else False)
     else False
 

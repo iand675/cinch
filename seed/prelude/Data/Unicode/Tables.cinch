@@ -11,50 +11,29 @@ module Data.Unicode.Tables where
   export unicode-data-fold-orbit, unicode-data-ascii-fold, unicode-data-turkic-bounds, unicode-data-turkic-deltas
   export unicode-data-class, unicode-data-case-count, unicode-data-fold-count, unicode-data-table-count
 
-  -- | Apply exact private 32-bit add semantics without an imported provider call.
-  prim table-add :: U32 -> U32 -> U32 where
-    llvm {
-      %result = add i32 %0, %1
-      ret i32 %result
-    }
+  -- | Apply exact private 32-bit add semantics.
+  table-add :: U32 -> U32 -> U32
+  table-add a b = wrapping-add-u32 a b
 
-  -- | Apply exact private 32-bit sub semantics without an imported provider call.
-  prim table-sub :: U32 -> U32 -> U32 where
-    llvm {
-      %result = sub i32 %0, %1
-      ret i32 %result
-    }
+  -- | Apply exact private 32-bit sub semantics.
+  table-sub :: U32 -> U32 -> U32
+  table-sub a b = wrapping-sub-u32 a b
 
-  -- | Apply exact private 32-bit and semantics without an imported provider call.
-  prim table-and :: U32 -> U32 -> U32 where
-    llvm {
-      %result = and i32 %0, %1
-      ret i32 %result
-    }
+  -- | Apply exact private 32-bit and semantics.
+  table-and :: U32 -> U32 -> U32
+  table-and a b = bit-and-u32 a b
 
-  -- | Shift a private 32-bit table word with the same masked count as wrapping machine shifts.
-  prim table-shr :: U32 -> U32 -> U32 where
-    llvm {
-      %count = and i32 %1, 31
-      %result = lshr i32 %0, %count
-      ret i32 %result
-    }
+  -- | Shift a private 32-bit table word with wrapping machine shift semantics.
+  table-shr :: U32 -> U32 -> U32
+  table-shr a b = wrapping-shr-u32 a b
 
-  -- | Compare private unsigned table positions without allocating or crossing the provider ABI.
-  prim table-lt :: U32 -> U32 -> Bool where
-    llvm {
-      %yes = icmp ult i32 %0, %1
-      %result = zext i1 %yes to i8
-      ret i8 %result
-    }
+  -- | Compare private unsigned table positions without allocating.
+  table-lt :: U32 -> U32 -> Bool
+  table-lt a b = lt-u32 a b
 
-  -- | Compare private unsigned table positions without allocating or crossing the provider ABI.
-  prim table-le :: U32 -> U32 -> Bool where
-    llvm {
-      %yes = icmp ule i32 %0, %1
-      %result = zext i1 %yes to i8
-      ret i8 %result
-    }
+  -- | Compare private unsigned table positions without allocating.
+  table-le :: U32 -> U32 -> Bool
+  table-le a b = le-u32 a b
 
   -- | Number of complete preserved simple-case range records.
   unicode-data-case-count :: U32

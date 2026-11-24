@@ -10,7 +10,7 @@ Import with `import Text.Json.Codec`. Selected exports may already be in Prelude
 
 # Dependencies
 
-[Data.Array](Data.Array.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Json.Binary32](Text.Json.Binary32.md), [Text.Json.Value](Text.Json.Value.md).
+[Data.Array](Data.Array.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Wide](Data.Wide.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Json.Binary32](Text.Json.Binary32.md), [Text.Json.Value](Text.Json.Value.md).
 
 Non-embedded source closure: [Data.Array](Data.Array.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Json.Binary32](Text.Json.Binary32.md), [Text.Json.Codec](Text.Json.Codec.md), [Text.Json.Value](Text.Json.Value.md).
 
@@ -32,7 +32,7 @@ can retain a partially updated value together with its first structured error.
 
 A converted application value, its first error and whether continuation was refused.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 258
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 259
 
 <a id="type-4a736f6e456e636f646564"></a>
 
@@ -42,7 +42,7 @@ A converted application value, its first error and whether continuation was refu
 
 An encoding outcome retains successful output or the exact prefix emitted before its first refusal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 446
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 447
 
 <a id="type-4a736f6e4669656c64"></a>
 
@@ -52,7 +52,7 @@ An encoding outcome retains successful output or the exact prefix emitted before
 
 A field's typed projection/update callbacks are sealed together with its omission metadata.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1320
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1318
 
 <a id="type-4a736f6e4669656c644d61746368"></a>
 
@@ -62,7 +62,7 @@ A field's typed projection/update callbacks are sealed together with its omissio
 
 Per-field name matching takes precedence over record-wide folding behavior.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1298
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1296
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonFieldDefaultMatch</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonFieldMatch</span></code></pre>
 
@@ -78,7 +78,7 @@ Per-field name matching takes precedence over record-wide folding behavior.
 
 Immutable application field metadata, independent of reflection or source-language tags.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1307
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1305
 
 <a id="type-4a736f6e4b6579"></a>
 
@@ -88,7 +88,7 @@ Immutable application field metadata, independent of reflection or source-langua
 
 Typed object-key capabilities make ordering and custom text/token methods explicit.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1940
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1907
 
 <a id="type-4a736f6e4d6170"></a>
 
@@ -99,7 +99,7 @@ Typed object-key capabilities make ordering and custom text/token methods explic
 Native immutable maps distinguish a null map from an allocated empty map.
 Application keys must retain a stable total ordering while stored in a map.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2062
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2019
 
 <a id="type-4a736f6e4d6574686f6473"></a>
 
@@ -109,7 +109,7 @@ Application keys must retain a stable total ordering while stored in a map.
 
 Independent JSON/text conversion methods with explicit encoding addressability requirements.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 648
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 649
 
 <a id="type-4a736f6e506f6c6963696573"></a>
 
@@ -119,7 +119,7 @@ Independent JSON/text conversion methods with explicit encoding addressability r
 
 An immutable set of enabled conversion policies.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 75
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 76
 
 <a id="type-4a736f6e506f6c696379"></a>
 
@@ -129,7 +129,7 @@ An immutable set of enabled conversion policies.
 
 Independently selectable typed conversion semantics.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 48
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 49
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JsonAddressableMethodsOnly</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonPolicy</span></code></pre>
 
@@ -163,7 +163,7 @@ Independently selectable typed conversion semantics.
 
 One immutable policy assignment; later assignments override earlier ones.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 80
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 81
 
 <a id="type-4a736f6e526561644f7074696f6e73"></a>
 
@@ -173,7 +173,7 @@ One immutable policy assignment; later assignments override earlier ones.
 
 Decoding configuration independent of any particular application type.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 225
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 226
 
 <a id="type-4a736f6e54797065"></a>
 
@@ -183,7 +183,7 @@ Decoding configuration independent of any particular application type.
 
 Explicit type metadata and conversion callbacks replace implicit runtime reflection.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 291
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 292
 
 <a id="type-4a736f6e57726974654f7074696f6e73"></a>
 
@@ -193,7 +193,7 @@ Explicit type metadata and conversion callbacks replace implicit runtime reflect
 
 Encoding configuration shared by nested descriptors and the final formatter.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 175
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 176
 
 # Values
 
@@ -205,7 +205,7 @@ Encoding configuration shared by nested descriptors and the final formatter.
 
 Addressability-sensitive custom methods and text-first object keys.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 127
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 128
 
 <a id="value-6a736f6e2d616c6c6f772d61727261792d6c656e6774682d6d69736d61746368"></a>
 
@@ -215,7 +215,7 @@ Addressability-sensitive custom methods and text-first object keys.
 
 Fixed arrays accept different source lengths, zeroing unused elements.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 171
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 172
 
 <a id="value-6a736f6e2d626f6f6c2d74797065"></a>
 
@@ -225,7 +225,7 @@ Fixed arrays accept different source lengths, zeroing unused elements.
 
 The boolean descriptor with false as both zero and empty.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 792
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 793
 
 <a id="value-6a736f6e2d627974652d61727261792d6e756d62657273"></a>
 
@@ -235,7 +235,7 @@ The boolean descriptor with false as both zero and empty.
 
 Fixed byte arrays use numeric arrays instead of binary text.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 131
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 132
 
 <a id="value-6a736f6e2d627974652d6b6579"></a>
 
@@ -245,7 +245,7 @@ Fixed byte arrays use numeric arrays instead of binary text.
 
 Convert raw member-name bytes, normalizing malformed UTF-8 before sorting and JSON quoting.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1959
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1926
 
 <a id="value-6a736f6e2d627974652d736c6963652d74797065"></a>
 
@@ -255,7 +255,7 @@ Convert raw member-name bytes, normalizing malformed UTF-8 before sorting and JS
 
 Nullable binary byte slices preserve the null/empty distinction and numeric-array update behavior.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1890
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1857
 
 <a id="value-6a736f6e2d62797465732d74797065"></a>
 
@@ -265,7 +265,7 @@ Nullable binary byte slices preserve the null/empty distinction and numeric-arra
 
 Non-null binary bytes; null clears to an empty buffer and marshaling always emits binary text.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1858
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1825
 
 <a id="value-6a736f6e2d636f6e6669677572652d706f6c6963696573"></a>
 
@@ -275,7 +275,7 @@ Non-null binary bytes; null clears to an empty buffer and marshaling always emit
 
 Apply assignments left to right, retaining the last setting for each policy.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 113
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 114
 
 <a id="value-6a736f6e2d636f6e74696e75652d61667465722d747970652d6572726f7273"></a>
 
@@ -285,7 +285,7 @@ Apply assignments left to right, retaining the last setting for each policy.
 
 Recoverable field mismatches retain the first error and continue.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 163
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 164
 
 <a id="value-6a736f6e2d637573746f6d2d74797065"></a>
 
@@ -295,7 +295,7 @@ Recoverable field mismatches retain the first error and continue.
 
 Construct a custom typed capability with explicit defaults, omission tests and update outcomes.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 575
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 576
 
 <a id="value-6a736f6e2d6465636f6465642d6572726f72"></a>
 
@@ -305,7 +305,7 @@ Construct a custom typed capability with explicit defaults, omission tests and u
 
 Inspect the first retained structured conversion error.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 279
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 280
 
 <a id="value-6a736f6e2d6465636f6465642d6661696c757265"></a>
 
@@ -315,7 +315,7 @@ Inspect the first retained structured conversion error.
 
 Construct an unrecoverable custom conversion refusal while retaining the supplied value.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 267
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 268
 
 <a id="value-6a736f6e2d6465636f6465642d666174616c"></a>
 
@@ -325,7 +325,7 @@ Construct an unrecoverable custom conversion refusal while retaining the supplie
 
 Whether a custom callback or syntax failure stopped subsequent updates.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 283
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 284
 
 <a id="value-6a736f6e2d6465636f6465642d6f6b"></a>
 
@@ -335,7 +335,7 @@ Whether a custom callback or syntax failure stopped subsequent updates.
 
 Construct a successful descriptor result.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 263
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 264
 
 <a id="value-6a736f6e2d6465636f6465642d726573756c74"></a>
 
@@ -345,7 +345,7 @@ Construct a successful descriptor result.
 
 Require successful conversion when a partial application value is not useful.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 287
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 288
 
 <a id="value-6a736f6e2d6465636f6465642d76616c7565"></a>
 
@@ -355,7 +355,7 @@ Require successful conversion when a partial application value is not useful.
 
 Read the resulting application value even when conversion also reported an error.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 275
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 276
 
 <a id="value-6a736f6e2d6465636f6465642d776974682d6572726f72"></a>
 
@@ -365,7 +365,7 @@ Read the resulting application value even when conversion also reported an error
 
 Construct a recoverable type/range mismatch while retaining the supplied value.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 271
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 272
 
 <a id="value-6a736f6e2d64656661756c742d6669656c642d6f7074696f6e73"></a>
 
@@ -375,7 +375,7 @@ Construct a recoverable type/range mismatch while retaining the supplied value.
 
 Ordinary visible fields participate at depth zero without omission or quoting.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1316
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1314
 
 <a id="value-6a736f6e2d64656661756c742d706f6c6963696573"></a>
 
@@ -385,7 +385,7 @@ Ordinary visible fields participate at depth zero without omission or quoting.
 
 Established permissive, merge-preserving typed conversion semantics.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 101
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 102
 
 <a id="value-6a736f6e2d64656661756c742d726561642d6f7074696f6e73"></a>
 
@@ -395,7 +395,7 @@ Established permissive, merge-preserving typed conversion semantics.
 
 Floating dynamic numbers, ignored unknown fields and established merge semantics.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 234
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 235
 
 <a id="value-6a736f6e2d64656661756c742d77726974652d6f7074696f6e73"></a>
 
@@ -405,7 +405,7 @@ Floating dynamic numbers, ignored unknown fields and established merge semantics
 
 Compact encoding with HTML escaping and established typed semantics.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 184
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 185
 
 <a id="value-6a736f6e2d6475726174696f6e2d6e616e6f7365636f6e6473"></a>
 
@@ -415,7 +415,7 @@ Compact encoding with HTML escaping and established typed semantics.
 
 Duration descriptors encode an integral nanosecond count.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 139
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 140
 
 <a id="value-6a736f6e2d656d7074792d706f6c6963696573"></a>
 
@@ -425,7 +425,7 @@ Duration descriptors encode an integral nanosecond count.
 
 Explicitly disable all conversion choices before applying selected assignments.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 105
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 106
 
 <a id="value-6a736f6e2d656e636f6465642d6279746573"></a>
 
@@ -435,7 +435,7 @@ Explicitly disable all conversion choices before applying selected assignments.
 
 Export an independent copy of successful output or the retained partial prefix.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 451
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 452
 
 <a id="value-6a736f6e2d656e636f6465642d6572726f72"></a>
 
@@ -445,7 +445,7 @@ Export an independent copy of successful output or the retained partial prefix.
 
 Inspect the original diagnostic without exposing internal output-transport wrappers.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 455
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 456
 
 <a id="value-6a736f6e2d656e636f6465642d726573756c74"></a>
 
@@ -455,7 +455,7 @@ Inspect the original diagnostic without exposing internal output-transport wrapp
 
 Require successful encoding when a partial output prefix is not useful.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 459
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 460
 
 <a id="value-6a736f6e2d6669656c64"></a>
 
@@ -465,7 +465,7 @@ Require successful encoding when a partial output prefix is not useful.
 
 Construct an ordinary visible field without omission, quoting or embedding metadata.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1415
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1413
 
 <a id="value-6a736f6e2d6669656c642d6e616d65"></a>
 
@@ -475,7 +475,7 @@ Construct an ordinary visible field without omission, quoting or embedding metad
 
 Inspect a field's declared JSON member name.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1325
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1323
 
 <a id="value-6a736f6e2d6669656c642d6f7074696f6e73"></a>
 
@@ -485,7 +485,7 @@ Inspect a field's declared JSON member name.
 
 Configure explicit omission, quoting, embedding dominance and member-name matching.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1312
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1310
 
 <a id="value-6a736f6e2d6669656c642d77697468"></a>
 
@@ -495,7 +495,7 @@ Configure explicit omission, quoting, embedding dominance and member-name matchi
 
 Construct one typed field using explicit projection and functional replacement capabilities.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1406
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1404
 
 <a id="value-6a736f6e2d66697865642d61727261792d74797065"></a>
 
@@ -505,7 +505,7 @@ Construct one typed field using explicit projection and functional replacement c
 
 Compose an exact fixed-array descriptor with immutable element defaults and checked lengths.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1091
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1092
 
 <a id="value-6a736f6e2d66697865642d62797465732d74797065"></a>
 
@@ -515,7 +515,7 @@ Compose an exact fixed-array descriptor with immutable element defaults and chec
 
 Fixed-size owned byte buffers, numeric by default, with explicit binary-string alternate policy.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1927
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1894
 
 <a id="value-6a736f6e2d666c6f617433322d74797065"></a>
 
@@ -525,7 +525,7 @@ Fixed-size owned byte buffers, numeric by default, with explicit binary-string a
 
 The finite binary32 descriptor with exact rounding and shortest JSON decimal formatting.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1215
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1213
 
 <a id="value-6a736f6e2d666c6f617436342d74797065"></a>
 
@@ -535,7 +535,7 @@ The finite binary32 descriptor with exact rounding and shortest JSON decimal for
 
 The finite binary64 descriptor with shortest JSON decimal formatting.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1191
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1189
 
 <a id="value-6a736f6e2d696e7431362d74797065"></a>
 
@@ -545,7 +545,7 @@ The finite binary64 descriptor with shortest JSON decimal formatting.
 
 Signed sixteen-bit integers with exact range refusal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1733
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1690
 
 <a id="value-6a736f6e2d696e7433322d74797065"></a>
 
@@ -555,7 +555,7 @@ Signed sixteen-bit integers with exact range refusal.
 
 Signed thirty-two-bit integers with exact range refusal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1736
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1693
 
 <a id="value-6a736f6e2d696e7436342d6b6579"></a>
 
@@ -565,7 +565,7 @@ Signed thirty-two-bit integers with exact range refusal.
 
 Signed64 keys use exact decimal text and original member-name range diagnostics.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2132
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2089
 
 <a id="value-6a736f6e2d696e7436342d74797065"></a>
 
@@ -575,7 +575,7 @@ Signed64 keys use exact decimal text and original member-name range diagnostics.
 
 The exact signed 64-bit integer descriptor.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 843
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 844
 
 <a id="value-6a736f6e2d696e74382d74797065"></a>
 
@@ -585,7 +585,7 @@ The exact signed 64-bit integer descriptor.
 
 Signed eight-bit integers with exact range refusal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1730
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1687
 
 <a id="value-6a736f6e2d6973697a652d74797065"></a>
 
@@ -595,7 +595,7 @@ Signed eight-bit integers with exact range refusal.
 
 Target-width signed integers with platform-specific checked bounds.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1739
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1696
 
 <a id="value-6a736f6e2d6a736f6e2d6b6579"></a>
 
@@ -606,7 +606,7 @@ Target-width signed integers with platform-specific checked bounds.
 Use typed JSON key capabilities with numeric stringification and explicit invalid-member-name errors.
 Dedicated string/integer key descriptors provide their ordinary primitive text rules.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2045
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2002
 
 <a id="value-6a736f6e2d6b6579"></a>
 
@@ -616,7 +616,7 @@ Dedicated string/integer key descriptors provide their ordinary primitive text r
 
 Construct an object-key descriptor with explicit comparator and conversion capabilities.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1947
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1914
 
 <a id="value-6a736f6e2d6b65792d6c6162656c"></a>
 
@@ -626,7 +626,7 @@ Construct an object-key descriptor with explicit comparator and conversion capab
 
 Observe the declared application key family.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2053
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2010
 
 <a id="value-6a736f6e2d6c6973742d74797065"></a>
 
@@ -636,7 +636,7 @@ Observe the declared application key family.
 
 Compose non-null arrays represented by ordinary immutable lists.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1025
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1026
 
 <a id="value-6a736f6e2d6c6f6f73652d6261736536342d70616464696e67"></a>
 
@@ -646,7 +646,7 @@ Compose non-null arrays represented by ordinary immutable lists.
 
 Binary text permits embedded CR/LF while preserving the padded alphabet grammar.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 155
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 156
 
 <a id="value-6a736f6e2d6c6f6f73652d74696d657374616d7073"></a>
 
@@ -656,7 +656,7 @@ Binary text permits embedded CR/LF while preserving the padded alphabet grammar.
 
 Time descriptors permit the explicitly documented compatibility spellings.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 159
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 160
 
 <a id="value-6a736f6e2d6d61702d656d707479"></a>
 
@@ -666,7 +666,7 @@ Time descriptors permit the explicitly documented compatibility spellings.
 
 Construct an allocated empty map, which marshals as an empty object.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2071
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2028
 
 <a id="value-6a736f6e2d6d61702d656e7472696573"></a>
 
@@ -676,7 +676,7 @@ Construct an allocated empty map, which marshals as an empty object.
 
 Enumerate application keys in their comparator's order, independently of encoded JSON name sorting.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2091
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2048
 
 <a id="value-6a736f6e2d6d61702d66726f6d2d6c697374"></a>
 
@@ -686,7 +686,7 @@ Enumerate application keys in their comparator's order, independently of encoded
 
 Construct an allocated map from ordered entries; later comparator-equal keys replace earlier ones.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2099
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2056
 
 <a id="value-6a736f6e2d6d61702d69732d6e756c6c"></a>
 
@@ -696,7 +696,7 @@ Construct an allocated map from ordered entries; later comparator-equal keys rep
 
 Observe nullness independently of the number of stored members.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2075
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2032
 
 <a id="value-6a736f6e2d6d61702d6c6f6f6b7570"></a>
 
@@ -706,7 +706,7 @@ Observe nullness independently of the number of stored members.
 
 Look up one application key along a logarithmically bounded tail traversal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2083
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2040
 
 <a id="value-6a736f6e2d6d61702d6e756c6c"></a>
 
@@ -716,7 +716,7 @@ Look up one application key along a logarithmically bounded tail traversal.
 
 Construct a null map retaining the supplied key family's ordering capability.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2067
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2024
 
 <a id="value-6a736f6e2d6d61702d736574"></a>
 
@@ -726,7 +726,7 @@ Construct a null map retaining the supplied key family's ordering capability.
 
 Persistently insert or replace an application key, allocating a null map on its first insertion.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2087
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2044
 
 <a id="value-6a736f6e2d6d61702d73697a65"></a>
 
@@ -736,7 +736,7 @@ Persistently insert or replace an application key, allocating a null map on its 
 
 Read the cached map size in constant time.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2079
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2036
 
 <a id="value-6a736f6e2d6d61702d74797065"></a>
 
@@ -747,7 +747,7 @@ Read the cached map size in constant time.
 Compose a map descriptor with explicit key capabilities, sorted encoding and logarithmic updates.
 The same application ordering must be used to construct prior map values.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2237
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2194
 
 <a id="value-6a736f6e2d6d61727368616c"></a>
 
@@ -757,7 +757,7 @@ The same application ordering must be used to construct prior map values.
 
 Marshal one complete compact value with established defaults.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 479
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 480
 
 <a id="value-6a736f6e2d6d61727368616c2d617474656d7074"></a>
 
@@ -767,7 +767,7 @@ Marshal one complete compact value with established defaults.
 
 Marshal with policy-selected partial output and the original error family on failure.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 463
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 464
 
 <a id="value-6a736f6e2d6d61727368616c2d696e64656e74"></a>
 
@@ -777,7 +777,7 @@ Marshal with policy-selected partial output and the original error family on fai
 
 Marshal one value with an explicit indentation pass, including empty prefix and step strings.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 483
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 484
 
 <a id="value-6a736f6e2d6d61727368616c2d76616c7565"></a>
 
@@ -789,7 +789,7 @@ Encode one compact fragment with a directly inspectable original error family.
 Complete-fragment callbacks return their own refusal without exposing the
 private partial-output transport used between ordinary containers.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 362
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 363
 
 <a id="value-6a736f6e2d6d61727368616c2d77697468"></a>
 
@@ -799,7 +799,7 @@ private partial-output transport used between ordinary containers.
 
 Marshal one complete value using explicit HTML, indentation and conversion policies.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 473
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 474
 
 <a id="value-6a736f6e2d6d6574686f6473"></a>
 
@@ -809,7 +809,7 @@ Marshal one complete value using explicit HTML, indentation and conversion polic
 
 Compose optional methods; JSON takes precedence over text in each direction when its encoding receiver is eligible.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 653
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 654
 
 <a id="value-6a736f6e2d6d6574686f64732d776974682d72656365697665722d7479706573"></a>
 
@@ -819,7 +819,7 @@ Compose optional methods; JSON takes precedence over text in each direction when
 
 Set the independently named JSON and text encoding receivers without changing the application value type.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 661
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 662
 
 <a id="value-6a736f6e2d6e616d65642d62797465732d61732d62696e617279"></a>
 
@@ -829,7 +829,7 @@ Set the independently named JSON and text encoding receivers without changing th
 
 Binary text formatting permits named byte-element descriptors.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 135
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 136
 
 <a id="value-6a736f6e2d6e6f2d6d6574686f6473"></a>
 
@@ -839,7 +839,7 @@ Binary text formatting permits named byte-element descriptors.
 
 An empty method set preserves every ordinary descriptor capability.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 657
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 658
 
 <a id="value-6a736f6e2d6e756c6c61626c652d74797065"></a>
 
@@ -849,7 +849,7 @@ An empty method set preserves every ordinary descriptor capability.
 
 Compose an explicit nullable/pointee descriptor with ordinary typed update semantics.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 918
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 919
 
 <a id="value-6a736f6e2d6e756d6265722d74797065"></a>
 
@@ -859,7 +859,7 @@ Compose an explicit nullable/pointee descriptor with ordinary typed update seman
 
 Exact number lexemes with checked conversions and an absent-spelling zero default.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 876
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 877
 
 <a id="value-6a736f6e2d6f6d69742d656d7074792d6170706c69636174696f6e2d76616c756573"></a>
 
@@ -869,7 +869,7 @@ Exact number lexemes with checked conversions and an absent-spelling zero defaul
 
 Empty-field omission uses the application value classification.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 151
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 152
 
 <a id="value-6a736f6e2d706f6c6963696573"></a>
 
@@ -879,7 +879,7 @@ Empty-field omission uses the application value classification.
 
 Configure the established defaults using explicit immutable assignments.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 123
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 124
 
 <a id="value-6a736f6e2d706f6c6963792d656e61626c6564"></a>
 
@@ -889,7 +889,7 @@ Configure the established defaults using explicit immutable assignments.
 
 Inspect one named policy without revealing its representation.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 109
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 110
 
 <a id="value-6a736f6e2d70726573657276652d6e616d652d64656c696d6974657273"></a>
 
@@ -899,7 +899,7 @@ Inspect one named policy without revealing its representation.
 
 Case-insensitive record matching preserves underscores and dashes.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 143
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 144
 
 <a id="value-6a736f6e2d70726573657276652d7363616c61722d6e756c6c"></a>
 
@@ -909,7 +909,7 @@ Case-insensitive record matching preserves underscores and dashes.
 
 Null scalars retain their value and sequence elements merge.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 147
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 148
 
 <a id="value-6a736f6e2d71756f74652d7363616c61722d6669656c6473"></a>
 
@@ -919,7 +919,7 @@ Null scalars retain their value and sequence elements merge.
 
 Quoted fields permit boolean and string values as well as numbers.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 167
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 168
 
 <a id="value-6a736f6e2d7261772d74797065"></a>
 
@@ -929,7 +929,7 @@ Quoted fields permit boolean and string values as well as numbers.
 
 Owned raw JSON fragments with copying assignment and validated marshaling.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 898
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 899
 
 <a id="value-6a736f6e2d726561642d6f7074696f6e73"></a>
 
@@ -939,7 +939,7 @@ Owned raw JSON fragments with copying assignment and validated marshaling.
 
 Construct immutable decoding options without mutating an existing decoder branch.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 230
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 231
 
 <a id="value-6a736f6e2d726561642d706f6c6963696573"></a>
 
@@ -949,7 +949,7 @@ Construct immutable decoding options without mutating an existing decoder branch
 
 Typed conversion choices used while applying a decoded value.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 246
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 247
 
 <a id="value-6a736f6e2d726561642d72656a6563742d756e6b6e6f776e"></a>
 
@@ -959,7 +959,7 @@ Typed conversion choices used while applying a decoded value.
 
 Whether a member unmatched by a record descriptor is an error.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 242
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 243
 
 <a id="value-6a736f6e2d726561642d737472696e676966792d6e756d62657273"></a>
 
@@ -969,7 +969,7 @@ Whether a member unmatched by a record descriptor is an error.
 
 Whether numeric descriptors require quoted source numbers in this nested context.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 250
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 251
 
 <a id="value-6a736f6e2d726561642d7573652d6e756d626572"></a>
 
@@ -979,7 +979,7 @@ Whether numeric descriptors require quoted source numbers in this nested context
 
 Whether dynamic-value decoding preserves exact numbers instead of converting to floats.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 238
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 239
 
 <a id="value-6a736f6e2d726561642d776974682d737472696e676966792d6e756d62657273"></a>
 
@@ -989,7 +989,7 @@ Whether dynamic-value decoding preserves exact numbers instead of converting to 
 
 Select nested numeric quoting without changing dynamic-number or unknown-field policies.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 254
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 255
 
 <a id="value-6a736f6e2d7265636f72642d74797065"></a>
 
@@ -999,7 +999,7 @@ Select nested numeric quoting without changing dynamic-number or unknown-field p
 
 Construct a record descriptor with explicit default/zero capabilities and compiled field dominance.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1618
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1587
 
 <a id="value-6a736f6e2d736c6963652d74797065"></a>
 
@@ -1009,7 +1009,7 @@ Construct a record descriptor with explicit default/zero capabilities and compil
 
 Distinguish a null sequence from a present empty array using an explicit optional list.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1029
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1030
 
 <a id="value-6a736f6e2d737472696e672d6b6579"></a>
 
@@ -1019,7 +1019,7 @@ Distinguish a null sequence from a present empty array using an explicit optiona
 
 String keys preserve exact decoded spelling and sort by their encoded UTF-8 bytes.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2103
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2060
 
 <a id="value-6a736f6e2d737472696e672d74797065"></a>
 
@@ -1029,7 +1029,7 @@ String keys preserve exact decoded spelling and sort by their encoded UTF-8 byte
 
 The scalar-string descriptor with empty text as both zero and empty.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 806
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 807
 
 <a id="value-6a736f6e2d7374727563747572616c2d74797065"></a>
 
@@ -1041,7 +1041,7 @@ Compose a structural descriptor with an explicit category and validated output; 
 The category controls containing-field quoting. Successful callback fragments
 are checked as complete JSON values before entering a containing descriptor.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 589
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 590
 
 <a id="value-6a736f6e2d747970652d64656661756c74"></a>
 
@@ -1051,7 +1051,7 @@ are checked as complete JSON values before entering a containing descriptor.
 
 Construct a fresh default application value through its descriptor capability.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 340
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 341
 
 <a id="value-6a736f6e2d747970652d69732d656d707479"></a>
 
@@ -1061,7 +1061,7 @@ Construct a fresh default application value through its descriptor capability.
 
 Apply the descriptor's application empty classifier.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 348
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 349
 
 <a id="value-6a736f6e2d747970652d69732d7a65726f"></a>
 
@@ -1071,7 +1071,7 @@ Apply the descriptor's application empty classifier.
 
 Apply the descriptor's application zero classifier.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 344
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 345
 
 <a id="value-6a736f6e2d747970652d6b696e64"></a>
 
@@ -1081,7 +1081,7 @@ Apply the descriptor's application zero classifier.
 
 Established write representation category; custom/raw fragments use the explicit unspecified category.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 296
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 297
 
 <a id="value-6a736f6e2d747970652d6c6162656c"></a>
 
@@ -1091,7 +1091,7 @@ Established write representation category; custom/raw fragments use the explicit
 
 Application type name attached to structured conversion failures.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 312
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 313
 
 <a id="value-6a736f6e2d747970652d726561642d6b696e64"></a>
 
@@ -1101,7 +1101,7 @@ Application type name attached to structured conversion failures.
 
 Inspect the decoding category independently of encoding methods and their field-quoting behavior.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 308
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 309
 
 <a id="value-6a736f6e2d747970652d726561642d6e616d65"></a>
 
@@ -1111,7 +1111,7 @@ Inspect the decoding category independently of encoding methods and their field-
 
 Inspect the independent root name used when reporting an application field path.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 316
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 317
 
 <a id="value-6a736f6e2d747970652d776974682d6164647265737361626c652d656e636f646572"></a>
 
@@ -1121,7 +1121,7 @@ Inspect the independent root name used when reporting an application field path.
 
 Add an addressable-only JSON encoder with ordinary fallback for nonaddressable application values.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 611
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 612
 
 <a id="value-6a736f6e2d747970652d776974682d6164647265737361626c652d746578742d656e636f646572"></a>
 
@@ -1131,7 +1131,7 @@ Add an addressable-only JSON encoder with ordinary fallback for nonaddressable a
 
 Add an addressable-only text encoder with ordinary fallback and the current HTML escaping policy.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 615
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 616
 
 <a id="value-6a736f6e2d747970652d776974682d6465636f646572"></a>
 
@@ -1141,7 +1141,7 @@ Add an addressable-only text encoder with ordinary fallback and the current HTML
 
 Replace only JSON decoding, preserving ordinary encoding and its containing-field quoting behavior.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 619
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 620
 
 <a id="value-6a736f6e2d747970652d776974682d656e636f646572"></a>
 
@@ -1153,7 +1153,7 @@ Replace only JSON encoding, preserving ordinary decoding, defaults and applicati
 Successful method fragments are validated and snapshotted before joining a
 containing value. A method controls its own encoding representation.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 595
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 596
 
 <a id="value-6a736f6e2d747970652d776974682d6d6574686f6473"></a>
 
@@ -1163,7 +1163,7 @@ containing value. A method controls its own encoding representation.
 
 Install independent methods while preserving defaults, omission predicates and ordinary fallback capabilities.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 777
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 778
 
 <a id="value-6a736f6e2d747970652d776974682d726561642d6964656e74697479"></a>
 
@@ -1173,7 +1173,7 @@ Install independent methods while preserving defaults, omission predicates and o
 
 Supply independent application and root reporting names without inferring identities from display labels.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 335
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 336
 
 <a id="value-6a736f6e2d747970652d776974682d746578742d6465636f646572"></a>
 
@@ -1183,7 +1183,7 @@ Supply independent application and root reporting names without inferring identi
 
 Replace only text decoding, preserving encoding and passing independently owned decoded string bytes.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 643
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 644
 
 <a id="value-6a736f6e2d747970652d776974682d746578742d656e636f646572"></a>
 
@@ -1193,7 +1193,7 @@ Replace only text decoding, preserving encoding and passing independently owned 
 
 Replace only text encoding; method output is a JSON string and ordinary decoding retains its original kind.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 630
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 631
 
 <a id="value-6a736f6e2d747970652d77726974652d6b696e64"></a>
 
@@ -1203,7 +1203,7 @@ Replace only text encoding; method output is a JSON string and ordinary decoding
 
 Inspect the encoding category independently of decoding methods and their field-quoting behavior.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 300
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 301
 
 <a id="value-6a736f6e2d747970652d77726974652d6b696e642d77697468"></a>
 
@@ -1213,7 +1213,7 @@ Inspect the encoding category independently of decoding methods and their field-
 
 Inspect the encoding category in the exact context used to select an encoding method.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 304
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 305
 
 <a id="value-6a736f6e2d75696e7431362d74797065"></a>
 
@@ -1223,7 +1223,7 @@ Inspect the encoding category in the exact context used to select an encoding me
 
 Unsigned sixteen-bit integers with exact range refusal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1745
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1702
 
 <a id="value-6a736f6e2d75696e7433322d74797065"></a>
 
@@ -1233,7 +1233,7 @@ Unsigned sixteen-bit integers with exact range refusal.
 
 Unsigned thirty-two-bit integers with exact range refusal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1748
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1705
 
 <a id="value-6a736f6e2d75696e7436342d6b6579"></a>
 
@@ -1243,7 +1243,7 @@ Unsigned thirty-two-bit integers with exact range refusal.
 
 Unsigned64 keys use full-range decimal text and eight-digit SWAR conversion blocks.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2138
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2095
 
 <a id="value-6a736f6e2d75696e7436342d74797065"></a>
 
@@ -1253,7 +1253,7 @@ Unsigned64 keys use full-range decimal text and eight-digit SWAR conversion bloc
 
 Full-range unsigned64 numbers with checked parsing and SWAR decimal blocks.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1688
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1645
 
 <a id="value-6a736f6e2d75696e74382d74797065"></a>
 
@@ -1263,7 +1263,7 @@ Full-range unsigned64 numbers with checked parsing and SWAR decimal blocks.
 
 Unsigned eight-bit integers with exact range refusal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1742
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1699
 
 <a id="value-6a736f6e2d756e6d61727368616c"></a>
 
@@ -1273,7 +1273,7 @@ Unsigned eight-bit integers with exact range refusal.
 
 Decode into a fresh default value, rejecting syntax and conversion failures.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 543
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 544
 
 <a id="value-6a736f6e2d756e6d61727368616c2d77697468"></a>
 
@@ -1283,7 +1283,7 @@ Decode into a fresh default value, rejecting syntax and conversion failures.
 
 Decode into a fresh default value with explicit conversion policies.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 539
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 540
 
 <a id="value-6a736f6e2d756e737570706f727465642d6b6579"></a>
 
@@ -1293,7 +1293,7 @@ Decode into a fresh default value with explicit conversion policies.
 
 Declare an application key family that has no JSON conversion capability.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 2049
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 2006
 
 <a id="value-6a736f6e2d757064617465"></a>
 
@@ -1303,7 +1303,7 @@ Declare an application key family that has no JSON conversion capability.
 
 Decode into an existing application value with established defaults and partial-update reporting.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 535
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 536
 
 <a id="value-6a736f6e2d7570646174652d76616c7565"></a>
 
@@ -1313,7 +1313,7 @@ Decode into an existing application value with established defaults and partial-
 
 Apply a retained source value through its immutable typed update capability.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 370
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 371
 
 <a id="value-6a736f6e2d7570646174652d77697468"></a>
 
@@ -1323,7 +1323,7 @@ Apply a retained source value through its immutable typed update capability.
 
 Apply policy-selected syntax validation while retaining advanced values and the first original refusal.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 487
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 488
 
 <a id="value-6a736f6e2d7573697a652d74797065"></a>
 
@@ -1333,7 +1333,7 @@ Apply policy-selected syntax validation while retaining advanced values and the 
 
 Target-width unsigned integers with platform-specific checked bounds.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 1751
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 1708
 
 <a id="value-6a736f6e2d77726974652d6164647265737361626c65"></a>
 
@@ -1343,7 +1343,7 @@ Target-width unsigned integers with platform-specific checked bounds.
 
 Whether the current application value permits an addressable-only encoding method.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 216
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 217
 
 <a id="value-6a736f6e2d77726974652d68746d6c"></a>
 
@@ -1353,7 +1353,7 @@ Whether the current application value permits an addressable-only encoding metho
 
 Whether string and raw fragments escape HTML-sensitive characters.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 188
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 189
 
 <a id="value-6a736f6e2d77726974652d6f7074696f6e73"></a>
 
@@ -1363,7 +1363,7 @@ Whether string and raw fragments escape HTML-sensitive characters.
 
 Construct explicit options; pretty mode remains distinct from an empty indentation string.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 180
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 181
 
 <a id="value-6a736f6e2d77726974652d706f6c6963696573"></a>
 
@@ -1373,7 +1373,7 @@ Construct explicit options; pretty mode remains distinct from an empty indentati
 
 Typed conversion choices used while constructing a value fragment.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 204
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 205
 
 <a id="value-6a736f6e2d77726974652d707265666978"></a>
 
@@ -1383,7 +1383,7 @@ Typed conversion choices used while constructing a value fragment.
 
 Prefix inserted before each continuation line.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 196
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 197
 
 <a id="value-6a736f6e2d77726974652d707265747479"></a>
 
@@ -1393,7 +1393,7 @@ Prefix inserted before each continuation line.
 
 Whether a final whole-value indentation pass is requested.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 192
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 193
 
 <a id="value-6a736f6e2d77726974652d73746570"></a>
 
@@ -1403,7 +1403,7 @@ Whether a final whole-value indentation pass is requested.
 
 Indentation inserted once per container depth.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 200
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 201
 
 <a id="value-6a736f6e2d77726974652d737472696e676966792d6e756d62657273"></a>
 
@@ -1413,7 +1413,7 @@ Indentation inserted once per container depth.
 
 Whether numeric descriptors encode their values as JSON strings in this nested context.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 208
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 209
 
 <a id="value-6a736f6e2d77726974652d776974682d616464726573736162696c697479"></a>
 
@@ -1424,7 +1424,7 @@ Whether numeric descriptors encode their values as JSON strings in this nested c
 Select an explicit application reference boundary while retaining every other encoding option.
 This metadata permits method selection without exposing an application address.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 221
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 222
 
 <a id="value-6a736f6e2d77726974652d776974682d737472696e676966792d6e756d62657273"></a>
 
@@ -1434,8 +1434,8 @@ This metadata permits method selection without exposing an application address.
 
 Select nested numeric quoting without changing HTML or indentation configuration.
 
-[Source](/reference-sources/Text.Json.Codec.cinch) · line 212
+[Source](/reference-sources/Text.Json.Codec.cinch) · line 213
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Codec.cinch`. Source SHA-256: `75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Codec.cinch`. Source SHA-256: `3db0ea28e81c691a5b21dbcc1de66ca320b27c0df0e47ffc14db5fbf9e9efb4c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

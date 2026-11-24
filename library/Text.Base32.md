@@ -10,9 +10,9 @@ Import with `import Text.Base32`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Base32](Text.Base32.md).
+Non-embedded source closure: [Text.Base32](Text.Base32.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -21,8 +21,8 @@ Fixed-alphabet text conveniences accept uppercase symbols and return atomic
 errors. Configurable byte APIs preserve complete output before a later error,
 count positions in original bytes and provide persistent encoder/decoder state.
 CR and LF are ignored. Final lengths, padding and trailing data are validated;
-unused low symbol bits are discarded. Complete quanta use inline LLVM SIMD
-and SWAR; custom lookup tables are private, immutable copies of caller bytes.
+unused low symbol bits are discarded. Complete quanta use portable 128-bit
+SIMD and SWAR; custom lookup tables are private, immutable copies of caller bytes.
 
 </details>
 
@@ -50,7 +50,7 @@ The fixed 32-symbol alphabet for a Base32 encoding.
 
 Invalid alphabet or padding configuration; construction never changes caller storage.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 450
+[Source](/reference-sources/Text.Base32.cinch) · line 411
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32AlphabetLength</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span>)</code></pre>
 
@@ -70,7 +70,7 @@ Invalid alphabet or padding configuration; construction never changes caller sto
 
 Persistent decoding continuation with a packed unfinished quantum and sticky failure.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 714
+[Source](/reference-sources/Text.Base32.cinch) · line 680
 
 <a id="type-426173653332456e636f646572"></a>
 
@@ -80,7 +80,7 @@ Persistent decoding continuation with a packed unfinished quantum and sticky fai
 
 Persistent encoding continuation owning fewer than five pending input bytes.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 690
+[Source](/reference-sources/Text.Base32.cinch) · line 656
 
 <a id="type-426173653332456e636f64696e67"></a>
 
@@ -91,7 +91,7 @@ Persistent encoding continuation owning fewer than five pending input bytes.
 An immutable byte alphabet, inverse lookup and optional one-byte padding policy.
 Custom alphabets are copied. Fixed configurations use the existing SIMD classifiers.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 445
+[Source](/reference-sources/Text.Base32.cinch) · line 406
 
 <a id="type-4261736533324572726f72"></a>
 
@@ -118,7 +118,7 @@ Malformed input for the fixed-alphabet text conveniences; errors carry no partia
 Invalid encoded bytes, an incomplete final quantum, or insufficient destination capacity.
 Input positions count original bytes, including ignored CR and LF.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 657
+[Source](/reference-sources/Text.Base32.cinch) · line 623
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase32Byte</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>))</code></pre>
 
@@ -136,7 +136,7 @@ Input positions count original bytes, including ignored CR and LF.
 
 Describe the precise alphabet offset or rejected padding value.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 463
+[Source](/reference-sources/Text.Base32.cinch) · line 424
 
 <a id="value-6261736533322d6465636f6465"></a>
 
@@ -156,7 +156,7 @@ Decode padded Base32, ignoring CR/LF. Incomplete quanta, misplaced padding, lowe
 
 Append completed decoded bytes to a copied prefix, retaining a later malformed-input error.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 831
+[Source](/reference-sources/Text.Base32.cinch) · line 817
 
 <a id="value-6261736533322d6465636f64652d6279746573"></a>
 
@@ -166,7 +166,7 @@ Append completed decoded bytes to a copied prefix, retaining a later malformed-i
 
 Decode complete bytes atomically; use the prefix API when malformed-input progress is needed.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 821
+[Source](/reference-sources/Text.Base32.cinch) · line 807
 
 <a id="value-6261736533322d6465636f64652d696e746f"></a>
 
@@ -178,7 +178,7 @@ Decode into a checked destination and return progress plus a possible input erro
 The actual completed output must fit before mutation. Decoding completes before
 copying, so overlap is safe and valid padding never requires excess capacity.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 838
+[Source](/reference-sources/Text.Base32.cinch) · line 824
 
 <a id="value-6261736533322d6465636f64652d707265666978"></a>
 
@@ -188,7 +188,7 @@ copying, so overlap is safe and valid padding never requires excess capacity.
 
 Decode bytes with precise original offsets and retain all preceding complete output on error.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 815
+[Source](/reference-sources/Text.Base32.cinch) · line 801
 
 <a id="value-6261736533322d6465636f64652d74657874"></a>
 
@@ -198,7 +198,7 @@ Decode bytes with precise original offsets and retain all preceding complete out
 
 Decode UTF-8 text while preserving complete output and counting original UTF-8 byte offsets.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 827
+[Source](/reference-sources/Text.Base32.cinch) · line 813
 
 <a id="value-6261736533322d6465636f6465642d6c656e677468"></a>
 
@@ -209,7 +209,7 @@ Decode UTF-8 text while preserving complete output and counting original UTF-8 b
 Maximum decoded byte count from an encoded byte count; this does not validate input.
 Newlines and padding can make the actual result shorter than this capacity bound.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 563
+[Source](/reference-sources/Text.Base32.cinch) · line 524
 
 <a id="value-6261736533322d6465636f646572"></a>
 
@@ -219,7 +219,7 @@ Newlines and padding can make the actual result shorter than this capacity bound
 
 Begin a strict byte decoder. CR/LF are ignored; padding and final lengths are validated.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 719
+[Source](/reference-sources/Text.Base32.cinch) · line 685
 
 <a id="value-6261736533322d6465636f6465722d6572726f72"></a>
 
@@ -229,7 +229,7 @@ Begin a strict byte decoder. CR/LF are ignored; padding and final lengths are va
 
 Observe a sticky feed failure while retaining any output returned with that feed.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 723
+[Source](/reference-sources/Text.Base32.cinch) · line 689
 
 <a id="value-6261736533322d6465636f6465722d66656564"></a>
 
@@ -240,7 +240,7 @@ Observe a sticky feed failure while retaining any output returned with that feed
 Emit complete quanta, preserving their output alongside a later sticky decoding failure.
 An incomplete padded quantum is held until every required pad is validated.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 728
+[Source](/reference-sources/Text.Base32.cinch) · line 694
 
 <a id="value-6261736533322d6465636f6465722d66696e697368"></a>
 
@@ -251,7 +251,7 @@ An incomplete padded quantum is held until every required pad is validated.
 Validate EOF and render an allowed unpadded tail. Lengths 1, 3 and 6 are rejected.
 Padded input requires every final pad; any data after a padded final quantum is invalid.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 801
+[Source](/reference-sources/Text.Base32.cinch) · line 787
 
 <a id="value-6261736533322d656e636f6465"></a>
 
@@ -271,7 +271,7 @@ Encode with the selected alphabet and enough equals signs to complete an eight-c
 
 Append encoded bytes to a copied prefix without mutating or retaining either caller buffer.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 647
+[Source](/reference-sources/Text.Base32.cinch) · line 613
 
 <a id="value-6261736533322d656e636f64652d6279746573"></a>
 
@@ -281,7 +281,7 @@ Append encoded bytes to a copied prefix without mutating or retaining either cal
 
 Encode directly into fresh byte storage; arbitrary alphabet and padding bytes are preserved.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 637
+[Source](/reference-sources/Text.Base32.cinch) · line 603
 
 <a id="value-6261736533322d656e636f64652d696e746f"></a>
 
@@ -292,7 +292,7 @@ Encode directly into fresh byte storage; arbitrary alphabet and padding bytes ar
 Encode into a complete checked destination interval, returning the written byte count.
 Capacity is checked before mutation; a source snapshot makes overlap safe.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 681
+[Source](/reference-sources/Text.Base32.cinch) · line 647
 
 <a id="value-6261736533322d656e636f64652d74657874"></a>
 
@@ -302,7 +302,7 @@ Capacity is checked before mutation; a source snapshot makes overlap safe.
 
 Encode as text only when the exact encoded bytes form valid UTF-8.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 643
+[Source](/reference-sources/Text.Base32.cinch) · line 609
 
 <a id="value-6261736533322d656e636f6465642d6c656e677468"></a>
 
@@ -312,7 +312,7 @@ Encode as text only when the exact encoded bytes form valid UTF-8.
 
 Exact encoded byte count for an input length, including the selected padding policy.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 556
+[Source](/reference-sources/Text.Base32.cinch) · line 517
 
 <a id="value-6261736533322d656e636f646572"></a>
 
@@ -322,7 +322,7 @@ Exact encoded byte count for an input length, including the selected padding pol
 
 Begin an independent encoding; finish explicitly to emit its final short quantum.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 695
+[Source](/reference-sources/Text.Base32.cinch) · line 661
 
 <a id="value-6261736533322d656e636f6465722d66656564"></a>
 
@@ -332,7 +332,7 @@ Begin an independent encoding; finish explicitly to emit its final short quantum
 
 Emit all complete five-byte quanta, retaining only a copied tail of at most four bytes.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 699
+[Source](/reference-sources/Text.Base32.cinch) · line 665
 
 <a id="value-6261736533322d656e636f6465722d66696e697368"></a>
 
@@ -342,7 +342,7 @@ Emit all complete five-byte quanta, retaining only a copied tail of at most four
 
 Render the final short quantum and selected padding without changing the retained state.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 710
+[Source](/reference-sources/Text.Base32.cinch) · line 676
 
 <a id="value-6261736533322d656e636f64696e67"></a>
 
@@ -354,7 +354,7 @@ Validate 32 distinct non-newline bytes and create an independent padded encoding
 Bytes above 127 retain their exact values. An equals-sign symbol is allowed;
 select another padding byte or no padding before requiring an invertible tail.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 495
+[Source](/reference-sources/Text.Base32.cinch) · line 456
 
 <a id="value-6261736533322d656e636f64696e672d616c706861626574"></a>
 
@@ -364,7 +364,7 @@ select another padding byte or no padding before requiring an invertible tail.
 
 Return a fresh complete alphabet buffer, including for custom non-UTF-8 alphabets.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 515
+[Source](/reference-sources/Text.Base32.cinch) · line 476
 
 <a id="value-6261736533322d656e636f64696e672d70616464696e67"></a>
 
@@ -374,7 +374,7 @@ Return a fresh complete alphabet buffer, including for custom non-UTF-8 alphabet
 
 Observe the optional padding byte; None selects an unpadded encoding.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 523
+[Source](/reference-sources/Text.Base32.cinch) · line 484
 
 <a id="value-6261736533322d6865782d656e636f64696e67"></a>
 
@@ -384,7 +384,7 @@ Observe the optional padding byte; None selects an unpadded encoding.
 
 The extended-hex uppercase byte alphabet with equals-sign padding.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 476
+[Source](/reference-sources/Text.Base32.cinch) · line 437
 
 <a id="value-6261736533322d696e7075742d6572726f722d6d657373616765"></a>
 
@@ -394,7 +394,7 @@ The extended-hex uppercase byte alphabet with equals-sign padding.
 
 Describe original-byte decoding failures or the complete required destination capacity.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 673
+[Source](/reference-sources/Text.Base32.cinch) · line 639
 
 <a id="value-6261736533322d696e7075742d6572726f722d6f6666736574"></a>
 
@@ -404,7 +404,7 @@ Describe original-byte decoding failures or the complete required destination ca
 
 Original input position associated with a malformed quantum; capacity errors return zero.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 666
+[Source](/reference-sources/Text.Base32.cinch) · line 632
 
 <a id="value-6261736533322d7261772d6465636f6465"></a>
 
@@ -434,7 +434,7 @@ Encode with the selected alphabet and no padding. The output length is ceil(8 * 
 
 The standard uppercase byte alphabet with equals-sign padding.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 472
+[Source](/reference-sources/Text.Base32.cinch) · line 433
 
 <a id="value-6261736533322d776974682d70616464696e67"></a>
 
@@ -445,8 +445,8 @@ The standard uppercase byte alphabet with equals-sign padding.
 Copy an encoding with validated one-byte padding, or disable padding with None.
 Newline values, values above 255 and alphabet collisions return named errors.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 542
+[Source](/reference-sources/Text.Base32.cinch) · line 503
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Base32.cinch`. Source SHA-256: `e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Base32.cinch`. Source SHA-256: `52c814c78527b834c5f1b2cdf66ce9824508c3dcea3d11e51dbc837c5c5f1f4c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

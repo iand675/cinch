@@ -55,6 +55,10 @@ fn run(checks: Vec<String>, contracts: bool, optimized: bool) {
             include_str!("../prelude/Data/Bytes/Word.cinch"),
         ),
         (
+            "Data.Float",
+            include_str!("../prelude/Data/Float.cinch"),
+        ),
+        (
             "Data.Complex",
             include_str!("../prelude/Data/Complex.cinch"),
         ),
@@ -303,37 +307,49 @@ fn binary_stream_eof_alias_partial_write_and_failure_contracts() {
 fn rust_binary_layout_optimized_ownership_contracts() {
     run(vec!["stress-case ()".into(),"contracts-case ()".into(),"streams-case ()".into(),"array-case 9 1 1024 4096 \"\" \"38d93503d71c29ba89b60c412d26445631a0b74a988c1063df82528318190183\"".into()],true,true);
 }
-/// Actual packed integer lanes and float bitcasts remain legal for portable and big-endian objects.
+/// Actual packed integer lanes, float bitcasts and native endianness remain legal for portable and big-endian objects.
 #[test]
 fn binary_layout_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let source = include_str!("../prelude/Text/Binary/Layout.cinch");
-    let mut kernels = String::from("-- | Isolated packed binary-layout kernels.\nmodule Main where\n  import Data.Machine\n  import Data.Bool\n  import Data.Bytes\n  import Data.Nat\n");
-    for (begin, end) in [
-        (
-            "  -- | Select target endianness at compilation",
-            "  -- | Resolve explicit or target-native",
-        ),
-        (
-            "  -- | Retain a complete byte owner",
-            "  -- | Reverse one complete unsigned sixteen",
-        ),
-        (
-            "  -- | Observe all binary32",
-            "  -- | One bit-preserving binary32",
-        ),
-        (
-            "  -- | Pack four low byte lanes",
-            "  -- | Resolve the packed little-endian",
-        ),
-    ] {
-        let start = source.find(begin).unwrap();
-        let finish = source[start..].find(end).unwrap() + start;
-        kernels.push_str(&source[start..finish]);
-    }
-    kernels.push_str(include_str!(
-        "fixtures/binary-layout-kernel-entry.cinchpart"
-    ));
+    let kernels = [
+        include_str!("../prelude/Data/Bytes/Word.cinch"),
+        include_str!("../prelude/Text/Binary.cinch"),
+        include_str!("../prelude/Data/Float.cinch"),
+        include_str!("../prelude/Data/Complex.cinch"),
+        include_str!("../prelude/Text/Binary/Layout.cinch"),
+        r#"-- | Root complete packed integer-array, scalar, endian and float binary layouts in portable objects.
+module Main where
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Text.Binary.Layout
+
+  -- | Exercise scalar reads/writes, float bitcasts, native endianness and 4-lane SIMD arrays.
+  main :: Int
+  main =
+    let buf = bytes-new 16 in
+    let w32 = binary-put-u32 BinaryNativeEndian buf 0 0x12345678 in
+    let r16 = binary-read-u16 BinaryBigEndian buf 0 in
+    let r64 = binary-read-u64 BinaryLittleEndian buf 0 in
+    let f64-val = binary-f64-from-bits 0x3FF0000000000000 in
+    let f32-val = binary-f32-from-bits 0x3F800000 in
+    let enc-f64 = binary-encode binary-f64 BinaryBigEndian f64-val in
+    let enc-arr32 = binary-encode (binary-array 4 binary-u32) BinaryBigEndian [1, 2, 3, 4] in
+    let dec-arr32 = binary-decode (binary-array 4 binary-u32) BinaryNativeEndian buf in
+    let ok-w = case w32 of { Ok _ -> True; Err _ -> False } in
+    let ok16 = case r16 of { Ok v -> ne-u16 v 0; Err _ -> False } in
+    let ok64 = case r64 of { Ok v -> ne-u64 v 0; Err _ -> False } in
+    let ok-f = eq-u64 (binary-f64-bits f64-val) 0x3FF0000000000000 && eq-u32 (binary-f32-bits f32-val) 0x3F800000 in
+    let ok-enc = case enc-f64 of { Ok b -> bytes-len b == 8; Err _ -> False } in
+    let ok-arr = case enc-arr32 of { Ok b -> bytes-len b == 16; Err _ -> False } in
+    let ok-dec = case dec-arr32 of { Ok pair -> (case pair of { (xs, n) -> n == 16 }); Err _ -> False } in
+    if ok-w && ok16 && ok64 && ok-f && ok-enc && ok-arr && ok-dec then 0 else 1
+"#,
+    ]
+    .join("\n");
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -366,7 +382,26 @@ fn binary_layout_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<4 x i32>"));
+        assert!(
+            ir.contains("<4 x i32>"),
+            "{triple}: missing 4-lane SIMD vector operations"
+        );
+        assert!(
+            ir.contains("load i128") && ir.contains("store i128"),
+            "{triple}: missing 128-bit packed array load/store"
+        );
+        assert!(
+            ir.contains("@llvm.bswap.i16")
+                && ir.contains("@llvm.bswap.i32")
+                && ir.contains("@llvm.bswap.i64"),
+            "{triple}: missing wire-order byte swaps"
+        );
+        if endian == "big" {
+            assert!(
+                ir.contains("@llvm.bswap.i128"),
+                "{triple}: missing big-endian 128-bit swap"
+            );
+        }
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, ir).unwrap();
         let output = std::process::Command::new(

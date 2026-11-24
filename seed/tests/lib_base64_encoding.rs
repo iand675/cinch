@@ -156,16 +156,11 @@ fn base64_encoding_declarations_have_canonical_documentation() {
     }
 }
 
-/// The actual SIMD and exact-load kernels compile on 32-bit and big-endian non-x86 targets.
+/// The actual SIMD and custom-table Base64 paths compile on 32-bit and big-endian non-x86 targets.
 /// This explicitly exercises Rust's target emitter and does not claim foreign execution.
 #[test]
 fn base64_encoding_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    let source = include_str!("../prelude/Text/Base64/Encoding.cinch");
-    let marker = "  -- Generated pure Base64 SIMD kernels";
-    let mut kernel = String::from("-- | Reachable private Base64 kernels for object-target validation.\nmodule Main where\n  import Data.Machine\n  import Data.Bytes\n");
-    kernel.push_str(&source[source.find(marker).unwrap()..]);
-    kernel.push_str("\n  -- | Retain the table while its exact private loads complete.\n  keep :: Bytes -> U64 -> U64\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Observe every primitive result so foreign object lowering cannot discard the kernels.\n  main :: Int\n  main = let table = bytes-new 256 in let mapped = map-fixed (encode-values 1108152157446) 1 in let decoded = decode-values (classify-fixed mapped 1) in let gathered = keep table (lookup-eight (bytes-data table) 0) in if eq-u64 decoded gathered then 0 else 1\n");
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -183,21 +178,42 @@ fn base64_encoding_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             profile.endian = endian.into();
             profile
         });
-        let text = kernel.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("Text.Base64.Encoding.cinch"),
+            include_str!("../prelude/Text/Base64/Encoding.cinch"),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public Base64 fixed and custom codec paths for foreign targets.\nmodule Main where\n  import Text.Base64.Encoding\n  import Data.Bytes\n  import Data.Nat\n  import Data.Option\n  import Data.Result\n\n  -- | Exercise public 128-bit SIMD fixed encoding/decoding and custom table paths across targets.\n  main :: Int\n  main =\n    let input = bytes-new 48 in\n    let encoded = base64-encode-bytes base64-standard-encoding input in\n    let custom = (\n      case base64-encoding (base64-encoding-alphabet base64-url-encoding) of\n        Ok enc ->\n          case base64-decode-prefix enc (base64-encode-bytes enc input) of\n            (out, None) -> bytes-len out\n            (out, Some err) -> 0\n        Err err -> 0) in\n    case base64-decode-prefix base64-standard-encoding encoded of\n      (decoded, None) -> if bytes-len decoded == 48 && custom > 0 then 0 else 1\n      (decoded, Some err) -> 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(move || {
-                let program =
-                    cinch::driver::check_sources_profile(&text, "base64-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i16>"));
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, ir).unwrap();
+        assert!(ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

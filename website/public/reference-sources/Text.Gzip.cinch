@@ -1,6 +1,7 @@
 -- | Whole-buffer gzip members (RFC 1952). Decoding accepts stored, fixed and
 -- dynamic DEFLATE blocks and checks each member's header, CRC-32 and ISIZE.
--- Encoders use a zero timestamp and unknown OS. Choose stored blocks or a
+-- Encoders use a zero timestamp and unknown OS. Choose default DEFLATE
+-- compression, an explicit compression level, stored blocks, or a
 -- fixed-Huffman run encoder with stored fallback.
 module Text.Gzip where
   import Data.Bytes
@@ -10,10 +11,11 @@ module Text.Gzip where
   import Data.Machine
   import Data.Nat
   import Data.Result
+  import Text.Flate
   import Text.Zlib
 
   export GzipError, GzipInvalidHeader, GzipTruncated, GzipInvalidDeflate, GzipChecksumMismatch, GzipSizeMismatch
-  export gzip-encode, gzip-encode-rle, gzip-decode, gzip-decode-member
+  export gzip-encode, gzip-encode-level, gzip-encode-stored, gzip-encode-rle, gzip-decode, gzip-decode-member
 
   -- | Errors distinguish malformed framing, truncation, compressed data and trailer mismatches.
   data GzipError where
@@ -23,19 +25,46 @@ module Text.Gzip where
     GzipChecksumMismatch :: GzipError
     GzipSizeMismatch :: GzipError
 
-  -- | Encode one member with no optional header fields.
+  -- | Advisory XFL header byte for a gzip member (2 for best compression, 4 for fastest, 0 otherwise).
+  gzip-xfl :: FlateCompression -> U8
+  gzip-xfl level = case level of
+    FlateBestCompression -> 2
+    FlateLevel n -> if n == 9 then 2 else if n == 1 then 4 else 0
+    FlateBestSpeed -> 4
+    FlateNoCompression -> 4
+    FlateHuffmanOnly -> 4
+    FlateDefaultCompression -> 0
+
+  -- | Encode one member using default DEFLATE compression with no optional header fields.
   gzip-encode :: Bytes -> Bytes
-  gzip-encode input = frame input (deflate-raw input)
+  gzip-encode input = gzip-encode-level FlateDefaultCompression input
+
+  -- | Encode one member at the given DEFLATE compression level, falling back
+  -- to stored blocks if the level is invalid.
+  gzip-encode-level :: FlateCompression -> Bytes -> Bytes
+  gzip-encode-level level input = case level of
+    FlateNoCompression -> frame-with-xfl 4 input (deflate-raw-stored input)
+    _ -> case flate-compress level input of
+      Ok compressed -> frame-with-xfl (gzip-xfl level) input compressed
+      Err _ -> frame input (deflate-raw-stored input)
+
+  -- | Encode one member using uncompressed stored DEFLATE blocks.
+  gzip-encode-stored :: Bytes -> Bytes
+  gzip-encode-stored input = frame input (deflate-raw-stored input)
 
   -- | Encode runs using distance-one matches, falling back to stored blocks
   -- for data that would expand beyond the stored representation.
   gzip-encode-rle :: Bytes -> Bytes
   gzip-encode-rle input = frame input (deflate-raw-rle input)
 
-  -- | Wrap the encoded block stream in a deterministic header and trailer.
+  -- | Wrap the encoded block stream in a deterministic header and trailer with XFL 0.
   frame :: Bytes -> Bytes -> Bytes
-  frame input compressed =
-    let header = bytes-from-u8s [31,139,8,0,0,0,0,0,0,255] in
+  frame input compressed = frame-with-xfl 0 input compressed
+
+  -- | Wrap the encoded block stream in a deterministic header (carrying XFL) and trailer.
+  frame-with-xfl :: U8 -> Bytes -> Bytes -> Bytes
+  frame-with-xfl xfl input compressed =
+    let header = bytes-from-u8s [31,139,8,0,0,0,0,0,xfl,255] in
     let trailer = bytes-new 8 in
     let checksum = bytes-write-le32 trailer 0 (crc32 input) in
     let size = bytes-write-le32 trailer 4 (size-word input) in

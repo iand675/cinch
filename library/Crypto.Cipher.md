@@ -10,9 +10,9 @@ Import with `import Crypto.Cipher`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Crypto.Cipher](Crypto.Cipher.md), [Data.Bytes.Word](Data.Bytes.Word.md).
+Non-embedded source closure: [Crypto.Cipher](Crypto.Cipher.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -39,7 +39,7 @@ verifies. Every returned buffer is fresh; inputs are never retained or mutated.
 
 Encrypt and decrypt functions over canonical U128 blocks.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 31
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 30
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BlockCipher</span> :: ((<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>) -&gt; ((<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>) -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Cipher</span>.<span class="tok-constructor">BlockCipher</span>))</code></pre>
 
@@ -51,7 +51,7 @@ Encrypt and decrypt functions over canonical U128 blocks.
 
 CBC state: cipher, direction (True encrypts) and the chaining value for the next block.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 244
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 240
 
 <a id="type-4369706865724572726f72"></a>
 
@@ -61,7 +61,7 @@ CBC state: cipher, direction (True encrypts) and the chaining value for the next
 
 A cipher misuse or authentication failure; every operation reports one before producing output.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 99
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 95
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidIvSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Cipher</span>.<span class="tok-constructor">CipherError</span>))</code></pre>
 
@@ -83,7 +83,7 @@ A cipher misuse or authentication failure; every operation reports one before pr
 
 A GCM instance: cipher, hash key H, nonce size, tag size and whether GHASH uses carry-less instructions.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 292
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 288
 
 <a id="type-586f7253747265616d"></a>
 
@@ -94,7 +94,7 @@ A GCM instance: cipher, hash key H, nonce size, tag size and whether GHASH uses 
 A keystream mode's state: cipher, mode (1 CTR, 2 OFB, 3 CFB encrypt, 4 CFB decrypt), register,
 current keystream block, bytes of it already used (0 to 16), and the CFB ciphertext feedback gathered so far.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 125
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 121
 
 # Values
 
@@ -106,7 +106,7 @@ current keystream block, bytes of it already used (0 to 16), and the CFB ciphert
 
 Package forward and inverse block functions; decrypt must invert encrypt.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 34
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 33
 
 <a id="value-626c6f636b2d64656372797074"></a>
 
@@ -116,7 +116,7 @@ Package forward and inverse block functions; decrypt must invert encrypt.
 
 Apply the inverse permutation to one block.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 42
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 41
 
 <a id="value-626c6f636b2d656e6372797074"></a>
 
@@ -126,7 +126,7 @@ Apply the inverse permutation to one block.
 
 Apply the forward permutation to one block.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 38
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 37
 
 <a id="value-626c6f636b2d66726f6d2d6279746573"></a>
 
@@ -136,7 +136,7 @@ Apply the forward permutation to one block.
 
 Read sixteen bytes at a position as a canonical block, or None when they are not all present.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 50
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 49
 
 <a id="value-626c6f636b2d746f2d6279746573"></a>
 
@@ -146,7 +146,7 @@ Read sixteen bytes at a position as a canonical block, or None when they are not
 
 Return a block's sixteen bytes in fresh storage.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 54
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 53
 
 <a id="value-6362632d63727970742d626c6f636b73"></a>
 
@@ -157,7 +157,7 @@ Return a block's sixteen bytes in fresh storage.
 Encrypt or decrypt whole blocks, returning fresh output and the state chained to the last block.
 Input that is not a multiple of sixteen bytes is rejected before any work; CBC applies no padding.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 258
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 254
 
 <a id="value-6362632d64656372797074"></a>
 
@@ -167,7 +167,7 @@ Input that is not a multiple of sixteen bytes is rejected before any work; CBC a
 
 One-shot CBC decryption of whole blocks.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 286
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 282
 
 <a id="value-6362632d646563727970746572"></a>
 
@@ -177,7 +177,7 @@ One-shot CBC decryption of whole blocks.
 
 Start CBC decryption from a sixteen-byte IV.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 253
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 249
 
 <a id="value-6362632d656e6372797074"></a>
 
@@ -187,7 +187,7 @@ Start CBC decryption from a sixteen-byte IV.
 
 One-shot CBC encryption of whole blocks.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 280
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 276
 
 <a id="value-6362632d656e63727970746572"></a>
 
@@ -197,7 +197,7 @@ One-shot CBC encryption of whole blocks.
 
 Start CBC encryption from a sixteen-byte IV.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 249
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 245
 
 <a id="value-6366622d64656372797074"></a>
 
@@ -207,7 +207,7 @@ Start CBC encryption from a sixteen-byte IV.
 
 One-shot cipher-feedback decryption from an IV.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 238
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 234
 
 <a id="value-6366622d646563727970742d73747265616d"></a>
 
@@ -217,7 +217,7 @@ One-shot cipher-feedback decryption from an IV.
 
 Full-block cipher feedback decryption, the inverse of cfb-encrypt-stream for the same IV.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 149
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 145
 
 <a id="value-6366622d656e6372797074"></a>
 
@@ -227,7 +227,7 @@ Full-block cipher feedback decryption, the inverse of cfb-encrypt-stream for the
 
 One-shot cipher-feedback encryption from an IV.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 232
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 228
 
 <a id="value-6366622d656e63727970742d73747265616d"></a>
 
@@ -237,7 +237,7 @@ One-shot cipher-feedback encryption from an IV.
 
 Full-block cipher feedback encryption: each keystream block encrypts the previous ciphertext block.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 145
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 141
 
 <a id="value-6369706865722d626c6f636b2d73697a65"></a>
 
@@ -247,7 +247,7 @@ Full-block cipher feedback encryption: each keystream block encrypts the previou
 
 Block size in bytes, always 16.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 46
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 45
 
 <a id="value-6369706865722d6572726f722d6d657373616765"></a>
 
@@ -257,7 +257,7 @@ Block size in bytes, always 16.
 
 Render a cipher error.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 114
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 110
 
 <a id="value-6374722d73747265616d"></a>
 
@@ -267,7 +267,7 @@ Render a cipher error.
 
 Counter mode: the IV is a 128-bit big-endian counter incremented once per block, wrapping.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 137
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 133
 
 <a id="value-6374722d786f72"></a>
 
@@ -277,7 +277,7 @@ Counter mode: the IV is a 128-bit big-endian counter incremented once per block,
 
 One-shot counter-mode XOR from an IV.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 220
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 216
 
 <a id="value-67636d"></a>
 
@@ -287,7 +287,7 @@ One-shot counter-mode XOR from an IV.
 
 GCM with the standard 12-byte nonce and 16-byte tag.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 297
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 293
 
 <a id="value-67636d2d6861726477617265"></a>
 
@@ -297,7 +297,7 @@ GCM with the standard 12-byte nonce and 16-byte tag.
 
 Whether GHASH runs on carry-less multiplication instructions.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 324
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 320
 
 <a id="value-67636d2d6e6f6e63652d73697a65"></a>
 
@@ -307,7 +307,7 @@ Whether GHASH runs on carry-less multiplication instructions.
 
 Required nonce size in bytes.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 312
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 308
 
 <a id="value-67636d2d6f70656e"></a>
 
@@ -318,7 +318,7 @@ Required nonce size in bytes.
 Verify and decrypt ciphertext followed by its tag. Verification is constant time, and
 AuthenticationFailed is returned without any plaintext when the tag does not match.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 403
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 399
 
 <a id="value-67636d2d6f76657268656164"></a>
 
@@ -328,7 +328,7 @@ AuthenticationFailed is returned without any plaintext when the tag does not mat
 
 Bytes a sealed message adds to its plaintext: the tag size.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 320
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 316
 
 <a id="value-67636d2d7365616c"></a>
 
@@ -339,7 +339,7 @@ Bytes a sealed message adds to its plaintext: the tag size.
 Encrypt and authenticate: returns ciphertext followed by the tag in fresh storage.
 Nonces must never repeat under one key; repetition destroys both confidentiality and authenticity.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 386
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 382
 
 <a id="value-67636d2d7461672d73697a65"></a>
 
@@ -349,7 +349,7 @@ Nonces must never repeat under one key; repetition destroys both confidentiality
 
 Tag size in bytes.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 316
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 312
 
 <a id="value-67636d2d776974682d6e6f6e63652d73697a65"></a>
 
@@ -359,7 +359,7 @@ Tag size in bytes.
 
 GCM with a non-standard nonce size; sizes other than 12 derive the initial counter through GHASH.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 301
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 297
 
 <a id="value-67636d2d776974682d7461672d73697a65"></a>
 
@@ -369,7 +369,7 @@ GCM with a non-standard nonce size; sizes other than 12 derive the initial count
 
 GCM with a truncated tag of 12 to 16 bytes.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 306
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 302
 
 <a id="value-6f66622d73747265616d"></a>
 
@@ -379,7 +379,7 @@ GCM with a truncated tag of 12 to 16 bytes.
 
 Output feedback mode: each keystream block encrypts the previous one, starting from the IV.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 141
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 137
 
 <a id="value-6f66622d786f72"></a>
 
@@ -389,7 +389,7 @@ Output feedback mode: each keystream block encrypts the previous one, starting f
 
 One-shot output-feedback XOR from an IV.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 226
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 222
 
 <a id="value-73747265616d2d786f72"></a>
 
@@ -400,8 +400,8 @@ One-shot output-feedback XOR from an IV.
 XOR an input of any length with the keystream, returning fresh output and the advanced stream.
 Applying the same stream to the output reverses it for CTR and OFB; CFB uses its matching decrypt stream.
 
-[Source](/reference-sources/Crypto.Cipher.cinch) · line 169
+[Source](/reference-sources/Crypto.Cipher.cinch) · line 165
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Cipher.cinch`. Source SHA-256: `229b114e7a3c8d8c97c9c91cd506b55f412dcdc018f9692d6540f8dc5cd30783`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Cipher.cinch`. Source SHA-256: `85f5838972cd8debab7f25257b2b174d2335f40a0adeab4b42c7e60788fffba1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

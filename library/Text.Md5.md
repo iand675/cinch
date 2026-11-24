@@ -10,21 +10,20 @@ Import with `import Text.Md5`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Binary](Text.Binary.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Md5](Text.Md5.md).
+Non-embedded source closure: [Text.Binary](Text.Binary.md), [Text.Md5](Text.Md5.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 MD5 digests, persistent streaming states and binary checkpoints.
 MD5 is broken for collision resistance: use it only to interoperate with
 existing formats and protocols, never for signatures or integrity checks.
-The algorithm's rounds are strictly sequential, so compression is one
-private primitive per ordered round with native rotates rather than SIMD.
-Updates read exact 64-byte blocks while retaining their input owner and copy
-pending tails into private storage. Retaining a state branches the
-computation. Digest words and the length field use little-endian order as
-the algorithm defines; checkpoint fields use network order.
+Compression loads checked 64-byte little-endian blocks directly from the input
+buffer and evaluates all sixty-four sequential rounds in registers with native
+rotates. Updates copy pending tails into private storage. Retaining a state
+branches the computation. Digest words and the length field use little-endian
+order as the algorithm defines; checkpoint fields use network order.
 
 </details>
 
@@ -48,7 +47,7 @@ An immutable wrapping byte count, copied partial block and chaining value.
 
 A checkpoint's identifier or exact byte length is invalid.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 219
+[Source](/reference-sources/Text.Md5.cinch) · line 183
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidMd5StateIdentifier</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Md5</span>.<span class="tok-constructor">Md5StateError</span></code></pre>
 
@@ -94,7 +93,7 @@ Initial state with no pending bytes.
 
 Append the digest to a copied prefix, preserving the state and caller buffer.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 199
+[Source](/reference-sources/Text.Md5.cinch) · line 163
 
 <a id="value-6d64352d73746174652d617070656e642d73617665"></a>
 
@@ -104,7 +103,7 @@ Append the digest to a copied prefix, preserving the state and caller buffer.
 
 Append the complete checkpoint to a copied prefix without mutating either input.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 215
+[Source](/reference-sources/Text.Md5.cinch) · line 179
 
 <a id="value-6d64352d73746174652d626c6f636b2d73697a65"></a>
 
@@ -114,7 +113,7 @@ Append the complete checkpoint to a copied prefix without mutating either input.
 
 Compression block size in bytes, always 64.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 152
+[Source](/reference-sources/Text.Md5.cinch) · line 116
 
 <a id="value-6d64352d73746174652d6572726f722d6d657373616765"></a>
 
@@ -124,7 +123,7 @@ Compression block size in bytes, always 64.
 
 Render identifier errors or complete required and actual checkpoint byte lengths.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 226
+[Source](/reference-sources/Text.Md5.cinch) · line 190
 
 <a id="value-6d64352d73746174652d6c6f6164"></a>
 
@@ -135,7 +134,7 @@ Render identifier errors or complete required and actual checkpoint byte lengths
 Restore every chaining and count bit, copying only the live partial block into private storage.
 Identifier checks precede exact-size checks; unused tail bytes are ignored and saved as zeros.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 237
+[Source](/reference-sources/Text.Md5.cinch) · line 201
 
 <a id="value-6d64352d73746174652d7265736574"></a>
 
@@ -145,7 +144,7 @@ Identifier checks precede exact-size checks; unused tail bytes are ignored and s
 
 Return the initial state, preserving the supplied state.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 144
+[Source](/reference-sources/Text.Md5.cinch) · line 108
 
 <a id="value-6d64352d73746174652d73617665"></a>
 
@@ -156,7 +155,7 @@ Return the initial state, preserving the supplied state.
 Return 92 checkpoint bytes: ASCII md5, version byte 1, chaining words, zero-padded tail and count.
 Every numeric field uses network order.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 204
+[Source](/reference-sources/Text.Md5.cinch) · line 168
 
 <a id="value-6d64352d73746174652d73697a65"></a>
 
@@ -166,7 +165,7 @@ Every numeric field uses network order.
 
 Digest size in bytes, always 16.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 148
+[Source](/reference-sources/Text.Md5.cinch) · line 112
 
 <a id="value-6d64352d73746174652d73756d"></a>
 
@@ -176,7 +175,7 @@ Digest size in bytes, always 16.
 
 Return the digest in fresh storage without changing the state.
 
-[Source](/reference-sources/Text.Md5.cinch) · line 194
+[Source](/reference-sources/Text.Md5.cinch) · line 158
 
 <a id="value-6d64352d73746174652d757064617465"></a>
 
@@ -201,4 +200,4 @@ Compute a fresh 16-byte digest of a complete input.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Md5.cinch`. Source SHA-256: `1fcad57a2a9fcdc43ce9b9a03fc3034960e3b9c96977aadf78f55bf0b3c9afed`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Md5.cinch`. Source SHA-256: `806945ac4ce172a564958c978fb92064ccb1f422ec2bec5c5f276fb38931ced3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

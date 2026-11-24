@@ -65,7 +65,9 @@ module Effect.Net where
 
   export NetError, NetNotFound, NetPermissionDenied, NetInvalidArgument, NetIoError
   export Socket, socket-handle
+  export Listener, listener-handle
   export net-connect, net-read, net-write, net-close, net-resolve
+  export net-listen, net-accept, net-listener-addr, net-listener-close, net-udp-send
 
 
   -- What went wrong, named. The constructors correspond one for one to
@@ -86,10 +88,25 @@ module Effect.Net where
   socket-handle s = case s of
     Socket h -> h
 
+  -- | A bound TCP listener handle owned by the runtime handle table.
+  data Listener where
+    -- | Wrap the runtime listener handle word.
+    Listener :: I64 -> Listener
+
+  -- | Return the underlying runtime handle word of a TCP listener.
+  listener-handle :: Listener -> I64
+  listener-handle l = case l of
+    Listener h -> h
+
   -- The runtime words (see this module's header for why they are
   -- pure-typed). Each result is the boundary's word as a `Result`: the
   -- `Err` payload is the named code's own number.
   foreign import ccall "cinch.runtime.netTcpConnect" raw-net-connect :: Bytes -> I64 -> Result I64 I64
+  foreign import ccall "cinch.runtime.netTcpListen" raw-net-listen :: Bytes -> I64 -> Result I64 I64
+  foreign import ccall "cinch.runtime.netTcpAccept" raw-net-accept :: I64 -> Result I64 I64
+  foreign import ccall "cinch.runtime.netListenerAddr" raw-net-listener-addr :: I64 -> Result I64 Bytes
+  foreign import ccall "cinch.runtime.netListenerClose" raw-net-listener-close :: I64 -> Result I64 Unit
+  foreign import ccall "cinch.runtime.netUdpSend" raw-net-udp-send :: Bytes -> I64 -> Bytes -> Result I64 Nat
   foreign import ccall "cinch.runtime.netRead" raw-net-read :: I64 -> Nat -> Result I64 Bytes
   foreign import ccall "cinch.runtime.netWrite" raw-net-write :: I64 -> Bytes -> Result I64 Nat
   foreign import ccall "cinch.runtime.netClose" raw-net-close :: I64 -> Result I64 Unit
@@ -113,6 +130,46 @@ module Effect.Net where
     Some p -> case raw-net-connect (string-to-bytes host) p of
       Err c -> Err (net-error-code c)
       Ok h -> Ok (Socket h)
+
+  -- | Bind a TCP listener on `host` (UTF-8 host text) and `port` (`0` for an
+  -- OS-assigned ephemeral port). Returns the bound `Listener` or a named error.
+  net-listen :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result NetError Listener
+  net-listen host port = case checked-nat-to-i64 port of
+    None -> Err NetInvalidArgument
+    Some p -> case raw-net-listen (string-to-bytes host) p of
+      Err c -> Err (net-error-code c)
+      Ok h -> Ok (Listener h)
+
+  -- | Accept one incoming TCP connection on `listener`, returning a connected `Socket`.
+  net-accept :: forall r. using (io :: Io r) => Listener ->{IO r} Result NetError Socket
+  net-accept l = case l of
+    Listener h -> case raw-net-accept h of
+      Err c -> Err (net-error-code c)
+      Ok s -> Ok (Socket s)
+
+  -- | Return the bound local address (`<ip>:<port>`) of `listener` as UTF-8 text.
+  net-listener-addr :: forall r. using (io :: Io r) => Listener ->{IO r} Result NetError String
+  net-listener-addr l = case l of
+    Listener h -> case raw-net-listener-addr h of
+      Err c -> Err (net-error-code c)
+      Ok bs -> case string-from-bytes bs of
+        Some s -> Ok s
+        None -> Err NetIoError
+
+  -- | Close a TCP listener; subsequent operations on it return `Err NetInvalidArgument`.
+  net-listener-close :: forall r. using (io :: Io r) => Listener ->{IO r} Result NetError Unit
+  net-listener-close l = case l of
+    Listener h -> case raw-net-listener-close h of
+      Err c -> Err (net-error-code c)
+      Ok u -> Ok u
+
+  -- | Send one UDP datagram containing `payload` to `(host, port)`.
+  net-udp-send :: forall r. using (io :: Io r) => String -> Nat -> Bytes ->{IO r} Result NetError Nat
+  net-udp-send host port payload = case checked-nat-to-i64 port of
+    None -> Err NetInvalidArgument
+    Some p -> case raw-net-udp-send (string-to-bytes host) p payload of
+      Err c -> Err (net-error-code c)
+      Ok n -> Ok n
 
   -- Read up to `max` bytes of the socket: `Ok` of what one platform
   -- call produced (empty at the end of the stream), or the named error.

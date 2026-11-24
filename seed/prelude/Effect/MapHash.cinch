@@ -1,0 +1,29 @@
+-- | Operating-system entropy seeding for Data.MapHash.
+--
+-- Each call to maphash-make-seed draws 128 bits of fresh entropy from Effect.Random so
+-- independent hash tables obtain distinct, unpredictable keys. All hashing after seed
+-- creation remains pure and deterministic.
+module Effect.MapHash where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Machine
+  import Data.MapHash
+  import Data.Nat
+  import Data.Wide
+  import Effect.Random
+
+  export maphash-make-seed
+
+  -- | Read one little-endian 64-bit word from an entropy buffer, or zero past its end.
+  read-seed-word :: Bytes -> Nat -> U64
+  read-seed-word b i = if i + 8 <= bytes-len b then bytes-read-le64 b i else 0
+
+  -- | Draw 128 bits of operating-system entropy to produce an independent MapSeed.
+  maphash-make-seed :: forall r. using (io :: Io r) => Unit ->{IO r} MapSeed
+  maphash-make-seed u =
+    let b = random-bytes 16 in
+    let lo = read-seed-word b 0 in
+    let hi = read-seed-word b 8 in
+    let full = bit-or-u128 (wrapping-shl-u128 (u64-to-u128 hi) 64) (u64-to-u128 lo) in
+    maphash-seed-from-u128 full

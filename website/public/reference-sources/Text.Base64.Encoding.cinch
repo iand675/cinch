@@ -1,4 +1,4 @@
--- | Configurable Base64 byte encodings with SIMD quanta and persistent incremental state.
+-- | Configurable Base64 byte encodings with portable 128-bit SIMD quanta and persistent incremental state.
 -- Alphabets and padding preserve exact byte values, including non-UTF-8 values.
 -- Decoders ignore CR/LF, preserve completed output before failures, and count
 -- original input bytes in diagnostics. Strict mode rejects nonzero unused bits.
@@ -6,12 +6,12 @@
 module Text.Base64.Encoding where
 
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Machine
   import Data.Nat
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide
 
   export Base64Encoding, base64-standard-encoding, base64-url-encoding, base64-raw-standard-encoding, base64-raw-url-encoding
   export base64-encoding, base64-with-padding, base64-strict, base64-encoding-alphabet, base64-encoding-padding
@@ -162,36 +162,32 @@ module Text.Base64.Encoding where
     None -> nat-div n 4 * 3 + nat-div (nat-rem n 4 * 6) 8
     Some padding -> nat-div n 4 * 3
 
-  -- | Retain an owner until exact private loads have completed.
-  hold :: forall a. Bytes -> a -> a
-  hold owner result = case bytes-len owner of _ -> result
-
-  -- | Map eight six-bit values to exact alphabet bytes with SIMD fixed mapping or custom table loads.
+  -- | Map eight six-bit values to exact alphabet bytes with portable SIMD mapping or checked table loads.
   encode-word :: Base64Encoding -> U64 -> U64
   encode-word encoding word = case encoding of
     Encoding mode alphabet inverse padding strict ->
       let values = encode-values word in
-      if eq-u8 mode 2 then hold alphabet (lookup-eight (bytes-data alphabet) values)
-      else map-fixed values mode
+      if eq-u8 mode 2 then lookup-eight64 alphabet values
+      else wrapping-u128-to-u64 (map-fixed16 (u64-to-u128 values) mode)
 
-  -- | Validate and decode eight encoded bytes, with invalid-lane flags in bits 56 through 63.
+  -- | Validate and decode eight encoded bytes, with invalid-lane flags in bit 56.
   decode-word :: Base64Encoding -> U64 -> U64
   decode-word encoding word = case encoding of
     Encoding mode alphabet inverse padding strict ->
-      if eq-u8 mode 2 then decode-values (hold inverse (lookup-eight (bytes-data inverse) word))
-      else decode-values (classify-fixed word mode)
+      if eq-u8 mode 2 then decode-values (lookup-eight256 inverse word)
+      else decode-values (classify-fixed8 word mode)
 
   -- | Collect at most six caller-proved bytes without overreading a short fringe.
   collect :: Bytes -> Nat -> Nat -> U64 -> Nat -> U64
   collect input at n word shift = if n > 0 && at < bytes-len input && shift <= 56 then
-    let byte = wrapping-i64-to-u64 (nat-to-i64 (bytes-get input at)) in
+    let byte = u8-to-u64 (bytes-get-u8 input at) in
     collect input (at + 1) (n - 1) (bit-or-u64 word (wrapping-shl-u64 byte (wrapping-i64-to-u32 (nat-to-i64 shift)))) (shift + 8)
     else word
 
   -- | Store exactly the requested low bytes within the checked destination interval.
   store :: Bytes -> Nat -> U64 -> Nat -> Unit
   store out at word n = if n > 0 && at < bytes-len out then
-    let written = bytes-set out at (u8-to-nat (wrapping-u64-to-u8 word)) in
+    let written = bytes-set-u8 out at (wrapping-u64-to-u8 word) in
     store out (at + 1) (wrapping-shr-u64 word 8) (n - 1)
     else ()
 
@@ -201,15 +197,43 @@ module Text.Base64.Encoding where
     let written = bytes-set out at byte in pad-output out (at + 1) end byte
     else ()
 
-  -- | Encode six-byte SIMD blocks and at most one partial six-byte fringe.
-  encode-buffer :: Base64Encoding -> Bytes -> Nat -> Bytes -> Nat -> Unit
-  encode-buffer encoding input at out oi =
+  -- | Encode twelve-byte blocks to sixteen fixed-alphabet ASCII bytes with 128-bit SIMD.
+  encode-loop12 :: U8 -> Bytes -> I64 -> Bytes -> I64 -> (I64, I64)
+  encode-loop12 mode input at out oi =
+    let ni-len = bytes-len-i64 input in
+    if 16 <= ni-len then
+      let no-len = bytes-len-i64 out in
+      if 16 <= no-len then
+        if 0 <= at && 0 <= oi then
+          let nni = nat-from-i64 ni-len in
+          let nno = nat-from-i64 no-len in
+          if 16 <= nni then
+            if 16 <= nno then
+              let na = nat-from-i64 at in
+              let no = nat-from-i64 oi in
+              if na <= nni - 16 && no <= nno - 16 then
+                let chunk = bytes-load-u128-at input at in
+                let lo = encode-values (wrapping-u128-to-u64 chunk) in
+                let hi = encode-values (wrapping-u128-to-u64 (wrapping-shr-u128 chunk 48)) in
+                let encoded = map-fixed16 (simd-u64x2-pack lo hi) mode in
+                let written = bytes-store-u128-at out oi encoded in
+                encode-loop12 mode input (wrapping-add-i64 at 12) out (wrapping-add-i64 oi 16)
+              else (at, oi)
+            else (at, oi)
+          else (at, oi)
+        else (at, oi)
+      else (at, oi)
+    else (at, oi)
+
+  -- | Encode six-byte blocks and at most one partial six-byte fringe.
+  encode-buffer-tail :: Base64Encoding -> Bytes -> Nat -> Bytes -> Nat -> Unit
+  encode-buffer-tail encoding input at out oi =
     if at + 6 <= bytes-len input && oi + 8 <= bytes-len out then
-      let low = u32-to-u64 (bytes-read-le32 input at) in
-      let high = wrapping-shr-u32 (bytes-read-le32 input (at + 2)) 16 in
+      let low = u32-to-u64 (bytes-load-le32 input at) in
+      let high = wrapping-shr-u32 (bytes-load-le32 input (at + 2)) 16 in
       let word = bit-or-u64 low (wrapping-shl-u64 (u32-to-u64 high) 32) in
-      let written = bytes-write-le64 out oi (encode-word encoding word) in
-      encode-buffer encoding input (at + 6) out (oi + 8)
+      let written = bytes-store-le64 out oi (encode-word encoding word) in
+      encode-buffer-tail encoding input (at + 6) out (oi + 8)
     else if at < bytes-len input then
       let n = bytes-len input - at in
       let symbols = nat-div (n * 8 + 5) 6 in
@@ -219,6 +243,17 @@ module Text.Base64.Encoding where
         None -> ()
         Some byte -> pad-output out (oi + symbols) (oi + nat-div (n + 2) 3 * 4) byte
     else ()
+
+  -- | Encode twelve-byte SIMD blocks for fixed alphabets, then six-byte blocks and the exact fringe.
+  encode-buffer :: Base64Encoding -> Bytes -> Nat -> Bytes -> Nat -> Unit
+  encode-buffer encoding input at out oi = case encoding of
+    Encoding mode alphabet inverse padding strict ->
+      if ne-u8 mode 2 && at <= bytes-len input && oi <= bytes-len out then
+        case encode-loop12 mode input (nat-to-i64 at) out (nat-to-i64 oi) of
+          (fa, fo) ->
+            if 0 <= fa && 0 <= fo then encode-buffer-tail encoding input (nat-from-i64 fa) out (nat-from-i64 fo)
+            else encode-buffer-tail encoding input at out oi
+      else encode-buffer-tail encoding input at out oi
 
   -- | Encode into fresh bytes, preserving custom bytes without a UTF-8 conversion.
   base64-encode-bytes :: Base64Encoding -> Bytes -> Bytes
@@ -335,6 +370,73 @@ module Text.Base64.Encoding where
     DecodeState encoding word digits position start last pads ended error ->
       decode-fields encoding word digits position start last pads ended error input at out oi
 
+  -- | Store twelve decoded bytes (eight-byte word plus four-byte tail) into a checked output interval.
+  store-twelve-bytes :: Bytes -> I64 -> U64 -> U32 -> Unit
+  store-twelve-bytes out oi out-lo out-hi =
+    let no-len = bytes-len-i64 out in
+    if 12 <= no-len && 0 <= oi then
+      let nno = nat-from-i64 no-len in
+      if 12 <= nno then
+        let no = nat-from-i64 oi in
+        if no <= nno - 12 then
+          let s0 = bytes-store-le64-at out oi out-lo in
+          let oi8 = wrapping-add-i64 oi 8 in
+          if 0 <= oi8 then
+            let noi8 = nat-from-i64 oi8 in
+            if noi8 <= nno - 4 then bytes-store-le32-at out oi8 out-hi else ()
+          else ()
+        else ()
+      else ()
+    else ()
+
+  -- | Decode sixteen fixed-alphabet ASCII bytes to twelve output bytes per 128-bit SIMD step.
+  decode-fast16-i64 :: U8 -> Bytes -> I64 -> Bytes -> I64 -> (I64, I64)
+  decode-fast16-i64 mode input at out oi =
+    let ni-len = bytes-len-i64 input in
+    if 16 <= ni-len then
+      let no-len = bytes-len-i64 out in
+      if 12 <= no-len then
+        if 0 <= at && 0 <= oi then
+          let nni = nat-from-i64 ni-len in
+          let nno = nat-from-i64 no-len in
+          if 16 <= nni then
+            if 12 <= nno then
+              let na = nat-from-i64 at in
+              let no = nat-from-i64 oi in
+              if na <= nni - 16 && no <= nno - 12 then
+                let v = bytes-load-u128-at input at in
+                let u = simd-u8x16-sub v (simd-u8x16-splat 65) in
+                let is-upper = simd-u8x16-cmplt u (simd-u8x16-splat 26) in
+                let l = simd-u8x16-sub v (simd-u8x16-splat 97) in
+                let is-lower = simd-u8x16-cmplt l (simd-u8x16-splat 26) in
+                let d = simd-u8x16-sub v (simd-u8x16-splat 48) in
+                let is-digit = simd-u8x16-cmplt d (simd-u8x16-splat 10) in
+                let c62 = if eq-u8 mode 0 then simd-u8x16-splat 43 else simd-u8x16-splat 45 in
+                let c63 = if eq-u8 mode 0 then simd-u8x16-splat 47 else simd-u8x16-splat 95 in
+                let is62 = simd-u8x16-cmpeq v c62 in
+                let is63 = simd-u8x16-cmpeq v c63 in
+                let valid = bit-or-u128 (bit-or-u128 (bit-or-u128 is-upper is-lower) is-digit) (bit-or-u128 is62 is63) in
+                if eq-u32 (simd-u8x16-movemask valid) 65535 then
+                  let v0 = simd-bitselect is62 (simd-u8x16-splat 62) (simd-u8x16-splat 63) in
+                  let v1 = simd-bitselect is-digit (simd-u8x16-add v (simd-u8x16-splat 4)) v0 in
+                  let v2 = simd-bitselect is-lower (simd-u8x16-sub v (simd-u8x16-splat 71)) v1 in
+                  let vals = simd-bitselect is-upper u v2 in
+                  case pack-values16 vals of
+                    (out-lo, out-hi) ->
+                      let stored = store-twelve-bytes out oi out-lo out-hi in
+                      decode-fast16-i64 mode input (wrapping-add-i64 at 16) out (wrapping-add-i64 oi 12)
+                else (at, oi)
+              else (at, oi)
+            else (at, oi)
+          else (at, oi)
+        else (at, oi)
+      else (at, oi)
+    else (at, oi)
+
+  -- | Extract the fixed-or-custom mode byte from an encoding.
+  encoding-mode-byte :: Base64Encoding -> U8
+  encoding-mode-byte encoding = case encoding of Encoding mode alphabet inverse padding strict -> mode
+
   -- | Carry scalar decoder fields through one direct tail loop, allocating state only at return.
   -- Recursive arguments are sequenced before each call to preserve bounded lowering across frontends.
   decode-fields :: Base64Encoding -> U64 -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> Option Base64InputError -> Bytes -> Nat -> Bytes -> Nat -> (Nat, Base64Decoder)
@@ -343,51 +445,72 @@ module Text.Base64.Encoding where
     None ->
       if at >= bytes-len input then (oi, DecodeState encoding word digits position start last pads ended None)
       else
-        let decoded = if digits == 0 && pads == 0 && not ended && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
-              let source = bytes-read-le64 input at in decode-word encoding source
-              else 18374686479671623680 in
-        if eq-u64 (wrapping-shr-u64 decoded 56) 0 && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
-          let first = bytes-write-le32 out oi (wrapping-u64-to-u32 decoded) in
-          let last-bytes = store out (oi + 4) (wrapping-shr-u64 decoded 32) 2 in
-          let next-at = at + 8 in let next-out = oi + 6 in
-          let next-position = position + 8 in let next-last = position + 7 in
-          decode-fields encoding 0 0 next-position next-position next-last 0 False None input next-at out next-out
-        else if digits < 4 then
-          let byte = bytes-get input at in
-          let next-at = at + 1 in let next-position = position + 1 in
-          if byte == 10 || byte == 13 then
-            decode-fields encoding word digits next-position start last pads ended None input next-at out oi
-          else if ended then (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
-          else if pads > 0 then
-            if is-padding encoding byte then
-              if valid-bits encoding word digits then
-                let n = saturating-sub digits 1 in let written = store out oi (decode-values word) n in
-                let next-out = oi + n in
+        let mode = encoding-mode-byte encoding in
+        if ne-u8 mode 2 && digits == 0 && pads == 0 && not ended && at + 16 <= bytes-len input && oi + 12 <= bytes-len out then
+          case decode-fast16-i64 mode input (nat-to-i64 at) out (nat-to-i64 oi) of
+            (fa, fo) ->
+              if 0 <= fa && 0 <= fo then
+                let nfa = (nat-from-i64 fa :: Nat) in
+                let nfo = (nat-from-i64 fo :: Nat) in
+                if nfa > at then
+                  let delta = nfa - at in
+                  let next-pos = position + delta in
+                  let next-last = saturating-sub next-pos 1 in
+                  decode-fields encoding 0 0 next-pos next-pos next-last 0 False None input nfa out nfo
+                else decode-fields-step encoding word digits position start last pads ended input at out oi
+              else decode-fields-step encoding word digits position start last pads ended input at out oi
+        else decode-fields-step encoding word digits position start last pads ended input at out oi
+
+  -- | Handle eight-byte blocks (for custom alphabets or short tails) and scalar CR/LF, padding, or errors.
+  decode-fields-step :: Base64Encoding -> U64 -> Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> Bytes -> Nat -> Bytes -> Nat -> (Nat, Base64Decoder)
+  decode-fields-step encoding word digits position start last pads ended input at out oi =
+    if at >= bytes-len input then (oi, DecodeState encoding word digits position start last pads ended None)
+    else
+      let decoded = if digits == 0 && pads == 0 && not ended && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
+            let source = bytes-load-le64 input at in decode-word encoding source
+            else 18374686479671623680 in
+      if eq-u64 (wrapping-shr-u64 decoded 56) 0 && at + 8 <= bytes-len input && oi + 6 <= bytes-len out then
+        let first = bytes-store-le32 out oi (wrapping-u64-to-u32 decoded) in
+        let last-bytes = store out (oi + 4) (wrapping-shr-u64 decoded 32) 2 in
+        let next-at = at + 8 in let next-out = oi + 6 in
+        let next-position = position + 8 in let next-last = position + 7 in
+        decode-fields encoding 0 0 next-position next-position next-last 0 False None input next-at out next-out
+      else if digits < 4 then
+        let byte = bytes-get input at in
+        let next-at = at + 1 in let next-position = position + 1 in
+        if byte == 10 || byte == 13 then
+          decode-fields encoding word digits next-position start last pads ended None input next-at out oi
+        else if ended then (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
+        else if pads > 0 then
+          if is-padding encoding byte then
+            if valid-bits encoding word digits then
+              let n = saturating-sub digits 1 in let written = store out oi (decode-values word) n in
+              let next-out = oi + n in
+              decode-fields encoding 0 0 next-position start last 0 True None input next-at out next-out
+            else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64TrailingBits last)))
+          else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
+        else case value encoding byte of
+          Some v ->
+            let raw-value = wrapping-i64-to-u64 (nat-to-i64 v) in
+            let shift = wrapping-i64-to-u32 (nat-to-i64 (digits * 8)) in
+            let shifted = wrapping-shl-u64 raw-value shift in
+            let next = bit-or-u64 word shifted in
+            if digits == 3 then
+              let written = store out oi (decode-values next) 3 in
+              let next-out = oi + 3 in
+              decode-fields encoding 0 0 next-position next-position position 0 False None input next-at out next-out
+            else
+              let next-digits = digits + 1 in let next-start = if digits == 0 then position else start in
+              decode-fields encoding next next-digits next-position next-start position 0 False None input next-at out oi
+          None ->
+            if is-padding encoding byte && digits >= 2 then
+              if digits == 2 then decode-fields encoding word digits next-position start last 1 False None input next-at out oi
+              else if valid-bits encoding word digits then
+                let written = store out oi (decode-values word) 2 in let next-out = oi + 2 in
                 decode-fields encoding 0 0 next-position start last 0 True None input next-at out next-out
               else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64TrailingBits last)))
             else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
-          else case value encoding byte of
-            Some v ->
-              let raw-value = wrapping-i64-to-u64 (nat-to-i64 v) in
-              let shift = wrapping-i64-to-u32 (nat-to-i64 (digits * 8)) in
-              let shifted = wrapping-shl-u64 raw-value shift in
-              let next = bit-or-u64 word shifted in
-              if digits == 3 then
-                let written = store out oi (decode-values next) 3 in
-                let next-out = oi + 3 in
-                decode-fields encoding 0 0 next-position next-position position 0 False None input next-at out next-out
-              else
-                let next-digits = digits + 1 in let next-start = if digits == 0 then position else start in
-                decode-fields encoding next next-digits next-position next-start position 0 False None input next-at out oi
-            None ->
-              if is-padding encoding byte && digits >= 2 then
-                if digits == 2 then decode-fields encoding word digits next-position start last 1 False None input next-at out oi
-                else if valid-bits encoding word digits then
-                  let written = store out oi (decode-values word) 2 in let next-out = oi + 2 in
-                  decode-fields encoding 0 0 next-position start last 0 True None input next-at out next-out
-                else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64TrailingBits last)))
-              else (oi, DecodeState encoding word digits position start last pads ended (Some (InvalidBase64Byte position byte)))
-        else (oi, DecodeState encoding word digits position start last pads ended (Some (TruncatedBase64Quantum start)))
+      else (oi, DecodeState encoding word digits position start last pads ended (Some (TruncatedBase64Quantum start)))
 
   -- | Validate EOF and render an allowed unpadded tail, retaining strict trailing-bit failures.
   base64-decoder-finish :: Base64Decoder -> (Bytes, Option Base64InputError)
@@ -433,244 +556,120 @@ module Text.Base64.Encoding where
         else (0, Some (Base64ShortDestination (bytes-len out) (saturating-sub (bytes-len destination) at)))
     else (0, Some (Base64ShortDestination required (saturating-sub (bytes-len destination) at)))
 
-  -- Generated pure Base64 SIMD kernels and private exact table gathers.
-  -- Regenerate with python3 tooling/generate_base64_kernels.py; do not edit this suffix.
+  -- | Split one 24-bit big-endian group into four 6-bit byte lanes inside a 32-bit word.
+  encode-group24 :: U32 -> U32
+  encode-group24 g =
+    let s0 = wrapping-shr-u32 g 18 in
+    let s1 = wrapping-shl-u32 (bit-and-u32 (wrapping-shr-u32 g 12) 63) 8 in
+    let s2 = wrapping-shl-u32 (bit-and-u32 (wrapping-shr-u32 g 6) 63) 16 in
+    let s3 = wrapping-shl-u32 (bit-and-u32 g 63) 24 in
+    bit-or-u32 (bit-or-u32 s0 s1) (bit-or-u32 s2 s3)
 
   -- | Extract eight six-bit lanes from six packed input bytes.
-  prim encode-values :: U64 -> U64 where
-    llvm {
-      %input = or i64 %0, 0
-      %v = bitcast i64 %input to <8 x i8>
-      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 0, i32 1, i32 2, i32 3, i32 3, i32 4, i32 5>
-      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 8, i32 1, i32 2, i32 8, i32 8, i32 4, i32 5, i32 8>
-      %aw = zext <8 x i8> %a to <8 x i16>
-      %bw = zext <8 x i8> %b to <8 x i16>
-      %hi = shl <8 x i16> %aw, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
-      %pair = or <8 x i16> %hi, %bw
-      %shifted = lshr <8 x i16> %pair, <i16 10, i16 4, i16 6, i16 8, i16 10, i16 4, i16 6, i16 8>
-      %narrow = trunc <8 x i16> %shifted to <8 x i8>
-      %values = and <8 x i8> %narrow, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %packed = bitcast <8 x i8> %values to i64
-      ret i64 %packed
-    } when endian little
-    llvm {
-      %input = call i64 @llvm.bswap.i64(i64 %0)
-      %v = bitcast i64 %input to <8 x i8>
-      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 0, i32 1, i32 2, i32 3, i32 3, i32 4, i32 5>
-      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 8, i32 1, i32 2, i32 8, i32 8, i32 4, i32 5, i32 8>
-      %aw = zext <8 x i8> %a to <8 x i16>
-      %bw = zext <8 x i8> %b to <8 x i16>
-      %hi = shl <8 x i16> %aw, <i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8, i16 8>
-      %pair = or <8 x i16> %hi, %bw
-      %shifted = lshr <8 x i16> %pair, <i16 10, i16 4, i16 6, i16 8, i16 10, i16 4, i16 6, i16 8>
-      %narrow = trunc <8 x i16> %shifted to <8 x i8>
-      %values = and <8 x i8> %narrow, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %packed = bitcast <8 x i8> %values to i64
-      %result = call i64 @llvm.bswap.i64(i64 %packed)
-      ret i64 %result
-    } when endian big
+  encode-values :: U64 -> U64
+  encode-values word =
+    let g0 = wrapping-shr-u32 (swap-bytes-u32 (wrapping-u64-to-u32 word)) 8 in
+    let g1 = bit-and-u32 (swap-bytes-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 word 16))) 16777215 in
+    bit-or-u64 (u32-to-u64 (encode-group24 g0)) (wrapping-shl-u64 (u32-to-u64 (encode-group24 g1)) 32)
 
-  -- | Map eight value lanes to the selected fixed byte alphabet.
-  prim map-fixed :: U64 -> U8 -> U64 where
-    llvm {
-      %input = or i64 %0, 0
-      %v = bitcast i64 %input to <8 x i8>
-      %url = icmp ne i8 %1, 0
-      %upper = icmp ult <8 x i8> %v, <i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26>
-      %lower = icmp ult <8 x i8> %v, <i8 52, i8 52, i8 52, i8 52, i8 52, i8 52, i8 52, i8 52>
-      %digit = icmp ult <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %special = icmp eq <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %last = select i1 %url, <8 x i8> <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>, <8 x i8> <i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16>
-      %next = select i1 %url, <8 x i8> <i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17>, <8 x i8> <i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19>
-      %specialbase = select <8 x i1> %special, <8 x i8> %next, <8 x i8> %last
-      %digitbase = select <8 x i1> %digit, <8 x i8> <i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4>, <8 x i8> %specialbase
-      %lowerbase = select <8 x i1> %lower, <8 x i8> <i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71>, <8 x i8> %digitbase
-      %base = select <8 x i1> %upper, <8 x i8> <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>, <8 x i8> %lowerbase
-      %mapped = add <8 x i8> %v, %base
-      %packed = bitcast <8 x i8> %mapped to i64
-      ret i64 %packed
-    } when endian little
-    llvm {
-      %input = call i64 @llvm.bswap.i64(i64 %0)
-      %v = bitcast i64 %input to <8 x i8>
-      %url = icmp ne i8 %1, 0
-      %upper = icmp ult <8 x i8> %v, <i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26, i8 26>
-      %lower = icmp ult <8 x i8> %v, <i8 52, i8 52, i8 52, i8 52, i8 52, i8 52, i8 52, i8 52>
-      %digit = icmp ult <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %special = icmp eq <8 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %last = select i1 %url, <8 x i8> <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>, <8 x i8> <i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16, i8 -16>
-      %next = select i1 %url, <8 x i8> <i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17, i8 -17>, <8 x i8> <i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19, i8 -19>
-      %specialbase = select <8 x i1> %special, <8 x i8> %next, <8 x i8> %last
-      %digitbase = select <8 x i1> %digit, <8 x i8> <i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4, i8 -4>, <8 x i8> %specialbase
-      %lowerbase = select <8 x i1> %lower, <8 x i8> <i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71>, <8 x i8> %digitbase
-      %base = select <8 x i1> %upper, <8 x i8> <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>, <8 x i8> %lowerbase
-      %mapped = add <8 x i8> %v, %base
-      %packed = bitcast <8 x i8> %mapped to i64
-      %result = call i64 @llvm.bswap.i64(i64 %packed)
-      ret i64 %result
-    } when endian big
+  -- | Map sixteen six-bit value lanes to the selected fixed byte alphabet using 128-bit SIMD.
+  map-fixed16 :: U128 -> U8 -> U128
+  map-fixed16 v mode =
+    let upper = simd-u8x16-cmplt v (simd-u8x16-splat 26) in
+    let lower = simd-u8x16-cmplt v (simd-u8x16-splat 52) in
+    let digit = simd-u8x16-cmplt v (simd-u8x16-splat 62) in
+    let is62 = simd-u8x16-cmpeq v (simd-u8x16-splat 62) in
+    let c63 = if eq-u8 mode 0 then simd-u8x16-splat 240 else simd-u8x16-splat 32 in
+    let c62 = if eq-u8 mode 0 then simd-u8x16-splat 237 else simd-u8x16-splat 239 in
+    let b0 = simd-bitselect is62 c62 c63 in
+    let b1 = simd-bitselect digit (simd-u8x16-splat 252) b0 in
+    let b2 = simd-bitselect lower (simd-u8x16-splat 71) b1 in
+    let base = simd-bitselect upper (simd-u8x16-splat 65) b2 in
+    simd-u8x16-add v base
 
-  -- | Classify eight fixed-alphabet bytes, marking every invalid lane with 255.
-  prim classify-fixed :: U64 -> U8 -> U64 where
-    llvm {
-      %input = or i64 %0, 0
-      %v = bitcast i64 %input to <8 x i8>
-      %url = icmp ne i8 %1, 0
-      %upperlo = icmp uge <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
-      %upperhi = icmp ule <8 x i8> %v, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
-      %upper = and <8 x i1> %upperlo, %upperhi
-      %lowerlo = icmp uge <8 x i8> %v, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
-      %lowerhi = icmp ule <8 x i8> %v, <i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122>
-      %lower = and <8 x i1> %lowerlo, %lowerhi
-      %digitlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
-      %digithi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
-      %digit = and <8 x i1> %digitlo, %digithi
-      %char62 = select i1 %url, <8 x i8> <i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45>, <8 x i8> <i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43>
-      %char63 = select i1 %url, <8 x i8> <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>, <8 x i8> <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
-      %is62 = icmp eq <8 x i8> %v, %char62
-      %is63 = icmp eq <8 x i8> %v, %char63
-      %a = select <8 x i1> %is63, <8 x i8> <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>, <8 x i8> <i8 255, i8 255, i8 255, i8 255, i8 255, i8 255, i8 255, i8 255>
-      %b = select <8 x i1> %is62, <8 x i8> <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>, <8 x i8> %a
-      %uv = sub <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
-      %lv = sub <8 x i8> %v, <i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71>
-      %dv = add <8 x i8> %v, <i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4>
-      %c = select <8 x i1> %digit, <8 x i8> %dv, <8 x i8> %b
-      %d = select <8 x i1> %lower, <8 x i8> %lv, <8 x i8> %c
-      %values = select <8 x i1> %upper, <8 x i8> %uv, <8 x i8> %d
-      %packed = bitcast <8 x i8> %values to i64
-      ret i64 %packed
-    } when endian little
-    llvm {
-      %input = call i64 @llvm.bswap.i64(i64 %0)
-      %v = bitcast i64 %input to <8 x i8>
-      %url = icmp ne i8 %1, 0
-      %upperlo = icmp uge <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
-      %upperhi = icmp ule <8 x i8> %v, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
-      %upper = and <8 x i1> %upperlo, %upperhi
-      %lowerlo = icmp uge <8 x i8> %v, <i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97, i8 97>
-      %lowerhi = icmp ule <8 x i8> %v, <i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122, i8 122>
-      %lower = and <8 x i1> %lowerlo, %lowerhi
-      %digitlo = icmp uge <8 x i8> %v, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
-      %digithi = icmp ule <8 x i8> %v, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
-      %digit = and <8 x i1> %digitlo, %digithi
-      %char62 = select i1 %url, <8 x i8> <i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45>, <8 x i8> <i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43, i8 43>
-      %char63 = select i1 %url, <8 x i8> <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>, <8 x i8> <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
-      %is62 = icmp eq <8 x i8> %v, %char62
-      %is63 = icmp eq <8 x i8> %v, %char63
-      %a = select <8 x i1> %is63, <8 x i8> <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>, <8 x i8> <i8 255, i8 255, i8 255, i8 255, i8 255, i8 255, i8 255, i8 255>
-      %b = select <8 x i1> %is62, <8 x i8> <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>, <8 x i8> %a
-      %uv = sub <8 x i8> %v, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
-      %lv = sub <8 x i8> %v, <i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71, i8 71>
-      %dv = add <8 x i8> %v, <i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4, i8 4>
-      %c = select <8 x i1> %digit, <8 x i8> %dv, <8 x i8> %b
-      %d = select <8 x i1> %lower, <8 x i8> %lv, <8 x i8> %c
-      %values = select <8 x i1> %upper, <8 x i8> %uv, <8 x i8> %d
-      %packed = bitcast <8 x i8> %values to i64
-      %result = call i64 @llvm.bswap.i64(i64 %packed)
-      ret i64 %result
-    } when endian big
+  -- | Classify eight fixed-alphabet bytes in SIMD lanes, marking every invalid lane with 255.
+  classify-fixed8 :: U64 -> U8 -> U64
+  classify-fixed8 word mode =
+    let v = u64-to-u128 word in
+    let u = simd-u8x16-sub v (simd-u8x16-splat 65) in
+    let is-upper = simd-u8x16-cmplt u (simd-u8x16-splat 26) in
+    let l = simd-u8x16-sub v (simd-u8x16-splat 97) in
+    let is-lower = simd-u8x16-cmplt l (simd-u8x16-splat 26) in
+    let d = simd-u8x16-sub v (simd-u8x16-splat 48) in
+    let is-digit = simd-u8x16-cmplt d (simd-u8x16-splat 10) in
+    let c62 = if eq-u8 mode 0 then simd-u8x16-splat 43 else simd-u8x16-splat 45 in
+    let c63 = if eq-u8 mode 0 then simd-u8x16-splat 47 else simd-u8x16-splat 95 in
+    let is62 = simd-u8x16-cmpeq v c62 in
+    let is63 = simd-u8x16-cmpeq v c63 in
+    let a = simd-bitselect is63 (simd-u8x16-splat 63) (simd-u8x16-splat 255) in
+    let b = simd-bitselect is62 (simd-u8x16-splat 62) a in
+    let c = simd-bitselect is-digit (simd-u8x16-add v (simd-u8x16-splat 4)) b in
+    let e = simd-bitselect is-lower (simd-u8x16-sub v (simd-u8x16-splat 71)) c in
+    let vals = simd-bitselect is-upper u e in
+    wrapping-u128-to-u64 vals
 
-  -- | Compact eight six-bit lanes into six bytes and flag invalid lanes above the output.
-  prim decode-values :: U64 -> U64 where
-    llvm {
-      %input = or i64 %0, 0
-      %v = bitcast i64 %input to <8 x i8>
-      %bad = icmp ugt <8 x i8> %v, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %mask = bitcast <8 x i1> %bad to i8
-      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 1, i32 2, i32 4, i32 5, i32 6, i32 8, i32 8>
-      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 1, i32 2, i32 3, i32 5, i32 6, i32 7, i32 8, i32 8>
-      %aw = zext <8 x i8> %a to <8 x i16>
-      %bw = zext <8 x i8> %b to <8 x i16>
-      %hi = shl <8 x i16> %aw, <i16 2, i16 4, i16 6, i16 2, i16 4, i16 6, i16 0, i16 0>
-      %lo = lshr <8 x i16> %bw, <i16 4, i16 2, i16 0, i16 4, i16 2, i16 0, i16 0, i16 0>
-      %joined = or <8 x i16> %hi, %lo
-      %bytes = trunc <8 x i16> %joined to <8 x i8>
-      %packed = bitcast <8 x i8> %bytes to i64
-      %error = zext i8 %mask to i64
-      %flag = shl i64 %error, 56
-      %result = or i64 %packed, %flag
-      ret i64 %result
-    } when endian little
-    llvm {
-      %input = call i64 @llvm.bswap.i64(i64 %0)
-      %v = bitcast i64 %input to <8 x i8>
-      %bad = icmp ugt <8 x i8> %v, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %mask = bitcast <8 x i1> %bad to i8
-      %a = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 0, i32 1, i32 2, i32 4, i32 5, i32 6, i32 8, i32 8>
-      %b = shufflevector <8 x i8> %v, <8 x i8> zeroinitializer, <8 x i32> <i32 1, i32 2, i32 3, i32 5, i32 6, i32 7, i32 8, i32 8>
-      %aw = zext <8 x i8> %a to <8 x i16>
-      %bw = zext <8 x i8> %b to <8 x i16>
-      %hi = shl <8 x i16> %aw, <i16 2, i16 4, i16 6, i16 2, i16 4, i16 6, i16 0, i16 0>
-      %lo = lshr <8 x i16> %bw, <i16 4, i16 2, i16 0, i16 4, i16 2, i16 0, i16 0, i16 0>
-      %joined = or <8 x i16> %hi, %lo
-      %bytes = trunc <8 x i16> %joined to <8 x i8>
-      %packed = bitcast <8 x i8> %bytes to i64
-      %normalized = call i64 @llvm.bswap.i64(i64 %packed)
-      %error = zext i8 %mask to i64
-      %flag = shl i64 %error, 56
-      %result = or i64 %normalized, %flag
-      ret i64 %result
-    } when endian big
+  -- | Compact four six-bit lanes in a 32-bit word into three little-endian decoded bytes.
+  decode-lane4 :: U32 -> U32
+  decode-lane4 v =
+    let b0 = bit-or-u32 (wrapping-shl-u32 (bit-and-u32 v 63) 2) (bit-and-u32 (wrapping-shr-u32 v 12) 3) in
+    let b1 = bit-or-u32 (bit-and-u32 (wrapping-shl-u32 v 4) 61440) (bit-and-u32 (wrapping-shr-u32 v 10) 3840) in
+    let b2 = bit-or-u32 (bit-and-u32 (wrapping-shl-u32 v 6) 12582912) (bit-and-u32 (wrapping-shr-u32 v 8) 4128768) in
+    bit-or-u32 (bit-or-u32 b0 b1) b2
 
-  -- | Load eight caller-proved table indices exactly, retaining their owner at the checked call site.
-  prim lookup-eight :: I64 -> U64 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %s0 = lshr i64 %1, 0
-      %i0 = and i64 %s0, 255
-      %p0 = getelementptr i8, ptr %base, i64 %i0
-      %v0 = load i8, ptr %p0, align 1
-      %w0 = zext i8 %v0 to i64
-      %o0 = shl i64 %w0, 0
-      %r0 = or i64 0, %o0
-      %s1 = lshr i64 %1, 8
-      %i1 = and i64 %s1, 255
-      %p1 = getelementptr i8, ptr %base, i64 %i1
-      %v1 = load i8, ptr %p1, align 1
-      %w1 = zext i8 %v1 to i64
-      %o1 = shl i64 %w1, 8
-      %r1 = or i64 %r0, %o1
-      %s2 = lshr i64 %1, 16
-      %i2 = and i64 %s2, 255
-      %p2 = getelementptr i8, ptr %base, i64 %i2
-      %v2 = load i8, ptr %p2, align 1
-      %w2 = zext i8 %v2 to i64
-      %o2 = shl i64 %w2, 16
-      %r2 = or i64 %r1, %o2
-      %s3 = lshr i64 %1, 24
-      %i3 = and i64 %s3, 255
-      %p3 = getelementptr i8, ptr %base, i64 %i3
-      %v3 = load i8, ptr %p3, align 1
-      %w3 = zext i8 %v3 to i64
-      %o3 = shl i64 %w3, 24
-      %r3 = or i64 %r2, %o3
-      %s4 = lshr i64 %1, 32
-      %i4 = and i64 %s4, 255
-      %p4 = getelementptr i8, ptr %base, i64 %i4
-      %v4 = load i8, ptr %p4, align 1
-      %w4 = zext i8 %v4 to i64
-      %o4 = shl i64 %w4, 32
-      %r4 = or i64 %r3, %o4
-      %s5 = lshr i64 %1, 40
-      %i5 = and i64 %s5, 255
-      %p5 = getelementptr i8, ptr %base, i64 %i5
-      %v5 = load i8, ptr %p5, align 1
-      %w5 = zext i8 %v5 to i64
-      %o5 = shl i64 %w5, 40
-      %r5 = or i64 %r4, %o5
-      %s6 = lshr i64 %1, 48
-      %i6 = and i64 %s6, 255
-      %p6 = getelementptr i8, ptr %base, i64 %i6
-      %v6 = load i8, ptr %p6, align 1
-      %w6 = zext i8 %v6 to i64
-      %o6 = shl i64 %w6, 48
-      %r6 = or i64 %r5, %o6
-      %s7 = lshr i64 %1, 56
-      %i7 = and i64 %s7, 255
-      %p7 = getelementptr i8, ptr %base, i64 %i7
-      %v7 = load i8, ptr %p7, align 1
-      %w7 = zext i8 %v7 to i64
-      %o7 = shl i64 %w7, 56
-      %r7 = or i64 %r6, %o7
-      ret i64 %r7
-    }
+  -- | Compact sixteen validated six-bit SIMD lanes into twelve little-endian decoded bytes.
+  pack-values16 :: U128 -> (U64, U32)
+  pack-values16 vals =
+    let b0s = bit-or-u128 (simd-u32x4-shl (bit-and-u128 vals (simd-u32x4-splat 63)) 2) (bit-and-u128 (simd-u32x4-shr vals 12) (simd-u32x4-splat 3)) in
+    let b1s = bit-or-u128 (bit-and-u128 (simd-u32x4-shl vals 4) (simd-u32x4-splat 61440)) (bit-and-u128 (simd-u32x4-shr vals 10) (simd-u32x4-splat 3840)) in
+    let b2s = bit-or-u128 (bit-and-u128 (simd-u32x4-shl vals 6) (simd-u32x4-splat 12582912)) (bit-and-u128 (simd-u32x4-shr vals 8) (simd-u32x4-splat 4128768)) in
+    let packed = bit-or-u128 (bit-or-u128 b0s b1s) b2s in
+    let lo = wrapping-u128-to-u64 packed in
+    let hi = wrapping-u128-to-u64 (wrapping-shr-u128 packed 64) in
+    let g01 = bit-or-u64 (bit-and-u64 lo 16777215) (wrapping-shl-u64 (wrapping-shr-u64 lo 32) 24) in
+    let g23 = bit-or-u64 (bit-and-u64 hi 16777215) (wrapping-shl-u64 (wrapping-shr-u64 hi 32) 24) in
+    let out-lo = bit-or-u64 g01 (wrapping-shl-u64 g23 48) in
+    let out-hi = wrapping-u64-to-u32 (wrapping-shr-u64 g23 16) in
+    (out-lo, out-hi)
+
+  -- | Compact eight six-bit lanes into six bytes and flag invalid lanes in bit 56.
+  decode-values :: U64 -> U64
+  decode-values vals =
+    let g0 = u32-to-u64 (decode-lane4 (wrapping-u64-to-u32 vals)) in
+    let g1 = u32-to-u64 (decode-lane4 (wrapping-u64-to-u32 (wrapping-shr-u64 vals 32))) in
+    let payload = bit-or-u64 g0 (wrapping-shl-u64 g1 24) in
+    if ne-u64 (bit-and-u64 vals 13889313184910721216) 0 then bit-or-u64 payload 72057594037927936
+    else payload
+
+  -- | Gather eight bytes from a 64-byte custom alphabet table with one hoisted length check.
+  lookup-eight64 :: Bytes -> U64 -> U64
+  lookup-eight64 table indices =
+    if 64 <= bytes-len-i64 table then
+      let b0 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 indices) 63)) in
+      let b1 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 8)) 63)) in
+      let b2 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 16)) 63)) in
+      let b3 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 24)) 63)) in
+      let b4 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 32)) 63)) in
+      let b5 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 40)) 63)) in
+      let b6 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 48)) 63)) in
+      let b7 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 56)) 63)) in
+      let lo = bit-or-u64 (bit-or-u64 b0 (wrapping-shl-u64 b1 8)) (bit-or-u64 (wrapping-shl-u64 b2 16) (wrapping-shl-u64 b3 24)) in
+      let hi = bit-or-u64 (bit-or-u64 (wrapping-shl-u64 b4 32) (wrapping-shl-u64 b5 40)) (bit-or-u64 (wrapping-shl-u64 b6 48) (wrapping-shl-u64 b7 56)) in
+      bit-or-u64 lo hi
+    else 0
+
+  -- | Gather eight bytes from a 256-byte custom inverse table with one hoisted length check.
+  lookup-eight256 :: Bytes -> U64 -> U64
+  lookup-eight256 table indices =
+    if 256 <= bytes-len-i64 table then
+      let b0 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 indices) 255)) in
+      let b1 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 8)) 255)) in
+      let b2 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 16)) 255)) in
+      let b3 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 24)) 255)) in
+      let b4 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 32)) 255)) in
+      let b5 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 40)) 255)) in
+      let b6 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 48)) 255)) in
+      let b7 = u8-to-u64 (bytes-get-u8-at table (mask-i64 (wrapping-u64-to-i64 (wrapping-shr-u64 indices 56)) 255)) in
+      let lo = bit-or-u64 (bit-or-u64 b0 (wrapping-shl-u64 b1 8)) (bit-or-u64 (wrapping-shl-u64 b2 16) (wrapping-shl-u64 b3 24)) in
+      let hi = bit-or-u64 (bit-or-u64 (wrapping-shl-u64 b4 32) (wrapping-shl-u64 b5 40)) (bit-or-u64 (wrapping-shl-u64 b6 48) (wrapping-shl-u64 b7 56)) in
+      bit-or-u64 lo hi
+    else 18446744073709551615

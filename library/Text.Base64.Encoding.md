@@ -10,13 +10,13 @@ Import with `import Text.Base64.Encoding`. Selected exports may already be in Pr
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
+Non-embedded source closure: [Text.Base64.Encoding](Text.Base64.Encoding.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
-Configurable Base64 byte encodings with SIMD quanta and persistent incremental state.
+Configurable Base64 byte encodings with portable 128-bit SIMD quanta and persistent incremental state.
 Alphabets and padding preserve exact byte values, including non-UTF-8 values.
 Decoders ignore CR/LF, preserve completed output before failures, and count
 original input bytes in diagnostics. Strict mode rejects nonzero unused bits.
@@ -54,7 +54,7 @@ Invalid alphabet or padding configuration, returned without mutating caller stor
 
 Immutable decoder with a packed partial quantum, absolute offsets and sticky error.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 300
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 335
 
 <a id="type-426173653634456e636f646572"></a>
 
@@ -64,7 +64,7 @@ Immutable decoder with a packed partial quantum, absolute offsets and sticky err
 
 Immutable encoding continuation with at most two copied pending input bytes.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 279
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 314
 
 <a id="type-426173653634456e636f64696e67"></a>
 
@@ -84,7 +84,7 @@ Opaque immutable alphabet, optional padding and trailing-bit validation policy.
 
 Precise original-byte failures and caller-buffer capacity failures.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 243
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 278
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase64Byte</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base64</span>.<span class="tok-constructor">Encoding</span>.<span class="tok-constructor">Base64InputError</span>))</code></pre>
 
@@ -114,7 +114,7 @@ Describe the first invalid alphabet position or rejected padding value.
 
 Append decoded bytes to a copied prefix, preserving any later input failure.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 422
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 545
 
 <a id="value-6261736536342d6465636f64652d6279746573"></a>
 
@@ -124,7 +124,7 @@ Append decoded bytes to a copied prefix, preserving any later input failure.
 
 Decode complete input atomically; use the prefix API when progress is needed on failure.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 412
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 535
 
 <a id="value-6261736536342d6465636f64652d696e746f"></a>
 
@@ -135,7 +135,7 @@ Decode complete input atomically; use the prefix API when progress is needed on 
 Decode into a checked capacity bound; complete decoding before copying makes overlap safe.
 A short range fails before mutation, otherwise completed output is retained beside its input error.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 427
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 550
 
 <a id="value-6261736536342d6465636f64652d707265666978"></a>
 
@@ -145,7 +145,7 @@ A short range fails before mutation, otherwise completed output is retained besi
 
 Decode all bytes while preserving the completed prefix beside a later input error.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 407
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 530
 
 <a id="value-6261736536342d6465636f64652d74657874"></a>
 
@@ -155,7 +155,7 @@ Decode all bytes while preserving the completed prefix beside a later input erro
 
 Decode text with original UTF-8 byte offsets while preserving completed output on error.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 418
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 541
 
 <a id="value-6261736536342d6465636f6465642d6c656e677468"></a>
 
@@ -175,7 +175,7 @@ Maximum decoded byte count for an encoded byte count; this does not validate the
 
 Begin an independent decoder; CR/LF remain ignored even in strict mode.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 305
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 340
 
 <a id="value-6261736536342d6465636f6465722d6572726f72"></a>
 
@@ -185,7 +185,7 @@ Begin an independent decoder; CR/LF remain ignored even in strict mode.
 
 Observe a sticky failure after retaining all output returned with its feed.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 309
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 344
 
 <a id="value-6261736536342d6465636f6465722d66656564"></a>
 
@@ -195,7 +195,7 @@ Observe a sticky failure after retaining all output returned with its feed.
 
 Feed encoded bytes, preserving complete output before any malformed byte or strict-bit error.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 326
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 361
 
 <a id="value-6261736536342d6465636f6465722d66696e697368"></a>
 
@@ -205,7 +205,7 @@ Feed encoded bytes, preserving complete output before any malformed byte or stri
 
 Validate EOF and render an allowed unpadded tail, retaining strict trailing-bit failures.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 393
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 516
 
 <a id="value-6261736536342d656e636f64652d617070656e64"></a>
 
@@ -215,7 +215,7 @@ Validate EOF and render an allowed unpadded tail, retaining strict trailing-bit 
 
 Append encoded bytes to a copied prefix without changing either input buffer.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 234
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 269
 
 <a id="value-6261736536342d656e636f64652d6279746573"></a>
 
@@ -225,7 +225,7 @@ Append encoded bytes to a copied prefix without changing either input buffer.
 
 Encode into fresh bytes, preserving custom bytes without a UTF-8 conversion.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 224
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 259
 
 <a id="value-6261736536342d656e636f64652d696e746f"></a>
 
@@ -235,7 +235,7 @@ Encode into fresh bytes, preserving custom bytes without a UTF-8 conversion.
 
 Encode into a complete destination range after checking capacity and snapshotting overlap.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 270
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 305
 
 <a id="value-6261736536342d656e636f64652d74657874"></a>
 
@@ -245,7 +245,7 @@ Encode into a complete destination range after checking capacity and snapshottin
 
 Return text only when the exact encoded byte sequence is valid UTF-8.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 230
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 265
 
 <a id="value-6261736536342d656e636f6465642d6c656e677468"></a>
 
@@ -265,7 +265,7 @@ Exact output byte count, including any final padding.
 
 Begin an encoding that emits full quanta until explicitly finished.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 284
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 319
 
 <a id="value-6261736536342d656e636f6465722d66656564"></a>
 
@@ -275,7 +275,7 @@ Begin an encoding that emits full quanta until explicitly finished.
 
 Emit complete three-byte quanta and copy only the remaining zero to two input bytes.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 288
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 323
 
 <a id="value-6261736536342d656e636f6465722d66696e697368"></a>
 
@@ -285,7 +285,7 @@ Emit complete three-byte quanta and copy only the remaining zero to two input by
 
 Render the final short quantum with the selected padding, preserving the original continuation.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 296
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 331
 
 <a id="value-6261736536342d656e636f64696e67"></a>
 
@@ -327,7 +327,7 @@ Observe the optional one-byte padding policy.
 
 Render a diagnostic with an original byte position or complete destination capacity.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 262
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 297
 
 <a id="value-6261736536342d696e7075742d6572726f722d6f6666736574"></a>
 
@@ -337,7 +337,7 @@ Render a diagnostic with an original byte position or complete destination capac
 
 Original byte position for an input failure; capacity failures return zero.
 
-[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 254
+[Source](/reference-sources/Text.Base64.Encoding.cinch) · line 289
 
 <a id="value-6261736536342d7261772d7374616e646172642d656e636f64696e67"></a>
 
@@ -401,4 +401,4 @@ Select a validated padding byte, or None for unpadded output.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Base64/Encoding.cinch`. Source SHA-256: `94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Base64/Encoding.cinch`. Source SHA-256: `fa7eb02f456cc9bf8edd08b19e96feaf29b6a1d69b848ca9fc2c68813e0d8f01`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

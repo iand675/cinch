@@ -674,6 +674,14 @@ This module exports no type declarations.
 
 [Source](/reference-sources/Data.Wide.cinch)
 
+<a id="value-6469762d75313238"></a>
+
+## `div-u128`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
 <a id="value-65712d69313238"></a>
 
 ## `eq-i128`
@@ -781,7 +789,7 @@ types specification section 7: total where every value fits (and from
 any integer to a float), checked and saturating for every integer pair
 and from a float, wrapping between integers.
 
-[Source](/reference-sources/Data.Wide.cinch) · line 123
+[Source](/reference-sources/Data.Wide.cinch) · line 176
 
 <a id="value-696e742d66726f6d2d69313238"></a>
 
@@ -799,7 +807,7 @@ A wide scalar has no solver sort (its range is past the solver's
 `checked` form, supplies `int-to-i128`'s range. The runtime carries
 the 128-bit value across with the C ABI's `__int128`.
 
-[Source](/reference-sources/Data.Wide.cinch) · line 294
+[Source](/reference-sources/Data.Wide.cinch) · line 347
 
 <a id="value-696e742d66726f6d2d75313238"></a>
 
@@ -897,7 +905,7 @@ the 128-bit value across with the C ABI's `__int128`.
 
 I128 (128 bits).
 
-[Source](/reference-sources/Data.Wide.cinch) · line 41
+[Source](/reference-sources/Data.Wide.cinch) · line 48
 
 <a id="value-6d696e2d626f756e642d75313238"></a>
 
@@ -907,7 +915,7 @@ I128 (128 bits).
 
 U128 (128 bits).
 
-[Source](/reference-sources/Data.Wide.cinch) · line 80
+[Source](/reference-sources/Data.Wide.cinch) · line 87
 
 <a id="value-6e61742d66726f6d2d75313238"></a>
 
@@ -938,6 +946,14 @@ U128 (128 bits).
 ## `ne-u128`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ne-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-72656d2d75313238"></a>
+
+## `rem-u128`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rem-u128</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
 
 [Source](/reference-sources/Data.Wide.cinch)
 
@@ -1434,6 +1450,344 @@ U128 (128 bits).
 ## `saturating-usize-to-u128`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-usize-to-u128</span> :: (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d62697473656c656374"></a>
+
+## `simd-bitselect`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-bitselect</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>)))</code></pre>
+
+Portable 128-bit SIMD lane operations over U128 (lane 0 in least-significant bits).
+
+[Source](/reference-sources/Data.Wide.cinch) · line 128
+
+<a id="value-73696d642d69313678382d61736872"></a>
+
+## `simd-i16x8-ashr`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i16x8-ashr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d69313678382d636d706c74"></a>
+
+## `simd-i16x8-cmplt`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i16x8-cmplt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d69313678382d736d6178"></a>
+
+## `simd-i16x8-smax`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i16x8-smax</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d69313678382d736d696e"></a>
+
+## `simd-i16x8-smin`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i16x8-smin</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d69333278342d61736872"></a>
+
+## `simd-i32x4-ashr`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i32x4-ashr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d69333278342d736d6178"></a>
+
+## `simd-i32x4-smax`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i32x4-smax</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d69333278342d736d696e"></a>
+
+## `simd-i32x4-smin`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-i32x4-smin</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75313678382d616464"></a>
+
+## `simd-u16x8-add`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-add</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75313678382d636d706571"></a>
+
+## `simd-u16x8-cmpeq`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-cmpeq</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75313678382d636d706c74"></a>
+
+## `simd-u16x8-cmplt`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-cmplt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75313678382d6d756c"></a>
+
+## `simd-u16x8-mul`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-mul</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75313678382d73686c"></a>
+
+## `simd-u16x8-shl`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-shl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75313678382d736872"></a>
+
+## `simd-u16x8-shr`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-shr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75313678382d73706c6174"></a>
+
+## `simd-u16x8-splat`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-splat</span> :: (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75313678382d737562"></a>
+
+## `simd-u16x8-sub`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u16x8-sub</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d616464"></a>
+
+## `simd-u32x4-add`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-add</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d636d706571"></a>
+
+## `simd-u32x4-cmpeq`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-cmpeq</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d636d706c74"></a>
+
+## `simd-u32x4-cmplt`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-cmplt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d6d756c"></a>
+
+## `simd-u32x4-mul`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-mul</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d7061636b"></a>
+
+## `simd-u32x4-pack`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-pack</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d726f746c"></a>
+
+## `simd-u32x4-rotl`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-rotl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d726f7472"></a>
+
+## `simd-u32x4-rotr`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-rotr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d73686c"></a>
+
+## `simd-u32x4-shl`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-shl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d736872"></a>
+
+## `simd-u32x4-shr`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-shr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d73706c6174"></a>
+
+## `simd-u32x4-splat`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-splat</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75333278342d737562"></a>
+
+## `simd-u32x4-sub`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u32x4-sub</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75363478322d616464"></a>
+
+## `simd-u64x2-add`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-add</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75363478322d7061636b"></a>
+
+## `simd-u64x2-pack`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-pack</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75363478322d726f746c"></a>
+
+## `simd-u64x2-rotl`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-rotl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75363478322d726f7472"></a>
+
+## `simd-u64x2-rotr`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-rotr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75363478322d73686c"></a>
+
+## `simd-u64x2-shl`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-shl</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75363478322d736872"></a>
+
+## `simd-u64x2-shr`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-shr</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75363478322d73706c6174"></a>
+
+## `simd-u64x2-splat`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-splat</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75363478322d737562"></a>
+
+## `simd-u64x2-sub`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u64x2-sub</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75387831362d616464"></a>
+
+## `simd-u8x16-add`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-add</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75387831362d636d706571"></a>
+
+## `simd-u8x16-cmpeq`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-cmpeq</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75387831362d636d706774"></a>
+
+## `simd-u8x16-cmpgt`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-cmpgt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75387831362d636d706c74"></a>
+
+## `simd-u8x16-cmplt`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-cmplt</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75387831362d6d6f76656d61736b"></a>
+
+## `simd-u8x16-movemask`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-movemask</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75387831362d73706c6174"></a>
+
+## `simd-u8x16-splat`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-splat</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">U128</span>)</code></pre>
+
+[Source](/reference-sources/Data.Wide.cinch)
+
+<a id="value-73696d642d75387831362d737562"></a>
+
+## `simd-u8x16-sub`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">simd-u8x16-sub</span> :: (<span class="tok-constructor">U128</span> -&gt; (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">U128</span>))</code></pre>
 
 [Source](/reference-sources/Data.Wide.cinch)
 
@@ -2044,4 +2398,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Wide.cinch`. Source SHA-256: `d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Wide.cinch`. Source SHA-256: `57b2af4c2ad31ff1fa34ea459731436032c8e8b71cb16d3634c8fcd044572a77`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

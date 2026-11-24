@@ -87,44 +87,38 @@ fn utf8_declarations_have_canonical_documentation() {
     }
 }
 
-/// Actual byte arithmetic and exact-load kernels compile for wasm, ARM and a big-endian object.
+/// Actual byte arithmetic, SIMD ASCII blocks and exact-load kernels compile for wasm, ARM and a big-endian object.
 #[test]
 fn utf8_readonly_kernels_compile_for_foreign_targets() {
-    let source = include_str!("../prelude/Data/Bytes/Utf8.cinch");
-    let mut kernels = String::from("-- | Actual private UTF-8 arithmetic and source loads.\nmodule Main where\n  import Data.Bytes\n  import Data.Machine\n");
-    for name in [
-        "load-one",
-        "load-four",
-        "load-eight",
-        "ascii-eight",
-        "ascii-sixteen",
-        "decode-word",
-        "encode-word",
-        "scan-lt",
-        "scan-ge",
-        "scan-gt",
-        "scan-eq",
-        "scan-add",
-        "scan-sub",
-        "scan-address",
-        "packed-width",
-        "packed-valid",
-        "scan-simple",
-        "scan-ready",
-        "scan-four",
-        "scan-from-packed",
-        "scan-width",
-        "scan-valid",
-    ] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let rest = &source[start..];
-        let end = rest.find("\n  -- |").unwrap_or(rest.len());
-        kernels.push_str(
-            "\n  -- | Isolated actual checked arithmetic or caller-proved exact source load.\n",
-        );
-        kernels.push_str(&rest[..end]);
-    }
-    kernels.push_str("\n  -- | Retain source storage throughout exact private reads.\n  keep :: forall a. Bytes -> a -> a\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Give each computed boolean a distinct observable result bit.\n  flag :: Bool -> U64 -> U64\n  flag value mask = if value then mask else 0\n  -- | Reach actual read-only kernels without algebraically contradictory exit conditions.\n  main :: Int\n  main = let bytes = bytes-new 16 in let base = bytes-data bytes in\n    let one = keep bytes (load-one base) in let four = keep bytes (load-four base) in\n    let eight = keep bytes (load-eight base) in let address = scan-address base eight in\n    let packed = decode-word four one in let encoded = encode-word (wrapping-u32-to-i32 packed) in\n    let simple = scan-simple one in let checked = scan-four four in let converted = scan-from-packed packed in\n    let a = scan-width checked in let b = packed-width packed in let next = scan-add a b in let rest = scan-sub encoded next in\n    let x = bit-or-u64 (flag (ascii-eight eight) 1) (flag (keep bytes (ascii-sixteen base)) 2) in\n    let y = bit-or-u64 (flag (scan-lt next rest) 4) (flag (scan-ge rest eight) 8) in\n    let z = bit-or-u64 (flag (scan-gt encoded next) 16) (flag (scan-eq next rest) 32) in\n    let p = bit-or-u64 (flag (packed-valid packed) 64) (flag (scan-valid converted) 128) in\n    let q = bit-or-u64 (flag (scan-ready simple) 256) (flag (ne-i64 address base) 512) in\n    let flags = bit-or-u64 (bit-or-u64 x y) (bit-or-u64 (bit-or-u64 z p) q) in\n    let score = scan-add rest flags in if eq-u64 score eight then 0 else 1\n");
+    let kernels = [
+        include_str!("../prelude/Data/Bytes/Utf8.cinch"),
+        r#"-- | Root complete public UTF-8 validation, decoding, counting, encoding and repair kernels.
+module Main where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Utf8
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+
+  -- | Exercise SIMD ASCII scanning, 4-byte multibyte decode, rune encoding and repair.
+  main :: Int
+  main =
+    let raw = bytes-from-u8s [97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,240,159,166,128] in
+    let ok = utf8-valid raw in
+    let count = utf8-count raw in
+    let between = utf8-count-between raw 0 20 in
+    let step = utf8-decode-at raw 16 in
+    let last = utf8-last raw in
+    let full = utf8-full-rune raw in
+    let encoded = utf8-encode-rune 129408 in
+    let repaired = utf8-repair raw encoded in
+    let width-ok = utf8-step-width step == 4 && utf8-step-width last == 4 in
+    let between-ok = case between of Some n -> n == 17; None -> False in
+    if ok && count == 17 && between-ok && width-ok && full && bytes-len repaired == 20 then 0 else 1
+"#,
+    ]
+    .join("\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -155,6 +149,31 @@ fn utf8_readonly_kernels_compile_for_foreign_targets() {
             .join()
             .unwrap()
             .unwrap();
+        assert!(
+            ir.contains("load i128"),
+            "{triple}: missing 16-byte SIMD ASCII load"
+        );
+        assert!(
+            ir.contains("bitcast <16 x i1>"),
+            "{triple}: missing SIMD ASCII movemask"
+        );
+        assert!(
+            ir.contains("load i64"),
+            "{triple}: missing 8-byte SWAR ASCII load"
+        );
+        assert!(
+            ir.contains("load i32"),
+            "{triple}: missing 4-byte UTF-8 lookahead load"
+        );
+        assert!(ir.contains("load i8"), "{triple}: missing scalar byte load");
+        if endian == "big" {
+            assert!(
+                ir.contains("@llvm.bswap.i128")
+                    && ir.contains("@llvm.bswap.i64")
+                    && ir.contains("@llvm.bswap.i32"),
+                "{triple}: missing big-endian word swaps"
+            );
+        }
         let path = directory.path().join(format!("{arch}.ll"));
         std::fs::write(&path, &ir).unwrap();
         let output = std::process::Command::new(

@@ -10,9 +10,9 @@ Import with `import Text.Ascii85`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Ascii85](Text.Ascii85.md).
+Non-embedded source closure: [Text.Ascii85](Text.Ascii85.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -21,7 +21,7 @@ Four bytes become five symbols from ! through u; a complete zero word
 becomes z. No document delimiters are added or accepted. Decoding ignores
 bytes 0 through 32, counts errors in original input bytes, and accumulates
 complete groups modulo 2^32, including noncanonical overflowing groups.
-Complete groups use inline LLVM SIMD digit arithmetic. Incremental calls
+Complete groups use portable machine and SIMD digit arithmetic. Incremental calls
 retain only an unfinished word; finishing emits the final short quantum.
 
 </details>
@@ -36,7 +36,7 @@ retain only an unfinished word; finishing emits the final short quantum.
 
 A source offset or destination interval is outside its accessible buffer.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 224
+[Source](/reference-sources/Text.Ascii85.cinch) · line 278
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Ascii85ShortDestination</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Ascii85</span>.<span class="tok-constructor">Ascii85BufferError</span>))</code></pre>
 
@@ -88,7 +88,7 @@ Malformed encoded input. An unsuccessful feed returns no partial output.
 
 Render an interval diagnostic with the requested size or offset and its available bound.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 233
+[Source](/reference-sources/Text.Ascii85.cinch) · line 287
 
 <a id="value-617363696938352d6465636f6465"></a>
 
@@ -98,7 +98,7 @@ Render an interval diagnostic with the requested size or offset and its availabl
 
 Decode complete text with error positions measured in UTF-8 input bytes.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 212
+[Source](/reference-sources/Text.Ascii85.cinch) · line 266
 
 <a id="value-617363696938352d6465636f64652d6174"></a>
 
@@ -112,7 +112,7 @@ original-buffer positions. A caller can add the consumed count to its next sourc
 Four available destination bytes permit progress; final short output occupies only its actual bytes.
 Overlapping intervals snapshot the source before writing; disjoint buffers keep their original owners.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 305
+[Source](/reference-sources/Text.Ascii85.cinch) · line 364
 
 <a id="value-617363696938352d6465636f64652d6279746573"></a>
 
@@ -122,7 +122,7 @@ Overlapping intervals snapshot the source before writing; disjoint buffers keep 
 
 Decode a complete byte buffer. Control bytes through space are ignored; framing is invalid.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 206
+[Source](/reference-sources/Text.Ascii85.cinch) · line 260
 
 <a id="value-617363696938352d6465636f64652d696e746f"></a>
 
@@ -137,7 +137,7 @@ With finish True, valid short tails are emitted and all input is consumed. On ma
 completed output and its consumed boundary remain available alongside the absolute byte error.
 An offset beyond the destination is rejected before mutation; overlapping input is snapshotted.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 297
+[Source](/reference-sources/Text.Ascii85.cinch) · line 356
 
 <a id="value-617363696938352d6465636f64652d707265666978"></a>
 
@@ -148,7 +148,7 @@ An offset beyond the destination is rejected before mutation; overlapping input 
 Decode to fresh bytes while exposing completed output, consumed input and any malformed suffix.
 A non-final call leaves an unfinished quantum in the input suffix rather than hidden state.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 317
+[Source](/reference-sources/Text.Ascii85.cinch) · line 376
 
 <a id="value-617363696938352d6465636f646572"></a>
 
@@ -169,7 +169,7 @@ Begin an independent decoding with absolute error offsets starting at zero.
 Decode complete groups in arbitrary byte chunks, retaining unfinished symbols.
 Invalid bytes return an absolute byte offset and no output for this feed.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 182
+[Source](/reference-sources/Text.Ascii85.cinch) · line 236
 
 <a id="value-617363696938352d6465636f6465722d66696e697368"></a>
 
@@ -179,7 +179,7 @@ Invalid bytes return an absolute byte offset and no output for this feed.
 
 Finish decoding: a single remaining symbol is invalid; two through four emit a byte tail.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 195
+[Source](/reference-sources/Text.Ascii85.cinch) · line 249
 
 <a id="value-617363696938352d656e636f6465"></a>
 
@@ -189,7 +189,7 @@ Finish decoding: a single remaining symbol is invalid; two through four emit a b
 
 Encode a complete buffer without document delimiters or inserted whitespace.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 137
+[Source](/reference-sources/Text.Ascii85.cinch) · line 160
 
 <a id="value-617363696938352d656e636f64652d6279746573"></a>
 
@@ -199,7 +199,7 @@ Encode a complete buffer without document delimiters or inserted whitespace.
 
 Encode a complete buffer to fresh ASCII bytes, including an exact short final word.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 240
+[Source](/reference-sources/Text.Ascii85.cinch) · line 294
 
 <a id="value-617363696938352d656e636f64652d696e746f"></a>
 
@@ -211,7 +211,7 @@ Encode at a destination offset and return the actual byte count, including zero-
 Capacity must hold ascii85-max-encoded-length; rejection precedes all writes.
 Source and destination may overlap: overlapping input is snapshotted before mutation.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 248
+[Source](/reference-sources/Text.Ascii85.cinch) · line 302
 
 <a id="value-617363696938352d656e636f646572"></a>
 
@@ -232,7 +232,7 @@ Begin an independent encoding. Empty feeds preserve the continuation.
 Encode all complete words in a chunk and return their bytes plus the advanced state.
 The returned output is independent of subsequent mutation of the input.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 118
+[Source](/reference-sources/Text.Ascii85.cinch) · line 141
 
 <a id="value-617363696938352d656e636f6465722d66696e697368"></a>
 
@@ -243,7 +243,7 @@ The returned output is independent of subsequent mutation of the input.
 Finish an encoding, emitting two through four symbols for any pending bytes.
 A partial zero word is never shortened to z. Finishing an empty state is empty.
 
-[Source](/reference-sources/Text.Ascii85.cinch) · line 126
+[Source](/reference-sources/Text.Ascii85.cinch) · line 149
 
 <a id="value-617363696938352d6572726f722d6d657373616765"></a>
 
@@ -277,4 +277,4 @@ A safe encoded byte bound, including a full five-symbol final allocation.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Ascii85.cinch`. Source SHA-256: `6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Ascii85.cinch`. Source SHA-256: `f92df60216bcd1b1e78d4f7ba90b3b69066a457f83aa3e0fda21baefd26cb037`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

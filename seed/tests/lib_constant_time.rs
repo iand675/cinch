@@ -161,9 +161,9 @@ fn constant_time_complete_consumers_compile_for_wasm_arm_and_big_endian() {
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("load <16 x i8>") && ir.contains("load i8"));
+        assert!(ir.contains("load i128") && ir.contains("load i8"));
         if endian == "big" {
-            assert!(ir.contains("@llvm.bswap.i64"));
+            assert!(ir.contains("@llvm.bswap.i64") && ir.contains("@llvm.bswap.i128"));
         }
         let file = directory.join(format!("{arch}.ll"));
         std::fs::write(&file, ir).unwrap();

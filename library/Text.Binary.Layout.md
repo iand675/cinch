@@ -10,9 +10,9 @@ Import with `import Text.Binary.Layout`. Selected exports may already be in Prel
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Complex](Data.Complex.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Complex](Data.Complex.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Binary](Text.Binary.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Complex](Data.Complex.md), [Text.Binary](Text.Binary.md), [Text.Binary.Layout](Text.Binary.Layout.md).
+Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Complex](Data.Complex.md), [Data.Float](Data.Float.md), [Text.Binary](Text.Binary.md), [Text.Binary.Layout](Text.Binary.Layout.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -35,7 +35,7 @@ Decoding returns fresh byte fields and a consumed count, leaving trailing input.
 
 A typed fixed-size wire descriptor; its constructor and trusted buffer callbacks are private.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 97
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 99
 
 <a id="type-42696e6172794c61796f75744572726f72"></a>
 
@@ -45,7 +45,7 @@ A typed fixed-size wire descriptor; its constructor and trusted buffer callbacks
 
 Fixed-layout, range and variable-integer failures, with exact progress where available.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 65
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 67
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BinaryShortInput</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Binary</span>.<span class="tok-constructor">Layout</span>.<span class="tok-constructor">BinaryLayoutError</span>))</code></pre>
 
@@ -67,7 +67,7 @@ Fixed-layout, range and variable-integer failures, with exact progress where ava
 
 Wire significance, including an explicit target-native order that retains its own name.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 37
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 38
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BinaryLittleEndian</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Binary</span>.<span class="tok-constructor">Layout</span>.<span class="tok-constructor">BinaryOrder</span></code></pre>
 
@@ -85,7 +85,7 @@ Wire significance, including an explicit target-native order that retains its ow
 
 Append a complete private encoding to a copied prefix, preserving both caller values.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 172
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 174
 
 <a id="value-62696e6172792d617070656e642d753136"></a>
 
@@ -95,7 +95,7 @@ Append a complete private encoding to a copied prefix, preserving both caller va
 
 Append an unsigned sixteen-bit field without changing the caller's prefix.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 716
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 618
 
 <a id="value-62696e6172792d617070656e642d753332"></a>
 
@@ -105,7 +105,7 @@ Append an unsigned sixteen-bit field without changing the caller's prefix.
 
 Append an unsigned thirty-two-bit field without changing the caller's prefix.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 720
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 622
 
 <a id="value-62696e6172792d617070656e642d753634"></a>
 
@@ -115,7 +115,7 @@ Append an unsigned thirty-two-bit field without changing the caller's prefix.
 
 Append an unsigned sixty-four-bit field without changing the caller's prefix.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 724
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 626
 
 <a id="value-62696e6172792d617070656e642d75766172696e74"></a>
 
@@ -125,7 +125,7 @@ Append an unsigned sixty-four-bit field without changing the caller's prefix.
 
 Append a complete unsigned varint to a copied prefix.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 764
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 666
 
 <a id="value-62696e6172792d617070656e642d766172696e74"></a>
 
@@ -135,7 +135,7 @@ Append a complete unsigned varint to a copied prefix.
 
 Append a complete signed varint to a copied prefix.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 768
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 670
 
 <a id="value-62696e6172792d6172726179"></a>
 
@@ -146,7 +146,7 @@ Append a complete signed varint to a copied prefix.
 A fixed-count homogeneous array represented by a list; nested arrays and records are supported.
 Encoding rejects length mismatches; decoding obtains its element count from the descriptor.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 652
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 554
 
 <a id="value-62696e6172792d626f6f6c"></a>
 
@@ -156,7 +156,7 @@ Encoding rejects length mismatches; decoding obtains its element count from the 
 
 Encode False as zero and True as one; every nonzero decoded byte is True.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 265
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 245
 
 <a id="value-62696e6172792d6279746573"></a>
 
@@ -166,7 +166,7 @@ Encode False as zero and True as one; every nonzero decoded byte is True.
 
 An exact-size byte field. Decoded values and encoded output never retain a mutable input alias.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 372
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 340
 
 <a id="value-62696e6172792d636f6d706c65782d76616c7565"></a>
 
@@ -176,7 +176,7 @@ An exact-size byte field. Decoded values and encoded output never retain a mutab
 
 The standard binary64 complex value, encoded as real then imaginary components in sixteen bytes.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 679
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 581
 
 <a id="value-62696e6172792d636f6d706c6578313238"></a>
 
@@ -186,7 +186,7 @@ The standard binary64 complex value, encoded as real then imaginary components i
 
 A complex binary128 field represented by two binary64 components, real part first.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 667
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 569
 
 <a id="value-62696e6172792d636f6d706c65783634"></a>
 
@@ -196,7 +196,7 @@ A complex binary128 field represented by two binary64 components, real part firs
 
 A complex binary64 field represented by two binary32 components, real part first.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 663
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 565
 
 <a id="value-62696e6172792d6465636f6465"></a>
 
@@ -206,7 +206,7 @@ A complex binary64 field represented by two binary32 components, real part first
 
 Decode one complete value and return its consumed byte count; trailing bytes remain available.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 159
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 161
 
 <a id="value-62696e6172792d6465636f64652d6174"></a>
 
@@ -216,7 +216,7 @@ Decode one complete value and return its consumed byte count; trailing bytes rem
 
 Decode at a checked zero-based offset without changing the input or retaining byte-field aliases.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 163
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 165
 
 <a id="value-62696e6172792d6465636f64652d75766172696e74"></a>
 
@@ -227,7 +227,7 @@ Decode at a checked zero-based offset without changing the input or retaining by
 Decode an unsigned varint with consumed counts, distinguishing incomplete prefixes and overflow.
 Complete first-eight-byte quanta reuse the existing SWAR payload compactor.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 793
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 695
 
 <a id="value-62696e6172792d6465636f64652d766172696e74"></a>
 
@@ -237,7 +237,7 @@ Complete first-eight-byte quanta reuse the existing SWAR payload compactor.
 
 Decode a signed varint with the same checked prefix counts and full-width inverse zigzag mapping.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 805
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 707
 
 <a id="value-62696e6172792d656e636f6465"></a>
 
@@ -247,7 +247,7 @@ Decode a signed varint with the same checked prefix counts and full-width invers
 
 Encode a validated value into one fresh complete buffer, returning no partial bytes on error.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 137
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 139
 
 <a id="value-62696e6172792d656e636f64652d696e746f"></a>
 
@@ -258,7 +258,7 @@ Encode a validated value into one fresh complete buffer, returning no partial by
 Encode into an offset only after both complete capacity and value validation succeed.
 A private encoding makes nested validation failures and source/destination overlap atomic.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 148
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 150
 
 <a id="value-62696e6172792d656e636f64652d75766172696e74"></a>
 
@@ -268,7 +268,7 @@ A private encoding makes nested validation failures and source/destination overl
 
 Encode a complete unsigned integer with its shortest base-128 representation.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 740
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 642
 
 <a id="value-62696e6172792d656e636f64652d766172696e74"></a>
 
@@ -278,7 +278,7 @@ Encode a complete unsigned integer with its shortest base-128 representation.
 
 Encode a signed integer by zigzag mapping all I64 values before base-128 encoding.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 744
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 646
 
 <a id="value-62696e6172792d663332"></a>
 
@@ -288,7 +288,7 @@ Encode a signed integer by zigzag mapping all I64 values before base-128 encodin
 
 One bit-preserving binary32 floating-point field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 329
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 297
 
 <a id="value-62696e6172792d6633322d62697473"></a>
 
@@ -298,7 +298,7 @@ One bit-preserving binary32 floating-point field.
 
 Observe all binary32 bits without arithmetic or NaN canonicalization.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 301
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 281
 
 <a id="value-62696e6172792d6633322d66726f6d2d62697473"></a>
 
@@ -308,7 +308,7 @@ Observe all binary32 bits without arithmetic or NaN canonicalization.
 
 Construct binary32 from its complete bit pattern, including signed zeros and NaN payloads.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 308
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 285
 
 <a id="value-62696e6172792d663634"></a>
 
@@ -318,7 +318,7 @@ Construct binary32 from its complete bit pattern, including signed zeros and NaN
 
 One bit-preserving binary64 floating-point field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 333
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 301
 
 <a id="value-62696e6172792d6636342d62697473"></a>
 
@@ -328,7 +328,7 @@ One bit-preserving binary64 floating-point field.
 
 Observe all binary64 bits without arithmetic or NaN canonicalization.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 315
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 289
 
 <a id="value-62696e6172792d6636342d66726f6d2d62697473"></a>
 
@@ -338,7 +338,7 @@ Observe all binary64 bits without arithmetic or NaN canonicalization.
 
 Construct binary64 from its complete bit pattern, including signed zeros and NaN payloads.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 322
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 293
 
 <a id="value-62696e6172792d693136"></a>
 
@@ -348,7 +348,7 @@ Construct binary64 from its complete bit pattern, including signed zeros and NaN
 
 One signed two's-complement sixteen-bit field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 281
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 261
 
 <a id="value-62696e6172792d693332"></a>
 
@@ -358,7 +358,7 @@ One signed two's-complement sixteen-bit field.
 
 One signed two's-complement thirty-two-bit field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 289
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 269
 
 <a id="value-62696e6172792d693634"></a>
 
@@ -368,7 +368,7 @@ One signed two's-complement thirty-two-bit field.
 
 One signed two's-complement sixty-four-bit field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 297
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 277
 
 <a id="value-62696e6172792d6938"></a>
 
@@ -378,7 +378,7 @@ One signed two's-complement sixty-four-bit field.
 
 One signed two's-complement eight-bit field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 273
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 253
 
 <a id="value-62696e6172792d6c61796f75742d6572726f722d6d657373616765"></a>
 
@@ -388,7 +388,7 @@ One signed two's-complement eight-bit field.
 
 Render complete required/available counts, invalid offsets or variable-integer progress.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 80
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 82
 
 <a id="value-62696e6172792d6d6170"></a>
 
@@ -399,7 +399,7 @@ Render complete required/available counts, invalid offsets or variable-integer p
 Adapt a fixed wire view to an application type with pure inverse conversions.
 Round trips require the supplied conversions to be inverses on the represented domain.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 396
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 364
 
 <a id="value-62696e6172792d6d61782d766172696e743136"></a>
 
@@ -409,7 +409,7 @@ Round trips require the supplied conversions to be inverses on the represented d
 
 Maximum bytes for a base-128 integer whose value fits sixteen bits.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 728
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 630
 
 <a id="value-62696e6172792d6d61782d766172696e743332"></a>
 
@@ -419,7 +419,7 @@ Maximum bytes for a base-128 integer whose value fits sixteen bits.
 
 Maximum bytes for a base-128 integer whose value fits thirty-two bits.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 732
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 634
 
 <a id="value-62696e6172792d6d61782d766172696e743634"></a>
 
@@ -429,7 +429,7 @@ Maximum bytes for a base-128 integer whose value fits thirty-two bits.
 
 Maximum bytes for a base-128 integer whose value fits sixty-four bits.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 736
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 638
 
 <a id="value-62696e6172792d6f726465722d6e616d65"></a>
 
@@ -439,7 +439,7 @@ Maximum bytes for a base-128 integer whose value fits sixty-four bits.
 
 Stable names for the three wire-order values.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 46
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 47
 
 <a id="value-62696e6172792d70616464696e67"></a>
 
@@ -449,7 +449,7 @@ Stable names for the three wire-order values.
 
 Explicit zero-filled padding; decoding skips its bytes without requiring them to be zero.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 354
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 322
 
 <a id="value-62696e6172792d70616972"></a>
 
@@ -459,7 +459,7 @@ Explicit zero-filled padding; decoding skips its bytes without requiring them to
 
 Sequence two checked fields without adding alignment or implicit padding.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 382
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 350
 
 <a id="value-62696e6172792d7075742d753136"></a>
 
@@ -469,7 +469,7 @@ Sequence two checked fields without adding alignment or implicit padding.
 
 Write an unsigned sixteen-bit field after checking its entire destination interval.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 695
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 597
 
 <a id="value-62696e6172792d7075742d753332"></a>
 
@@ -479,7 +479,7 @@ Write an unsigned sixteen-bit field after checking its entire destination interv
 
 Write an unsigned thirty-two-bit field after checking its entire destination interval.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 699
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 601
 
 <a id="value-62696e6172792d7075742d753634"></a>
 
@@ -489,7 +489,7 @@ Write an unsigned thirty-two-bit field after checking its entire destination int
 
 Write an unsigned sixty-four-bit field after checking its entire destination interval.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 703
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 605
 
 <a id="value-62696e6172792d7075742d75766172696e74"></a>
 
@@ -499,7 +499,7 @@ Write an unsigned sixty-four-bit field after checking its entire destination int
 
 Write a complete unsigned varint at an offset; short destinations remain unchanged.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 756
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 658
 
 <a id="value-62696e6172792d7075742d766172696e74"></a>
 
@@ -509,7 +509,7 @@ Write a complete unsigned varint at an offset; short destinations remain unchang
 
 Write a complete signed varint at an offset; short destinations remain unchanged.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 760
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 662
 
 <a id="value-62696e6172792d726561642d753136"></a>
 
@@ -519,7 +519,7 @@ Write a complete signed varint at an offset; short destinations remain unchanged
 
 Read an unsigned sixteen-bit field at a checked offset in explicit or native wire order.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 683
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 585
 
 <a id="value-62696e6172792d726561642d753332"></a>
 
@@ -529,7 +529,7 @@ Read an unsigned sixteen-bit field at a checked offset in explicit or native wir
 
 Read an unsigned thirty-two-bit field at a checked offset.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 687
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 589
 
 <a id="value-62696e6172792d726561642d753634"></a>
 
@@ -539,7 +539,7 @@ Read an unsigned thirty-two-bit field at a checked offset.
 
 Read an unsigned sixty-four-bit field at a checked offset.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 691
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 593
 
 <a id="value-62696e6172792d73697a65"></a>
 
@@ -549,7 +549,7 @@ Read an unsigned sixty-four-bit field at a checked offset.
 
 Exact wire bytes described by a layout, independent of its values or target alignment.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 102
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 104
 
 <a id="value-62696e6172792d753136"></a>
 
@@ -559,7 +559,7 @@ Exact wire bytes described by a layout, independent of its values or target alig
 
 One unsigned sixteen-bit field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 277
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 257
 
 <a id="value-62696e6172792d753332"></a>
 
@@ -569,7 +569,7 @@ One unsigned sixteen-bit field.
 
 One unsigned thirty-two-bit field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 285
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 265
 
 <a id="value-62696e6172792d753634"></a>
 
@@ -579,7 +579,7 @@ One unsigned thirty-two-bit field.
 
 One unsigned sixty-four-bit field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 293
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 273
 
 <a id="value-62696e6172792d7538"></a>
 
@@ -589,7 +589,7 @@ One unsigned sixty-four-bit field.
 
 One unsigned eight-bit field.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 269
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 249
 
 <a id="value-62696e6172792d756e6974"></a>
 
@@ -599,8 +599,8 @@ One unsigned eight-bit field.
 
 Empty fixed layout; encoding emits no bytes and decoding consumes no input.
 
-[Source](/reference-sources/Text.Binary.Layout.cinch) · line 337
+[Source](/reference-sources/Text.Binary.Layout.cinch) · line 305
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Binary/Layout.cinch`. Source SHA-256: `2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Binary/Layout.cinch`. Source SHA-256: `1f311c06b7b24f679059ebbfbaa314c1f1e900ec78c9b1c5d56f65971d20fdba`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

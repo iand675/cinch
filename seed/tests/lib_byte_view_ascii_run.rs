@@ -191,7 +191,12 @@ fn reaches(ir: &str, start: &str, wanted: &str) -> bool {
                     continue;
                 };
                 if following.starts_with('(')
-                    && (callee.starts_with("Data.Bytes.View.") || callee.starts_with("Main."))
+                    && (callee.starts_with("Data.Bytes.")
+                        || callee.starts_with("Data.Wide.")
+                        || callee.starts_with("Data.Machine.")
+                        || callee.starts_with("cinch.runtime.")
+                        || callee.starts_with("cinch.prim.")
+                        || callee.starts_with("Main."))
                 {
                     pending.push(callee.to_owned());
                 }
@@ -247,29 +252,39 @@ fn ascii_run_full_adapter_compiles_for_wasm_arm_and_big_endian() {
             .unwrap();
         let file = directory.join(format!("{arch}.ll"));
         std::fs::write(&file, &ir).unwrap();
-        artifacts.push((triple, file, ir));
+        artifacts.push((triple, endian, file, ir));
     }
-    for (triple, file, ir) in artifacts {
+    for (triple, endian, file, ir) in artifacts {
         for worker in [
-            "ascii-space-blocks",
-            "ascii-space-sixteen.llvm",
-            "ascii-space-tail",
-            "ascii-space-byte.llvm",
-            "load-byte.llvm",
+            "Data.Bytes.View.ascii-space-blocks",
+            "Data.Bytes.View.ascii-space-tail",
+            "cinch.runtime.bytesLoadU128",
+            "cinch.runtime.bytesGetU8At",
+            "cinch.prim.simdU8x16Sub",
+            "cinch.prim.simdU8x16CmpLt",
+            "cinch.prim.simdU8x16CmpEq",
+            "cinch.prim.simdU8x16Movemask",
+            "cinch.prim.trailingZerosU32",
         ] {
             assert!(
-                reaches(&ir, "Main.main", &format!("Data.Bytes.View.{worker}")),
+                reaches(&ir, "Main.main", worker),
                 "unreachable {worker}; retained {}",
                 file.display()
             );
         }
-        let vector = definition(&ir, "Data.Bytes.View.ascii-space-sixteen.llvm");
-        assert!(
-            vector.contains("load <16 x i8>")
-                && vector.contains("icmp ule <16 x i8>")
-                && vector.contains("icmp ult <16 x i8>")
-        );
-        assert!(!vector.contains("store "));
+        let load128 = definition(&ir, "cinch.runtime.bytesLoadU128");
+        assert!(load128.contains("load i128") && load128.contains("align 1"));
+        assert!(!load128.contains("store "));
+        if endian == "big" {
+            assert!(load128.contains("@llvm.bswap.i128"));
+        }
+        let cmplt = definition(&ir, "cinch.prim.simdU8x16CmpLt");
+        assert!(cmplt.contains("icmp ult <16 x i8>") && !cmplt.contains("store "));
+        let cmpeq = definition(&ir, "cinch.prim.simdU8x16CmpEq");
+        assert!(cmpeq.contains("icmp eq <16 x i8>") && !cmpeq.contains("store "));
+        let movemask = definition(&ir, "cinch.prim.simdU8x16Movemask");
+        assert!(movemask.contains("bitcast <16 x i1>") && !movemask.contains("store "));
+        assert!(definition(&ir, "cinch.prim.trailingZerosU32").contains("@llvm.cttz.i32"));
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )
@@ -303,7 +318,7 @@ fn ascii_run_has_canonical_owned_documentation() {
     let mut declarations = Vec::new();
     cinch::cinchdoc::flatten(&parsed.declarations, &mut declarations);
     for name in [
-        "ascii-space-sixteen",
+        "ascii-space-mask",
         "ascii-space-byte",
         "ascii-space-tail",
         "ascii-space-blocks",

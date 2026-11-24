@@ -12,7 +12,7 @@ Import with `import Crypto.Hmac`. Selected exports may already be in Prelude.
 
 [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Text.Digest](Text.Digest.md).
 
-Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Hmac](Crypto.Hmac.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Digest](Text.Digest.md).
+Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Hmac](Crypto.Hmac.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Digest](Text.Digest.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

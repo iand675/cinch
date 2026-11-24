@@ -10,20 +10,20 @@ Import with `import Text.Sha1`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Binary](Text.Binary.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha1](Text.Sha1.md).
+Non-embedded source closure: [Text.Binary](Text.Binary.md), [Text.Sha1](Text.Sha1.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 SHA-1 digests, persistent streaming states and binary checkpoints.
 SHA-1 is broken for collision resistance: use it only to interoperate with
 existing formats and protocols, never for new signatures or integrity checks.
-Compression expands four schedule words per step in SIMD lanes and evaluates
-each of the eighty ordered rounds once with native rotates. Updates read exact
-64-byte blocks while retaining their input owner and copy pending tails into
-private storage. Retaining a state branches the computation. Digest and
-checkpoint words use network order; byte counts wrap at 64 bits.
+Compression expands four schedule words per step in portable 128-bit SIMD lanes
+and evaluates all eighty ordered rounds in registers with native rotates.
+Updates read checked 64-byte blocks directly from the input buffer and copy
+pending tails into private storage. Retaining a state branches the computation.
+Digest and checkpoint words use network order; byte counts wrap at 64 bits.
 
 </details>
 
@@ -47,7 +47,7 @@ An immutable wrapping byte count, copied partial block and chaining value.
 
 A checkpoint's identifier or exact byte length is invalid.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 211
+[Source](/reference-sources/Text.Sha1.cinch) · line 175
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidSha1StateIdentifier</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1StateError</span></code></pre>
 
@@ -93,7 +93,7 @@ Initial state with no pending bytes.
 
 Append the digest to a copied prefix, preserving the state and caller buffer.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 191
+[Source](/reference-sources/Text.Sha1.cinch) · line 155
 
 <a id="value-736861312d73746174652d617070656e642d73617665"></a>
 
@@ -103,7 +103,7 @@ Append the digest to a copied prefix, preserving the state and caller buffer.
 
 Append the complete checkpoint to a copied prefix without mutating either input.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 207
+[Source](/reference-sources/Text.Sha1.cinch) · line 171
 
 <a id="value-736861312d73746174652d626c6f636b2d73697a65"></a>
 
@@ -113,7 +113,7 @@ Append the complete checkpoint to a copied prefix without mutating either input.
 
 Compression block size in bytes, always 64.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 152
+[Source](/reference-sources/Text.Sha1.cinch) · line 116
 
 <a id="value-736861312d73746174652d6572726f722d6d657373616765"></a>
 
@@ -123,7 +123,7 @@ Compression block size in bytes, always 64.
 
 Render identifier errors or complete required and actual checkpoint byte lengths.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 218
+[Source](/reference-sources/Text.Sha1.cinch) · line 182
 
 <a id="value-736861312d73746174652d6c6f6164"></a>
 
@@ -134,7 +134,7 @@ Render identifier errors or complete required and actual checkpoint byte lengths
 Restore every chaining and count bit, copying only the live partial block into private storage.
 Identifier checks precede exact-size checks; unused tail bytes are ignored and saved as zeros.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 229
+[Source](/reference-sources/Text.Sha1.cinch) · line 193
 
 <a id="value-736861312d73746174652d7265736574"></a>
 
@@ -144,7 +144,7 @@ Identifier checks precede exact-size checks; unused tail bytes are ignored and s
 
 Return the initial state, preserving the supplied state.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 144
+[Source](/reference-sources/Text.Sha1.cinch) · line 108
 
 <a id="value-736861312d73746174652d73617665"></a>
 
@@ -155,7 +155,7 @@ Return the initial state, preserving the supplied state.
 Return 96 checkpoint bytes: ASCII sha, version byte 1, chaining words, zero-padded tail and count.
 Every numeric field uses network order.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 196
+[Source](/reference-sources/Text.Sha1.cinch) · line 160
 
 <a id="value-736861312d73746174652d73697a65"></a>
 
@@ -165,7 +165,7 @@ Every numeric field uses network order.
 
 Digest size in bytes, always 20.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 148
+[Source](/reference-sources/Text.Sha1.cinch) · line 112
 
 <a id="value-736861312d73746174652d73756d"></a>
 
@@ -175,7 +175,7 @@ Digest size in bytes, always 20.
 
 Return the network-order digest in fresh storage without changing the state.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 186
+[Source](/reference-sources/Text.Sha1.cinch) · line 150
 
 <a id="value-736861312d73746174652d757064617465"></a>
 
@@ -200,4 +200,4 @@ Compute a fresh 20-byte network-order digest of a complete input.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Sha1.cinch`. Source SHA-256: `7c4c6ab9c67ff50be3b4273fd01b709a4ad61b5a0943835f38b438f1142ea095`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Sha1.cinch`. Source SHA-256: `ef5b6ea756c968aa42684a4544f8b6d50c1c65e6be68a279166cad675df16a0b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

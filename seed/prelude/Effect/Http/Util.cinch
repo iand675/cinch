@@ -1,0 +1,603 @@
+-- | HTTP/1.1 wire diagnostics, strict chunked transfer-encoding helpers, RFC 7230 hop-by-hop
+-- header filtering, and a configurable HTTP/HTTPS reverse proxy built over Effect.Http,
+-- Effect.Http.Server, and Effect.Tls.
+--
+-- Pure wire helpers (`dump-request`, `dump-response`, `chunked-encode`, `chunked-decode`, and
+-- `strip-hop-by-hop-headers`) operate directly on `Text.Http` values and byte buffers without
+-- I/O. `ReverseProxy` forwards incoming `HttpWireRequest` values to HTTP or TLS 1.3 HTTPS
+-- upstreams, stripping hop-by-hop headers in both directions, joining base paths, populating
+-- `X-Forwarded-*` headers, applying optional request rewrites and response modifiers, and
+-- plugging directly into `Effect.Http.Server` handlers and `ServeMux`.
+module Effect.Http.Util where
+
+  import Crypto.Tls
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Http
+  import Effect.Http.Server
+  import Effect.Tls
+  import Text.Http
+  import Text.Show (nat-to-string)
+
+  export dump-request, dump-response
+  export chunked-encode, chunked-decode
+  export strip-hop-by-hop-headers
+  export ProxyTarget, ProxyTarget, proxy-target-scheme, proxy-target-host, proxy-target-port, proxy-target-base-path
+  export ReverseProxy, reverse-proxy-single-host, reverse-proxy-target
+  export reverse-proxy-with-rewrite, reverse-proxy-with-modify-response, reverse-proxy-with-error-handler
+  export reverse-proxy-with-tls, reverse-proxy-with-client-ip
+  export reverse-proxy-forward, reverse-proxy-forward-tls, reverse-proxy-handler
+
+  -- ---------------------------------------------------------------------
+  -- Byte and ASCII helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Read the byte at index `i`, or `0` when out of bounds.
+  byte-at :: Bytes -> Nat -> Nat
+  byte-at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Saturating natural subtraction.
+  sat-sub :: Nat -> Nat -> Nat
+  sat-sub a b = if b <= a then a - b else 0
+
+  -- | Copy slice `[start, stop)` into a fresh byte buffer.
+  slice-range :: Bytes -> Nat -> Nat -> Bytes
+  slice-range b start stop =
+    if start <= stop && stop <= bytes-len b then
+      let out = bytes-new (stop - start) in
+      let copied = bytes-copy-range out b 0 start (stop - start) in
+      out
+    else bytes-new 0
+
+  -- | Decode UTF-8 bytes to text, defaulting to empty text on invalid UTF-8.
+  bytes-text :: Bytes -> String
+  bytes-text b = case string-from-bytes b of
+    Some s -> s
+    None -> ""
+
+  -- | ASCII lowercase conversion for a string.
+  ascii-lower :: String -> String
+  ascii-lower s =
+    let b = string-to-bytes s in
+    let n = bytes-len b in
+    let out = bytes-new n in
+    let done = ascii-lower-loop b out 0 in
+    bytes-text out
+
+  -- | Lowercase ASCII bytes into a destination buffer.
+  ascii-lower-loop :: Bytes -> Bytes -> Nat -> Unit
+  ascii-lower-loop src dst i =
+    if i >= bytes-len src || i >= bytes-len dst then ()
+    else
+      let c = bytes-get src i in
+      let lc = if c >= 65 && c <= 90 then c + 32 else c in
+      let w = if lc < 256 then bytes-set dst i lc else () in
+      ascii-lower-loop src dst (i + 1)
+
+  -- | Trim leading and trailing ASCII optional whitespace (SP and HTAB).
+  trim-ows :: String -> String
+  trim-ows s =
+    let b = string-to-bytes s in
+    let start = skip-ows b 0 in
+    let end = back-ows b (bytes-len b) start in
+    bytes-text (slice-range b start end)
+
+  -- | Advance past leading SP and HTAB bytes.
+  skip-ows :: Bytes -> Nat -> Nat
+  skip-ows b i =
+    if i < bytes-len b && (bytes-get b i == 32 || bytes-get b i == 9) then skip-ows b (i + 1)
+    else i
+
+  -- | Retreat past trailing SP and HTAB bytes not before `start`.
+  back-ows :: Bytes -> Nat -> Nat -> Nat
+  back-ows b end start =
+    if end > start && (byte-at b (sat-sub end 1) == 32 || byte-at b (sat-sub end 1) == 9) then
+      back-ows b (sat-sub end 1) start
+    else end
+
+  -- | Split a string on a single byte delimiter.
+  split-on-byte :: String -> Nat -> List String
+  split-on-byte s sep = split-bytes-loop (string-to-bytes s) sep 0 0 Nil
+
+  -- | Tail-recursive byte splitter.
+  split-bytes-loop :: Bytes -> Nat -> Nat -> Nat -> List String -> List String
+  split-bytes-loop b sep start i acc =
+    if i >= bytes-len b then reverse (Cons (bytes-text (slice-range b start i)) acc)
+    else if byte-at b i == sep then split-bytes-loop b sep (i + 1) (i + 1) (Cons (bytes-text (slice-range b start i)) acc)
+    else split-bytes-loop b sep start (i + 1) acc
+
+  -- | Test whether `s` starts with ASCII byte `v`.
+  starts-with-byte :: String -> Nat -> Bool
+  starts-with-byte s v =
+    let b = string-to-bytes s in
+    bytes-len b > 0 && bytes-get b 0 == v
+
+  -- | Test whether `s` ends with ASCII byte `v`.
+  ends-with-byte :: String -> Nat -> Bool
+  ends-with-byte s v =
+    let b = string-to-bytes s in
+    let n = bytes-len b in
+    n > 0 && byte-at b (sat-sub n 1) == v
+
+  -- | Drop the first byte from an ASCII-prefixed string.
+  drop-first-byte :: String -> String
+  drop-first-byte s =
+    let b = string-to-bytes s in
+    if bytes-len b == 0 then ""
+    else bytes-text (slice-range b 1 (bytes-len b))
+
+  -- | Test whether `s` starts with ASCII prefix `pre`.
+  starts-with-text :: String -> String -> Bool
+  starts-with-text s pre =
+    let sb = string-to-bytes s in
+    let pb = string-to-bytes pre in
+    let pn = bytes-len pb in
+    bytes-len sb >= pn && eq-i64 (bytes-compare (slice-range sb 0 pn) pb) 0
+
+  -- | Find the first occurrence of byte `v` at or after index `i`.
+  find-byte :: Bytes -> Nat -> Nat -> Option Nat
+  find-byte b v i =
+    if i >= bytes-len b then None
+    else if bytes-get b i == v then Some i
+    else find-byte b v (i + 1)
+
+  -- | Find the last occurrence of byte `v` strictly before `end`.
+  find-last-byte :: Bytes -> Nat -> Nat -> Option Nat
+  find-last-byte b v end =
+    if end == 0 then None
+    else if byte-at b (sat-sub end 1) == v then Some (sat-sub end 1)
+    else find-last-byte b v (sat-sub end 1)
+
+  -- ---------------------------------------------------------------------
+  -- Wire request and response dump utilities (RFC 7230).
+  -- ---------------------------------------------------------------------
+
+  -- | Compute the request-target string for a wire request dump.
+  dump-request-target :: HttpWireRequest -> String
+  dump-request-target req =
+    let raw = req-request-uri req in
+    if raw /= "" then raw
+    else
+      let p0 = req-path req in
+      let p = if p0 == "" then "/" else p0 in
+      let q = req-raw-query req in
+      if q == "" then p else string-concat-all [p, "?", q]
+
+  -- | Check whether a header map carries a `Transfer-Encoding` header.
+  has-transfer-encoding :: HttpHeader -> Bool
+  has-transfer-encoding hd = case http-header-get hd "Transfer-Encoding" of
+    Some _ -> True
+    None -> False
+
+  -- | Render an `HttpWireRequest` in RFC 7230 HTTP/1.1 wire format, including body bytes when `include-body` is `True`.
+  dump-request :: HttpWireRequest -> Bool -> Bytes
+  dump-request req include-body =
+    let m = req-method req in
+    let req-uri = dump-request-target req in
+    let ver = req-proto req in
+    let line = string-concat-all [m, " ", req-uri, " ", ver, "\r\n"] in
+    let body = req-body req in
+    let h0 = req-headers req in
+    let h1 = (if req-host req == "" then h0
+      else case http-header-get h0 "Host" of
+        Some _ -> h0
+        None -> http-header-set h0 "Host" (req-host req)) in
+    let h2 = (if bytes-len body > 0 && not (has-transfer-encoding h1) then
+        case http-header-get h1 "Content-Length" of
+          Some _ -> h1
+          None -> http-header-set h1 "Content-Length" (nat-to-string (bytes-len body))
+      else h1) in
+    let head-bytes = bytes-concat [string-to-bytes line, http-header-render h2] in
+    if include-body && bytes-len body > 0 then bytes-concat [head-bytes, body]
+    else head-bytes
+
+  -- | Render an `HttpWireResponse` in RFC 7230 HTTP/1.1 wire format, including body bytes when `include-body` is `True`.
+  dump-response :: HttpWireResponse -> Bool -> Bytes
+  dump-response resp include-body =
+    let code = resp-status resp in
+    let rs0 = resp-reason resp in
+    let rs = if rs0 == "" then http-status-text code else rs0 in
+    let ver = http-version-string (HttpVersion (resp-proto-major resp) (resp-proto-minor resp)) in
+    let status-line = (if rs == "" then string-concat-all [ver, " ", nat-to-string code, "\r\n"]
+      else string-concat-all [ver, " ", nat-to-string code, " ", rs, "\r\n"]) in
+    let body = resp-body resp in
+    let bodyless = (code >= 100 && code <= 199) || code == 204 || code == 304 in
+    let h0 = resp-headers resp in
+    let h1 = (if bodyless || has-transfer-encoding h0 then h0
+      else case http-header-get h0 "Content-Length" of
+        Some _ -> h0
+        None -> http-header-set h0 "Content-Length" (nat-to-string (bytes-len body))) in
+    let head-bytes = bytes-concat [string-to-bytes status-line, http-header-render h1] in
+    if include-body && not bodyless && bytes-len body > 0 then bytes-concat [head-bytes, body]
+    else head-bytes
+
+  -- ---------------------------------------------------------------------
+  -- Strict HTTP/1.1 chunked transfer-encoding helpers (RFC 7230 §4.1).
+  -- ---------------------------------------------------------------------
+
+  -- | Encode `payload` into HTTP/1.1 chunked transfer-encoding using chunks of at most `chunk-size` bytes
+  -- (`0` defaults to `4096`).
+  chunked-encode :: Bytes -> Nat -> Bytes
+  chunked-encode payload chunk-size = http-chunk-encode payload chunk-size
+
+  -- | Find the index of the next `\r\n` sequence at or after `i`.
+  find-crlf :: Bytes -> Nat -> Option Nat
+  find-crlf b i =
+    let n = bytes-len b in
+    if i + 1 >= n then None
+    else if bytes-get b i == 13 && bytes-get b (i + 1) == 10 then Some i
+    else find-crlf b (i + 1)
+
+  -- | Parse a non-empty strict hexadecimal natural number from bytes, rejecting any non-hex byte.
+  parse-hex-strict :: Bytes -> Option Nat
+  parse-hex-strict b =
+    if bytes-len b == 0 then None
+    else parse-hex-strict-loop b 0 0
+
+  -- | Tail-recursive strict hex accumulator.
+  parse-hex-strict-loop :: Bytes -> Nat -> Nat -> Option Nat
+  parse-hex-strict-loop b i acc =
+    if i >= bytes-len b then Some acc
+    else
+      let c = bytes-get b i in
+      if c >= 48 && c <= 57 then parse-hex-strict-loop b (i + 1) (acc * 16 + sat-sub c 48)
+      else if c >= 65 && c <= 70 then parse-hex-strict-loop b (i + 1) (acc * 16 + sat-sub c 55)
+      else if c >= 97 && c <= 102 then parse-hex-strict-loop b (i + 1) (acc * 16 + sat-sub c 87)
+      else None
+
+  -- | Strip an optional `;chunk-ext` suffix (and any BWS immediately before `;`) from a chunk-size line.
+  chunk-size-hex-part :: Bytes -> Bytes
+  chunk-size-hex-part line = case find-byte line 59 0 of
+    None -> line
+    Some semi ->
+      let end = back-ows line semi 0 in
+      slice-range line 0 end
+
+  -- | Decode an HTTP/1.1 chunked transfer-encoded payload with strict hex and CRLF validation.
+  chunked-decode :: Bytes -> Result HttpProtoError Bytes
+  chunked-decode input = chunked-decode-loop input 0 Nil
+
+  -- | Tail-recursive strict chunk decoder.
+  chunked-decode-loop :: Bytes -> Nat -> List Bytes -> Result HttpProtoError Bytes
+  chunked-decode-loop input pos acc =
+    let n = bytes-len input in
+    if pos >= n then Err HttpProtoIncomplete
+    else case find-crlf input pos of
+      None ->
+        case find-byte input 10 pos of
+          Some _ -> Err (HttpProtoBadChunk "missing CR before LF in chunk size line")
+          None -> Err HttpProtoIncomplete
+      Some crlf-pos ->
+        let size-line = slice-range input pos crlf-pos in
+        let hex-part = chunk-size-hex-part size-line in
+        let after-line = crlf-pos + 2 in
+        case parse-hex-strict hex-part of
+          None -> Err (HttpProtoBadChunk (bytes-text size-line))
+          Some sz ->
+            if sz == 0 then decode-trailers-strict input after-line (bytes-concat (reverse acc))
+            else if after-line + sz + 2 > n then Err HttpProtoIncomplete
+            else if byte-at input (after-line + sz) == 13 && byte-at input (after-line + sz + 1) == 10 then
+              let piece = slice-range input after-line (after-line + sz) in
+              chunked-decode-loop input (after-line + sz + 2) (Cons piece acc)
+            else Err (HttpProtoBadChunk "missing CRLF after chunk payload")
+
+  -- | Consume optional CRLF-terminated trailer lines and final empty CRLF line after the zero chunk.
+  decode-trailers-strict :: Bytes -> Nat -> Bytes -> Result HttpProtoError Bytes
+  decode-trailers-strict input pos body =
+    let n = bytes-len input in
+    if pos >= n then Err HttpProtoIncomplete
+    else if byte-at input pos == 13 && pos + 1 < n && byte-at input (pos + 1) == 10 then
+      if pos + 2 == n then Ok body
+      else Err (HttpProtoBadChunk "unexpected trailing bytes after final chunk")
+    else case find-crlf input pos of
+      None -> Err (HttpProtoBadChunk "unterminated chunk trailer line")
+      Some crlf-pos ->
+        let line = slice-range input pos crlf-pos in
+        case find-byte line 58 0 of
+          None -> Err (HttpProtoBadChunk (string-concat "malformed chunk trailer: " (bytes-text line)))
+          Some colon ->
+            if colon == 0 then Err (HttpProtoBadChunk "empty chunk trailer field name")
+            else decode-trailers-strict input (crlf-pos + 2) body
+
+  -- ---------------------------------------------------------------------
+  -- Hop-by-hop header filtering (RFC 7230 §6.1).
+  -- ---------------------------------------------------------------------
+
+  -- | Check whether a lowercased header name is one of the standard RFC 7230 §6.1 hop-by-hop headers.
+  is-standard-hop-by-hop :: String -> Bool
+  is-standard-hop-by-hop lower-name =
+    lower-name == "connection"
+    || lower-name == "keep-alive"
+    || lower-name == "proxy-authenticate"
+    || lower-name == "proxy-authorization"
+    || lower-name == "proxy-connection"
+    || lower-name == "te"
+    || lower-name == "trailers"
+    || lower-name == "transfer-encoding"
+    || lower-name == "upgrade"
+
+  -- | Check whether `needle` appears in a list of lowercased header names.
+  str-in-list :: String -> List String -> Bool
+  str-in-list needle xs = case xs of
+    Nil -> False
+    Cons x rest -> if x == needle then True else str-in-list needle rest
+
+  -- | Extract lowercased comma-separated header names listed inside any `Connection` headers.
+  collect-connection-tokens :: List (String, String) -> List String -> List String
+  collect-connection-tokens pairs acc = case pairs of
+    Nil -> acc
+    Cons pair rest -> case pair of
+      (k, v) ->
+        if ascii-lower k == "connection" then
+          collect-connection-tokens rest (push-lower-tokens (split-on-byte v 44) acc)
+        else collect-connection-tokens rest acc
+
+  -- | Trim and lowercase non-empty tokens onto an accumulator list.
+  push-lower-tokens :: List String -> List String -> List String
+  push-lower-tokens toks acc = case toks of
+    Nil -> acc
+    Cons t rest ->
+      let cleaned = ascii-lower (trim-ows t) in
+      if cleaned == "" then push-lower-tokens rest acc
+      else push-lower-tokens rest (Cons cleaned acc)
+
+  -- | Remove RFC 7230 §6.1 hop-by-hop headers (`Connection`, `Keep-Alive`, `Proxy-Authenticate`,
+  -- `Proxy-Authorization`, `Proxy-Connection`, `Te`, `Trailers`, `Transfer-Encoding`, `Upgrade`)
+  -- plus any additional header field names listed inside `Connection` header values.
+  strip-hop-by-hop-headers :: List (String, String) -> List (String, String)
+  strip-hop-by-hop-headers headers =
+    let conn-tokens = collect-connection-tokens headers Nil in
+    filter-hop-by-hop headers conn-tokens Nil
+
+  -- | Filter header pairs against standard hop-by-hop names and dynamic `Connection` tokens.
+  filter-hop-by-hop :: List (String, String) -> List String -> List (String, String) -> List (String, String)
+  filter-hop-by-hop headers conn-tokens acc = case headers of
+    Nil -> reverse acc
+    Cons pair rest -> case pair of
+      (k, _) ->
+        let lk = ascii-lower k in
+        if is-standard-hop-by-hop lk || str-in-list lk conn-tokens then
+          filter-hop-by-hop rest conn-tokens acc
+        else filter-hop-by-hop rest conn-tokens (Cons pair acc)
+
+  -- ---------------------------------------------------------------------
+  -- ReverseProxy configuration and forwarding.
+  -- ---------------------------------------------------------------------
+
+  -- | Upstream target destination for a reverse proxy: scheme (`"http"` or `"https"`), host, port, and base path.
+  data ProxyTarget where
+    -- | Construct a target from scheme, host, port, and base path.
+    ProxyTarget :: String -> String -> Nat -> String -> ProxyTarget
+
+  -- | Return the upstream target scheme (`"http"` or `"https"`).
+  proxy-target-scheme :: ProxyTarget -> String
+  proxy-target-scheme t = case t of ProxyTarget s _ _ _ -> s
+
+  -- | Return the upstream target hostname or IP literal.
+  proxy-target-host :: ProxyTarget -> String
+  proxy-target-host t = case t of ProxyTarget _ h _ _ -> h
+
+  -- | Return the upstream target TCP port.
+  proxy-target-port :: ProxyTarget -> Nat
+  proxy-target-port t = case t of ProxyTarget _ _ p _ -> p
+
+  -- | Return the upstream target base path prefix.
+  proxy-target-base-path :: ProxyTarget -> String
+  proxy-target-base-path t = case t of ProxyTarget _ _ _ bp -> bp
+
+  -- | Configurable HTTP/HTTPS reverse proxy scoped to region `r`.
+  data ReverseProxy (r :: Region) where
+    -- | Proxy configuration: upstream target, optional request rewriter, optional response modifier,
+    -- optional error handler, optional TLS 1.3 configuration, and optional client IP override.
+    ReverseProxy :: ProxyTarget -> Option (HttpWireRequest -> HttpWireRequest) -> Option (HttpWireResponse -> HttpWireResponse) -> Option (String -> HttpWireResponse) -> Option TlsConfig -> Option String -> ReverseProxy r
+
+  -- | Create a single-host `ReverseProxy` forwarding to `scheme://host:port<base-path>`.
+  reverse-proxy-single-host :: forall r. String -> String -> Nat -> String -> ReverseProxy r
+  reverse-proxy-single-host scheme host port base-path =
+    ReverseProxy (ProxyTarget scheme host port base-path) None None None None None
+
+  -- | Return the configured `ProxyTarget` of a reverse proxy.
+  reverse-proxy-target :: forall r. ReverseProxy r -> ProxyTarget
+  reverse-proxy-target p = case p of ReverseProxy t _ _ _ _ _ -> t
+
+  -- | Attach a request rewrite function invoked on each outbound proxy request before forwarding.
+  reverse-proxy-with-rewrite :: forall r. ReverseProxy r -> (HttpWireRequest -> HttpWireRequest) -> ReverseProxy r
+  reverse-proxy-with-rewrite p fn = case p of
+    ReverseProxy t _ mr eh tls cip -> ReverseProxy t (Some fn) mr eh tls cip
+
+  -- | Attach a response modifier invoked on each upstream response after hop-by-hop stripping.
+  reverse-proxy-with-modify-response :: forall r. ReverseProxy r -> (HttpWireResponse -> HttpWireResponse) -> ReverseProxy r
+  reverse-proxy-with-modify-response p fn = case p of
+    ReverseProxy t rw _ eh tls cip -> ReverseProxy t rw (Some fn) eh tls cip
+
+  -- | Attach a custom error handler mapping an upstream failure diagnostic to an `HttpWireResponse`.
+  reverse-proxy-with-error-handler :: forall r. ReverseProxy r -> (String -> HttpWireResponse) -> ReverseProxy r
+  reverse-proxy-with-error-handler p fn = case p of
+    ReverseProxy t rw mr _ tls cip -> ReverseProxy t rw mr (Some fn) tls cip
+
+  -- | Attach a TLS 1.3 `TlsConfig` used when forwarding to `https` upstream targets.
+  reverse-proxy-with-tls :: forall r. ReverseProxy r -> TlsConfig -> ReverseProxy r
+  reverse-proxy-with-tls p cfg = case p of
+    ReverseProxy t rw mr eh _ cip -> ReverseProxy t rw mr eh (Some cfg) cip
+
+  -- | Configure an explicit client IP address appended to `X-Forwarded-For` on forwarded requests.
+  reverse-proxy-with-client-ip :: forall r. ReverseProxy r -> String -> ReverseProxy r
+  reverse-proxy-with-client-ip p ip = case p of
+    ReverseProxy t rw mr eh tls _ -> ReverseProxy t rw mr eh tls (Some ip)
+
+  -- | Join a target base path and incoming request path with a single separating slash.
+  join-proxy-paths :: String -> String -> String
+  join-proxy-paths base req-p =
+    let p = if req-p == "" then "/" else if starts-with-byte req-p 47 then req-p else string-concat "/" req-p in
+    if base == "" || base == "/" then p
+    else
+      let b0 = if starts-with-byte base 47 then base else string-concat "/" base in
+      let b-slash = ends-with-byte b0 47 in
+      let p-slash = starts-with-byte p 47 in
+      if b-slash && p-slash then string-concat b0 (drop-first-byte p)
+      else if not b-slash && not p-slash then string-concat-all [b0, "/", p]
+      else string-concat b0 p
+
+  -- | Extract the host/IP portion from a `host:port` or `[ipv6]:port` remote address string.
+  extract-remote-ip :: String -> String
+  extract-remote-ip addr =
+    let b = string-to-bytes addr in
+    let n = bytes-len b in
+    if n == 0 then ""
+    else if bytes-get b 0 == 91 then
+      case find-byte b 93 1 of
+        Some close -> bytes-text (slice-range b 1 close)
+        None -> addr
+    else case find-last-byte b 58 n of
+      Some colon -> bytes-text (slice-range b 0 colon)
+      None -> addr
+
+  -- | Format the upstream `Host` header value, omitting default ports (`80` for HTTP, `443` for HTTPS).
+  format-target-host :: String -> String -> Nat -> String
+  format-target-host scheme host port =
+    if (scheme == "http" && port == 80) || (scheme == "https" && port == 443) then host
+    else string-concat-all [host, ":", nat-to-string port]
+
+  -- | Build the `X-Forwarded-For` header value by preserving existing entries and appending `client-ip`.
+  build-xff-value :: List String -> String -> String
+  build-xff-value prior client-ip =
+    let joined = string-join prior ", " in
+    if client-ip == "" then joined
+    else if joined == "" then client-ip
+    else string-concat-all [joined, ", ", client-ip]
+
+  -- | Filter out transport-level headers managed by `Effect.Http` (`Connection`, `Content-Length`)
+  -- while retaining `Host` and all end-to-end headers.
+  filter-proxy-send-headers :: List (String, String) -> List (String, String) -> List (String, String)
+  filter-proxy-send-headers ps acc = case ps of
+    Nil -> reverse acc
+    Cons pair rest -> case pair of
+      (k, _) ->
+        let lk = ascii-lower k in
+        if lk == "connection" || lk == "content-length" then filter-proxy-send-headers rest acc
+        else filter-proxy-send-headers rest (Cons pair acc)
+
+  -- | Ensure an outbound header list includes the rewritten `Host` header from `out-req`.
+  ensure-host-header :: String -> List (String, String) -> List (String, String)
+  ensure-host-header host pairs =
+    if host == "" then pairs
+    else if has-host-pair pairs then pairs
+    else Cons ("Host", host) pairs
+
+  -- | Check whether a header pair list already carries a `Host` entry.
+  has-host-pair :: List (String, String) -> Bool
+  has-host-pair pairs = case pairs of
+    Nil -> False
+    Cons pair rest -> case pair of
+      (k, _) -> if ascii-lower k == "host" then True else has-host-pair rest
+
+  -- | Extract the path-and-query request-target from an outbound `HttpWireRequest`.
+  outbound-request-target :: HttpWireRequest -> String
+  outbound-request-target req =
+    let raw = req-request-uri req in
+    if raw == "" then
+      let p = if req-path req == "" then "/" else req-path req in
+      let q = req-raw-query req in
+      if q == "" then p else string-concat-all [p, "?", q]
+    else if starts-with-byte raw 47 then raw
+    else
+      let p = if req-path req == "" then "/" else req-path req in
+      let q = req-raw-query req in
+      if q == "" then p else string-concat-all [p, "?", q]
+
+  -- | Prepare the outbound `HttpWireRequest` by stripping hop-by-hop headers, joining the target path,
+  -- populating `Host` and `X-Forwarded-*` headers, and running any configured request rewriter.
+  prepare-proxy-request :: forall r. ReverseProxy r -> HttpWireRequest -> HttpWireRequest
+  prepare-proxy-request proxy req = case proxy of
+    ReverseProxy dest rw _ _ _ cip ->
+      let scheme = proxy-target-scheme dest in
+      let host = proxy-target-host dest in
+      let port = proxy-target-port dest in
+      let base-path = proxy-target-base-path dest in
+      let joined-path = join-proxy-paths base-path (req-path req) in
+      let rq = req-raw-query req in
+      let full-target = if rq == "" then joined-path else string-concat-all [joined-path, "?", rq] in
+      let orig-host = (if req-host req /= "" then req-host req
+        else case req-header req "Host" of
+          Some h -> h
+          None -> "") in
+      let orig-xff = req-header-values req "X-Forwarded-For" in
+      let client-ip = (case cip of
+        Some ip -> ip
+        None -> extract-remote-ip (req-remote-addr req)) in
+      let orig-proto = (case req-header req "X-Forwarded-Proto" of
+        Some p -> p
+        None -> if starts-with-text (req-request-uri req) "https://" then "https" else "http") in
+      let cleaned-pairs = strip-hop-by-hop-headers (http-header-to-pairs (req-headers req)) in
+      let h0 = http-header-from-pairs cleaned-pairs in
+      let xff = build-xff-value orig-xff client-ip in
+      let h1 = if xff == "" then h0 else http-header-set h0 "X-Forwarded-For" xff in
+      let h2 = (if orig-host == "" then h1
+        else case http-header-get h1 "X-Forwarded-Host" of
+          Some _ -> h1
+          None -> http-header-set h1 "X-Forwarded-Host" orig-host) in
+      let h3 = http-header-set h2 "X-Forwarded-Proto" orig-proto in
+      let target-host = format-target-host scheme host port in
+      let base-req = http-new-request (req-method req) full-target (req-body req) in
+      let out0 = req-with-headers (req-with-host base-req target-host) h3 in
+      case rw of
+        None -> out0
+        Some fn -> fn out0
+
+  -- | Invoke the proxy's error handler or return a default 502 Bad Gateway response.
+  proxy-error-response :: forall r. ReverseProxy r -> String -> HttpWireResponse
+  proxy-error-response proxy msg = case proxy of
+    ReverseProxy _ _ _ eh _ _ -> case eh of
+      Some fn -> fn msg
+      None -> http-response-error status-bad-gateway msg
+
+  -- | Finalize an upstream `HttpResponse` by stripping hop-by-hop headers and invoking `modify-response`.
+  finalize-proxy-response :: forall r. ReverseProxy r -> HttpResponse -> HttpWireResponse
+  finalize-proxy-response proxy eff-resp = case proxy of
+    ReverseProxy _ _ mr _ _ _ ->
+      let cleaned-pairs = strip-hop-by-hop-headers (http-headers eff-resp) in
+      let hd = http-header-from-pairs cleaned-pairs in
+      let resp0 = resp-with-reason (http-response-new (http-status eff-resp) hd (http-body eff-resp)) (http-reason eff-resp) in
+      case mr of
+        None -> resp0
+        Some fn -> fn resp0
+
+  -- | Forward an incoming `HttpWireRequest` to the configured upstream (HTTP or TLS 1.3 HTTPS),
+  -- stripping hop-by-hop headers in both directions, applying rewrite and response-modifier hooks,
+  -- and returning a 502 Bad Gateway (or custom error-handler) response on upstream failure.
+  reverse-proxy-forward :: forall r. using (io :: Io r) => ReverseProxy r -> HttpWireRequest ->{IO r} HttpWireResponse
+  reverse-proxy-forward proxy req = reverse-proxy-forward-tls proxy req
+
+  -- | Forward an incoming `HttpWireRequest` to an HTTP or TLS 1.3 HTTPS upstream target.
+  reverse-proxy-forward-tls :: forall r. using (io :: Io r) => ReverseProxy r -> HttpWireRequest ->{IO r} HttpWireResponse
+  reverse-proxy-forward-tls proxy req = case proxy of
+    ReverseProxy dest _ _ _ tls-opt _ ->
+      let scheme = proxy-target-scheme dest in
+      let host = proxy-target-host dest in
+      let port = proxy-target-port dest in
+      let out-req = prepare-proxy-request proxy req in
+      let send-target = outbound-request-target out-req in
+      let raw-pairs = filter-proxy-send-headers (http-header-to-pairs (req-headers out-req)) Nil in
+      let send-pairs = ensure-host-header (req-host out-req) raw-pairs in
+      let body-opt = if bytes-len (req-body out-req) == 0 then None else Some (req-body out-req) in
+      let eff-req = MkHttpRequest (req-method out-req) host port send-target send-pairs body-opt in
+      if scheme == "http" then
+        case http-request eff-req of
+          Err he -> proxy-error-response proxy (render-http-error he)
+          Ok eff-resp -> finalize-proxy-response proxy eff-resp
+      else if scheme == "https" then
+        let cfg = case tls-opt of Some c -> c; None -> tls-config-default in
+        case http-request-tls cfg eff-req of
+          Err he -> proxy-error-response proxy (render-http-error he)
+          Ok eff-resp -> finalize-proxy-response proxy eff-resp
+      else proxy-error-response proxy (string-concat "reverse proxy: unsupported target scheme: " scheme)
+
+  -- | Adapt a `ReverseProxy` into an `HttpHandler` that plugs directly into `Effect.Http.Server` and `ServeMux`.
+  reverse-proxy-handler :: forall r. using (io :: Io r) => ReverseProxy r -> HttpHandler r
+  reverse-proxy-handler proxy = HttpHandler (\req -> reverse-proxy-forward proxy req)

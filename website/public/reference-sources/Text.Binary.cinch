@@ -3,12 +3,11 @@
 -- Varint reads also return the number of consumed bytes, excluding the offset.
 -- Encoders allocate fresh buffers; put operations check the complete destination
 -- range before writing. Signed varints use zigzag encoding across the full I64
--- range. Fixed-width words use inline LLVM byte swaps; varint prefix detection
+-- range. Fixed-width words use byte swaps; varint prefix detection
 -- and payload compaction use SWAR, with an exact scalar tail.
 module Text.Binary where
 
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.List
   import Data.Machine
   import Data.Nat
@@ -55,14 +54,14 @@ module Text.Binary where
   binary-u32 :: ByteOrder -> U32 -> Bytes
   binary-u32 order x =
     let out = bytes-new 4 in
-    let stored = bytes-write-le32 out 0 (ordered32 order x) in
+    let stored = bytes-store-le32 out 0 (ordered32 order x) in
     out
 
   -- | Allocate exactly 8 bytes encoding an unsigned 64-bit value in the selected byte order.
   binary-u64 :: ByteOrder -> U64 -> Bytes
   binary-u64 order x =
     let out = bytes-new 8 in
-    let stored = bytes-write-le64 out 0 (ordered64 order x) in
+    let stored = bytes-store-le64 out 0 (ordered64 order x) in
     out
 
   -- | Read a short fixed-width field while preserving the requested byte order; stop with a named error at the first missing byte.
@@ -85,13 +84,13 @@ module Text.Binary where
   -- | Read an unsigned 32-bit field at the zero-based byte offset. Fewer than 4 available bytes returns UnexpectedBinaryEnd; trailing bytes are untouched.
   binary-read-u32 :: ByteOrder -> Bytes -> Nat -> Result BinaryError U32
   binary-read-u32 order b pos =
-    if pos + 4 <= bytes-len b then Ok (ordered32 order (bytes-read-le32 b pos))
+    if pos + 4 <= bytes-len b then Ok (ordered32 order (bytes-load-le32 b pos))
     else Err UnexpectedBinaryEnd
 
   -- | Read an unsigned 64-bit field at the zero-based byte offset. Fewer than 8 available bytes returns UnexpectedBinaryEnd; trailing bytes are untouched.
   binary-read-u64 :: ByteOrder -> Bytes -> Nat -> Result BinaryError U64
   binary-read-u64 order b pos =
-    if pos + 8 <= bytes-len b then Ok (ordered64 order (bytes-read-le64 b pos))
+    if pos + 8 <= bytes-len b then Ok (ordered64 order (bytes-load-le64 b pos))
     else Err UnexpectedBinaryEnd
 
   -- | Copy a complete encoded field only after proving that its entire destination range fits.
@@ -107,13 +106,13 @@ module Text.Binary where
   -- | Write an unsigned 32-bit field into an existing buffer at the zero-based offset. Check all 4 destination bytes before mutation; failure leaves the buffer unchanged.
   binary-put-u32 :: ByteOrder -> Bytes -> Nat -> U32 -> Result BinaryError Unit
   binary-put-u32 order dst pos x =
-    if pos + 4 <= bytes-len dst then Ok (bytes-write-le32 dst pos (ordered32 order x))
+    if pos + 4 <= bytes-len dst then Ok (bytes-store-le32 dst pos (ordered32 order x))
     else Err UnexpectedBinaryEnd
 
   -- | Write an unsigned 64-bit field into an existing buffer at the zero-based offset. Check all 8 destination bytes before mutation; failure leaves the buffer unchanged.
   binary-put-u64 :: ByteOrder -> Bytes -> Nat -> U64 -> Result BinaryError Unit
   binary-put-u64 order dst pos x =
-    if pos + 8 <= bytes-len dst then Ok (bytes-write-le64 dst pos (ordered64 order x))
+    if pos + 8 <= bytes-len dst then Ok (bytes-store-le64 dst pos (ordered64 order x))
     else Err UnexpectedBinaryEnd
 
   -- | Emit seven payload bits per byte, setting continuation bits until the remaining payload is below 128.
@@ -147,7 +146,7 @@ module Text.Binary where
   binary-read-uvarint :: Bytes -> Nat -> Result BinaryError (U64, Nat)
   binary-read-uvarint b pos =
     if pos + 8 <= bytes-len b then
-      let word = bytes-read-le64 b pos in
+      let word = bytes-load-le64 b pos in
       let ends = bit-and-u64 (bit-not-u64 word) 0x8080808080808080 in
       if eq-u64 ends 0 then read-uvarint b pos 0 0 0
       else
@@ -165,66 +164,21 @@ module Text.Binary where
       let x = wrapping-u64-to-i64 (wrapping-shr-u64 u 1) in
       if eq-u64 (bit-and-u64 u 1) 1 then Ok (bit-not-i64 x, n) else Ok (x, n)
 
-  -- | Reverse a 32-bit word with the target byte-swap instruction.
-  prim swap32 :: U32 -> U32 where
-    llvm {
-      %r = call i32 @llvm.bswap.i32(i32 %0)
-      ret i32 %r
-    }
-
   -- | Convert a wire byte order to the packed little-endian word convention.
   ordered32 :: ByteOrder -> U32 -> U32
   ordered32 order x = case order of
     LittleEndian -> x
-    BigEndian -> swap32 x
-
-  -- | Reverse a 64-bit word with the target byte-swap instruction.
-  prim swap64 :: U64 -> U64 where
-    llvm {
-      %r = call i64 @llvm.bswap.i64(i64 %0)
-      ret i64 %r
-    }
+    BigEndian -> swap-bytes-u32 x
 
   -- | Convert a wire byte order to the packed little-endian word convention.
   ordered64 :: ByteOrder -> U64 -> U64
   ordered64 order x = case order of
     LittleEndian -> x
-    BigEndian -> swap64 x
+    BigEndian -> swap-bytes-u64 x
 
   -- | Compact eight seven-bit payloads in a packed word; continuation-bit detection is done separately.
-  prim compress-varint8 :: U64 -> U64 where
-    llvm {
-      %s0 = lshr i64 %0, 0
-      %m0 = and i64 %s0, 127
-      %b0 = shl i64 %m0, 0
-      %a0 = or i64 0, %b0
-      %s1 = lshr i64 %0, 8
-      %m1 = and i64 %s1, 127
-      %b1 = shl i64 %m1, 7
-      %a1 = or i64 %a0, %b1
-      %s2 = lshr i64 %0, 16
-      %m2 = and i64 %s2, 127
-      %b2 = shl i64 %m2, 14
-      %a2 = or i64 %a1, %b2
-      %s3 = lshr i64 %0, 24
-      %m3 = and i64 %s3, 127
-      %b3 = shl i64 %m3, 21
-      %a3 = or i64 %a2, %b3
-      %s4 = lshr i64 %0, 32
-      %m4 = and i64 %s4, 127
-      %b4 = shl i64 %m4, 28
-      %a4 = or i64 %a3, %b4
-      %s5 = lshr i64 %0, 40
-      %m5 = and i64 %s5, 127
-      %b5 = shl i64 %m5, 35
-      %a5 = or i64 %a4, %b5
-      %s6 = lshr i64 %0, 48
-      %m6 = and i64 %s6, 127
-      %b6 = shl i64 %m6, 42
-      %a6 = or i64 %a5, %b6
-      %s7 = lshr i64 %0, 56
-      %m7 = and i64 %s7, 127
-      %b7 = shl i64 %m7, 49
-      %a7 = or i64 %a6, %b7
-      ret i64 %a7
-    }
+  compress-varint8 :: U64 -> U64
+  compress-varint8 word =
+    let step1 = bit-or-u64 (bit-and-u64 word 0x007f007f007f007f) (wrapping-shr-u64 (bit-and-u64 word 0x7f007f007f007f00) 1) in
+    let step2 = bit-or-u64 (bit-and-u64 step1 0x00003fff00003fff) (wrapping-shr-u64 (bit-and-u64 step1 0x3fff00003fff0000) 2) in
+    bit-or-u64 (bit-and-u64 step2 0x000000000fffffff) (wrapping-shl-u64 (wrapping-shr-u64 step2 32) 28)

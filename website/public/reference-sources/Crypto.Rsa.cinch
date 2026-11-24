@@ -1,0 +1,1319 @@
+-- | RSA public-key cryptography (RFC 8017): PKCS#1 v1.5 and RSASSA-PSS signatures,
+-- RSAES-OAEP and RSAES-PKCS1-v1_5 encryption, PKCS#1 DER key serialization, key
+-- validation and deterministic seeded key generation.
+--
+-- Private-key modular exponentiation uses Chinese Remainder Theorem (CRT)
+-- recombination with a public-exponent consistency check against faults. Padding
+-- checks in decryption and signature verification use constant-time comparisons
+-- from Crypto.ConstantTime; underlying arbitrary-precision arithmetic uses Data.Nat
+-- and is not constant-time in operand values.
+module Crypto.Rsa where
+
+  import Crypto.ConstantTime
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Asn1
+  import Text.Md5
+  import Text.Sha1
+  import Text.Sha256
+  import Text.Sha512
+
+  export RsaPublicKey, RsaPrivateKey
+  export RsaHash, RsaNoHash, RsaMd5, RsaSha1, RsaSha224, RsaSha256, RsaSha384, RsaSha512, RsaSha512t224, RsaSha512t256
+  export PssSaltLength, PssSaltAuto, PssSaltEqualsHash, PssSaltExact
+  export RsaError, RsaMessageTooLong, RsaDecryptionError, RsaVerificationError, RsaInvalidPublicKey, RsaInvalidPrivateKey, RsaInvalidDigestLength, RsaUnsupportedHash, RsaInvalidParameter, RsaInvalidEncoding, rsa-error-message
+  export rsa-public-key, rsa-private-key, rsa-public-key-of, rsa-public-n, rsa-public-e
+  export rsa-private-d, rsa-private-p, rsa-private-q, rsa-private-dp, rsa-private-dq, rsa-private-qinv
+  export rsa-key-size, rsa-key-bits, rsa-validate-private-key, rsa-public-key-equal, rsa-private-key-equal
+  export rsa-hash-size, rsa-hash-sum
+  export rsa-parse-pkcs1-public-key, rsa-marshal-pkcs1-public-key, rsa-parse-pkcs1-private-key, rsa-marshal-pkcs1-private-key
+  export rsa-sign-pkcs1v15, rsa-verify-pkcs1v15
+  export rsa-sign-pss, rsa-sign-pss-deterministic, rsa-verify-pss
+  export rsa-encrypt-oaep-with-seed, rsa-decrypt-oaep, rsa-encrypt-oaep-mgf, rsa-decrypt-oaep-mgf
+  export rsa-encrypt-pkcs1v15-with-pad, rsa-encrypt-pkcs1v15-from-seed, rsa-decrypt-pkcs1v15, rsa-decrypt-pkcs1v15-session-key
+  export rsa-generate-key-from-seed
+  export rsa-os2ip, rsa-i2osp
+
+  -- ---------------------------------------------------------------------
+  -- Public types and errors.
+  -- ---------------------------------------------------------------------
+
+  -- | Hash algorithm used by RSA signature and OAEP padding schemes.
+  data RsaHash where
+    -- | No DigestInfo prefix; signs or verifies raw pre-encoded digest bytes in PKCS#1 v1.5 only.
+    RsaNoHash :: RsaHash
+    -- | MD5 (16-byte digest; legacy interoperability only).
+    RsaMd5 :: RsaHash
+    -- | SHA-1 (20-byte digest; legacy interoperability only).
+    RsaSha1 :: RsaHash
+    -- | SHA-224 (28-byte digest).
+    RsaSha224 :: RsaHash
+    -- | SHA-256 (32-byte digest).
+    RsaSha256 :: RsaHash
+    -- | SHA-384 (48-byte digest).
+    RsaSha384 :: RsaHash
+    -- | SHA-512 (64-byte digest).
+    RsaSha512 :: RsaHash
+    -- | SHA-512/224 (28-byte digest).
+    RsaSha512t224 :: RsaHash
+    -- | SHA-512/256 (32-byte digest).
+    RsaSha512t256 :: RsaHash
+
+  -- | Salt length policy for RSASSA-PSS signing and verification.
+  data PssSaltLength where
+    -- | For signing, use the largest salt that fits; for verification, detect the salt length from the padding.
+    PssSaltAuto :: PssSaltLength
+    -- | Use a salt length equal to the hash digest length.
+    PssSaltEqualsHash :: PssSaltLength
+    -- | Use an explicit fixed salt length in bytes.
+    PssSaltExact :: Nat -> PssSaltLength
+
+  -- | Errors produced by RSA key handling, encoding, signing, verification and encryption.
+  data RsaError where
+    -- | The message or digest is too long for the modulus size and padding overhead.
+    RsaMessageTooLong :: RsaError
+    -- | Ciphertext decryption or padding validation failed.
+    RsaDecryptionError :: RsaError
+    -- | Signature verification failed.
+    RsaVerificationError :: RsaError
+    -- | Public key modulus or exponent is outside valid RSA bounds.
+    RsaInvalidPublicKey :: RsaError
+    -- | Private key components fail structural or mathematical invariants.
+    RsaInvalidPrivateKey :: RsaError
+    -- | The supplied digest length does not match the selected hash algorithm.
+    RsaInvalidDigestLength :: RsaError
+    -- | The selected hash algorithm cannot be used with this operation.
+    RsaUnsupportedHash :: RsaError
+    -- | A key size, salt length, seed or padding parameter is invalid.
+    RsaInvalidParameter :: RsaError
+    -- | PKCS#1 DER parsing failed or contained malformed fields.
+    RsaInvalidEncoding :: RsaError
+
+  -- | Render an RSA error as a human-readable message.
+  rsa-error-message :: RsaError -> String
+  rsa-error-message err = case err of
+    RsaMessageTooLong -> "rsa: message too long for RSA key size"
+    RsaDecryptionError -> "rsa: decryption error"
+    RsaVerificationError -> "rsa: verification error"
+    RsaInvalidPublicKey -> "rsa: invalid public key"
+    RsaInvalidPrivateKey -> "rsa: invalid private key"
+    RsaInvalidDigestLength -> "rsa: input must be hashed message"
+    RsaUnsupportedHash -> "rsa: unsupported hash function"
+    RsaInvalidParameter -> "rsa: invalid parameter"
+    RsaInvalidEncoding -> "rsa: invalid PKCS#1 encoding"
+
+  -- | A validated RSA public key holding modulus n and public exponent e.
+  data RsaPublicKey where
+    -- | Private constructor: modulus n, public exponent e, bit length of n, and byte size of n.
+    MkRsaPublicKey :: Nat -> Nat -> Nat -> Nat -> RsaPublicKey
+
+  -- | Precomputed CRT values for two-prime RSA private operations.
+  data RsaCrt where
+    -- | CRT exponents d mod (p - 1), d mod (q - 1), and coefficient q^(-1) mod p.
+    MkRsaCrt :: Nat -> Nat -> Nat -> RsaCrt
+
+  -- | A validated two-prime RSA private key with precomputed CRT values.
+  data RsaPrivateKey where
+    -- | Private constructor: public key, private exponent d, prime p, prime q, and CRT parameters.
+    MkRsaPrivateKey :: RsaPublicKey -> Nat -> Nat -> Nat -> RsaCrt -> RsaPrivateKey
+
+  -- | Fixed 16-entry power table for 4-bit windowed modular exponentiation.
+  data Window16 where
+    -- | Powers b^0 through b^15 modulo m.
+    W16 :: Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Window16
+
+  -- | Deterministic SHA-256 counter-mode byte stream state.
+  data Drbg where
+    -- | Master seed, block counter, current 32-byte block, and read offset within the block.
+    MkDrbg :: Bytes -> Nat -> Bytes -> Nat -> Drbg
+
+  -- ---------------------------------------------------------------------
+  -- Byte and machine helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Read a byte at an index or return zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at buf i = if i < bytes-len buf then bytes-get buf i else 0
+
+  -- | Read a byte at an index as a machine U8 or return zero past the end.
+  at-u8 :: Bytes -> Nat -> U8
+  at-u8 buf i = if i < bytes-len buf then wrapping-i64-to-u8 (nat-to-i64 (bytes-get buf i)) else 0
+
+  -- | Write the low 8 bits of a natural into a buffer when the index is in range.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put buf i v = if i < bytes-len buf then bytes-set buf i (nat-rem v 256) else ()
+
+  -- | Copy an interval [start, stop) into a fresh byte buffer.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice buf start stop =
+    if start <= stop && stop <= bytes-len buf then
+      let len = stop - start in
+      let out = bytes-new len in
+      let copied = bytes-copy-range out buf 0 start len in
+      out
+    else bytes-new 0
+
+  -- | Copy a range from src into dst when both intervals are in bounds.
+  copy-into :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  copy-into dst src di si len =
+    if di + len <= bytes-len dst && si + len <= bytes-len src then
+      bytes-copy-range dst src di si len
+    else ()
+
+  -- | Fill a range of a byte buffer with one repeated byte value.
+  fill-byte :: Bytes -> Nat -> Nat -> Nat -> Unit
+  fill-byte buf i stop val =
+    if i < stop && i < bytes-len buf then
+      let w = bytes-set buf i (nat-rem val 256) in
+      fill-byte buf (i + 1) stop val
+    else ()
+
+  -- | Convert a Bool to 1 or 0 without branching.
+  ct-bool :: Bool -> I64
+  ct-bool b = constant-select b 1 0
+
+  -- | Branchless logical NOT on a 0/1 flag.
+  ct-not :: I64 -> I64
+  ct-not x = bit-xor-i64 x 1
+
+  -- | Branchless logical AND on 0/1 flags.
+  ct-and :: I64 -> I64 -> I64
+  ct-and x y = bit-and-i64 x y
+
+  -- | Branchless logical OR on 0/1 flags.
+  ct-or :: I64 -> I64 -> I64
+  ct-or x y = bit-or-i64 x y
+
+  -- | Branchless byte equality returning 1 or 0.
+  ct-eq-u8 :: U8 -> U8 -> I64
+  ct-eq-u8 a b = ct-bool (constant-byte-equal a b)
+
+  -- | Branchless word selection controlled by a 0/1 flag (1 chooses a, 0 chooses b).
+  ct-select :: I64 -> I64 -> I64 -> I64
+  ct-select cond a b =
+    let mask = wrapping-sub-i64 0 cond in
+    bit-or-i64 (bit-and-i64 a mask) (bit-and-i64 b (bit-not-i64 mask))
+
+  -- | Branchless non-negative 31-bit comparison a <= b returning 1 or 0.
+  ct-le-i64 :: I64 -> I64 -> I64
+  ct-le-i64 a b =
+    if 0 <= a && a <= 2147483647 && 0 <= b && b <= 2147483647 then
+      ct-bool (constant-less-or-equal a b)
+    else 0
+
+  -- | Convert a small Nat (below 2^63) to I64, clamping out-of-range values to zero.
+  nat-to-i64-clamped :: Nat -> I64
+  nat-to-i64-clamped n = if n <= 9223372036854775807 then nat-to-i64 n else 0
+
+  -- ---------------------------------------------------------------------
+  -- Arbitrary-precision integer arithmetic over Data.Nat.
+  -- ---------------------------------------------------------------------
+
+  -- | Total remainder modulo m (returns 0 if m == 0).
+  mod-nat :: Nat -> Nat -> Nat
+  mod-nat a m = case decide (NonZero m) of
+    Yes w -> nat-rem a (NonZero m w)
+    No _ -> 0
+
+  -- | Total quotient divided by m (returns 0 if m == 0).
+  div-nat :: Nat -> Nat -> Nat
+  div-nat a m = case decide (NonZero m) of
+    Yes w -> nat-div a (NonZero m w)
+    No _ -> 0
+
+  -- | Convert an unsigned big-endian byte string to a Nat (RFC 8017 OS2IP).
+  rsa-os2ip :: Bytes -> Nat
+  rsa-os2ip buf = os2ip-loop buf 0 (bytes-len buf) 0
+
+  -- | Tail-recursive big-endian byte accumulation.
+  os2ip-loop :: Bytes -> Nat -> Nat -> Nat -> Nat
+  os2ip-loop buf i n acc =
+    if i + 4 <= n && i + 4 <= bytes-len buf then
+      let b0 = bytes-get buf i in
+      let b1 = bytes-get buf (i + 1) in
+      let b2 = bytes-get buf (i + 2) in
+      let b3 = bytes-get buf (i + 3) in
+      let word = ((b0 * 256 + b1) * 256 + b2) * 256 + b3 in
+      os2ip-loop buf (i + 4) n (acc * 4294967296 + word)
+    else if i < n && i < bytes-len buf then
+      os2ip-loop buf (i + 1) n (acc * 256 + bytes-get buf i)
+    else acc
+
+  -- | Convert a Nat to a fixed-length big-endian byte string, zero-padded on the left (RFC 8017 I2OSP).
+  rsa-i2osp :: Nat -> Nat -> Bytes
+  rsa-i2osp val len =
+    let out = bytes-new len in
+    let filled = i2osp-loop out len val in
+    out
+
+  -- | Fill big-endian bytes from least-significant end backwards.
+  i2osp-loop :: Bytes -> Nat -> Nat -> Unit
+  i2osp-loop out remaining val =
+    if remaining == 0 || val == 0 then ()
+    else
+      let idx = remaining - 1 in
+      let w = put out idx (nat-rem val 256) in
+      i2osp-loop out idx (nat-div val 256)
+
+  -- | Minimal big-endian bytes of a positive Nat (empty for 0).
+  nat-to-min-bytes :: Nat -> Bytes
+  nat-to-min-bytes n =
+    if n == 0 then bytes-new 0
+    else
+      let len = byte-len n in
+      rsa-i2osp n len
+
+  -- | Exact bit length of a Nat (0 for 0).
+  bit-len :: Nat -> Nat
+  bit-len n =
+    if n == 0 then 0
+    else bit-len-chunks n 0
+
+  -- | Count bits in 24-bit chunks to minimize divisions.
+  bit-len-chunks :: Nat -> Nat -> Nat
+  bit-len-chunks n acc =
+    if n >= 16777216 then bit-len-chunks (nat-div n 16777216) (acc + 24)
+    else acc + bit-len-small n
+
+  -- | Bit length of a small Nat (< 2^24).
+  bit-len-small :: Nat -> Nat
+  bit-len-small n =
+    if n == 0 then 0
+    else 1 + bit-len-small (nat-div n 2)
+
+  -- | Minimum byte length needed to represent a Nat (0 for 0).
+  byte-len :: Nat -> Nat
+  byte-len n = nat-div (bit-len n + 7) 8
+
+  -- | Greatest common divisor of two natural numbers.
+  gcd-nat :: Nat -> Nat -> Nat
+  gcd-nat a b =
+    if b == 0 then a
+    else gcd-nat b (mod-nat a b)
+
+  -- | Modular multiplicative inverse a^(-1) mod m, or None if gcd(a, m) /= 1.
+  mod-inverse :: Nat -> Nat -> Option Nat
+  mod-inverse a m =
+    if m <= 1 then None
+    else case decide (NonZero m) of
+      No _ -> None
+      Yes w ->
+        let nz = NonZero m w in
+        eea-loop nz 0 1 (nat-to-int m) (nat-to-int (nat-rem a nz))
+
+  -- | Extended Euclidean Algorithm loop computing Bezout coefficient for a mod m.
+  eea-loop :: NonZero Nat -> Int -> Int -> Int -> Int -> Option Nat
+  eea-loop m t newt r newr =
+    if newr == 0 then
+      if r == 1 then Some (int-mod-nat t m)
+      else None
+    else case decide (NonZero newr) of
+      No _ -> None
+      Yes nz ->
+        let q = int-div r (NonZero newr nz) in
+        let next-t = t - q * newt in
+        let next-r = r - q * newr in
+        eea-loop m newt next-t newr next-r
+
+  -- | Build the 16-entry power table [1, b, b^2, ..., b^15] mod m.
+  build-window :: Nat -> NonZero Nat -> Window16
+  build-window b m =
+    let p0 = nat-rem 1 m in
+    let p1 = nat-rem b m in
+    let p2 = nat-rem (p1 * p1) m in
+    let p3 = nat-rem (p2 * p1) m in
+    let p4 = nat-rem (p3 * p1) m in
+    let p5 = nat-rem (p4 * p1) m in
+    let p6 = nat-rem (p5 * p1) m in
+    let p7 = nat-rem (p6 * p1) m in
+    let p8 = nat-rem (p7 * p1) m in
+    let p9 = nat-rem (p8 * p1) m in
+    let p10 = nat-rem (p9 * p1) m in
+    let p11 = nat-rem (p10 * p1) m in
+    let p12 = nat-rem (p11 * p1) m in
+    let p13 = nat-rem (p12 * p1) m in
+    let p14 = nat-rem (p13 * p1) m in
+    let p15 = nat-rem (p14 * p1) m in
+    W16 p0 p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15
+
+  -- | Look up entry idx (0..15) from a 16-entry power table.
+  window-get :: Window16 -> Nat -> Nat
+  window-get tbl idx = case tbl of
+    W16 p0 p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15 ->
+      if idx < 8 then
+        if idx < 4 then
+          if idx == 0 then p0 else if idx == 1 then p1 else if idx == 2 then p2 else p3
+        else
+          if idx == 4 then p4 else if idx == 5 then p5 else if idx == 6 then p6 else p7
+      else
+        if idx < 12 then
+          if idx == 8 then p8 else if idx == 9 then p9 else if idx == 10 then p10 else p11
+        else
+          if idx == 12 then p12 else if idx == 13 then p13 else if idx == 14 then p14 else p15
+
+  -- | Modular exponentiation base^exp mod m using binary method for small exponents and 4-bit windows for large exponents.
+  modexp :: Nat -> Nat -> Nat -> Nat
+  modexp base exp m =
+    if m <= 1 then 0
+    else if exp == 0 then 1
+    else case decide (NonZero m) of
+      No _ -> 0
+      Yes w ->
+        let nz = NonZero m w in
+        let b = nat-rem base nz in
+        if exp < 1048576 then modexp-binary b exp nz 1
+        else
+          let tbl = build-window b nz in
+          let exp-bytes = nat-to-min-bytes exp in
+          modexp-win-bytes tbl exp-bytes 0 (bytes-len exp-bytes) nz 1
+
+  -- | Remainder with a pre-verified NonZero modulus, returning plain Nat.
+  rem-nz :: Nat -> NonZero Nat -> Nat
+  rem-nz x m = nat-rem x m
+
+  -- | Right-to-left binary modular exponentiation for small exponents (e.g. e = 65537).
+  modexp-binary :: Nat -> Nat -> NonZero Nat -> Nat -> Nat
+  modexp-binary b e m acc =
+    if e == 0 then acc
+    else
+      let next-acc = if nat-rem e 2 == 1 then rem-nz (acc * b) m else acc in
+      let next-e = nat-div e 2 in
+      if next-e == 0 then next-acc
+      else modexp-binary (rem-nz (b * b) m) next-e m next-acc
+
+  -- | Apply one 4-bit window step: acc = acc^16 * tbl[nib] mod m.
+  modexp-nibble :: Window16 -> Nat -> NonZero Nat -> Nat -> Nat
+  modexp-nibble tbl nib m acc =
+    let s1 = rem-nz (acc * acc) m in
+    let s2 = rem-nz (s1 * s1) m in
+    let s3 = rem-nz (s2 * s2) m in
+    let s4 = rem-nz (s3 * s3) m in
+    if nib == 0 then s4
+    else rem-nz (s4 * window-get tbl nib) m
+
+  -- | Iterate big-endian exponent bytes two 4-bit windows at a time.
+  modexp-win-bytes :: Window16 -> Bytes -> Nat -> Nat -> NonZero Nat -> Nat -> Nat
+  modexp-win-bytes tbl exp-bytes i len m acc =
+    if i < len && i < bytes-len exp-bytes then
+      let b = bytes-get exp-bytes i in
+      let hi = nat-div b 16 in
+      let lo = nat-rem b 16 in
+      let acc1 = modexp-nibble tbl hi m acc in
+      let acc2 = modexp-nibble tbl lo m acc1 in
+      modexp-win-bytes tbl exp-bytes (i + 1) len m acc2
+    else acc
+
+  -- ---------------------------------------------------------------------
+  -- Hash dispatch and PKCS#1 v1.5 DigestInfo prefixes.
+  -- ---------------------------------------------------------------------
+
+  -- | Output digest length in bytes for an RSA hash algorithm (0 for RsaNoHash).
+  rsa-hash-size :: RsaHash -> Nat
+  rsa-hash-size h = case h of
+    RsaNoHash -> 0
+    RsaMd5 -> 16
+    RsaSha1 -> 20
+    RsaSha224 -> 28
+    RsaSha256 -> 32
+    RsaSha384 -> 48
+    RsaSha512 -> 64
+    RsaSha512t224 -> 28
+    RsaSha512t256 -> 32
+
+  -- | Compute a hash digest of a message using the specified RSA hash algorithm.
+  rsa-hash-sum :: RsaHash -> Bytes -> Result RsaError Bytes
+  rsa-hash-sum h msg = case h of
+    RsaNoHash -> Err RsaUnsupportedHash
+    RsaMd5 -> Ok (md5-sum msg)
+    RsaSha1 -> Ok (sha1-sum msg)
+    RsaSha224 -> Ok (sha224-sum msg)
+    RsaSha256 -> Ok (sha256-sum msg)
+    RsaSha384 -> Ok (sha384-sum msg)
+    RsaSha512 -> Ok (sha512-sum msg)
+    RsaSha512t224 -> Ok (sha512t224-sum msg)
+    RsaSha512t256 -> Ok (sha512t256-sum msg)
+
+  -- | DER-encoded DigestInfo prefix preceding the digest octet string for PKCS#1 v1.5 signatures.
+  digest-info-prefix :: RsaHash -> Bytes
+  digest-info-prefix h = case h of
+    RsaNoHash -> bytes-new 0
+    RsaMd5 -> bytes-from-u8s [48, 32, 48, 12, 6, 8, 42, 134, 72, 134, 247, 13, 2, 5, 5, 0, 4, 16]
+    RsaSha1 -> bytes-from-u8s [48, 33, 48, 9, 6, 5, 43, 14, 3, 2, 26, 5, 0, 4, 20]
+    RsaSha224 -> bytes-from-u8s [48, 45, 48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 4, 5, 0, 4, 28]
+    RsaSha256 -> bytes-from-u8s [48, 49, 48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 1, 5, 0, 4, 32]
+    RsaSha384 -> bytes-from-u8s [48, 65, 48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 2, 5, 0, 4, 48]
+    RsaSha512 -> bytes-from-u8s [48, 81, 48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 3, 5, 0, 4, 64]
+    RsaSha512t224 -> bytes-from-u8s [48, 45, 48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 5, 5, 0, 4, 28]
+    RsaSha512t256 -> bytes-from-u8s [48, 49, 48, 13, 6, 9, 96, 134, 72, 1, 101, 3, 4, 2, 6, 5, 0, 4, 32]
+
+  -- ---------------------------------------------------------------------
+  -- Key construction, accessors and validation.
+  -- ---------------------------------------------------------------------
+
+  -- | Construct and validate an RSA public key from modulus n and public exponent e.
+  rsa-public-key :: Nat -> Nat -> Result RsaError RsaPublicKey
+  rsa-public-key n e =
+    let bits = bit-len n in
+    if n < 3 || nat-rem n 2 == 0 || bits < 16 then Err RsaInvalidPublicKey
+    else if e < 3 || nat-rem e 2 == 0 || e > 2147483647 then Err RsaInvalidPublicKey
+    else Ok (MkRsaPublicKey n e bits (nat-div (bits + 7) 8))
+
+  -- | Construct, validate and precompute CRT parameters for a two-prime RSA private key.
+  rsa-private-key :: Nat -> Nat -> Nat -> Nat -> Nat -> Result RsaError RsaPrivateKey
+  rsa-private-key n e d p q = case rsa-public-key n e of
+    Err err -> Err RsaInvalidPrivateKey
+    Ok pub ->
+      if p < 3 || q < 3 || nat-rem p 2 == 0 || nat-rem q 2 == 0 || p == q then Err RsaInvalidPrivateKey
+      else if p * q /= n then Err RsaInvalidPrivateKey
+      else if d < 1 || d >= n then Err RsaInvalidPrivateKey
+      else
+        let p1 = p - 1 in
+        let q1 = q - 1 in
+        if mod-nat (e * d) p1 /= 1 || mod-nat (e * d) q1 /= 1 then Err RsaInvalidPrivateKey
+        else case mod-inverse q p of
+          None -> Err RsaInvalidPrivateKey
+          Some qinv ->
+            let dp = mod-nat d p1 in
+            let dq = mod-nat d q1 in
+            if mod-nat (q * qinv) p /= 1 then Err RsaInvalidPrivateKey
+            else Ok (MkRsaPrivateKey pub d p q (MkRsaCrt dp dq qinv))
+
+  -- | Extract the public key corresponding to an RSA private key.
+  rsa-public-key-of :: RsaPrivateKey -> RsaPublicKey
+  rsa-public-key-of priv = case priv of MkRsaPrivateKey pub _ _ _ _ -> pub
+
+  -- | Modulus n of an RSA public key.
+  rsa-public-n :: RsaPublicKey -> Nat
+  rsa-public-n pub = case pub of MkRsaPublicKey n _ _ _ -> n
+
+  -- | Public exponent e of an RSA public key.
+  rsa-public-e :: RsaPublicKey -> Nat
+  rsa-public-e pub = case pub of MkRsaPublicKey _ e _ _ -> e
+
+  -- | Private exponent d of an RSA private key.
+  rsa-private-d :: RsaPrivateKey -> Nat
+  rsa-private-d priv = case priv of MkRsaPrivateKey _ d _ _ _ -> d
+
+  -- | First prime factor p of an RSA private key.
+  rsa-private-p :: RsaPrivateKey -> Nat
+  rsa-private-p priv = case priv of MkRsaPrivateKey _ _ p _ _ -> p
+
+  -- | Second prime factor q of an RSA private key.
+  rsa-private-q :: RsaPrivateKey -> Nat
+  rsa-private-q priv = case priv of MkRsaPrivateKey _ _ _ q _ -> q
+
+  -- | Precomputed CRT exponent dp = d mod (p - 1).
+  rsa-private-dp :: RsaPrivateKey -> Nat
+  rsa-private-dp priv = case priv of MkRsaPrivateKey _ _ _ _ crt -> case crt of MkRsaCrt dp _ _ -> dp
+
+  -- | Precomputed CRT exponent dq = d mod (q - 1).
+  rsa-private-dq :: RsaPrivateKey -> Nat
+  rsa-private-dq priv = case priv of MkRsaPrivateKey _ _ _ _ crt -> case crt of MkRsaCrt _ dq _ -> dq
+
+  -- | Precomputed CRT coefficient qinv = q^(-1) mod p.
+  rsa-private-qinv :: RsaPrivateKey -> Nat
+  rsa-private-qinv priv = case priv of MkRsaPrivateKey _ _ _ _ crt -> case crt of MkRsaCrt _ _ qinv -> qinv
+
+  -- | Length of the RSA modulus in bytes.
+  rsa-key-size :: RsaPublicKey -> Nat
+  rsa-key-size pub = case pub of MkRsaPublicKey _ _ _ size -> size
+
+  -- | Length of the RSA modulus in bits.
+  rsa-key-bits :: RsaPublicKey -> Nat
+  rsa-key-bits pub = case pub of MkRsaPublicKey _ _ bits _ -> bits
+
+  -- | Re-validate all structural and mathematical invariants of an RSA private key.
+  rsa-validate-private-key :: RsaPrivateKey -> Result RsaError Unit
+  rsa-validate-private-key priv = case priv of
+    MkRsaPrivateKey pub d p q crt -> case (pub, crt) of
+      (MkRsaPublicKey n e bits size, MkRsaCrt dp dq qinv) ->
+        if n < 3 || nat-rem n 2 == 0 || bits < 16 || bits /= bit-len n || size /= nat-div (bits + 7) 8 then Err RsaInvalidPrivateKey
+        else if e < 3 || nat-rem e 2 == 0 || e > 2147483647 then Err RsaInvalidPrivateKey
+        else if p < 3 || q < 3 || nat-rem p 2 == 0 || nat-rem q 2 == 0 || p == q || p * q /= n then Err RsaInvalidPrivateKey
+        else if d < 1 || d >= n then Err RsaInvalidPrivateKey
+        else
+          let p1 = p - 1 in
+          let q1 = q - 1 in
+          if mod-nat (e * d) p1 /= 1 || mod-nat (e * d) q1 /= 1 then Err RsaInvalidPrivateKey
+          else if dp /= mod-nat d p1 || dq /= mod-nat d q1 || mod-nat (q * qinv) p /= 1 then Err RsaInvalidPrivateKey
+          else Ok ()
+
+  -- | Compare two RSA public keys for equality.
+  rsa-public-key-equal :: RsaPublicKey -> RsaPublicKey -> Bool
+  rsa-public-key-equal a b = rsa-public-n a == rsa-public-n b && rsa-public-e a == rsa-public-e b
+
+  -- | Compare two RSA private keys for equality.
+  rsa-private-key-equal :: RsaPrivateKey -> RsaPrivateKey -> Bool
+  rsa-private-key-equal a b =
+    rsa-public-key-equal (rsa-public-key-of a) (rsa-public-key-of b)
+      && rsa-private-d a == rsa-private-d b
+      && rsa-private-p a == rsa-private-p b
+      && rsa-private-q a == rsa-private-q b
+
+  -- ---------------------------------------------------------------------
+  -- PKCS#1 DER marshaling and parsing via Text.Asn1.
+  -- ---------------------------------------------------------------------
+
+  -- | Extract a non-negative integer from an Asn1Integer element.
+  asn1-nat :: Asn1 -> Option Nat
+  asn1-nat v = case v of
+    Asn1Integer i -> if i >= 0 then Some (nat-from-int i) else None
+    other -> None
+
+  -- | Marshal an RSA public key to PKCS#1 ASN.1 DER (RFC 8017 Appendix A.1.1).
+  rsa-marshal-pkcs1-public-key :: RsaPublicKey -> Bytes
+  rsa-marshal-pkcs1-public-key pub =
+    asn1-encode (asn1-sequence [Asn1Integer (nat-to-int (rsa-public-n pub)), Asn1Integer (nat-to-int (rsa-public-e pub))])
+
+  -- | Parse an RSA public key from PKCS#1 ASN.1 DER.
+  rsa-parse-pkcs1-public-key :: Bytes -> Result RsaError RsaPublicKey
+  rsa-parse-pkcs1-public-key der = case asn1-decode der of
+    Err _ -> Err RsaInvalidEncoding
+    Ok val -> case val of
+      Asn1Sequence _ -> case asn1-members val of
+        Cons ni (Cons ei Nil) -> case (asn1-nat ni, asn1-nat ei) of
+          (Some n, Some e) -> rsa-public-key n e
+          other -> Err RsaInvalidEncoding
+        other -> Err RsaInvalidEncoding
+      other -> Err RsaInvalidEncoding
+
+  -- | Marshal an RSA private key to PKCS#1 ASN.1 DER (RFC 8017 Appendix A.1.2).
+  rsa-marshal-pkcs1-private-key :: RsaPrivateKey -> Bytes
+  rsa-marshal-pkcs1-private-key priv =
+    let pub = rsa-public-key-of priv in
+    asn1-encode (asn1-sequence [
+      Asn1Integer 0,
+      Asn1Integer (nat-to-int (rsa-public-n pub)),
+      Asn1Integer (nat-to-int (rsa-public-e pub)),
+      Asn1Integer (nat-to-int (rsa-private-d priv)),
+      Asn1Integer (nat-to-int (rsa-private-p priv)),
+      Asn1Integer (nat-to-int (rsa-private-q priv)),
+      Asn1Integer (nat-to-int (rsa-private-dp priv)),
+      Asn1Integer (nat-to-int (rsa-private-dq priv)),
+      Asn1Integer (nat-to-int (rsa-private-qinv priv))
+    ])
+
+  -- | Parse a two-prime RSA private key from PKCS#1 ASN.1 DER.
+  rsa-parse-pkcs1-private-key :: Bytes -> Result RsaError RsaPrivateKey
+  rsa-parse-pkcs1-private-key der = case asn1-decode der of
+    Err _ -> Err RsaInvalidEncoding
+    Ok val -> case val of
+      Asn1Sequence _ -> parse-pkcs1-private-fields (asn1-members val)
+      other -> Err RsaInvalidEncoding
+
+  -- | Decode the nine INTEGER members of a version-0 RSAPrivateKey sequence.
+  parse-pkcs1-private-fields :: List Asn1 -> Result RsaError RsaPrivateKey
+  parse-pkcs1-private-fields members = case members of
+    Cons v0 (Cons vn (Cons ve (Cons vd (Cons vp (Cons vq (Cons vdp (Cons vdq (Cons vqinv Nil)))))))) ->
+      case (asn1-nat v0, asn1-nat vn, asn1-nat ve, asn1-nat vd) of
+        (Some 0, Some n, Some e, Some d) ->
+          case (asn1-nat vp, asn1-nat vq, asn1-nat vdp, asn1-nat vdq, asn1-nat vqinv) of
+            (Some p, Some q, Some dp, Some dq, Some qinv) ->
+              (case rsa-private-key n e d p q of
+                Err err -> Err err
+                Ok priv ->
+                  if dp == rsa-private-dp priv && dq == rsa-private-dq priv && qinv == rsa-private-qinv priv then Ok priv
+                  else Err RsaInvalidPrivateKey)
+            other -> Err RsaInvalidEncoding
+        other -> Err RsaInvalidEncoding
+    other -> Err RsaInvalidEncoding
+
+  -- ---------------------------------------------------------------------
+  -- Core RSA modular exponentiation (public and CRT private).
+  -- ---------------------------------------------------------------------
+
+  -- | Public RSA primitive: m^e mod n.
+  rsa-public-op :: RsaPublicKey -> Nat -> Nat
+  rsa-public-op pub m = modexp m (rsa-public-e pub) (rsa-public-n pub)
+
+  -- | Private RSA primitive using CRT recombination and a public-exponent fault check.
+  rsa-private-op :: RsaPrivateKey -> Nat -> Nat
+  rsa-private-op priv c = case priv of
+    MkRsaPrivateKey pub d p q crt -> case crt of
+      MkRsaCrt dp dq qinv ->
+        let m1 = modexp (mod-nat c p) dp p in
+        let m2 = modexp (mod-nat c q) dq q in
+        let m2p = mod-nat m2 p in
+        let diff = if m2p <= m1 then m1 - m2p else saturating-sub (m1 + p) m2p in
+        let h = mod-nat (diff * qinv) p in
+        let m = m2 + h * q in
+        if rsa-public-op pub m == c then m
+        else modexp c d (rsa-public-n pub)
+
+  -- ---------------------------------------------------------------------
+  -- Mask Generation Function MGF1 (RFC 8017 Appendix B.2.1).
+  -- ---------------------------------------------------------------------
+
+  -- | Write a 32-bit big-endian counter into a fresh 4-byte buffer.
+  counter-be32 :: Nat -> Bytes
+  counter-be32 c =
+    let w = wrapping-i64-to-u32 (nat-to-i64-clamped c) in
+    bytes-from-u8s [
+      wrapping-u32-to-u8 (wrapping-shr-u32 w 24),
+      wrapping-u32-to-u8 (wrapping-shr-u32 w 16),
+      wrapping-u32-to-u8 (wrapping-shr-u32 w 8),
+      wrapping-u32-to-u8 w
+    ]
+
+  -- | XOR a fresh copy of buf with MGF1(seed, bytes-len buf) using the given hash.
+  mgf1-xor :: RsaHash -> Bytes -> Bytes -> Result RsaError Bytes
+  mgf1-xor h seed buf =
+    let hlen = rsa-hash-size h in
+    if hlen == 0 then Err RsaUnsupportedHash
+    else
+      let out = bytes-clone buf in
+      mgf1-loop h seed out 0 (bytes-len out) 0
+
+  -- | Iterate MGF1 counter blocks and XOR each digest into out.
+  mgf1-loop :: RsaHash -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Result RsaError Bytes
+  mgf1-loop h seed out offset total counter =
+    if offset >= total then Ok out
+    else case rsa-hash-sum h (bytes-concat [seed, counter-be32 counter]) of
+      Err err -> Err err
+      Ok mask ->
+        let remaining = total - offset in
+        let take = if bytes-len mask < remaining then bytes-len mask else remaining in
+        let xored = xor-range out offset mask 0 take in
+        mgf1-loop h seed out (offset + take) total (counter + 1)
+
+  -- | XOR len bytes from src[si..] into dst[di..].
+  xor-range :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Unit
+  xor-range dst di src si remaining =
+    if remaining == 0 then ()
+    else
+      let a = at-u8 dst di in
+      let b = at-u8 src si in
+      let w = put dst di (u8-to-nat (bit-xor-u8 a b)) in
+      xor-range dst (di + 1) src (si + 1) (remaining - 1)
+
+  -- ---------------------------------------------------------------------
+  -- PKCS#1 v1.5 Signatures (RFC 8017 Section 8.2).
+  -- ---------------------------------------------------------------------
+
+  -- | Build the EMSA-PKCS1-v1_5 encoded message block of length k.
+  pkcs1v15-em :: RsaHash -> Bytes -> Nat -> Result RsaError Bytes
+  pkcs1v15-em h digest k =
+    let hlen = rsa-hash-size h in
+    if hlen /= 0 && bytes-len digest /= hlen then Err RsaInvalidDigestLength
+    else
+      let prefix = digest-info-prefix h in
+      let plen = bytes-len prefix in
+      let dlen = bytes-len digest in
+      let tlen = plen + dlen in
+      if k < tlen + 11 then Err RsaMessageTooLong
+      else
+        let em = bytes-new k in
+        let ps-end = k - tlen - 1 in
+        let w0 = put em 0 0 in
+        let w1 = put em 1 1 in
+        let wps = fill-byte em 2 ps-end 255 in
+        let wsep = put em ps-end 0 in
+        let wp = copy-into em prefix (ps-end + 1) 0 plen in
+        let wd = copy-into em digest (ps-end + 1 + plen) 0 dlen in
+        Ok em
+
+  -- | Sign a pre-computed message digest with RSASSA-PKCS1-v1_5.
+  rsa-sign-pkcs1v15 :: RsaPrivateKey -> RsaHash -> Bytes -> Result RsaError Bytes
+  rsa-sign-pkcs1v15 priv h digest =
+    let k = rsa-key-size (rsa-public-key-of priv) in
+    case pkcs1v15-em h digest k of
+      Err err -> Err err
+      Ok em ->
+        let s = rsa-private-op priv (rsa-os2ip em) in
+        Ok (rsa-i2osp s k)
+
+  -- | Verify an RSASSA-PKCS1-v1_5 signature over a pre-computed message digest.
+  rsa-verify-pkcs1v15 :: RsaPublicKey -> RsaHash -> Bytes -> Bytes -> Result RsaError Unit
+  rsa-verify-pkcs1v15 pub h digest sig =
+    let hlen = rsa-hash-size h in
+    if hlen /= 0 && bytes-len digest /= hlen then Err RsaInvalidDigestLength
+    else
+      let k = rsa-key-size pub in
+      if bytes-len sig /= k then Err RsaVerificationError
+      else
+        let s = rsa-os2ip sig in
+        if s >= rsa-public-n pub then Err RsaVerificationError
+        else case pkcs1v15-em h digest k of
+          Err _ -> Err RsaVerificationError
+          Ok expected ->
+            let em = rsa-i2osp (rsa-public-op pub s) k in
+            if constant-bytes-equal em expected then Ok ()
+            else Err RsaVerificationError
+
+  -- ---------------------------------------------------------------------
+  -- RSASSA-PSS Signatures (RFC 8017 Section 8.1 and 9.1).
+  -- ---------------------------------------------------------------------
+
+  -- | Bitmask clearing the top unused-bits of a byte (0 <= unused-bits <= 7).
+  top-byte-mask :: Nat -> U8
+  top-byte-mask unused-bits =
+    let shift = wrapping-i64-to-u32 (nat-to-i64-clamped unused-bits) in
+    wrapping-shr-u8 255 shift
+
+  -- | EMSA-PSS-ENCODE (RFC 8017 Section 9.1.1) with explicit salt bytes.
+  emsa-pss-encode :: RsaHash -> Bytes -> Nat -> Bytes -> Result RsaError Bytes
+  emsa-pss-encode h mhash em-bits salt =
+    let hlen = rsa-hash-size h in
+    if hlen == 0 then Err RsaUnsupportedHash
+    else if bytes-len mhash /= hlen then Err RsaInvalidDigestLength
+    else
+      let slen = bytes-len salt in
+      let em-len = nat-div (em-bits + 7) 8 in
+      if em-len < hlen + slen + 2 then Err RsaMessageTooLong
+      else
+        let m-prime = bytes-concat [bytes-new 8, mhash, salt] in
+        case rsa-hash-sum h m-prime of
+          Err err -> Err err
+          Ok h-val ->
+            let db-len = em-len - hlen - 1 in
+            let db = bytes-new db-len in
+            let sep-idx = db-len - slen - 1 in
+            let wsep = put db sep-idx 1 in
+            let wsalt = copy-into db salt (sep-idx + 1) 0 slen in
+            case mgf1-xor h h-val db of
+              Err err -> Err err
+              Ok masked-db ->
+                let unused = saturating-sub (em-len * 8) em-bits in
+                let mask = top-byte-mask unused in
+                let b0 = bit-and-u8 (at-u8 masked-db 0) mask in
+                let w0 = put masked-db 0 (u8-to-nat b0) in
+                Ok (bytes-concat [masked-db, h-val, bytes-from-u8s [188]])
+
+  -- | Sign a pre-computed message digest with RSASSA-PSS using explicit salt bytes.
+  rsa-sign-pss-deterministic :: RsaPrivateKey -> RsaHash -> Bytes -> Bytes -> Result RsaError Bytes
+  rsa-sign-pss-deterministic priv h digest salt =
+    let pub = rsa-public-key-of priv in
+    let em-bits = saturating-sub (rsa-key-bits pub) 1 in
+    case emsa-pss-encode h digest em-bits salt of
+      Err err -> Err err
+      Ok em ->
+        let s = rsa-private-op priv (rsa-os2ip em) in
+        Ok (rsa-i2osp s (rsa-key-size pub))
+
+  -- | Sign a pre-computed message digest with RSASSA-PSS, deriving salt bytes deterministically from seed.
+  rsa-sign-pss :: RsaPrivateKey -> RsaHash -> Bytes -> PssSaltLength -> Bytes -> Result RsaError Bytes
+  rsa-sign-pss priv h digest salt-policy seed =
+    let hlen = rsa-hash-size h in
+    if hlen == 0 then Err RsaUnsupportedHash
+    else if bytes-len digest /= hlen then Err RsaInvalidDigestLength
+    else if bytes-len seed == 0 then Err RsaInvalidParameter
+    else
+      let pub = rsa-public-key-of priv in
+      let em-bits = saturating-sub (rsa-key-bits pub) 1 in
+      let em-len = nat-div (em-bits + 7) 8 in
+      case resolve-pss-sign-salt-len em-len hlen salt-policy of
+        Err err -> Err err
+        Ok slen ->
+          let salt = drbg-bytes (drbg-new seed) slen in
+          rsa-sign-pss-deterministic priv h digest salt
+
+  -- | Resolve the PSS salt length in bytes for signing.
+  resolve-pss-sign-salt-len :: Nat -> Nat -> PssSaltLength -> Result RsaError Nat
+  resolve-pss-sign-salt-len em-len hlen policy = case policy of
+    PssSaltAuto ->
+      if em-len < hlen + 2 then Err RsaMessageTooLong
+      else Ok (em-len - hlen - 2)
+    PssSaltEqualsHash ->
+      if em-len < hlen + hlen + 2 then Err RsaMessageTooLong
+      else Ok hlen
+    PssSaltExact n ->
+      if em-len < hlen + n + 2 then Err RsaMessageTooLong
+      else Ok n
+
+  -- | Verify an RSASSA-PSS signature over a pre-computed message digest.
+  rsa-verify-pss :: RsaPublicKey -> RsaHash -> Bytes -> Bytes -> PssSaltLength -> Result RsaError Unit
+  rsa-verify-pss pub h digest sig salt-policy =
+    let hlen = rsa-hash-size h in
+    if hlen == 0 then Err RsaUnsupportedHash
+    else if bytes-len digest /= hlen then Err RsaInvalidDigestLength
+    else
+      let k = rsa-key-size pub in
+      if bytes-len sig /= k then Err RsaVerificationError
+      else
+        let s = rsa-os2ip sig in
+        if s >= rsa-public-n pub then Err RsaVerificationError
+        else
+          let m = rsa-public-op pub s in
+          let em-bits = saturating-sub (rsa-key-bits pub) 1 in
+          let em-len = nat-div (em-bits + 7) 8 in
+          if bit-len m > em-len * 8 then Err RsaVerificationError
+          else
+            let em = rsa-i2osp m em-len in
+            emsa-pss-verify h digest em em-bits salt-policy
+
+  -- | EMSA-PSS-VERIFY (RFC 8017 Section 9.1.2).
+  emsa-pss-verify :: RsaHash -> Bytes -> Bytes -> Nat -> PssSaltLength -> Result RsaError Unit
+  emsa-pss-verify h mhash em em-bits salt-policy =
+    let hlen = rsa-hash-size h in
+    let em-len = bytes-len em in
+    let min-salt = case salt-policy of PssSaltAuto -> 0; PssSaltEqualsHash -> hlen; PssSaltExact n -> n in
+    if em-len < hlen + min-salt + 2 then Err RsaVerificationError
+    else if at em (em-len - 1) /= 188 then Err RsaVerificationError
+    else
+      let db-len = em-len - hlen - 1 in
+      let masked-db = slice em 0 db-len in
+      let h-val = slice em db-len (em-len - 1) in
+      let unused = saturating-sub (em-len * 8) em-bits in
+      let mask = top-byte-mask unused in
+      let top-bits = bit-and-u8 (at-u8 masked-db 0) (bit-not-u8 mask) in
+      if ne-u8 top-bits 0 then Err RsaVerificationError
+      else case mgf1-xor h h-val masked-db of
+        Err _ -> Err RsaVerificationError
+        Ok db ->
+          let cleared = put db 0 (u8-to-nat (bit-and-u8 (at-u8 db 0) mask)) in
+          case extract-pss-salt db db-len salt-policy hlen of
+            None -> Err RsaVerificationError
+            Some salt ->
+              let m-prime = bytes-concat [bytes-new 8, mhash, salt] in
+              case rsa-hash-sum h m-prime of
+                Err _ -> Err RsaVerificationError
+                Ok h-prime ->
+                  if constant-bytes-equal h-val h-prime then Ok ()
+                  else Err RsaVerificationError
+
+  -- | Validate DB = 0x00* || 0x01 || salt according to the salt length policy and return salt.
+  extract-pss-salt :: Bytes -> Nat -> PssSaltLength -> Nat -> Option Bytes
+  extract-pss-salt db db-len policy hlen = case policy of
+    PssSaltAuto -> find-pss-auto-salt db 0 db-len
+    PssSaltEqualsHash -> check-pss-fixed-salt db db-len hlen
+    PssSaltExact slen -> check-pss-fixed-salt db db-len slen
+
+  -- | Check fixed-length PSS padding prefix (all zero bytes before 0x01 at db-len - slen - 1).
+  check-pss-fixed-salt :: Bytes -> Nat -> Nat -> Option Bytes
+  check-pss-fixed-salt db db-len slen =
+    if db-len < slen + 1 then None
+    else
+      let sep-idx = db-len - slen - 1 in
+      if all-zero-prefix db 0 sep-idx && at db sep-idx == 1 then
+        Some (slice db (sep-idx + 1) db-len)
+      else None
+
+  -- | Return True iff every byte in buf[i..stop) is zero.
+  all-zero-prefix :: Bytes -> Nat -> Nat -> Bool
+  all-zero-prefix buf i stop =
+    if i >= stop then True
+    else if at buf i /= 0 then False
+    else all-zero-prefix buf (i + 1) stop
+
+  -- | Locate the 0x01 separator after leading zeros for auto salt length verification.
+  find-pss-auto-salt :: Bytes -> Nat -> Nat -> Option Bytes
+  find-pss-auto-salt db i db-len =
+    if i >= db-len then None
+    else
+      let b = at db i in
+      if b == 0 then find-pss-auto-salt db (i + 1) db-len
+      else if b == 1 then Some (slice db (i + 1) db-len)
+      else None
+
+  -- ---------------------------------------------------------------------
+  -- RSAES-OAEP Encryption and Decryption (RFC 8017 Section 7.1).
+  -- ---------------------------------------------------------------------
+
+  -- | Encrypt a message with RSAES-OAEP using the same hash for the label and MGF1, and explicit seed bytes.
+  rsa-encrypt-oaep-with-seed :: RsaPublicKey -> RsaHash -> Bytes -> Bytes -> Bytes -> Result RsaError Bytes
+  rsa-encrypt-oaep-with-seed pub h label msg seed = rsa-encrypt-oaep-mgf pub h h label msg seed
+
+  -- | Encrypt a message with RSAES-OAEP using separate label and MGF1 hashes, and explicit seed bytes.
+  rsa-encrypt-oaep-mgf :: RsaPublicKey -> RsaHash -> RsaHash -> Bytes -> Bytes -> Bytes -> Result RsaError Bytes
+  rsa-encrypt-oaep-mgf pub h mgf-h label msg seed =
+    let hlen = rsa-hash-size h in
+    let mgf-len = rsa-hash-size mgf-h in
+    if hlen == 0 || mgf-len == 0 then Err RsaUnsupportedHash
+    else if bytes-len seed /= hlen then Err RsaInvalidParameter
+    else
+      let k = rsa-key-size pub in
+      let mlen = bytes-len msg in
+      if k < 2 * hlen + 2 || mlen > k - 2 * hlen - 2 then Err RsaMessageTooLong
+      else case rsa-hash-sum h label of
+        Err err -> Err err
+        Ok lhash ->
+          let db-len = k - hlen - 1 in
+          let db = bytes-new db-len in
+          let wlh = copy-into db lhash 0 0 hlen in
+          let sep-idx = db-len - mlen - 1 in
+          let wsep = put db sep-idx 1 in
+          let wmsg = copy-into db msg (sep-idx + 1) 0 mlen in
+          case mgf1-xor mgf-h seed db of
+            Err err -> Err err
+            Ok masked-db ->
+              case mgf1-xor mgf-h masked-db seed of
+                Err err -> Err err
+                Ok masked-seed ->
+                  let em = bytes-concat [bytes-new 1, masked-seed, masked-db] in
+                  let c = rsa-public-op pub (rsa-os2ip em) in
+                  Ok (rsa-i2osp c k)
+
+  -- | Decrypt an RSAES-OAEP ciphertext using the same hash for the label and MGF1, with constant-time padding checks.
+  rsa-decrypt-oaep :: RsaPrivateKey -> RsaHash -> Bytes -> Bytes -> Result RsaError Bytes
+  rsa-decrypt-oaep priv h label ciphertext = rsa-decrypt-oaep-mgf priv h h label ciphertext
+
+  -- | Decrypt an RSAES-OAEP ciphertext with separate label and MGF1 hashes and constant-time padding validation.
+  rsa-decrypt-oaep-mgf :: RsaPrivateKey -> RsaHash -> RsaHash -> Bytes -> Bytes -> Result RsaError Bytes
+  rsa-decrypt-oaep-mgf priv h mgf-h label ciphertext =
+    let hlen = rsa-hash-size h in
+    let mgf-len = rsa-hash-size mgf-h in
+    if hlen == 0 || mgf-len == 0 then Err RsaUnsupportedHash
+    else
+      let pub = rsa-public-key-of priv in
+      let k = rsa-key-size pub in
+      if bytes-len ciphertext /= k || k < 2 * hlen + 2 then Err RsaDecryptionError
+      else
+        let c = rsa-os2ip ciphertext in
+        if c >= rsa-public-n pub then Err RsaDecryptionError
+        else case rsa-hash-sum h label of
+          Err err -> Err err
+          Ok lhash ->
+            let em = rsa-i2osp (rsa-private-op priv c) k in
+            let first-byte = at-u8 em 0 in
+            let masked-seed = slice em 1 (1 + hlen) in
+            let masked-db = slice em (1 + hlen) k in
+            case mgf1-xor mgf-h masked-db masked-seed of
+              Err _ -> Err RsaDecryptionError
+              Ok seed ->
+                case mgf1-xor mgf-h seed masked-db of
+                  Err _ -> Err RsaDecryptionError
+                  Ok db -> oaep-unpad-ct first-byte db lhash hlen
+
+  -- | Constant-time OAEP padding verification over the unmasked DB block.
+  oaep-unpad-ct :: U8 -> Bytes -> Bytes -> Nat -> Result RsaError Bytes
+  oaep-unpad-ct first-byte db lhash hlen =
+    let db-len = bytes-len db in
+    let first-ok = ct-eq-u8 first-byte 0 in
+    let lhash-ok = ct-bool (constant-bytes-equal (slice db 0 hlen) lhash) in
+    case oaep-scan-ct db hlen db-len 1 0 0 of
+      (looking, invalid, sep-idx) ->
+        let found-ok = ct-not looking in
+        let pad-ok = ct-not invalid in
+        let all-ok = ct-and (ct-and first-ok lhash-ok) (ct-and found-ok pad-ok) in
+        if eq-i64 all-ok 1 && sep-idx >= 0 then
+          let start = nat-from-int (int-from-i64 sep-idx) + 1 in
+          Ok (slice db start db-len)
+        else Err RsaDecryptionError
+
+  -- | Scan every byte of db[i..db-len) without early exit to locate the 0x01 separator and verify zero padding.
+  oaep-scan-ct :: Bytes -> Nat -> Nat -> I64 -> I64 -> I64 -> (I64, I64, I64)
+  oaep-scan-ct db i db-len looking invalid sep-idx =
+    if i >= db-len then (looking, invalid, sep-idx)
+    else
+      let b = at-u8 db i in
+      let is-zero = ct-eq-u8 b 0 in
+      let is-one = ct-eq-u8 b 1 in
+      let found-now = ct-and looking is-one in
+      let next-idx = ct-select found-now (nat-to-i64-clamped i) sep-idx in
+      let next-looking = ct-and looking (ct-not is-one) in
+      let bad-now = ct-and next-looking (ct-not is-zero) in
+      let next-invalid = ct-or invalid bad-now in
+      oaep-scan-ct db (i + 1) db-len next-looking next-invalid next-idx
+
+  -- ---------------------------------------------------------------------
+  -- RSAES-PKCS1-v1_5 Encryption and Decryption (RFC 8017 Section 7.2).
+  -- ---------------------------------------------------------------------
+
+  -- | Encrypt a message with RSAES-PKCS1-v1_5 using explicit non-zero padding bytes of length k - len(msg) - 3.
+  rsa-encrypt-pkcs1v15-with-pad :: RsaPublicKey -> Bytes -> Bytes -> Result RsaError Bytes
+  rsa-encrypt-pkcs1v15-with-pad pub msg pad =
+    let k = rsa-key-size pub in
+    let mlen = bytes-len msg in
+    if k < 11 || mlen > k - 11 then Err RsaMessageTooLong
+    else
+      let ps-len = k - mlen - 3 in
+      if bytes-len pad /= ps-len || not (all-nonzero pad 0 ps-len) then Err RsaInvalidParameter
+      else
+        let em = bytes-new k in
+        let w0 = put em 0 0 in
+        let w1 = put em 1 2 in
+        let wps = copy-into em pad 2 0 ps-len in
+        let wsep = put em (2 + ps-len) 0 in
+        let wmsg = copy-into em msg (3 + ps-len) 0 mlen in
+        let c = rsa-public-op pub (rsa-os2ip em) in
+        Ok (rsa-i2osp c k)
+
+  -- | Encrypt a message with RSAES-PKCS1-v1_5, deriving non-zero padding bytes deterministically from seed.
+  rsa-encrypt-pkcs1v15-from-seed :: RsaPublicKey -> Bytes -> Bytes -> Result RsaError Bytes
+  rsa-encrypt-pkcs1v15-from-seed pub msg seed =
+    let k = rsa-key-size pub in
+    let mlen = bytes-len msg in
+    if k < 11 || mlen > k - 11 then Err RsaMessageTooLong
+    else if bytes-len seed == 0 then Err RsaInvalidParameter
+    else
+      let ps-len = k - mlen - 3 in
+      let pad = drbg-nonzero-bytes (drbg-new seed) ps-len in
+      rsa-encrypt-pkcs1v15-with-pad pub msg pad
+
+  -- | Return True iff every byte in buf[i..stop) is non-zero.
+  all-nonzero :: Bytes -> Nat -> Nat -> Bool
+  all-nonzero buf i stop =
+    if i >= stop then True
+    else if at buf i == 0 then False
+    else all-nonzero buf (i + 1) stop
+
+  -- | Decrypt an RSAES-PKCS1-v1_5 ciphertext with constant-time padding validation.
+  rsa-decrypt-pkcs1v15 :: RsaPrivateKey -> Bytes -> Result RsaError Bytes
+  rsa-decrypt-pkcs1v15 priv ciphertext = case decrypt-pkcs1v15-em priv ciphertext of
+    Err err -> Err err
+    Ok (valid, em, sep-idx) ->
+      if eq-i64 valid 1 && sep-idx >= 0 then
+        let start = nat-from-int (int-from-i64 sep-idx) + 1 in
+        Ok (slice em start (bytes-len em))
+      else Err RsaDecryptionError
+
+  -- | Decrypt an RSAES-PKCS1-v1_5 session key of fixed length, returning fallback if padding or length is invalid.
+  rsa-decrypt-pkcs1v15-session-key :: RsaPrivateKey -> Bytes -> Bytes -> Result RsaError Bytes
+  rsa-decrypt-pkcs1v15-session-key priv ciphertext fallback =
+    let k = rsa-key-size (rsa-public-key-of priv) in
+    let key-len = bytes-len fallback in
+    if k < key-len + 11 then Err RsaDecryptionError
+    else case decrypt-pkcs1v15-em priv ciphertext of
+      Err err -> Err err
+      Ok (valid, em, sep-idx) ->
+        let expected-sep = nat-to-i64-clamped (k - key-len - 1) in
+        let len-ok = ct-bool (eq-i64 sep-idx expected-sep) in
+        let use-decrypted = eq-i64 (ct-and valid len-ok) 1 in
+        let out = bytes-clone fallback in
+        let candidate = slice em (k - key-len) k in
+        case constant-copy use-decrypted out candidate of
+          Ok _ -> Ok out
+          Err _ -> Err RsaDecryptionError
+
+  -- | Perform RSAES-PKCS1-v1_5 decryption and constant-time EME-PKCS1-v1_5 padding check.
+  decrypt-pkcs1v15-em :: RsaPrivateKey -> Bytes -> Result RsaError (I64, Bytes, I64)
+  decrypt-pkcs1v15-em priv ciphertext =
+    let pub = rsa-public-key-of priv in
+    let k = rsa-key-size pub in
+    if bytes-len ciphertext /= k || k < 11 then Err RsaDecryptionError
+    else
+      let c = rsa-os2ip ciphertext in
+      if c >= rsa-public-n pub then Err RsaDecryptionError
+      else
+        let em = rsa-i2osp (rsa-private-op priv c) k in
+        let b0-ok = ct-eq-u8 (at-u8 em 0) 0 in
+        let b1-ok = ct-eq-u8 (at-u8 em 1) 2 in
+        case pkcs1v15-scan-ct em 2 k 1 0 of
+          (looking, sep-idx) ->
+            let found-ok = ct-not looking in
+            let ps-ok = ct-le-i64 10 sep-idx in
+            let valid = ct-and (ct-and b0-ok b1-ok) (ct-and found-ok ps-ok) in
+            Ok (valid, em, sep-idx)
+
+  -- | Scan every byte of em[i..k) without early exit to find the first 0x00 separator.
+  pkcs1v15-scan-ct :: Bytes -> Nat -> Nat -> I64 -> I64 -> (I64, I64)
+  pkcs1v15-scan-ct em i k looking sep-idx =
+    if i >= k then (looking, sep-idx)
+    else
+      let is-zero = ct-eq-u8 (at-u8 em i) 0 in
+      let found-now = ct-and looking is-zero in
+      let next-idx = ct-select found-now (nat-to-i64-clamped i) sep-idx in
+      let next-looking = ct-and looking (ct-not is-zero) in
+      pkcs1v15-scan-ct em (i + 1) k next-looking next-idx
+
+  -- ---------------------------------------------------------------------
+  -- Deterministic SHA-256 DRBG and RSA Key Generation.
+  -- ---------------------------------------------------------------------
+
+  -- | Initialize a SHA-256 counter-mode DRBG from an arbitrary seed.
+  drbg-new :: Bytes -> Drbg
+  drbg-new seed = MkDrbg (sha256-sum seed) 0 (bytes-new 0) 0
+
+  -- | Encode a 64-bit big-endian counter into 8 bytes.
+  counter-be64 :: Nat -> Bytes
+  counter-be64 c =
+    let w = wrapping-i64-to-u64 (nat-to-i64-clamped c) in
+    bytes-from-u8s [
+      wrapping-u64-to-u8 (wrapping-shr-u64 w 56),
+      wrapping-u64-to-u8 (wrapping-shr-u64 w 48),
+      wrapping-u64-to-u8 (wrapping-shr-u64 w 40),
+      wrapping-u64-to-u8 (wrapping-shr-u64 w 32),
+      wrapping-u64-to-u8 (wrapping-shr-u64 w 24),
+      wrapping-u64-to-u8 (wrapping-shr-u64 w 16),
+      wrapping-u64-to-u8 (wrapping-shr-u64 w 8),
+      wrapping-u64-to-u8 w
+    ]
+
+  -- | Draw exactly count bytes from the DRBG, returning the bytes and updated state.
+  drbg-draw :: Drbg -> Nat -> (Bytes, Drbg)
+  drbg-draw state count =
+    let out = bytes-new count in
+    let next = drbg-fill out 0 count state in
+    (out, next)
+
+  -- | Draw count bytes from a fresh DRBG without returning the final state.
+  drbg-bytes :: Drbg -> Nat -> Bytes
+  drbg-bytes state count = case drbg-draw state count of (b, _) -> b
+
+  -- | Fill out[pos..total) from the DRBG state.
+  drbg-fill :: Bytes -> Nat -> Nat -> Drbg -> Drbg
+  drbg-fill out pos total state =
+    if pos >= total then state
+    else case state of
+      MkDrbg seed ctr blk idx ->
+        if idx >= bytes-len blk then
+          let next-blk = sha256-sum (bytes-concat [seed, counter-be64 ctr]) in
+          drbg-fill out pos total (MkDrbg seed (ctr + 1) next-blk 0)
+        else
+          let avail = bytes-len blk - idx in
+          let need = total - pos in
+          let take = if avail < need then avail else need in
+          let copied = copy-into out blk pos idx take in
+          drbg-fill out (pos + take) total (MkDrbg seed ctr blk (idx + take))
+
+  -- | Draw count non-zero bytes for RSAES-PKCS1-v1_5 padding.
+  drbg-nonzero-bytes :: Drbg -> Nat -> Bytes
+  drbg-nonzero-bytes state count =
+    let out = bytes-new count in
+    let done = drbg-fill-nonzero out 0 count state in
+    out
+
+  -- | Fill out[pos..total) with non-zero bytes drawn from the DRBG.
+  drbg-fill-nonzero :: Bytes -> Nat -> Nat -> Drbg -> Unit
+  drbg-fill-nonzero out pos total state =
+    if pos >= total then ()
+    else case drbg-draw state 1 of
+      (one, next) ->
+        let b = at one 0 in
+        if b == 0 then drbg-fill-nonzero out pos total next
+        else
+          let w = put out pos b in
+          drbg-fill-nonzero out (pos + 1) total next
+
+  -- | Generate a validated two-prime RSA private key of the requested bit size (64..8192) deterministically from seed.
+  rsa-generate-key-from-seed :: Nat -> Bytes -> Result RsaError RsaPrivateKey
+  rsa-generate-key-from-seed bits seed =
+    if bits < 64 || bits > 8192 || bytes-len seed == 0 then Err RsaInvalidParameter
+    else
+      let e = (65537 :: Nat) in
+      let p-bits = nat-div (bits + 1) 2 in
+      let q-bits = saturating-sub bits p-bits in
+      let state0 = drbg-new (bytes-concat [bytes-from-u8s [114, 115, 97, 45, 107, 101, 121], counter-be64 bits, seed]) in
+      generate-key-loop bits p-bits q-bits e state0
+
+  -- | Search for distinct primes p and q whose product has exact bit length bits and satisfies gcd(e, phi) == 1.
+  generate-key-loop :: Nat -> Nat -> Nat -> Nat -> Drbg -> Result RsaError RsaPrivateKey
+  generate-key-loop bits p-bits q-bits e state0 =
+    case generate-prime p-bits e state0 of
+      (p, state1) -> case generate-prime q-bits e state1 of
+        (q, state2) ->
+          if p == q then generate-key-loop bits p-bits q-bits e state2
+          else
+            let n = p * q in
+            if bit-len n /= bits then generate-key-loop bits p-bits q-bits e state2
+            else
+              let hi = if p > q then p else q in
+              let lo = if p > q then q else p in
+              let totient = saturating-sub hi 1 * saturating-sub lo 1 in
+              case mod-inverse e totient of
+                None -> generate-key-loop bits p-bits q-bits e state2
+                Some d -> rsa-private-key n e d hi lo
+
+  -- | Generate a probable prime of exact bit length bits with gcd(e, p - 1) == 1.
+  generate-prime :: Nat -> Nat -> Drbg -> (Nat, Drbg)
+  generate-prime bits e state =
+    let nbytes = nat-div (bits + 7) 8 in
+    case drbg-draw state nbytes of
+      (raw, next-state) ->
+        let top-bits = nat-rem bits 8 in
+        let b0 = at raw 0 in
+        let shaped0 = shape-top-byte b0 top-bits in
+        let w0 = put raw 0 shaped0 in
+        let w1 = if top-bits == 1 && nbytes >= 2 then put raw 1 (u8-to-nat (bit-or-u8 (at-u8 raw 1) 128)) else () in
+        let last-idx = saturating-sub nbytes 1 in
+        let wlast = put raw last-idx (u8-to-nat (bit-or-u8 (at-u8 raw last-idx) 1)) in
+        let start = rsa-os2ip raw in
+        search-prime-step start bits e next-state 0
+
+  -- | Mask unused high bits and set the top two bits so p * q achieves the exact target modulus bit length.
+  shape-top-byte :: Nat -> Nat -> Nat
+  shape-top-byte b top-bits =
+    let u = wrapping-i64-to-u8 (nat-to-i64-clamped b) in
+    if top-bits == 0 then u8-to-nat (bit-or-u8 u 192)
+    else if top-bits == 1 then 1
+    else
+      let shift = wrapping-i64-to-u32 (nat-to-i64-clamped (saturating-sub 8 top-bits)) in
+      let mask = wrapping-shr-u8 255 shift in
+      let top2 = wrapping-shr-u8 192 shift in
+      u8-to-nat (bit-or-u8 (bit-and-u8 u mask) top2)
+
+  -- | Walk odd candidates from start with small-prime sieving and Miller-Rabin verification.
+  search-prime-step :: Nat -> Nat -> Nat -> Drbg -> Nat -> (Nat, Drbg)
+  search-prime-step cand bits e state attempts =
+    if attempts > 4096 || bit-len cand /= bits then generate-prime bits e state
+    else if mod-nat (saturating-sub cand 1) e == 0 || has-small-factor cand then
+      search-prime-step (cand + 2) bits e state (attempts + 1)
+    else if is-probable-prime cand then (cand, state)
+    else search-prime-step (cand + 2) bits e state (attempts + 1)
+
+  -- | Product of odd primes 3..53, fitting in a 64-bit unsigned integer.
+  small-prod1 :: Nat
+  small-prod1 = 16294579238595022365
+
+  -- | Product of odd primes 59..101.
+  small-prod2 :: Nat
+  small-prod2 = 7145393598349078859
+
+  -- | Product of odd primes 103..149.
+  small-prod3 :: Nat
+  small-prod3 = 6408001374760705163
+
+  -- | Product of odd primes 151..197.
+  small-prod4 :: Nat
+  small-prod4 = 26267291075042403552359
+
+  -- | Check divisibility by small odd primes up to 197 via grouped GCD checks.
+  has-small-factor :: Nat -> Bool
+  has-small-factor n =
+    if n <= 197 then False
+    else
+      gcd-nat (mod-nat n small-prod1) small-prod1 /= 1
+        || gcd-nat (mod-nat n small-prod2) small-prod2 /= 1
+        || gcd-nat (mod-nat n small-prod3) small-prod3 /= 1
+        || gcd-nat (mod-nat n small-prod4) small-prod4 /= 1
+
+  -- | Miller-Rabin primality test using 20 prime bases (2 through 71).
+  is-probable-prime :: Nat -> Bool
+  is-probable-prime n =
+    if n < 2 then False
+    else if n == 2 || n == 3 then True
+    else if nat-rem n 2 == 0 then False
+    else
+      let n1 = n - 1 in
+      case factor-twos n1 0 of
+        (r, d) ->
+          miller-rabin-bases n n1 r d [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71]
+
+  -- | Write m = 2^r * d with d odd, returning (r, d).
+  factor-twos :: Nat -> Nat -> (Nat, Nat)
+  factor-twos m r =
+    if nat-rem m 2 == 0 then factor-twos (nat-div m 2) (r + 1)
+    else (r, m)
+
+  -- | Run Miller-Rabin witness checks across a list of bases.
+  miller-rabin-bases :: Nat -> Nat -> Nat -> Nat -> List Nat -> Bool
+  miller-rabin-bases n n1 r d bases = case bases of
+    Nil -> True
+    Cons a rest ->
+      if a >= n then miller-rabin-bases n n1 r d rest
+      else if miller-rabin-witness n n1 r d a then miller-rabin-bases n n1 r d rest
+      else False
+
+  -- | Single Miller-Rabin round for base a against odd candidate n = n1 + 1 = 2^r * d + 1.
+  miller-rabin-witness :: Nat -> Nat -> Nat -> Nat -> Nat -> Bool
+  miller-rabin-witness n n1 r d a =
+    let x = modexp a d n in
+    if x == 1 || x == n1 then True
+    else miller-rabin-square x n n1 (saturating-sub r 1)
+
+  -- | Repeated squaring step in a Miller-Rabin round.
+  miller-rabin-square :: Nat -> Nat -> Nat -> Nat -> Bool
+  miller-rabin-square x n n1 remaining =
+    if remaining == 0 then False
+    else
+      let next = mod-nat (x * x) n in
+      if next == n1 then True
+      else if next == 1 then False
+      else miller-rabin-square next n n1 (remaining - 1)

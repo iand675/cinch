@@ -10,21 +10,21 @@ Import with `import Crypto.Des`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Hex](Text.Hex.md), [Text.Show](Text.Show.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-Non-embedded source closure: [Crypto.Des](Crypto.Des.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Hex](Text.Hex.md).
+Non-embedded source closure: [Crypto.Des](Crypto.Des.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 DES and Triple DES (FIPS 46-3, SP 800-67) block ciphers with ECB, CBC and CTR over 64-bit blocks.
 These ciphers exist for interoperation with legacy formats and protocols: DES
 keys are far too short, and Triple DES has a 64-bit block, so neither should
-protect new data. A whole block is one straight-line kernel: permutation
-networks for the initial and final permutations, rotation windows for the
-expansion, and combined S-box and P-permutation tables addressed through the
-key schedule. Table lookups depend on data, so timing is not constant. Triple
-DES is encrypt-decrypt-encrypt with three independent keys (a 24-byte key).
-Every returned buffer is fresh; inputs are never retained or mutated.
+protect new data. Each block runs a 5-step butterfly initial permutation,
+sixteen Feistel rounds using combined S-box and P-permutation lookup tables,
+and the inverse 5-step butterfly final permutation. Table lookups depend on
+data, so timing is not constant. Triple DES is encrypt-decrypt-encrypt with
+three independent keys (a 24-byte key). Every returned buffer is fresh;
+inputs are never retained or mutated.
 
 </details>
 
@@ -37,9 +37,8 @@ Every returned buffer is fresh; inputs are never retained or mutated.
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">DesCipher</span></code></pre>
 
 A keyed cipher: one schedule for DES, three for Triple DES (applied encrypt, decrypt, encrypt).
-A schedule holds the SP tables (2048 bytes), the encryption round keys and the decryption round keys (128 bytes each).
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 45
+[Source](/reference-sources/Crypto.Des.cinch) · line 46
 
 <a id="type-4465734572726f72"></a>
 
@@ -49,7 +48,7 @@ A schedule holds the SP tables (2048 bytes), the encryption round keys and the d
 
 A rejected key, input or initialization vector.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 28
+[Source](/reference-sources/Crypto.Des.cinch) · line 25
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DesInvalidKeySize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Des</span>.<span class="tok-constructor">DesError</span>)</code></pre>
 
@@ -67,7 +66,7 @@ A rejected key, input or initialization vector.
 
 The block size in bytes.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 52
+[Source](/reference-sources/Crypto.Des.cinch) · line 53
 
 <a id="value-6465732d6362632d64656372797074"></a>
 
@@ -77,7 +76,7 @@ The block size in bytes.
 
 CBC decryption.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 172
+[Source](/reference-sources/Crypto.Des.cinch) · line 246
 
 <a id="value-6465732d6362632d656e6372797074"></a>
 
@@ -87,7 +86,7 @@ CBC decryption.
 
 CBC encryption: each plaintext block is XORed with the previous ciphertext block (the IV first).
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 157
+[Source](/reference-sources/Crypto.Des.cinch) · line 231
 
 <a id="value-6465732d636970686572"></a>
 
@@ -97,7 +96,7 @@ CBC encryption: each plaintext block is XORed with the previous ciphertext block
 
 Key DES with an 8-byte key (parity bits are ignored).
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 56
+[Source](/reference-sources/Crypto.Des.cinch) · line 57
 
 <a id="value-6465732d6374722d786f72"></a>
 
@@ -108,7 +107,7 @@ Key DES with an 8-byte key (parity bits are ignored).
 CTR mode: XOR the input (any length) with encryptions of the counter block, which increments as a
 big-endian 64-bit integer. Encryption and decryption are the same operation.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 188
+[Source](/reference-sources/Crypto.Des.cinch) · line 262
 
 <a id="value-6465732d646563727970742d626c6f636b"></a>
 
@@ -118,7 +117,7 @@ big-endian 64-bit integer. Encryption and decryption are the same operation.
 
 Decrypt exactly one 8-byte block.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 128
+[Source](/reference-sources/Crypto.Des.cinch) · line 202
 
 <a id="value-6465732d646563727970742d656362"></a>
 
@@ -128,7 +127,7 @@ Decrypt exactly one 8-byte block.
 
 Decrypt each block independently.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 140
+[Source](/reference-sources/Crypto.Des.cinch) · line 214
 
 <a id="value-6465732d656e63727970742d626c6f636b"></a>
 
@@ -138,7 +137,7 @@ Decrypt each block independently.
 
 Encrypt exactly one 8-byte block.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 124
+[Source](/reference-sources/Crypto.Des.cinch) · line 198
 
 <a id="value-6465732d656e63727970742d656362"></a>
 
@@ -148,7 +147,7 @@ Encrypt exactly one 8-byte block.
 
 Encrypt each block independently.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 136
+[Source](/reference-sources/Crypto.Des.cinch) · line 210
 
 <a id="value-6465732d6572726f722d6d657373616765"></a>
 
@@ -158,7 +157,7 @@ Encrypt each block independently.
 
 Render an error.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 37
+[Source](/reference-sources/Crypto.Des.cinch) · line 34
 
 <a id="value-747269706c652d6465732d636970686572"></a>
 
@@ -168,8 +167,8 @@ Render an error.
 
 Key Triple DES with a 24-byte key: three DES keys in order.
 
-[Source](/reference-sources/Crypto.Des.cinch) · line 60
+[Source](/reference-sources/Crypto.Des.cinch) · line 61
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Des.cinch`. Source SHA-256: `35f5c4f7cb8a474bae4e438b2085d9e05fc7a3b290798826588883381dc55fd9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Des.cinch`. Source SHA-256: `1b89a9d3607c6748b528b98517e9ba4e70e1d99327432c8d654db4080ec5cb2b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

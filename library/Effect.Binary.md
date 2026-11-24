@@ -12,7 +12,7 @@ Import with `import Effect.Binary`. Selected exports may already be in Prelude.
 
 [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Binary.Layout](Text.Binary.Layout.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Complex](Data.Complex.md), [Effect.Binary](Effect.Binary.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Binary.Layout](Text.Binary.Layout.md).
+Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Complex](Data.Complex.md), [Data.Float](Data.Float.md), [Effect.Binary](Effect.Binary.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Binary.Layout](Text.Binary.Layout.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

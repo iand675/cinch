@@ -12,7 +12,7 @@ Import with `import Effect.QuotedPrintable`. Selected exports may already be in 
 
 [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.QuotedPrintable](Effect.QuotedPrintable.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
+Non-embedded source closure: [Effect.QuotedPrintable](Effect.QuotedPrintable.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

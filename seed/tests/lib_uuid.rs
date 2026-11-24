@@ -307,16 +307,19 @@ fn uuid_full_adapters_compile_for_portable_targets() {
         });
         let ir = std::fs::read_to_string(&ir_path).unwrap();
         // LLVM permits the same quoted identifier to use literal or hexadecimal bytes.
-        let packed = "Data.Uuid.compare-packed.llvm";
-        let escaped: String = packed.bytes().map(|byte| format!("\\{byte:02X}")).collect();
-        assert!(
+        let has_define = |symbol: &str| {
+            let escaped: String = symbol.bytes().map(|byte| format!("\\{byte:02X}")).collect();
             ir.lines().filter(|line| line.starts_with("define ")).any(|line| {
-                line.contains(&format!("@\"{packed}\"(")) || line.contains(&format!("@\"{escaped}\"("))
-                    || line.contains(&format!("@{packed}("))
-            }),
-            "{triple}: missing packed comparison definition"
+                line.contains(&format!("@\"{symbol}\"("))
+                    || line.contains(&format!("@\"{escaped}\"("))
+                    || line.contains(&format!("@{symbol}("))
+            })
+        };
+        assert!(
+            has_define("Data.Uuid.compare-packed") || has_define("Data.Uuid.uuid-compare"),
+            "{triple}: missing UUID comparison definition"
         );
-        for actual_body in ["@llvm.bswap.i64", "<8 x i8>"] {
+        for actual_body in ["@llvm.bswap.i64", "<16 x i8>", "icmp ult i64"] {
             assert!(
                 ir.contains(actual_body),
                 "{triple}: missing actual adapter body {actual_body}"

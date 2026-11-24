@@ -10,7 +10,7 @@ Import with `import Effect.Csv`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Csv.Record](Text.Csv.Record.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Effect.Stream](Effect.Stream.md), [Text.Csv.Record](Text.Csv.Record.md).
 
 Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Csv](Effect.Csv.md), [Effect.Stream](Effect.Stream.md), [Text.Csv.Record](Text.Csv.Record.md).
 
@@ -34,7 +34,7 @@ next record to be read. No operation closes or flushes a borrowed descriptor.
 
 A lossless byte-stream reader kept distinct from a validating UTF-8 text-stream reader.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 69
+[Source](/reference-sources/Effect.Csv.cinch) · line 70
 
 <a id="type-43737653747265616d4661696c757265"></a>
 
@@ -44,7 +44,7 @@ A lossless byte-stream reader kept distinct from a validating UTF-8 text-stream 
 
 A materializing read-all failure distinguishes CSV syntax from source protocol failures.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 32
+[Source](/reference-sources/Effect.Csv.cinch) · line 33
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvParseFailure</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">Record</span>.<span class="tok-constructor">CsvRecordError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvStreamFailure</span>)</code></pre>
 
@@ -58,7 +58,7 @@ A materializing read-all failure distinguishes CSV syntax from source protocol f
 
 Immutable CSV source continuation retaining at most one record and bounded source lookahead.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 62
+[Source](/reference-sources/Effect.Csv.cinch) · line 63
 
 <a id="type-43737653747265616d577269746572"></a>
 
@@ -68,7 +68,7 @@ Immutable CSV source continuation retaining at most one record and bounded sourc
 
 Immutable synchronous record writer with sticky output failure and an inspectable sink.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 459
+[Source](/reference-sources/Effect.Csv.cinch) · line 413
 
 # Values
 
@@ -80,7 +80,7 @@ Immutable synchronous record writer with sticky output failure and an inspectabl
 
 Logical original byte position after the last complete byte record or skipped comment/blank prefix.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 111
+[Source](/reference-sources/Effect.Csv.cinch) · line 112
 
 <a id="value-6373762d627974652d73747265616d2d72656164"></a>
 
@@ -90,7 +90,7 @@ Logical original byte position after the last complete byte record or skipped co
 
 Read one lossless arbitrary-byte record while preserving quote/count errors and completed fields.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 426
+[Source](/reference-sources/Effect.Csv.cinch) · line 380
 
 <a id="value-6373762d627974652d73747265616d2d726561642d616c6c"></a>
 
@@ -100,7 +100,7 @@ Read one lossless arbitrary-byte record while preserving quote/count errors and 
 
 Materialize remaining lossless byte records, returning the first parse/source failure and advanced reader.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 432
+[Source](/reference-sources/Effect.Csv.cinch) · line 386
 
 <a id="value-6373762d627974652d73747265616d2d726561646572"></a>
 
@@ -111,7 +111,7 @@ Materialize remaining lossless byte records, returning the first parse/source fa
 Begin lossless arbitrary-byte CSV reading with bounded 4096-byte source lookahead.
 Delimiters/comments remain Unicode scalars; invalid UTF-8 field bytes are preserved rather than rejected.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 80
+[Source](/reference-sources/Effect.Csv.cinch) · line 81
 
 <a id="value-6373762d627974652d73747265616d2d7265616465722d636f6e666967757265"></a>
 
@@ -121,7 +121,7 @@ Delimiters/comments remain Unicode scalars; invalid UTF-8 field bytes are preser
 
 Reconfigure the next lossless byte record while preserving its advanced source and unread lookahead.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 121
+[Source](/reference-sources/Effect.Csv.cinch) · line 122
 
 <a id="value-6373762d627974652d73747265616d2d7265616465722d6572726f72"></a>
 
@@ -131,7 +131,7 @@ Reconfigure the next lossless byte record while preserving its advanced source a
 
 Observe a sticky underlying failure without discarding byte-record progress.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 107
+[Source](/reference-sources/Effect.Csv.cinch) · line 108
 
 <a id="value-6373762d627974652d73747265616d2d7265616465722d736f75726365"></a>
 
@@ -141,7 +141,7 @@ Observe a sticky underlying failure without discarding byte-record progress.
 
 Observe the advanced underlying byte source, including after a sticky source failure.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 103
+[Source](/reference-sources/Effect.Csv.cinch) · line 104
 
 <a id="value-6373762d627974652d73747265616d2d7772697465"></a>
 
@@ -151,7 +151,7 @@ Observe the advanced underlying byte source, including after a sticky source fai
 
 Render and synchronously write arbitrary byte fields, preserving invalid UTF-8 and embedded NUL bytes.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 498
+[Source](/reference-sources/Effect.Csv.cinch) · line 452
 
 <a id="value-6373762d627974652d73747265616d2d77726974652d616c6c"></a>
 
@@ -161,7 +161,7 @@ Render and synchronously write arbitrary byte fields, preserving invalid UTF-8 a
 
 Write arbitrary-byte records in order, preserving the first sticky output failure and advanced sink.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 521
+[Source](/reference-sources/Effect.Csv.cinch) · line 475
 
 <a id="value-6373762d73747265616d2d666c757368"></a>
 
@@ -172,7 +172,7 @@ Write arbitrary-byte records in order, preserving the first sticky output failur
 Observe synchronous completion or a sticky failure; preceding writes already reached the sink.
 This does not flush or close the borrowed sink, whose protocol has no flush operation.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 507
+[Source](/reference-sources/Effect.Csv.cinch) · line 461
 
 <a id="value-6373762d73747265616d2d696e7075742d6f6666736574"></a>
 
@@ -183,7 +183,7 @@ This does not flush or close the borrowed sink, whose protocol has no flush oper
 Original byte position after the last consumed CSV record or skipped blank/comment prefix.
 Lookahead and an unfinished record do not advance this logical input offset.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 97
+[Source](/reference-sources/Effect.Csv.cinch) · line 98
 
 <a id="value-6373762d73747265616d2d72656164"></a>
 
@@ -193,7 +193,7 @@ Lookahead and an unfinished record do not advance this logical input offset.
 
 Read one validated UTF-8 record with parse progress and an advanced source continuation.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 416
+[Source](/reference-sources/Effect.Csv.cinch) · line 370
 
 <a id="value-6373762d73747265616d2d726561642d616c6c"></a>
 
@@ -204,7 +204,7 @@ Read one validated UTF-8 record with parse progress and an advanced source conti
 Materialize remaining records, returning the first parse/source failure and the advanced reader.
 Use csv-stream-read to bound application memory to one record or retain partial records.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 446
+[Source](/reference-sources/Effect.Csv.cinch) · line 400
 
 <a id="value-6373762d73747265616d2d726561646572"></a>
 
@@ -215,7 +215,7 @@ Use csv-stream-read to bound application memory to one record or retain partial 
 Begin incrementally reading UTF-8 CSV using bounded 4096-byte source reads.
 Memory scales with the largest record, not the total source. Fields remain immutable text.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 75
+[Source](/reference-sources/Effect.Csv.cinch) · line 76
 
 <a id="value-6373762d73747265616d2d7265616465722d636f6e666967757265"></a>
 
@@ -225,7 +225,7 @@ Memory scales with the largest record, not the total source. Fields remain immut
 
 Select validated policies for the next record, preserving owned lookahead and any sticky source failure.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 115
+[Source](/reference-sources/Effect.Csv.cinch) · line 116
 
 <a id="value-6373762d73747265616d2d7265616465722d6572726f72"></a>
 
@@ -235,7 +235,7 @@ Select validated policies for the next record, preserving owned lookahead and an
 
 Observe a sticky source or UTF-8 error; ordinary CSV parse errors accompany their partial record.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 90
+[Source](/reference-sources/Effect.Csv.cinch) · line 91
 
 <a id="value-6373762d73747265616d2d7265616465722d736f75726365"></a>
 
@@ -245,7 +245,7 @@ Observe a sticky source or UTF-8 error; ordinary CSV parse errors accompany thei
 
 Observe the advanced underlying source, including after a sticky read failure.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 84
+[Source](/reference-sources/Effect.Csv.cinch) · line 85
 
 <a id="value-6373762d73747265616d2d7772697465"></a>
 
@@ -255,7 +255,7 @@ Observe the advanced underlying source, including after a sticky read failure.
 
 Render and write one complete record, retrying valid short writes and preserving failures.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 488
+[Source](/reference-sources/Effect.Csv.cinch) · line 442
 
 <a id="value-6373762d73747265616d2d77726974652d616c6c"></a>
 
@@ -265,7 +265,7 @@ Render and write one complete record, retrying valid short writes and preserving
 
 Write records in order, stopping at the first output failure with its advanced sink.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 513
+[Source](/reference-sources/Effect.Csv.cinch) · line 467
 
 <a id="value-6373762d73747265616d2d777269746572"></a>
 
@@ -275,7 +275,7 @@ Write records in order, stopping at the first output failure with its advanced s
 
 Begin writing minimally quoted records without buffering or taking ownership of the sink.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 466
+[Source](/reference-sources/Effect.Csv.cinch) · line 420
 
 <a id="value-6373762d73747265616d2d7772697465722d636f6e666967757265"></a>
 
@@ -285,7 +285,7 @@ Begin writing minimally quoted records without buffering or taking ownership of 
 
 Select delimiter and newline policies for subsequent records without discarding a sticky output failure.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 470
+[Source](/reference-sources/Effect.Csv.cinch) · line 424
 
 <a id="value-6373762d73747265616d2d7772697465722d6572726f72"></a>
 
@@ -295,7 +295,7 @@ Select delimiter and newline policies for subsequent records without discarding 
 
 Observe a sticky write failure without performing more output.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 482
+[Source](/reference-sources/Effect.Csv.cinch) · line 436
 
 <a id="value-6373762d73747265616d2d7772697465722d73696e6b"></a>
 
@@ -305,8 +305,8 @@ Observe a sticky write failure without performing more output.
 
 Observe the advanced sink, including its accepted prefix after a failed write.
 
-[Source](/reference-sources/Effect.Csv.cinch) · line 476
+[Source](/reference-sources/Effect.Csv.cinch) · line 430
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Csv.cinch`. Source SHA-256: `115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Csv.cinch`. Source SHA-256: `5d387456fb56dbaeeb3a3e5077e01af6887b6041d155998c23370988e052612b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -1,0 +1,2160 @@
+{
+  "addrs": [
+    {
+      "input": "0.0.0.0",
+      "valid": true,
+      "string": "0.0.0.0",
+      "expanded": "0.0.0.0",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "0.0.0.0",
+      "as4_hex": "00000000",
+      "as16_hex": "00000000000000000000ffff00000000",
+      "as_slice_hex": "00000000",
+      "marshal_bin_hex": "00000000",
+      "next": "0.0.0.1",
+      "is_unspecified": true,
+      "with_zone_eth0": "0.0.0.0",
+      "with_zone_empty": "0.0.0.0"
+    },
+    {
+      "input": "1.2.3.4",
+      "valid": true,
+      "string": "1.2.3.4",
+      "expanded": "1.2.3.4",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "1.2.3.4",
+      "as4_hex": "01020304",
+      "as16_hex": "00000000000000000000ffff01020304",
+      "as_slice_hex": "01020304",
+      "marshal_bin_hex": "01020304",
+      "next": "1.2.3.5",
+      "prev": "1.2.3.3",
+      "is_global_unicast": true,
+      "with_zone_eth0": "1.2.3.4",
+      "with_zone_empty": "1.2.3.4"
+    },
+    {
+      "input": "10.0.0.1",
+      "valid": true,
+      "string": "10.0.0.1",
+      "expanded": "10.0.0.1",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "10.0.0.1",
+      "as4_hex": "0a000001",
+      "as16_hex": "00000000000000000000ffff0a000001",
+      "as_slice_hex": "0a000001",
+      "marshal_bin_hex": "0a000001",
+      "next": "10.0.0.2",
+      "prev": "10.0.0.0",
+      "is_global_unicast": true,
+      "is_private": true,
+      "with_zone_eth0": "10.0.0.1",
+      "with_zone_empty": "10.0.0.1"
+    },
+    {
+      "input": "127.0.0.1",
+      "valid": true,
+      "string": "127.0.0.1",
+      "expanded": "127.0.0.1",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "127.0.0.1",
+      "as4_hex": "7f000001",
+      "as16_hex": "00000000000000000000ffff7f000001",
+      "as_slice_hex": "7f000001",
+      "marshal_bin_hex": "7f000001",
+      "next": "127.0.0.2",
+      "prev": "127.0.0.0",
+      "is_loopback": true,
+      "with_zone_eth0": "127.0.0.1",
+      "with_zone_empty": "127.0.0.1"
+    },
+    {
+      "input": "127.255.255.254",
+      "valid": true,
+      "string": "127.255.255.254",
+      "expanded": "127.255.255.254",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "127.255.255.254",
+      "as4_hex": "7ffffffe",
+      "as16_hex": "00000000000000000000ffff7ffffffe",
+      "as_slice_hex": "7ffffffe",
+      "marshal_bin_hex": "7ffffffe",
+      "next": "127.255.255.255",
+      "prev": "127.255.255.253",
+      "is_loopback": true,
+      "with_zone_eth0": "127.255.255.254",
+      "with_zone_empty": "127.255.255.254"
+    },
+    {
+      "input": "169.254.0.1",
+      "valid": true,
+      "string": "169.254.0.1",
+      "expanded": "169.254.0.1",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "169.254.0.1",
+      "as4_hex": "a9fe0001",
+      "as16_hex": "00000000000000000000ffffa9fe0001",
+      "as_slice_hex": "a9fe0001",
+      "marshal_bin_hex": "a9fe0001",
+      "next": "169.254.0.2",
+      "prev": "169.254.0.0",
+      "is_link_local_uc": true,
+      "with_zone_eth0": "169.254.0.1",
+      "with_zone_empty": "169.254.0.1"
+    },
+    {
+      "input": "169.254.255.255",
+      "valid": true,
+      "string": "169.254.255.255",
+      "expanded": "169.254.255.255",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "169.254.255.255",
+      "as4_hex": "a9feffff",
+      "as16_hex": "00000000000000000000ffffa9feffff",
+      "as_slice_hex": "a9feffff",
+      "marshal_bin_hex": "a9feffff",
+      "next": "169.255.0.0",
+      "prev": "169.254.255.254",
+      "is_link_local_uc": true,
+      "with_zone_eth0": "169.254.255.255",
+      "with_zone_empty": "169.254.255.255"
+    },
+    {
+      "input": "172.15.255.255",
+      "valid": true,
+      "string": "172.15.255.255",
+      "expanded": "172.15.255.255",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "172.15.255.255",
+      "as4_hex": "ac0fffff",
+      "as16_hex": "00000000000000000000ffffac0fffff",
+      "as_slice_hex": "ac0fffff",
+      "marshal_bin_hex": "ac0fffff",
+      "next": "172.16.0.0",
+      "prev": "172.15.255.254",
+      "is_global_unicast": true,
+      "with_zone_eth0": "172.15.255.255",
+      "with_zone_empty": "172.15.255.255"
+    },
+    {
+      "input": "172.16.0.0",
+      "valid": true,
+      "string": "172.16.0.0",
+      "expanded": "172.16.0.0",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "172.16.0.0",
+      "as4_hex": "ac100000",
+      "as16_hex": "00000000000000000000ffffac100000",
+      "as_slice_hex": "ac100000",
+      "marshal_bin_hex": "ac100000",
+      "next": "172.16.0.1",
+      "prev": "172.15.255.255",
+      "is_global_unicast": true,
+      "is_private": true,
+      "with_zone_eth0": "172.16.0.0",
+      "with_zone_empty": "172.16.0.0"
+    },
+    {
+      "input": "172.31.255.255",
+      "valid": true,
+      "string": "172.31.255.255",
+      "expanded": "172.31.255.255",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "172.31.255.255",
+      "as4_hex": "ac1fffff",
+      "as16_hex": "00000000000000000000ffffac1fffff",
+      "as_slice_hex": "ac1fffff",
+      "marshal_bin_hex": "ac1fffff",
+      "next": "172.32.0.0",
+      "prev": "172.31.255.254",
+      "is_global_unicast": true,
+      "is_private": true,
+      "with_zone_eth0": "172.31.255.255",
+      "with_zone_empty": "172.31.255.255"
+    },
+    {
+      "input": "172.32.0.0",
+      "valid": true,
+      "string": "172.32.0.0",
+      "expanded": "172.32.0.0",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "172.32.0.0",
+      "as4_hex": "ac200000",
+      "as16_hex": "00000000000000000000ffffac200000",
+      "as_slice_hex": "ac200000",
+      "marshal_bin_hex": "ac200000",
+      "next": "172.32.0.1",
+      "prev": "172.31.255.255",
+      "is_global_unicast": true,
+      "with_zone_eth0": "172.32.0.0",
+      "with_zone_empty": "172.32.0.0"
+    },
+    {
+      "input": "192.168.0.1",
+      "valid": true,
+      "string": "192.168.0.1",
+      "expanded": "192.168.0.1",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "192.168.0.1",
+      "as4_hex": "c0a80001",
+      "as16_hex": "00000000000000000000ffffc0a80001",
+      "as_slice_hex": "c0a80001",
+      "marshal_bin_hex": "c0a80001",
+      "next": "192.168.0.2",
+      "prev": "192.168.0.0",
+      "is_global_unicast": true,
+      "is_private": true,
+      "with_zone_eth0": "192.168.0.1",
+      "with_zone_empty": "192.168.0.1"
+    },
+    {
+      "input": "192.168.255.255",
+      "valid": true,
+      "string": "192.168.255.255",
+      "expanded": "192.168.255.255",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "192.168.255.255",
+      "as4_hex": "c0a8ffff",
+      "as16_hex": "00000000000000000000ffffc0a8ffff",
+      "as_slice_hex": "c0a8ffff",
+      "marshal_bin_hex": "c0a8ffff",
+      "next": "192.169.0.0",
+      "prev": "192.168.255.254",
+      "is_global_unicast": true,
+      "is_private": true,
+      "with_zone_eth0": "192.168.255.255",
+      "with_zone_empty": "192.168.255.255"
+    },
+    {
+      "input": "224.0.0.0",
+      "valid": true,
+      "string": "224.0.0.0",
+      "expanded": "224.0.0.0",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "224.0.0.0",
+      "as4_hex": "e0000000",
+      "as16_hex": "00000000000000000000ffffe0000000",
+      "as_slice_hex": "e0000000",
+      "marshal_bin_hex": "e0000000",
+      "next": "224.0.0.1",
+      "prev": "223.255.255.255",
+      "is_multicast": true,
+      "is_link_local_mc": true,
+      "with_zone_eth0": "224.0.0.0",
+      "with_zone_empty": "224.0.0.0"
+    },
+    {
+      "input": "224.0.0.251",
+      "valid": true,
+      "string": "224.0.0.251",
+      "expanded": "224.0.0.251",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "224.0.0.251",
+      "as4_hex": "e00000fb",
+      "as16_hex": "00000000000000000000ffffe00000fb",
+      "as_slice_hex": "e00000fb",
+      "marshal_bin_hex": "e00000fb",
+      "next": "224.0.0.252",
+      "prev": "224.0.0.250",
+      "is_multicast": true,
+      "is_link_local_mc": true,
+      "with_zone_eth0": "224.0.0.251",
+      "with_zone_empty": "224.0.0.251"
+    },
+    {
+      "input": "224.0.1.0",
+      "valid": true,
+      "string": "224.0.1.0",
+      "expanded": "224.0.1.0",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "224.0.1.0",
+      "as4_hex": "e0000100",
+      "as16_hex": "00000000000000000000ffffe0000100",
+      "as_slice_hex": "e0000100",
+      "marshal_bin_hex": "e0000100",
+      "next": "224.0.1.1",
+      "prev": "224.0.0.255",
+      "is_multicast": true,
+      "with_zone_eth0": "224.0.1.0",
+      "with_zone_empty": "224.0.1.0"
+    },
+    {
+      "input": "239.255.255.255",
+      "valid": true,
+      "string": "239.255.255.255",
+      "expanded": "239.255.255.255",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "239.255.255.255",
+      "as4_hex": "efffffff",
+      "as16_hex": "00000000000000000000ffffefffffff",
+      "as_slice_hex": "efffffff",
+      "marshal_bin_hex": "efffffff",
+      "next": "240.0.0.0",
+      "prev": "239.255.255.254",
+      "is_multicast": true,
+      "with_zone_eth0": "239.255.255.255",
+      "with_zone_empty": "239.255.255.255"
+    },
+    {
+      "input": "240.0.0.1",
+      "valid": true,
+      "string": "240.0.0.1",
+      "expanded": "240.0.0.1",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "240.0.0.1",
+      "as4_hex": "f0000001",
+      "as16_hex": "00000000000000000000fffff0000001",
+      "as_slice_hex": "f0000001",
+      "marshal_bin_hex": "f0000001",
+      "next": "240.0.0.2",
+      "prev": "240.0.0.0",
+      "is_global_unicast": true,
+      "with_zone_eth0": "240.0.0.1",
+      "with_zone_empty": "240.0.0.1"
+    },
+    {
+      "input": "255.255.255.255",
+      "valid": true,
+      "string": "255.255.255.255",
+      "expanded": "255.255.255.255",
+      "is4": true,
+      "bit_len": 32,
+      "unmap": "255.255.255.255",
+      "as4_hex": "ffffffff",
+      "as16_hex": "00000000000000000000ffffffffffff",
+      "as_slice_hex": "ffffffff",
+      "marshal_bin_hex": "ffffffff",
+      "prev": "255.255.255.254",
+      "with_zone_eth0": "255.255.255.255",
+      "with_zone_empty": "255.255.255.255"
+    },
+    {
+      "input": "::",
+      "valid": true,
+      "string": "::",
+      "expanded": "0000:0000:0000:0000:0000:0000:0000:0000",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "::",
+      "as16_hex": "00000000000000000000000000000000",
+      "as_slice_hex": "00000000000000000000000000000000",
+      "marshal_bin_hex": "00000000000000000000000000000000",
+      "next": "::1",
+      "is_unspecified": true,
+      "with_zone_eth0": "::%eth0",
+      "with_zone_empty": "::"
+    },
+    {
+      "input": "::1",
+      "valid": true,
+      "string": "::1",
+      "expanded": "0000:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "::1",
+      "as16_hex": "00000000000000000000000000000001",
+      "as_slice_hex": "00000000000000000000000000000001",
+      "marshal_bin_hex": "00000000000000000000000000000001",
+      "next": "::2",
+      "prev": "::",
+      "is_loopback": true,
+      "with_zone_eth0": "::1%eth0",
+      "with_zone_empty": "::1"
+    },
+    {
+      "input": "::%eth0",
+      "valid": true,
+      "string": "::%eth0",
+      "expanded": "0000:0000:0000:0000:0000:0000:0000:0000%eth0",
+      "is6": true,
+      "bit_len": 128,
+      "zone": "eth0",
+      "unmap": "::%eth0",
+      "as16_hex": "00000000000000000000000000000000",
+      "as_slice_hex": "00000000000000000000000000000000",
+      "marshal_bin_hex": "0000000000000000000000000000000065746830",
+      "next": "::1%eth0",
+      "is_global_unicast": true,
+      "with_zone_eth0": "::%eth0",
+      "with_zone_empty": "::"
+    },
+    {
+      "input": "::1%lo0",
+      "valid": true,
+      "string": "::1%lo0",
+      "expanded": "0000:0000:0000:0000:0000:0000:0000:0001%lo0",
+      "is6": true,
+      "bit_len": 128,
+      "zone": "lo0",
+      "unmap": "::1%lo0",
+      "as16_hex": "00000000000000000000000000000001",
+      "as_slice_hex": "00000000000000000000000000000001",
+      "marshal_bin_hex": "000000000000000000000000000000016c6f30",
+      "next": "::2%lo0",
+      "prev": "::%lo0",
+      "is_loopback": true,
+      "with_zone_eth0": "::1%eth0",
+      "with_zone_empty": "::1"
+    },
+    {
+      "input": "::ffff:0.0.0.0",
+      "valid": true,
+      "string": "::ffff:0.0.0.0",
+      "expanded": "0000:0000:0000:0000:0000:ffff:0000:0000",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "0.0.0.0",
+      "as4_hex": "00000000",
+      "as16_hex": "00000000000000000000ffff00000000",
+      "as_slice_hex": "00000000000000000000ffff00000000",
+      "marshal_bin_hex": "00000000000000000000ffff00000000",
+      "next": "::ffff:0.0.0.1",
+      "prev": "::fffe:ffff:ffff",
+      "with_zone_eth0": "::ffff:0.0.0.0%eth0",
+      "with_zone_empty": "::ffff:0.0.0.0"
+    },
+    {
+      "input": "::ffff:1.2.3.4",
+      "valid": true,
+      "string": "::ffff:1.2.3.4",
+      "expanded": "0000:0000:0000:0000:0000:ffff:0102:0304",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "1.2.3.4",
+      "as4_hex": "01020304",
+      "as16_hex": "00000000000000000000ffff01020304",
+      "as_slice_hex": "00000000000000000000ffff01020304",
+      "marshal_bin_hex": "00000000000000000000ffff01020304",
+      "next": "::ffff:1.2.3.5",
+      "prev": "::ffff:1.2.3.3",
+      "is_global_unicast": true,
+      "with_zone_eth0": "::ffff:1.2.3.4%eth0",
+      "with_zone_empty": "::ffff:1.2.3.4"
+    },
+    {
+      "input": "::ffff:10.0.0.1",
+      "valid": true,
+      "string": "::ffff:10.0.0.1",
+      "expanded": "0000:0000:0000:0000:0000:ffff:0a00:0001",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "10.0.0.1",
+      "as4_hex": "0a000001",
+      "as16_hex": "00000000000000000000ffff0a000001",
+      "as_slice_hex": "00000000000000000000ffff0a000001",
+      "marshal_bin_hex": "00000000000000000000ffff0a000001",
+      "next": "::ffff:10.0.0.2",
+      "prev": "::ffff:10.0.0.0",
+      "is_global_unicast": true,
+      "is_private": true,
+      "with_zone_eth0": "::ffff:10.0.0.1%eth0",
+      "with_zone_empty": "::ffff:10.0.0.1"
+    },
+    {
+      "input": "::ffff:127.0.0.1",
+      "valid": true,
+      "string": "::ffff:127.0.0.1",
+      "expanded": "0000:0000:0000:0000:0000:ffff:7f00:0001",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "127.0.0.1",
+      "as4_hex": "7f000001",
+      "as16_hex": "00000000000000000000ffff7f000001",
+      "as_slice_hex": "00000000000000000000ffff7f000001",
+      "marshal_bin_hex": "00000000000000000000ffff7f000001",
+      "next": "::ffff:127.0.0.2",
+      "prev": "::ffff:127.0.0.0",
+      "is_loopback": true,
+      "with_zone_eth0": "::ffff:127.0.0.1%eth0",
+      "with_zone_empty": "::ffff:127.0.0.1"
+    },
+    {
+      "input": "::ffff:169.254.1.2",
+      "valid": true,
+      "string": "::ffff:169.254.1.2",
+      "expanded": "0000:0000:0000:0000:0000:ffff:a9fe:0102",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "169.254.1.2",
+      "as4_hex": "a9fe0102",
+      "as16_hex": "00000000000000000000ffffa9fe0102",
+      "as_slice_hex": "00000000000000000000ffffa9fe0102",
+      "marshal_bin_hex": "00000000000000000000ffffa9fe0102",
+      "next": "::ffff:169.254.1.3",
+      "prev": "::ffff:169.254.1.1",
+      "is_link_local_uc": true,
+      "with_zone_eth0": "::ffff:169.254.1.2%eth0",
+      "with_zone_empty": "::ffff:169.254.1.2"
+    },
+    {
+      "input": "::ffff:224.0.0.1",
+      "valid": true,
+      "string": "::ffff:224.0.0.1",
+      "expanded": "0000:0000:0000:0000:0000:ffff:e000:0001",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "224.0.0.1",
+      "as4_hex": "e0000001",
+      "as16_hex": "00000000000000000000ffffe0000001",
+      "as_slice_hex": "00000000000000000000ffffe0000001",
+      "marshal_bin_hex": "00000000000000000000ffffe0000001",
+      "next": "::ffff:224.0.0.2",
+      "prev": "::ffff:224.0.0.0",
+      "is_multicast": true,
+      "is_link_local_mc": true,
+      "with_zone_eth0": "::ffff:224.0.0.1%eth0",
+      "with_zone_empty": "::ffff:224.0.0.1"
+    },
+    {
+      "input": "::ffff:255.255.255.255",
+      "valid": true,
+      "string": "::ffff:255.255.255.255",
+      "expanded": "0000:0000:0000:0000:0000:ffff:ffff:ffff",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "255.255.255.255",
+      "as4_hex": "ffffffff",
+      "as16_hex": "00000000000000000000ffffffffffff",
+      "as_slice_hex": "00000000000000000000ffffffffffff",
+      "marshal_bin_hex": "00000000000000000000ffffffffffff",
+      "next": "::1:0:0:0",
+      "prev": "::ffff:255.255.255.254",
+      "with_zone_eth0": "::ffff:255.255.255.255%eth0",
+      "with_zone_empty": "::ffff:255.255.255.255"
+    },
+    {
+      "input": "::ffff:1.2.3.4%eth0",
+      "valid": true,
+      "string": "::ffff:1.2.3.4%eth0",
+      "expanded": "0000:0000:0000:0000:0000:ffff:0102:0304%eth0",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "zone": "eth0",
+      "unmap": "1.2.3.4",
+      "as4_hex": "01020304",
+      "as16_hex": "00000000000000000000ffff01020304",
+      "as_slice_hex": "00000000000000000000ffff01020304",
+      "marshal_bin_hex": "00000000000000000000ffff0102030465746830",
+      "next": "::ffff:1.2.3.5%eth0",
+      "prev": "::ffff:1.2.3.3%eth0",
+      "is_global_unicast": true,
+      "with_zone_eth0": "::ffff:1.2.3.4%eth0",
+      "with_zone_empty": "::ffff:1.2.3.4"
+    },
+    {
+      "input": "0:0:0:0:0:ffff:0102:0304",
+      "valid": true,
+      "string": "::ffff:1.2.3.4",
+      "expanded": "0000:0000:0000:0000:0000:ffff:0102:0304",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "1.2.3.4",
+      "as4_hex": "01020304",
+      "as16_hex": "00000000000000000000ffff01020304",
+      "as_slice_hex": "00000000000000000000ffff01020304",
+      "marshal_bin_hex": "00000000000000000000ffff01020304",
+      "next": "::ffff:1.2.3.5",
+      "prev": "::ffff:1.2.3.3",
+      "is_global_unicast": true,
+      "with_zone_eth0": "::ffff:1.2.3.4%eth0",
+      "with_zone_empty": "::ffff:1.2.3.4"
+    },
+    {
+      "input": "0:0:0:0:0:ffff:c000:0280",
+      "valid": true,
+      "string": "::ffff:192.0.2.128",
+      "expanded": "0000:0000:0000:0000:0000:ffff:c000:0280",
+      "is6": true,
+      "is4in6": true,
+      "bit_len": 128,
+      "unmap": "192.0.2.128",
+      "as4_hex": "c0000280",
+      "as16_hex": "00000000000000000000ffffc0000280",
+      "as_slice_hex": "00000000000000000000ffffc0000280",
+      "marshal_bin_hex": "00000000000000000000ffffc0000280",
+      "next": "::ffff:192.0.2.129",
+      "prev": "::ffff:192.0.2.127",
+      "is_global_unicast": true,
+      "with_zone_eth0": "::ffff:192.0.2.128%eth0",
+      "with_zone_empty": "::ffff:192.0.2.128"
+    },
+    {
+      "input": "::1.2.3.4",
+      "valid": true,
+      "string": "::102:304",
+      "expanded": "0000:0000:0000:0000:0000:0000:0102:0304",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "::102:304",
+      "as16_hex": "00000000000000000000000001020304",
+      "as_slice_hex": "00000000000000000000000001020304",
+      "marshal_bin_hex": "00000000000000000000000001020304",
+      "next": "::102:305",
+      "prev": "::102:303",
+      "is_global_unicast": true,
+      "with_zone_eth0": "::102:304%eth0",
+      "with_zone_empty": "::102:304"
+    },
+    {
+      "input": "1:2:3:4:5:6:1.2.3.4",
+      "valid": true,
+      "string": "1:2:3:4:5:6:102:304",
+      "expanded": "0001:0002:0003:0004:0005:0006:0102:0304",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "1:2:3:4:5:6:102:304",
+      "as16_hex": "00010002000300040005000601020304",
+      "as_slice_hex": "00010002000300040005000601020304",
+      "marshal_bin_hex": "00010002000300040005000601020304",
+      "next": "1:2:3:4:5:6:102:305",
+      "prev": "1:2:3:4:5:6:102:303",
+      "is_global_unicast": true,
+      "with_zone_eth0": "1:2:3:4:5:6:102:304%eth0",
+      "with_zone_empty": "1:2:3:4:5:6:102:304"
+    },
+    {
+      "input": "1::1.2.3.4",
+      "valid": true,
+      "string": "1::102:304",
+      "expanded": "0001:0000:0000:0000:0000:0000:0102:0304",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "1::102:304",
+      "as16_hex": "00010000000000000000000001020304",
+      "as_slice_hex": "00010000000000000000000001020304",
+      "marshal_bin_hex": "00010000000000000000000001020304",
+      "next": "1::102:305",
+      "prev": "1::102:303",
+      "is_global_unicast": true,
+      "with_zone_eth0": "1::102:304%eth0",
+      "with_zone_empty": "1::102:304"
+    },
+    {
+      "input": "2001:db8::1",
+      "valid": true,
+      "string": "2001:db8::1",
+      "expanded": "2001:0db8:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "2001:db8::1",
+      "as16_hex": "20010db8000000000000000000000001",
+      "as_slice_hex": "20010db8000000000000000000000001",
+      "marshal_bin_hex": "20010db8000000000000000000000001",
+      "next": "2001:db8::2",
+      "prev": "2001:db8::",
+      "is_global_unicast": true,
+      "with_zone_eth0": "2001:db8::1%eth0",
+      "with_zone_empty": "2001:db8::1"
+    },
+    {
+      "input": "2001:0db8:0000:0000:0000:0000:0000:0001",
+      "valid": true,
+      "string": "2001:db8::1",
+      "expanded": "2001:0db8:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "2001:db8::1",
+      "as16_hex": "20010db8000000000000000000000001",
+      "as_slice_hex": "20010db8000000000000000000000001",
+      "marshal_bin_hex": "20010db8000000000000000000000001",
+      "next": "2001:db8::2",
+      "prev": "2001:db8::",
+      "is_global_unicast": true,
+      "with_zone_eth0": "2001:db8::1%eth0",
+      "with_zone_empty": "2001:db8::1"
+    },
+    {
+      "input": "2001:db8:0:0:1:0:0:1",
+      "valid": true,
+      "string": "2001:db8::1:0:0:1",
+      "expanded": "2001:0db8:0000:0000:0001:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "2001:db8::1:0:0:1",
+      "as16_hex": "20010db8000000000001000000000001",
+      "as_slice_hex": "20010db8000000000001000000000001",
+      "marshal_bin_hex": "20010db8000000000001000000000001",
+      "next": "2001:db8::1:0:0:2",
+      "prev": "2001:db8:0:0:1::",
+      "is_global_unicast": true,
+      "with_zone_eth0": "2001:db8::1:0:0:1%eth0",
+      "with_zone_empty": "2001:db8::1:0:0:1"
+    },
+    {
+      "input": "2001:db8:0:1:0:0:1:1",
+      "valid": true,
+      "string": "2001:db8:0:1::1:1",
+      "expanded": "2001:0db8:0000:0001:0000:0000:0001:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "2001:db8:0:1::1:1",
+      "as16_hex": "20010db8000000010000000000010001",
+      "as_slice_hex": "20010db8000000010000000000010001",
+      "marshal_bin_hex": "20010db8000000010000000000010001",
+      "next": "2001:db8:0:1::1:2",
+      "prev": "2001:db8:0:1::1:0",
+      "is_global_unicast": true,
+      "with_zone_eth0": "2001:db8:0:1::1:1%eth0",
+      "with_zone_empty": "2001:db8:0:1::1:1"
+    },
+    {
+      "input": "2001:db8:0:1:1:1:1:1",
+      "valid": true,
+      "string": "2001:db8:0:1:1:1:1:1",
+      "expanded": "2001:0db8:0000:0001:0001:0001:0001:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "2001:db8:0:1:1:1:1:1",
+      "as16_hex": "20010db8000000010001000100010001",
+      "as_slice_hex": "20010db8000000010001000100010001",
+      "marshal_bin_hex": "20010db8000000010001000100010001",
+      "next": "2001:db8:0:1:1:1:1:2",
+      "prev": "2001:db8:0:1:1:1:1:0",
+      "is_global_unicast": true,
+      "with_zone_eth0": "2001:db8:0:1:1:1:1:1%eth0",
+      "with_zone_empty": "2001:db8:0:1:1:1:1:1"
+    },
+    {
+      "input": "2001:db8:0:0:1:0:0:0",
+      "valid": true,
+      "string": "2001:db8:0:0:1::",
+      "expanded": "2001:0db8:0000:0000:0001:0000:0000:0000",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "2001:db8:0:0:1::",
+      "as16_hex": "20010db8000000000001000000000000",
+      "as_slice_hex": "20010db8000000000001000000000000",
+      "marshal_bin_hex": "20010db8000000000001000000000000",
+      "next": "2001:db8::1:0:0:1",
+      "prev": "2001:db8::ffff:ffff:ffff",
+      "is_global_unicast": true,
+      "with_zone_eth0": "2001:db8:0:0:1::%eth0",
+      "with_zone_empty": "2001:db8:0:0:1::"
+    },
+    {
+      "input": "0:0:0:1:0:0:0:1",
+      "valid": true,
+      "string": "::1:0:0:0:1",
+      "expanded": "0000:0000:0000:0001:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "::1:0:0:0:1",
+      "as16_hex": "00000000000000010000000000000001",
+      "as_slice_hex": "00000000000000010000000000000001",
+      "marshal_bin_hex": "00000000000000010000000000000001",
+      "next": "::1:0:0:0:2",
+      "prev": "0:0:0:1::",
+      "is_global_unicast": true,
+      "with_zone_eth0": "::1:0:0:0:1%eth0",
+      "with_zone_empty": "::1:0:0:0:1"
+    },
+    {
+      "input": "0:0:1:0:0:0:0:0",
+      "valid": true,
+      "string": "0:0:1::",
+      "expanded": "0000:0000:0001:0000:0000:0000:0000:0000",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "0:0:1::",
+      "as16_hex": "00000000000100000000000000000000",
+      "as_slice_hex": "00000000000100000000000000000000",
+      "marshal_bin_hex": "00000000000100000000000000000000",
+      "next": "0:0:1::1",
+      "prev": "::ffff:ffff:ffff:ffff:ffff",
+      "is_global_unicast": true,
+      "with_zone_eth0": "0:0:1::%eth0",
+      "with_zone_empty": "0:0:1::"
+    },
+    {
+      "input": "ABCD:ef01::",
+      "valid": true,
+      "string": "abcd:ef01::",
+      "expanded": "abcd:ef01:0000:0000:0000:0000:0000:0000",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "abcd:ef01::",
+      "as16_hex": "abcdef01000000000000000000000000",
+      "as_slice_hex": "abcdef01000000000000000000000000",
+      "marshal_bin_hex": "abcdef01000000000000000000000000",
+      "next": "abcd:ef01::1",
+      "prev": "abcd:ef00:ffff:ffff:ffff:ffff:ffff:ffff",
+      "is_global_unicast": true,
+      "with_zone_eth0": "abcd:ef01::%eth0",
+      "with_zone_empty": "abcd:ef01::"
+    },
+    {
+      "input": "0:0:0:0:0:0:0:0",
+      "valid": true,
+      "string": "::",
+      "expanded": "0000:0000:0000:0000:0000:0000:0000:0000",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "::",
+      "as16_hex": "00000000000000000000000000000000",
+      "as_slice_hex": "00000000000000000000000000000000",
+      "marshal_bin_hex": "00000000000000000000000000000000",
+      "next": "::1",
+      "is_unspecified": true,
+      "with_zone_eth0": "::%eth0",
+      "with_zone_empty": "::"
+    },
+    {
+      "input": "0::0",
+      "valid": true,
+      "string": "::",
+      "expanded": "0000:0000:0000:0000:0000:0000:0000:0000",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "::",
+      "as16_hex": "00000000000000000000000000000000",
+      "as_slice_hex": "00000000000000000000000000000000",
+      "marshal_bin_hex": "00000000000000000000000000000000",
+      "next": "::1",
+      "is_unspecified": true,
+      "with_zone_eth0": "::%eth0",
+      "with_zone_empty": "::"
+    },
+    {
+      "input": "fe80::1",
+      "valid": true,
+      "string": "fe80::1",
+      "expanded": "fe80:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "fe80::1",
+      "as16_hex": "fe800000000000000000000000000001",
+      "as_slice_hex": "fe800000000000000000000000000001",
+      "marshal_bin_hex": "fe800000000000000000000000000001",
+      "next": "fe80::2",
+      "prev": "fe80::",
+      "is_link_local_uc": true,
+      "with_zone_eth0": "fe80::1%eth0",
+      "with_zone_empty": "fe80::1"
+    },
+    {
+      "input": "fe80::1%eth0",
+      "valid": true,
+      "string": "fe80::1%eth0",
+      "expanded": "fe80:0000:0000:0000:0000:0000:0000:0001%eth0",
+      "is6": true,
+      "bit_len": 128,
+      "zone": "eth0",
+      "unmap": "fe80::1%eth0",
+      "as16_hex": "fe800000000000000000000000000001",
+      "as_slice_hex": "fe800000000000000000000000000001",
+      "marshal_bin_hex": "fe80000000000000000000000000000165746830",
+      "next": "fe80::2%eth0",
+      "prev": "fe80::%eth0",
+      "is_link_local_uc": true,
+      "with_zone_eth0": "fe80::1%eth0",
+      "with_zone_empty": "fe80::1"
+    },
+    {
+      "input": "fe80::1%1",
+      "valid": true,
+      "string": "fe80::1%1",
+      "expanded": "fe80:0000:0000:0000:0000:0000:0000:0001%1",
+      "is6": true,
+      "bit_len": 128,
+      "zone": "1",
+      "unmap": "fe80::1%1",
+      "as16_hex": "fe800000000000000000000000000001",
+      "as_slice_hex": "fe800000000000000000000000000001",
+      "marshal_bin_hex": "fe80000000000000000000000000000131",
+      "next": "fe80::2%1",
+      "prev": "fe80::%1",
+      "is_link_local_uc": true,
+      "with_zone_eth0": "fe80::1%eth0",
+      "with_zone_empty": "fe80::1"
+    },
+    {
+      "input": "fe80::1%a%b",
+      "valid": true,
+      "string": "fe80::1%a%b",
+      "expanded": "fe80:0000:0000:0000:0000:0000:0000:0001%a%b",
+      "is6": true,
+      "bit_len": 128,
+      "zone": "a%b",
+      "unmap": "fe80::1%a%b",
+      "as16_hex": "fe800000000000000000000000000001",
+      "as_slice_hex": "fe800000000000000000000000000001",
+      "marshal_bin_hex": "fe800000000000000000000000000001612562",
+      "next": "fe80::2%a%b",
+      "prev": "fe80::%a%b",
+      "is_link_local_uc": true,
+      "with_zone_eth0": "fe80::1%eth0",
+      "with_zone_empty": "fe80::1"
+    },
+    {
+      "input": "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "valid": true,
+      "string": "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "expanded": "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "as16_hex": "fe7fffffffffffffffffffffffffffff",
+      "as_slice_hex": "fe7fffffffffffffffffffffffffffff",
+      "marshal_bin_hex": "fe7fffffffffffffffffffffffffffff",
+      "next": "fe80::",
+      "prev": "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+      "is_global_unicast": true,
+      "with_zone_eth0": "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff%eth0",
+      "with_zone_empty": "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+    },
+    {
+      "input": "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "valid": true,
+      "string": "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "expanded": "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "as16_hex": "febfffffffffffffffffffffffffffff",
+      "as_slice_hex": "febfffffffffffffffffffffffffffff",
+      "marshal_bin_hex": "febfffffffffffffffffffffffffffff",
+      "next": "fec0::",
+      "prev": "febf:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+      "is_link_local_uc": true,
+      "with_zone_eth0": "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff%eth0",
+      "with_zone_empty": "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+    },
+    {
+      "input": "fec0::1",
+      "valid": true,
+      "string": "fec0::1",
+      "expanded": "fec0:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "fec0::1",
+      "as16_hex": "fec00000000000000000000000000001",
+      "as_slice_hex": "fec00000000000000000000000000001",
+      "marshal_bin_hex": "fec00000000000000000000000000001",
+      "next": "fec0::2",
+      "prev": "fec0::",
+      "is_global_unicast": true,
+      "with_zone_eth0": "fec0::1%eth0",
+      "with_zone_empty": "fec0::1"
+    },
+    {
+      "input": "fc00::1",
+      "valid": true,
+      "string": "fc00::1",
+      "expanded": "fc00:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "fc00::1",
+      "as16_hex": "fc000000000000000000000000000001",
+      "as_slice_hex": "fc000000000000000000000000000001",
+      "marshal_bin_hex": "fc000000000000000000000000000001",
+      "next": "fc00::2",
+      "prev": "fc00::",
+      "is_global_unicast": true,
+      "is_private": true,
+      "with_zone_eth0": "fc00::1%eth0",
+      "with_zone_empty": "fc00::1"
+    },
+    {
+      "input": "fd12:3456:789a::1",
+      "valid": true,
+      "string": "fd12:3456:789a::1",
+      "expanded": "fd12:3456:789a:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "fd12:3456:789a::1",
+      "as16_hex": "fd123456789a00000000000000000001",
+      "as_slice_hex": "fd123456789a00000000000000000001",
+      "marshal_bin_hex": "fd123456789a00000000000000000001",
+      "next": "fd12:3456:789a::2",
+      "prev": "fd12:3456:789a::",
+      "is_global_unicast": true,
+      "is_private": true,
+      "with_zone_eth0": "fd12:3456:789a::1%eth0",
+      "with_zone_empty": "fd12:3456:789a::1"
+    },
+    {
+      "input": "fbff:ffff::1",
+      "valid": true,
+      "string": "fbff:ffff::1",
+      "expanded": "fbff:ffff:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "fbff:ffff::1",
+      "as16_hex": "fbffffff000000000000000000000001",
+      "as_slice_hex": "fbffffff000000000000000000000001",
+      "marshal_bin_hex": "fbffffff000000000000000000000001",
+      "next": "fbff:ffff::2",
+      "prev": "fbff:ffff::",
+      "is_global_unicast": true,
+      "with_zone_eth0": "fbff:ffff::1%eth0",
+      "with_zone_empty": "fbff:ffff::1"
+    },
+    {
+      "input": "ff01::1",
+      "valid": true,
+      "string": "ff01::1",
+      "expanded": "ff01:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "ff01::1",
+      "as16_hex": "ff010000000000000000000000000001",
+      "as_slice_hex": "ff010000000000000000000000000001",
+      "marshal_bin_hex": "ff010000000000000000000000000001",
+      "next": "ff01::2",
+      "prev": "ff01::",
+      "is_multicast": true,
+      "is_if_local_mc": true,
+      "with_zone_eth0": "ff01::1%eth0",
+      "with_zone_empty": "ff01::1"
+    },
+    {
+      "input": "ff11::1",
+      "valid": true,
+      "string": "ff11::1",
+      "expanded": "ff11:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "ff11::1",
+      "as16_hex": "ff110000000000000000000000000001",
+      "as_slice_hex": "ff110000000000000000000000000001",
+      "marshal_bin_hex": "ff110000000000000000000000000001",
+      "next": "ff11::2",
+      "prev": "ff11::",
+      "is_multicast": true,
+      "is_if_local_mc": true,
+      "with_zone_eth0": "ff11::1%eth0",
+      "with_zone_empty": "ff11::1"
+    },
+    {
+      "input": "ff02::1",
+      "valid": true,
+      "string": "ff02::1",
+      "expanded": "ff02:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "ff02::1",
+      "as16_hex": "ff020000000000000000000000000001",
+      "as_slice_hex": "ff020000000000000000000000000001",
+      "marshal_bin_hex": "ff020000000000000000000000000001",
+      "next": "ff02::2",
+      "prev": "ff02::",
+      "is_multicast": true,
+      "is_link_local_mc": true,
+      "with_zone_eth0": "ff02::1%eth0",
+      "with_zone_empty": "ff02::1"
+    },
+    {
+      "input": "ff02::2",
+      "valid": true,
+      "string": "ff02::2",
+      "expanded": "ff02:0000:0000:0000:0000:0000:0000:0002",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "ff02::2",
+      "as16_hex": "ff020000000000000000000000000002",
+      "as_slice_hex": "ff020000000000000000000000000002",
+      "marshal_bin_hex": "ff020000000000000000000000000002",
+      "next": "ff02::3",
+      "prev": "ff02::1",
+      "is_multicast": true,
+      "is_link_local_mc": true,
+      "with_zone_eth0": "ff02::2%eth0",
+      "with_zone_empty": "ff02::2"
+    },
+    {
+      "input": "ff12::1",
+      "valid": true,
+      "string": "ff12::1",
+      "expanded": "ff12:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "ff12::1",
+      "as16_hex": "ff120000000000000000000000000001",
+      "as_slice_hex": "ff120000000000000000000000000001",
+      "marshal_bin_hex": "ff120000000000000000000000000001",
+      "next": "ff12::2",
+      "prev": "ff12::",
+      "is_multicast": true,
+      "is_link_local_mc": true,
+      "with_zone_eth0": "ff12::1%eth0",
+      "with_zone_empty": "ff12::1"
+    },
+    {
+      "input": "ff05::1",
+      "valid": true,
+      "string": "ff05::1",
+      "expanded": "ff05:0000:0000:0000:0000:0000:0000:0001",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "ff05::1",
+      "as16_hex": "ff050000000000000000000000000001",
+      "as_slice_hex": "ff050000000000000000000000000001",
+      "marshal_bin_hex": "ff050000000000000000000000000001",
+      "next": "ff05::2",
+      "prev": "ff05::",
+      "is_multicast": true,
+      "with_zone_eth0": "ff05::1%eth0",
+      "with_zone_empty": "ff05::1"
+    },
+    {
+      "input": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "valid": true,
+      "string": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "expanded": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "is6": true,
+      "bit_len": 128,
+      "unmap": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "as16_hex": "ffffffffffffffffffffffffffffffff",
+      "as_slice_hex": "ffffffffffffffffffffffffffffffff",
+      "marshal_bin_hex": "ffffffffffffffffffffffffffffffff",
+      "prev": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe",
+      "is_multicast": true,
+      "with_zone_eth0": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%eth0",
+      "with_zone_empty": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+    },
+    {
+      "input": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%z",
+      "valid": true,
+      "string": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%z",
+      "expanded": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%z",
+      "is6": true,
+      "bit_len": 128,
+      "zone": "z",
+      "unmap": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%z",
+      "as16_hex": "ffffffffffffffffffffffffffffffff",
+      "as_slice_hex": "ffffffffffffffffffffffffffffffff",
+      "marshal_bin_hex": "ffffffffffffffffffffffffffffffff7a",
+      "prev": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffe%z",
+      "is_multicast": true,
+      "with_zone_eth0": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%eth0",
+      "with_zone_empty": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+    },
+    {
+      "input": "",
+      "valid": false
+    },
+    {
+      "input": " ",
+      "valid": false
+    },
+    {
+      "input": "abc",
+      "valid": false
+    },
+    {
+      "input": "1.2.3",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4.5",
+      "valid": false
+    },
+    {
+      "input": ".1.2.3",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.",
+      "valid": false
+    },
+    {
+      "input": "1..2.3",
+      "valid": false
+    },
+    {
+      "input": "01.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "1.02.3.4",
+      "valid": false
+    },
+    {
+      "input": "1.2.00.4",
+      "valid": false
+    },
+    {
+      "input": "256.0.0.1",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.256",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4%eth0",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4:80",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/24",
+      "valid": false
+    },
+    {
+      "input": " 1.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4 ",
+      "valid": false
+    },
+    {
+      "input": "+1.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "-1.2.3.4",
+      "valid": false
+    },
+    {
+      "input": ":::",
+      "valid": false
+    },
+    {
+      "input": "1::2::3",
+      "valid": false
+    },
+    {
+      "input": "1:2:3:4:5:6:7",
+      "valid": false
+    },
+    {
+      "input": "1:2:3:4:5:6:7:8:9",
+      "valid": false
+    },
+    {
+      "input": "1:2:3:4::5:6:7:8",
+      "valid": false
+    },
+    {
+      "input": "::1:2:3:4:5:6:7:8",
+      "valid": false
+    },
+    {
+      "input": "1:2:3:4:5:6::1.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "1:2:3:4:5:6:7:1.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "12345::1",
+      "valid": false
+    },
+    {
+      "input": "::1%",
+      "valid": false
+    },
+    {
+      "input": "%eth0",
+      "valid": false
+    },
+    {
+      "input": ":1",
+      "valid": false
+    },
+    {
+      "input": "1:",
+      "valid": false
+    },
+    {
+      "input": "2001:db8::1g",
+      "valid": false
+    },
+    {
+      "input": "::ffff:01.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "::ffff:256.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "::ffff:1.2.3",
+      "valid": false
+    },
+    {
+      "input": "::ffff:1.2.3.4.5",
+      "valid": false
+    },
+    {
+      "input": "::ffff:ab.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "[::1]",
+      "valid": false
+    }
+  ],
+  "compare_addr": [
+    {
+      "a": "0.0.0.0",
+      "b": "0.0.0.0",
+      "cmp": 0
+    },
+    {
+      "a": "0.0.0.0",
+      "b": "0.0.0.1",
+      "cmp": -1
+    },
+    {
+      "a": "0.0.0.1",
+      "b": "0.0.0.0",
+      "cmp": 1
+    },
+    {
+      "a": "1.2.3.4",
+      "b": "1.2.3.5",
+      "cmp": -1
+    },
+    {
+      "a": "1.2.3.5",
+      "b": "1.2.3.4",
+      "cmp": 1
+    },
+    {
+      "a": "255.255.255.255",
+      "b": "::",
+      "cmp": -1
+    },
+    {
+      "a": "::",
+      "b": "255.255.255.255",
+      "cmp": 1
+    },
+    {
+      "a": "1.2.3.4",
+      "b": "::ffff:1.2.3.4",
+      "cmp": -1
+    },
+    {
+      "a": "::ffff:1.2.3.4",
+      "b": "1.2.3.4",
+      "cmp": 1
+    },
+    {
+      "a": "::",
+      "b": "::1",
+      "cmp": -1
+    },
+    {
+      "a": "::1",
+      "b": "::",
+      "cmp": 1
+    },
+    {
+      "a": "::",
+      "b": "::%a",
+      "cmp": -1
+    },
+    {
+      "a": "::%a",
+      "b": "::",
+      "cmp": 1
+    },
+    {
+      "a": "::%a",
+      "b": "::%b",
+      "cmp": -1
+    },
+    {
+      "a": "::%b",
+      "b": "::%a",
+      "cmp": 1
+    },
+    {
+      "a": "fe80::1",
+      "b": "fe80::1%eth0",
+      "cmp": -1
+    },
+    {
+      "a": "fe80::1%eth0",
+      "b": "fe80::1",
+      "cmp": 1
+    },
+    {
+      "a": "fe80::1%eth0",
+      "b": "fe80::1%eth1",
+      "cmp": -1
+    },
+    {
+      "a": "fe80::1%eth1",
+      "b": "fe80::1%eth0",
+      "cmp": 1
+    },
+    {
+      "a": "fe80::1%eth1",
+      "b": "fe80::2%eth0",
+      "cmp": -1
+    },
+    {
+      "a": "fe80::2%eth0",
+      "b": "fe80::1%eth1",
+      "cmp": 1
+    },
+    {
+      "a": "::ffff:1.2.3.4",
+      "b": "::ffff:1.2.3.5",
+      "cmp": -1
+    },
+    {
+      "a": "::ffff:1.2.3.5",
+      "b": "::ffff:1.2.3.4",
+      "cmp": 1
+    },
+    {
+      "a": "::ffff:1.2.3.4",
+      "b": "::ffff:1.2.3.4%eth0",
+      "cmp": -1
+    },
+    {
+      "a": "::ffff:1.2.3.4%eth0",
+      "b": "::ffff:1.2.3.4",
+      "cmp": 1
+    },
+    {
+      "a": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "b": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "cmp": 0
+    }
+  ],
+  "addr_ports": [
+    {
+      "input": "1.2.3.4:80",
+      "valid": true,
+      "string": "1.2.3.4:80",
+      "addr": "1.2.3.4",
+      "port": 80,
+      "marshal_bin_hex": "010203045000"
+    },
+    {
+      "input": "0.0.0.0:0",
+      "valid": true,
+      "string": "0.0.0.0:0",
+      "addr": "0.0.0.0",
+      "marshal_bin_hex": "000000000000"
+    },
+    {
+      "input": "255.255.255.255:65535",
+      "valid": true,
+      "string": "255.255.255.255:65535",
+      "addr": "255.255.255.255",
+      "port": 65535,
+      "marshal_bin_hex": "ffffffffffff"
+    },
+    {
+      "input": "127.0.0.1:080",
+      "valid": true,
+      "string": "127.0.0.1:80",
+      "addr": "127.0.0.1",
+      "port": 80,
+      "marshal_bin_hex": "7f0000015000"
+    },
+    {
+      "input": "127.0.0.1:00000",
+      "valid": true,
+      "string": "127.0.0.1:0",
+      "addr": "127.0.0.1",
+      "marshal_bin_hex": "7f0000010000"
+    },
+    {
+      "input": "[::]:0",
+      "valid": true,
+      "string": "[::]:0",
+      "addr": "::",
+      "marshal_bin_hex": "000000000000000000000000000000000000"
+    },
+    {
+      "input": "[::1]:443",
+      "valid": true,
+      "string": "[::1]:443",
+      "addr": "::1",
+      "port": 443,
+      "marshal_bin_hex": "00000000000000000000000000000001bb01"
+    },
+    {
+      "input": "[2001:db8::1]:8080",
+      "valid": true,
+      "string": "[2001:db8::1]:8080",
+      "addr": "2001:db8::1",
+      "port": 8080,
+      "marshal_bin_hex": "20010db8000000000000000000000001901f"
+    },
+    {
+      "input": "[fe80::1%eth0]:22",
+      "valid": true,
+      "string": "[fe80::1%eth0]:22",
+      "addr": "fe80::1%eth0",
+      "port": 22,
+      "marshal_bin_hex": "fe800000000000000000000000000001657468301600"
+    },
+    {
+      "input": "[::ffff:1.2.3.4]:80",
+      "valid": true,
+      "string": "[::ffff:1.2.3.4]:80",
+      "addr": "::ffff:1.2.3.4",
+      "port": 80,
+      "marshal_bin_hex": "00000000000000000000ffff010203045000"
+    },
+    {
+      "input": "[::ffff:1.2.3.4%eth0]:65535",
+      "valid": true,
+      "string": "[::ffff:1.2.3.4%eth0]:65535",
+      "addr": "::ffff:1.2.3.4%eth0",
+      "port": 65535,
+      "marshal_bin_hex": "00000000000000000000ffff0102030465746830ffff"
+    },
+    {
+      "input": "[0:0:0:0:0:ffff:0102:0304]:53",
+      "valid": true,
+      "string": "[::ffff:1.2.3.4]:53",
+      "addr": "::ffff:1.2.3.4",
+      "port": 53,
+      "marshal_bin_hex": "00000000000000000000ffff010203043500"
+    },
+    {
+      "input": "",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4",
+      "valid": false
+    },
+    {
+      "input": ":80",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4:",
+      "valid": false
+    },
+    {
+      "input": "[1.2.3.4]:80",
+      "valid": false
+    },
+    {
+      "input": "::1:80",
+      "valid": false
+    },
+    {
+      "input": "2001:db8::1:80",
+      "valid": false
+    },
+    {
+      "input": "[::1:80",
+      "valid": false
+    },
+    {
+      "input": "::1]:80",
+      "valid": false
+    },
+    {
+      "input": "[]:80",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4:65536",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4:-1",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4:+80",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4:abc",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4: 80",
+      "valid": false
+    },
+    {
+      "input": "[::1%]:80",
+      "valid": false
+    },
+    {
+      "input": "[::1]:",
+      "valid": false
+    },
+    {
+      "input": "[::1]",
+      "valid": false
+    },
+    {
+      "input": "01.2.3.4:80",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4%eth0:80",
+      "valid": false
+    }
+  ],
+  "compare_addr_port": [
+    {
+      "a": "1.2.3.4:80",
+      "b": "1.2.3.4:80",
+      "cmp": 0
+    },
+    {
+      "a": "1.2.3.4:80",
+      "b": "1.2.3.4:443",
+      "cmp": -1
+    },
+    {
+      "a": "1.2.3.4:443",
+      "b": "1.2.3.4:80",
+      "cmp": 1
+    },
+    {
+      "a": "1.2.3.4:443",
+      "b": "1.2.3.5:80",
+      "cmp": -1
+    },
+    {
+      "a": "1.2.3.5:80",
+      "b": "1.2.3.4:443",
+      "cmp": 1
+    },
+    {
+      "a": "255.255.255.255:65535",
+      "b": "[::]:0",
+      "cmp": -1
+    },
+    {
+      "a": "[::]:0",
+      "b": "255.255.255.255:65535",
+      "cmp": 1
+    },
+    {
+      "a": "[::1]:80",
+      "b": "[::1%lo0]:80",
+      "cmp": -1
+    },
+    {
+      "a": "[::1%lo0]:80",
+      "b": "[::1]:80",
+      "cmp": 1
+    },
+    {
+      "a": "[fe80::1%eth0]:80",
+      "b": "[fe80::1%eth0]:81",
+      "cmp": -1
+    },
+    {
+      "a": "[fe80::1%eth0]:81",
+      "b": "[fe80::1%eth0]:80",
+      "cmp": 1
+    }
+  ],
+  "prefixes": [
+    {
+      "input": "0.0.0.0/0",
+      "valid": true,
+      "string": "0.0.0.0/0",
+      "addr": "0.0.0.0",
+      "masked": "0.0.0.0/0",
+      "marshal_bin_hex": "0000000000"
+    },
+    {
+      "input": "10.0.0.0/8",
+      "valid": true,
+      "string": "10.0.0.0/8",
+      "addr": "10.0.0.0",
+      "bits": 8,
+      "masked": "10.0.0.0/8",
+      "marshal_bin_hex": "0a00000008"
+    },
+    {
+      "input": "192.168.1.55/24",
+      "valid": true,
+      "string": "192.168.1.55/24",
+      "addr": "192.168.1.55",
+      "bits": 24,
+      "masked": "192.168.1.0/24",
+      "marshal_bin_hex": "c0a8013718"
+    },
+    {
+      "input": "192.168.1.55/32",
+      "valid": true,
+      "string": "192.168.1.55/32",
+      "addr": "192.168.1.55",
+      "bits": 32,
+      "is_single_ip": true,
+      "masked": "192.168.1.55/32",
+      "marshal_bin_hex": "c0a8013720"
+    },
+    {
+      "input": "255.255.255.255/1",
+      "valid": true,
+      "string": "255.255.255.255/1",
+      "addr": "255.255.255.255",
+      "bits": 1,
+      "masked": "128.0.0.0/1",
+      "marshal_bin_hex": "ffffffff01"
+    },
+    {
+      "input": "::/0",
+      "valid": true,
+      "string": "::/0",
+      "addr": "::",
+      "masked": "::/0",
+      "marshal_bin_hex": "0000000000000000000000000000000000"
+    },
+    {
+      "input": "::1/128",
+      "valid": true,
+      "string": "::1/128",
+      "addr": "::1",
+      "bits": 128,
+      "is_single_ip": true,
+      "masked": "::1/128",
+      "marshal_bin_hex": "0000000000000000000000000000000180"
+    },
+    {
+      "input": "2001:db8::1/32",
+      "valid": true,
+      "string": "2001:db8::1/32",
+      "addr": "2001:db8::1",
+      "bits": 32,
+      "masked": "2001:db8::/32",
+      "marshal_bin_hex": "20010db800000000000000000000000120"
+    },
+    {
+      "input": "2001:db8:abcd:ef01::1/64",
+      "valid": true,
+      "string": "2001:db8:abcd:ef01::1/64",
+      "addr": "2001:db8:abcd:ef01::1",
+      "bits": 64,
+      "masked": "2001:db8:abcd:ef01::/64",
+      "marshal_bin_hex": "20010db8abcdef01000000000000000140"
+    },
+    {
+      "input": "::ffff:192.0.2.128/96",
+      "valid": true,
+      "string": "::ffff:192.0.2.128/96",
+      "addr": "::ffff:192.0.2.128",
+      "bits": 96,
+      "masked": "::ffff:0.0.0.0/96",
+      "marshal_bin_hex": "00000000000000000000ffffc000028060"
+    },
+    {
+      "input": "::ffff:192.0.2.128/120",
+      "valid": true,
+      "string": "::ffff:192.0.2.128/120",
+      "addr": "::ffff:192.0.2.128",
+      "bits": 120,
+      "masked": "::ffff:192.0.2.0/120",
+      "marshal_bin_hex": "00000000000000000000ffffc000028078"
+    },
+    {
+      "input": "::ffff:192.0.2.128/128",
+      "valid": true,
+      "string": "::ffff:192.0.2.128/128",
+      "addr": "::ffff:192.0.2.128",
+      "bits": 128,
+      "is_single_ip": true,
+      "masked": "::ffff:192.0.2.128/128",
+      "marshal_bin_hex": "00000000000000000000ffffc000028080"
+    },
+    {
+      "input": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/1",
+      "valid": true,
+      "string": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/1",
+      "addr": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+      "bits": 1,
+      "masked": "8000::/1",
+      "marshal_bin_hex": "ffffffffffffffffffffffffffffffff01"
+    },
+    {
+      "input": "",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/",
+      "valid": false
+    },
+    {
+      "input": "/24",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/33",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/-1",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/+8",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/08",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/00",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/abc",
+      "valid": false
+    },
+    {
+      "input": "01.2.3.4/24",
+      "valid": false
+    },
+    {
+      "input": "::/129",
+      "valid": false
+    },
+    {
+      "input": "::/-1",
+      "valid": false
+    },
+    {
+      "input": "::/064",
+      "valid": false
+    },
+    {
+      "input": "fe80::1%eth0/64",
+      "valid": false
+    },
+    {
+      "input": "::1%lo/128",
+      "valid": false
+    },
+    {
+      "input": "1.2.3.4/24/8",
+      "valid": false
+    }
+  ],
+  "addr_prefixes": [
+    {
+      "addr": "192.168.1.55",
+      "bits": 0,
+      "valid": true,
+      "result": "0.0.0.0/0"
+    },
+    {
+      "addr": "192.168.1.55",
+      "bits": 1,
+      "valid": true,
+      "result": "128.0.0.0/1"
+    },
+    {
+      "addr": "192.168.1.55",
+      "bits": 24,
+      "valid": true,
+      "result": "192.168.1.0/24"
+    },
+    {
+      "addr": "192.168.1.55",
+      "bits": 32,
+      "valid": true,
+      "result": "192.168.1.55/32"
+    },
+    {
+      "addr": "192.168.1.55",
+      "bits": -1,
+      "valid": false
+    },
+    {
+      "addr": "192.168.1.55",
+      "bits": 33,
+      "valid": false
+    },
+    {
+      "addr": "2001:db8:abcd:ef01::1",
+      "bits": 0,
+      "valid": true,
+      "result": "::/0"
+    },
+    {
+      "addr": "2001:db8:abcd:ef01::1",
+      "bits": 32,
+      "valid": true,
+      "result": "2001:db8::/32"
+    },
+    {
+      "addr": "2001:db8:abcd:ef01::1",
+      "bits": 64,
+      "valid": true,
+      "result": "2001:db8:abcd:ef01::/64"
+    },
+    {
+      "addr": "2001:db8:abcd:ef01::1",
+      "bits": 128,
+      "valid": true,
+      "result": "2001:db8:abcd:ef01::1/128"
+    },
+    {
+      "addr": "2001:db8:abcd:ef01::1",
+      "bits": -1,
+      "valid": false
+    },
+    {
+      "addr": "2001:db8:abcd:ef01::1",
+      "bits": 129,
+      "valid": false
+    },
+    {
+      "addr": "fe80::1%eth0",
+      "bits": 64,
+      "valid": true,
+      "result": "fe80::/64"
+    },
+    {
+      "addr": "::ffff:192.0.2.128",
+      "bits": 96,
+      "valid": true,
+      "result": "::ffff:0.0.0.0/96"
+    },
+    {
+      "addr": "::ffff:192.0.2.128",
+      "bits": 120,
+      "valid": true,
+      "result": "::ffff:192.0.2.0/120"
+    },
+    {
+      "addr": "::ffff:192.0.2.128%eth0",
+      "bits": 120,
+      "valid": true,
+      "result": "::ffff:192.0.2.0/120"
+    }
+  ],
+  "contains": [
+    {
+      "prefix": "0.0.0.0/0",
+      "addr": "1.2.3.4",
+      "contains": true
+    },
+    {
+      "prefix": "0.0.0.0/0",
+      "addr": "::1",
+      "contains": false
+    },
+    {
+      "prefix": "192.168.1.0/24",
+      "addr": "192.168.1.0",
+      "contains": true
+    },
+    {
+      "prefix": "192.168.1.0/24",
+      "addr": "192.168.1.255",
+      "contains": true
+    },
+    {
+      "prefix": "192.168.1.0/24",
+      "addr": "192.168.2.0",
+      "contains": false
+    },
+    {
+      "prefix": "192.168.1.55/24",
+      "addr": "192.168.1.1",
+      "contains": true
+    },
+    {
+      "prefix": "192.168.1.55/32",
+      "addr": "192.168.1.55",
+      "contains": true
+    },
+    {
+      "prefix": "192.168.1.55/32",
+      "addr": "192.168.1.56",
+      "contains": false
+    },
+    {
+      "prefix": "192.168.1.0/24",
+      "addr": "::ffff:192.168.1.1",
+      "contains": false
+    },
+    {
+      "prefix": "::ffff:192.168.1.0/120",
+      "addr": "192.168.1.1",
+      "contains": false
+    },
+    {
+      "prefix": "::ffff:192.168.1.0/120",
+      "addr": "::ffff:192.168.1.99",
+      "contains": true
+    },
+    {
+      "prefix": "::ffff:192.168.1.0/120",
+      "addr": "::ffff:192.168.1.99%eth0",
+      "contains": false
+    },
+    {
+      "prefix": "::/0",
+      "addr": "::",
+      "contains": true
+    },
+    {
+      "prefix": "::/0",
+      "addr": "2001:db8::1",
+      "contains": true
+    },
+    {
+      "prefix": "::/0",
+      "addr": "fe80::1%eth0",
+      "contains": false
+    },
+    {
+      "prefix": "::/0",
+      "addr": "1.2.3.4",
+      "contains": false
+    },
+    {
+      "prefix": "2001:db8::/32",
+      "addr": "2001:db8:ffff::1",
+      "contains": true
+    },
+    {
+      "prefix": "2001:db8::/32",
+      "addr": "2001:db9::1",
+      "contains": false
+    },
+    {
+      "prefix": "2001:db8::1/32",
+      "addr": "2001:db8::2",
+      "contains": true
+    },
+    {
+      "prefix": "fe80::/10",
+      "addr": "fe80::1",
+      "contains": true
+    },
+    {
+      "prefix": "fe80::/10",
+      "addr": "fe80::1%eth0",
+      "contains": false
+    },
+    {
+      "prefix": "2001:db8::1/128",
+      "addr": "2001:db8::1",
+      "contains": true
+    },
+    {
+      "prefix": "2001:db8::1/128",
+      "addr": "2001:db8::2",
+      "contains": false
+    }
+  ],
+  "overlaps": [
+    {
+      "a": "0.0.0.0/0",
+      "b": "192.168.1.0/24",
+      "overlaps": true
+    },
+    {
+      "a": "0.0.0.0/0",
+      "b": "::/0",
+      "overlaps": false
+    },
+    {
+      "a": "10.0.0.0/8",
+      "b": "10.1.2.0/24",
+      "overlaps": true
+    },
+    {
+      "a": "10.1.2.0/24",
+      "b": "10.0.0.0/8",
+      "overlaps": true
+    },
+    {
+      "a": "10.0.0.0/8",
+      "b": "11.0.0.0/8",
+      "overlaps": false
+    },
+    {
+      "a": "192.168.1.55/24",
+      "b": "192.168.1.100/24",
+      "overlaps": true
+    },
+    {
+      "a": "192.168.1.0/25",
+      "b": "192.168.1.128/25",
+      "overlaps": false
+    },
+    {
+      "a": "192.168.1.0/24",
+      "b": "192.168.1.128/25",
+      "overlaps": true
+    },
+    {
+      "a": "192.168.1.0/24",
+      "b": "::ffff:192.168.1.0/120",
+      "overlaps": false
+    },
+    {
+      "a": "::/0",
+      "b": "2001:db8::/32",
+      "overlaps": true
+    },
+    {
+      "a": "2001:db8::/32",
+      "b": "2001:db8:1::/48",
+      "overlaps": true
+    },
+    {
+      "a": "2001:db8::/32",
+      "b": "2001:db9::/32",
+      "overlaps": false
+    },
+    {
+      "a": "2001:db8::1/32",
+      "b": "2001:db8::2/32",
+      "overlaps": true
+    },
+    {
+      "a": "::ffff:0.0.0.0/96",
+      "b": "::ffff:192.168.1.0/120",
+      "overlaps": true
+    },
+    {
+      "a": "fe80::/64",
+      "b": "fe80::1/128",
+      "overlaps": true
+    }
+  ]
+}

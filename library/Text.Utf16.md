@@ -19,8 +19,8 @@ Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary
 UTF-16 code units, surrogate pairs and explicit-byte-order text conversion.
 Invalid scalar inputs and unpaired surrogates become U+FFFD. Byte decoders
 reject an odd final byte; a byte-order mark is ordinary text, never inferred
-or removed. Buffer codecs process four ASCII units at once using inline
-LLVM SWAR widening and narrowing, with bounded loads and exact scalar tails.
+or removed. Buffer codecs process four ASCII units at once using portable
+SWAR widening and narrowing, with bounded loads and exact scalar tails.
 
 </details>
 
@@ -70,7 +70,7 @@ Decode code units in order, replacing each unpaired surrogate independently.
 Decode explicit-order UTF-16 bytes. An odd byte count is an error before conversion.
 Unpaired surrogates become U+FFFD; byte-order marks remain in the resulting text.
 
-[Source](/reference-sources/Text.Utf16.cinch) · line 190
+[Source](/reference-sources/Text.Utf16.cinch) · line 174
 
 <a id="value-75746631362d6465636f64652d72756e65"></a>
 
@@ -100,7 +100,7 @@ Encode numeric scalar values in order; invalid scalar values each produce one re
 
 Encode valid UTF-8 text to explicit-order UTF-16 bytes, with no added byte-order mark.
 
-[Source](/reference-sources/Text.Utf16.cinch) · line 157
+[Source](/reference-sources/Text.Utf16.cinch) · line 141
 
 <a id="value-75746631362d656e636f64652d72756e65"></a>
 
@@ -134,4 +134,4 @@ One or two code units for a scalar, or None for a negative, surrogate or out-of-
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Utf16.cinch`. Source SHA-256: `fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Utf16.cinch`. Source SHA-256: `e58c09586928b41581c0bb9c79d454a896c8f5ed2a5e8ff6b9b4676c6623549e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

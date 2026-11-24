@@ -12,7 +12,7 @@ Import with `import Effect.Md5`. Selected exports may already be in Prelude.
 
 [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Md5](Text.Md5.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Md5](Effect.Md5.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Md5](Text.Md5.md).
+Non-embedded source closure: [Effect.Md5](Effect.Md5.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Md5](Text.Md5.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

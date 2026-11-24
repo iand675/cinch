@@ -20,12 +20,12 @@ AES-128, AES-192 and AES-256 block encryption with hardware instructions and a c
 Keys are expanded once into immutable round-key schedules. On x86-64 the
 AES-NI instructions are used after CPUID detection; on AArch64 the ARMv8
 cryptography extension is used when the target profile supplies ArmAes
-evidence. Otherwise every round runs on all sixteen state bytes in SIMD lanes
-with SubBytes computed arithmetically (inversion in GF(2^8) and the affine
-map), so the fallback performs no table lookups and no data-dependent
-branches. Blocks are U128 values with byte i in bits 8i..8i+7; byte-buffer
-operations return fresh storage. aes-cipher adapts a key to Crypto.Cipher's
-CTR, CBC, OFB, CFB and GCM modes.
+evidence. Otherwise every round runs in pure Cinch across all sixteen state
+bytes in parallel using SIMD lane operations and bit-sliced tower-field
+GF(2^8) inversion plus the affine map, so the fallback performs no table
+lookups and no data-dependent branches. Blocks are U128 values with byte i in
+bits 8i..8i+7; byte-buffer operations return fresh storage. aes-cipher adapts
+a key to Crypto.Cipher's CTR, CBC, OFB, CFB and GCM modes.
 
 </details>
 
@@ -183,4 +183,4 @@ Expand a key that always uses the constant-time portable rounds, whatever the pr
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Aes.cinch`. Source SHA-256: `8371f72bd9bf1bdffc8d8e61702a064e82d3e0a0388f1b35eb0ec1aa33f990be`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Aes.cinch`. Source SHA-256: `67cbeaad7f50e32f07b2447c843ecf34549d1983b3bff6d341eff449eb7b8cba`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -1,0 +1,616 @@
+-- | Effectful RPC client and server over Effect.Net TCP sockets and Effect.Http.Server.
+-- Provides an immutable RPC method registry supporting pure and effectful JSON-RPC 1.0/2.0
+-- and binary gob-RPC method handlers, single and batch JSON-RPC dispatch, streaming TCP
+-- servers for both newline-delimited JSON-RPC and length-prefixed gob-RPC, a listener
+-- acceptor loop, an HTTP POST JSON-RPC 2.0 handler returning 204 for notifications, and
+-- stateful clients threading sequence numbers and read buffers without ambient mutable state.
+module Effect.Rpc where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.Json
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Http.Server (HttpHandler, http-handler-func)
+  import Effect.Net
+  import Text.Gob (GobValue)
+  import Text.Http (HttpWireRequest, HttpWireResponse, method-post, status-ok, status-no-content, status-method-not-allowed, req-method, req-body, http-header-empty, http-response-new, http-response-bytes, http-response-error, resp-with-header)
+  import Text.Rpc
+  import Text.Show (int-to-string)
+
+  export RpcCallError, RpcRemoteError, RpcProtocolError, RpcNetError, RpcClosed, rpc-call-error-message
+  export RpcHandler, RpcJsonHandler, RpcJsonPureHandler, RpcGobHandler, RpcGobPureHandler
+  export RpcServer, rpc-server-new, rpc-server-with-max-frame
+  export rpc-register, rpc-register-pure, rpc-register-gob, rpc-register-gob-pure
+  export rpc-has-method, rpc-methods
+  export rpc-dispatch-json, rpc-dispatch-json-bytes, rpc-dispatch-gob
+  export rpc-serve-jsonrpc-socket, rpc-serve-jsonrpc-listener
+  export rpc-serve-gob-socket, rpc-serve-gob-listener
+  export rpc-http-handler
+  export RpcClient, rpc-client-from-socket, rpc-client-with-max-frame, rpc-client-codec, rpc-client-seq
+  export rpc-dial, rpc-dial-jsonrpc, rpc-dial-jsonrpc1
+  export rpc-call-json, rpc-notify-json, rpc-call-json-batch, rpc-call-gob, rpc-close
+
+  -- ---------------------------------------------------------------------
+  -- Transport and invocation errors.
+  -- ---------------------------------------------------------------------
+
+  -- | Named errors returned by RPC clients and servers across transport, framing, and remote execution.
+  data RpcCallError where
+    -- | The remote peer returned a structured RPC error response.
+    RpcRemoteError :: RpcError -> RpcCallError
+    -- | Framing, serialization, version, or response correlation failed.
+    RpcProtocolError :: String -> RpcCallError
+    -- | The underlying TCP socket or listener operation failed.
+    RpcNetError :: NetError -> RpcCallError
+    -- | The RPC connection was closed before the call or response completed.
+    RpcClosed :: RpcCallError
+
+  -- | Render a NetError into a readable diagnostic string.
+  render-net-error :: NetError -> String
+  render-net-error ne = case ne of
+    NetNotFound -> "rpc: network endpoint not found"
+    NetPermissionDenied -> "rpc: network permission denied"
+    NetInvalidArgument -> "rpc: invalid network argument"
+    NetIoError -> "rpc: network I/O error"
+
+  -- | Render a human-readable diagnostic message for an RpcCallError.
+  rpc-call-error-message :: RpcCallError -> String
+  rpc-call-error-message err = case err of
+    RpcRemoteError re ->
+      string-concat-all ["rpc remote error (", int-to-string (int-from-i64 (rpc-error-code re)), "): ", rpc-error-message re]
+    RpcProtocolError detail -> string-concat "rpc protocol error: " detail
+    RpcNetError ne -> render-net-error ne
+    RpcClosed -> "rpc: connection closed"
+
+  -- ---------------------------------------------------------------------
+  -- Method handlers and immutable server registry.
+  -- ---------------------------------------------------------------------
+
+  -- | A registered RPC method implementation operating on Json or GobValue under IO region r.
+  data RpcHandler (r :: Region) where
+    -- | Effectful JSON-RPC method handler performing IO in region r.
+    RpcJsonHandler :: (Json ->{IO r} Result RpcError Json) -> RpcHandler r
+    -- | Pure JSON-RPC method handler requiring no IO effects.
+    RpcJsonPureHandler :: (Json -> Result RpcError Json) -> RpcHandler r
+    -- | Effectful gob-RPC method handler performing IO in region r.
+    RpcGobHandler :: (GobValue ->{IO r} Result RpcError GobValue) -> RpcHandler r
+    -- | Pure gob-RPC method handler requiring no IO effects.
+    RpcGobPureHandler :: (GobValue -> Result RpcError GobValue) -> RpcHandler r
+
+  -- | Immutable registry of JSON-RPC and gob-RPC method handlers plus frame limit configuration.
+  data RpcServer (r :: Region) where
+    -- | Registered JSON method table, gob method table, and maximum wire frame size in bytes.
+    RpcServer :: List (String, RpcHandler r) -> List (String, RpcHandler r) -> Nat -> RpcServer r
+
+  -- | Create an empty RpcServer with the default maximum frame size (16 MiB).
+  rpc-server-new :: forall r. RpcServer r
+  rpc-server-new = RpcServer Nil Nil rpc-default-max-frame-bytes
+
+  -- | Override the maximum frame or line size in bytes accepted by an RpcServer.
+  rpc-server-with-max-frame :: forall r. Nat -> RpcServer r -> RpcServer r
+  rpc-server-with-max-frame limit srv = case srv of
+    RpcServer json-tbl gob-tbl _ -> RpcServer json-tbl gob-tbl limit
+
+  -- | Read the configured maximum frame size of an RpcServer.
+  server-max-frame :: forall r. RpcServer r -> Nat
+  server-max-frame srv = case srv of
+    RpcServer _ _ limit -> limit
+
+  -- | Insert or replace a named entry in an association list of RPC handlers.
+  upsert-entry :: forall r. String -> RpcHandler r -> List (String, RpcHandler r) -> List (String, RpcHandler r)
+  upsert-entry name entry tbl = case tbl of
+    Nil -> Cons (name, entry) Nil
+    Cons pair rest -> case pair of
+      (k, _) ->
+        if k == name then Cons (name, entry) rest
+        else Cons pair (upsert-entry name entry rest)
+
+  -- | Look up a named handler in an association list.
+  lookup-entry :: forall r. String -> List (String, RpcHandler r) -> Option (RpcHandler r)
+  lookup-entry name tbl = case tbl of
+    Nil -> None
+    Cons pair rest -> case pair of
+      (k, v) -> if k == name then Some v else lookup-entry name rest
+
+  -- | Register an effectful JSON-RPC method handler on an RpcServer.
+  rpc-register :: forall r. String -> (Json ->{IO r} Result RpcError Json) -> RpcServer r -> RpcServer r
+  rpc-register name fn srv = case srv of
+    RpcServer json-tbl gob-tbl limit ->
+      RpcServer (upsert-entry name (RpcJsonHandler fn) json-tbl) gob-tbl limit
+
+  -- | Register a pure JSON-RPC method handler on an RpcServer.
+  rpc-register-pure :: forall r. String -> (Json -> Result RpcError Json) -> RpcServer r -> RpcServer r
+  rpc-register-pure name fn srv = case srv of
+    RpcServer json-tbl gob-tbl limit ->
+      RpcServer (upsert-entry name (RpcJsonPureHandler fn) json-tbl) gob-tbl limit
+
+  -- | Register an effectful gob-RPC method handler on an RpcServer.
+  rpc-register-gob :: forall r. String -> (GobValue ->{IO r} Result RpcError GobValue) -> RpcServer r -> RpcServer r
+  rpc-register-gob name fn srv = case srv of
+    RpcServer json-tbl gob-tbl limit ->
+      RpcServer json-tbl (upsert-entry name (RpcGobHandler fn) gob-tbl) limit
+
+  -- | Register a pure gob-RPC method handler on an RpcServer.
+  rpc-register-gob-pure :: forall r. String -> (GobValue -> Result RpcError GobValue) -> RpcServer r -> RpcServer r
+  rpc-register-gob-pure name fn srv = case srv of
+    RpcServer json-tbl gob-tbl limit ->
+      RpcServer json-tbl (upsert-entry name (RpcGobPureHandler fn) gob-tbl) limit
+
+  -- | Return True if the given method name is registered for either JSON-RPC or gob-RPC.
+  rpc-has-method :: forall r. RpcServer r -> String -> Bool
+  rpc-has-method srv name = case srv of
+    RpcServer json-tbl gob-tbl _ ->
+      case lookup-entry name json-tbl of
+        Some _ -> True
+        None -> case lookup-entry name gob-tbl of
+          Some _ -> True
+          None -> False
+
+  -- | Check whether a string already appears in a list of strings.
+  string-in-list :: String -> List String -> Bool
+  string-in-list needle xs = case xs of
+    Nil -> False
+    Cons x rest -> if x == needle then True else string-in-list needle rest
+
+  -- | Collect unique method names from an entry list into an accumulator.
+  collect-entry-names :: forall r. List (String, RpcHandler r) -> List String -> List String
+  collect-entry-names tbl acc = case tbl of
+    Nil -> acc
+    Cons pair rest -> case pair of
+      (k, _) ->
+        if string-in-list k acc then collect-entry-names rest acc
+        else collect-entry-names rest (Cons k acc)
+
+  -- | Return all unique method names registered on an RpcServer.
+  rpc-methods :: forall r. RpcServer r -> List String
+  rpc-methods srv = case srv of
+    RpcServer json-tbl gob-tbl _ ->
+      let names1 = collect-entry-names json-tbl Nil in
+      let names2 = collect-entry-names gob-tbl names1 in
+      reverse names2
+
+  -- ---------------------------------------------------------------------
+  -- Pure/effectful dispatch for JSON-RPC (single + batch) and gob-RPC.
+  -- ---------------------------------------------------------------------
+
+  -- | Invoke a JSON-compatible RpcHandler on JSON parameters.
+  run-json-handler :: forall r. using (io :: Io r) => RpcHandler r -> Json ->{IO r} Result RpcError Json
+  run-json-handler hdl params = case hdl of
+    RpcJsonHandler fn -> fn params
+    RpcJsonPureHandler fn -> fn params
+    _ -> Err (rpc-internal-error "registered handler is not a JSON-RPC handler")
+
+  -- | Invoke a gob-compatible RpcHandler on a GobValue argument.
+  run-gob-handler :: forall r. using (io :: Io r) => RpcHandler r -> GobValue ->{IO r} Result RpcError GobValue
+  run-gob-handler hdl arg = case hdl of
+    RpcGobHandler fn -> fn arg
+    RpcGobPureHandler fn -> fn arg
+    _ -> Err (rpc-internal-error "registered handler is not a gob-RPC handler")
+
+  -- | Dispatch a single decoded RpcRequest against an RpcServer.
+  -- Returns None for notifications (requests with no correlation id), after executing the method.
+  rpc-dispatch-json :: forall r. using (io :: Io r) => RpcServer r -> RpcRequest ->{IO r} Option RpcResponse
+  rpc-dispatch-json srv req = case srv of
+    RpcServer json-tbl _ _ ->
+      let method = rpc-request-method req in
+      let params = rpc-request-params req in
+      let opt-id = rpc-request-id req in
+      case lookup-entry method json-tbl of
+        None -> case opt-id of
+          None -> None
+          Some rid -> Some (rpc-response-err rid (rpc-method-not-found method))
+        Some hdl ->
+          let outcome = run-json-handler hdl params in
+          case opt-id of
+            None -> None
+            Some rid -> Some (RpcResponse rid outcome)
+
+  -- | Dispatch each item in a decoded JSON-RPC 2.0 batch, collecting non-notification responses in order.
+  dispatch-batch-loop :: forall r. using (io :: Io r) => RpcServer r -> List (Result RpcError RpcRequest) -> List RpcResponse ->{IO r} List RpcResponse
+  dispatch-batch-loop srv items acc = case items of
+    Nil -> reverse acc
+    Cons item rest -> case item of
+      Err err -> dispatch-batch-loop srv rest (Cons (rpc-response-err RpcIdNull err) acc)
+      Ok req -> case rpc-dispatch-json srv req of
+        None -> dispatch-batch-loop srv rest acc
+        Some resp -> dispatch-batch-loop srv rest (Cons resp acc)
+
+  -- | Dispatch raw UTF-8 JSON-RPC bytes (single JSON-RPC 1.0/2.0 request OR JSON-RPC 2.0 batch array).
+  -- Returns None when the request or entire batch consists solely of notifications.
+  rpc-dispatch-json-bytes :: forall r. using (io :: Io r) => RpcServer r -> Bytes ->{IO r} Option Bytes
+  rpc-dispatch-json-bytes srv payload =
+    if jsonrpc-is-batch payload then
+      case jsonrpc-decode-batch-items payload of
+        Err err -> Some (jsonrpc-encode-response (rpc-response-err RpcIdNull err))
+        Ok items ->
+          let resps = dispatch-batch-loop srv items Nil in
+          case resps of
+            Nil -> None
+            Cons _ _ -> Some (jsonrpc-encode-batch-responses resps)
+    else
+      case jsonrpc-decode-request payload of
+        Err err -> Some (jsonrpc-encode-response (rpc-response-err RpcIdNull err))
+        Ok req -> case rpc-dispatch-json srv req of
+          None -> None
+          Some resp -> Some (jsonrpc-encode-response-with (rpc-request-codec req) resp)
+
+  -- | Dispatch a single decoded GobRpcRequest against an RpcServer's gob method table.
+  rpc-dispatch-gob :: forall r. using (io :: Io r) => RpcServer r -> GobRpcRequest ->{IO r} GobRpcResponse
+  rpc-dispatch-gob srv req = case srv of
+    RpcServer _ gob-tbl _ ->
+      let method = gobrpc-request-method req in
+      let seq = gobrpc-request-seq req in
+      let body = gobrpc-request-body req in
+      case lookup-entry method gob-tbl of
+        None -> GobRpcResponse seq (Err (rpc-method-not-found method))
+        Some hdl -> GobRpcResponse seq (run-gob-handler hdl body)
+
+  -- ---------------------------------------------------------------------
+  -- Internal socket framing helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Copy bytes in the half-open interval [start, stop) into a fresh buffer.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes buf start stop =
+    if start <= stop && stop <= bytes-len buf then
+      let out = bytes-new (stop - start) in
+      let copied = bytes-copy-range out buf 0 start (stop - start) in
+      out
+    else bytes-new 0
+
+  -- | Write an entire byte buffer to a TCP socket, looping until every byte is transmitted.
+  write-all-bytes :: forall r. using (io :: Io r) => Socket -> Bytes ->{IO r} Result RpcCallError Unit
+  write-all-bytes sock bs =
+    if bytes-len bs == 0 then Ok ()
+    else case net-write sock bs of
+      Err ne -> Err (RpcNetError ne)
+      Ok n ->
+        if n == 0 then Err RpcClosed
+        else if n >= bytes-len bs then Ok ()
+        else write-all-bytes sock (slice-bytes bs n (bytes-len bs))
+
+  -- | Find the first index of byte value 10 (LF) in a buffer starting at pos.
+  find-lf :: Bytes -> Nat -> Option Nat
+  find-lf buf pos =
+    if pos < bytes-len buf then
+      if bytes-get buf pos == 10 then Some pos
+      else find-lf buf (pos + 1)
+    else None
+
+  -- | Strip a single trailing ASCII CR (byte 13) from a line buffer if present.
+  strip-trailing-cr :: Bytes -> Bytes
+  strip-trailing-cr buf =
+    let n = bytes-len buf in
+    if n > 0 && bytes-get buf (n - 1) == 13 then slice-bytes buf 0 (n - 1)
+    else buf
+
+  -- | Check whether a buffer consists solely of ASCII whitespace bytes.
+  is-blank-bytes :: Bytes -> Nat -> Bool
+  is-blank-bytes buf pos =
+    if pos < bytes-len buf then
+      let b = bytes-get buf pos in
+      if b == 32 || b == 9 || b == 10 || b == 13 then is-blank-bytes buf (pos + 1)
+      else False
+    else True
+
+  -- | Read one newline-delimited message line from a socket and pending read buffer, enforcing max-size.
+  -- Returns Ok (None, empty) on clean EOF with no buffered trailing bytes.
+  read-json-line :: forall r. using (io :: Io r) => Socket -> Bytes -> Nat ->{IO r} Result RpcCallError (Option Bytes, Bytes)
+  read-json-line sock buf max-size = case find-lf buf 0 of
+    Some idx ->
+      let line = strip-trailing-cr (slice-bytes buf 0 idx) in
+      let rest = slice-bytes buf (idx + 1) (bytes-len buf) in
+      if max-size > 0 && bytes-len line > max-size then
+        Err (RpcProtocolError "JSON-RPC line exceeds maximum frame size")
+      else Ok (Some line, rest)
+    None ->
+      if max-size > 0 && bytes-len buf > max-size then
+        Err (RpcProtocolError "JSON-RPC line exceeds maximum frame size")
+      else case net-read sock 4096 of
+        Err ne -> Err (RpcNetError ne)
+        Ok chunk ->
+          if bytes-len chunk == 0 then
+            if bytes-len buf == 0 then Ok (None, bytes-new 0)
+            else Ok (Some (strip-trailing-cr buf), bytes-new 0)
+          else
+            let combined = bytes-concat [buf, chunk] in
+            read-json-line sock combined max-size
+
+  -- | Read one 4-byte length-prefixed binary frame from a socket and pending buffer, enforcing max-size.
+  -- Returns Ok (None, empty) on clean EOF between frames.
+  read-binary-frame :: forall r. using (io :: Io r) => Socket -> Bytes -> Nat ->{IO r} Result RpcCallError (Option Bytes, Bytes)
+  read-binary-frame sock buf max-size =
+    if bytes-len buf > 0 then
+      case rpc-frame-decode max-size buf of
+        Ok (frame, rest) -> Ok (Some frame, rest)
+        Err RpcFrameIncomplete -> pull-binary-frame sock buf max-size
+        Err fe -> Err (RpcProtocolError (rpc-frame-error-message fe))
+    else pull-binary-frame sock buf max-size
+
+  -- | Read the next socket chunk into a binary frame buffer and retry frame decoding.
+  pull-binary-frame :: forall r. using (io :: Io r) => Socket -> Bytes -> Nat ->{IO r} Result RpcCallError (Option Bytes, Bytes)
+  pull-binary-frame sock buf max-size = case net-read sock 4096 of
+    Err ne -> Err (RpcNetError ne)
+    Ok chunk ->
+      if bytes-len chunk == 0 then
+        if bytes-len buf == 0 then Ok (None, bytes-new 0)
+        else Err (RpcProtocolError "unexpected EOF in length-prefixed RPC frame")
+      else
+        let combined = bytes-concat [buf, chunk] in
+        read-binary-frame sock combined max-size
+
+  -- ---------------------------------------------------------------------
+  -- TCP JSON-RPC and gob-RPC servers and HTTP handler.
+  -- ---------------------------------------------------------------------
+
+  -- | Tail-recursive newline-delimited JSON-RPC 1.0/2.0 connection loop.
+  serve-jsonrpc-loop :: forall r. using (io :: Io r) => RpcServer r -> Socket -> Bytes -> Nat ->{IO r} Result RpcCallError Nat
+  serve-jsonrpc-loop srv sock pending served =
+    case read-json-line sock pending (server-max-frame srv) of
+      Err err -> Err err
+      Ok (None, _) -> Ok served
+      Ok (Some line, rest) ->
+        if is-blank-bytes line 0 then serve-jsonrpc-loop srv sock rest served
+        else case rpc-dispatch-json-bytes srv line of
+          None -> serve-jsonrpc-loop srv sock rest (served + 1)
+          Some reply -> case write-all-bytes sock reply of
+            Err err -> Err err
+            Ok _ -> serve-jsonrpc-loop srv sock rest (served + 1)
+
+  -- | Serve newline-delimited JSON-RPC 1.0 and 2.0 requests (including batches and notifications) over a TCP socket until EOF.
+  -- Returns the total number of dispatched request lines.
+  rpc-serve-jsonrpc-socket :: forall r. using (io :: Io r) => RpcServer r -> Socket ->{IO r} Result RpcCallError Nat
+  rpc-serve-jsonrpc-socket srv sock = serve-jsonrpc-loop srv sock (bytes-new 0) 0
+
+  -- | Tail-recursive JSON-RPC listener accept loop bounded by max-conns.
+  serve-jsonrpc-accept-loop :: forall r. using (io :: Io r) => RpcServer r -> Listener -> Nat -> Nat -> Nat ->{IO r} Result RpcCallError Nat
+  serve-jsonrpc-accept-loop srv listener max-conns conns total =
+    if conns >= max-conns then Ok total
+    else case net-accept listener of
+      Err ne -> Err (RpcNetError ne)
+      Ok sock ->
+        let served-res = rpc-serve-jsonrpc-socket srv sock in
+        let closed = net-close sock in
+        let next-total = (case served-res of
+          Ok n -> total + n
+          Err _ -> total) in
+        serve-jsonrpc-accept-loop srv listener max-conns (conns + 1) next-total
+
+  -- | Accept up to max-conns TCP connections on a Listener and serve JSON-RPC 1.0/2.0 on each.
+  -- Closes each accepted socket on completion and returns total served request lines.
+  rpc-serve-jsonrpc-listener :: forall r. using (io :: Io r) => RpcServer r -> Listener -> Nat ->{IO r} Result RpcCallError Nat
+  rpc-serve-jsonrpc-listener srv listener max-conns = serve-jsonrpc-accept-loop srv listener max-conns 0 0
+
+  -- | Tail-recursive length-prefixed gob-RPC connection loop.
+  serve-gob-loop :: forall r. using (io :: Io r) => RpcServer r -> Socket -> Bytes -> Nat ->{IO r} Result RpcCallError Nat
+  serve-gob-loop srv sock pending served =
+    let limit = server-max-frame srv in
+    case read-binary-frame sock pending limit of
+      Err err -> Err err
+      Ok (None, _) -> Ok served
+      Ok (Some frame, rest) ->
+        case gobrpc-decode-request-payload frame of
+          Err fe -> Err (RpcProtocolError (rpc-frame-error-message fe))
+          Ok req ->
+            let resp = rpc-dispatch-gob srv req in
+            case gobrpc-encode-response-limit limit resp of
+              Err fe -> Err (RpcProtocolError (rpc-frame-error-message fe))
+              Ok wire -> case write-all-bytes sock wire of
+                Err err -> Err err
+                Ok _ -> serve-gob-loop srv sock rest (served + 1)
+
+  -- | Serve length-prefixed binary gob-RPC requests over a TCP socket until clean EOF.
+  -- Returns the total number of served RPC calls.
+  rpc-serve-gob-socket :: forall r. using (io :: Io r) => RpcServer r -> Socket ->{IO r} Result RpcCallError Nat
+  rpc-serve-gob-socket srv sock = serve-gob-loop srv sock (bytes-new 0) 0
+
+  -- | Tail-recursive gob-RPC listener accept loop bounded by max-conns.
+  serve-gob-accept-loop :: forall r. using (io :: Io r) => RpcServer r -> Listener -> Nat -> Nat -> Nat ->{IO r} Result RpcCallError Nat
+  serve-gob-accept-loop srv listener max-conns conns total =
+    if conns >= max-conns then Ok total
+    else case net-accept listener of
+      Err ne -> Err (RpcNetError ne)
+      Ok sock ->
+        let served-res = rpc-serve-gob-socket srv sock in
+        let closed = net-close sock in
+        let next-total = (case served-res of
+          Ok n -> total + n
+          Err _ -> total) in
+        serve-gob-accept-loop srv listener max-conns (conns + 1) next-total
+
+  -- | Accept up to max-conns TCP connections on a Listener and serve gob-RPC on each.
+  -- Closes each accepted socket on completion and returns total served RPC calls.
+  rpc-serve-gob-listener :: forall r. using (io :: Io r) => RpcServer r -> Listener -> Nat ->{IO r} Result RpcCallError Nat
+  rpc-serve-gob-listener srv listener max-conns = serve-gob-accept-loop srv listener max-conns 0 0
+
+  -- | Handle a single HTTP wire request as a JSON-RPC 2.0 POST endpoint.
+  handle-http-rpc :: forall r. using (io :: Io r) => RpcServer r -> HttpWireRequest ->{IO r} HttpWireResponse
+  handle-http-rpc srv req =
+    if not (req-method req == method-post) then
+      resp-with-header (http-response-error status-method-not-allowed "405 method not allowed") "Allow" "POST"
+    else case rpc-dispatch-json-bytes srv (req-body req) of
+      None -> http-response-new status-no-content http-header-empty (bytes-new 0)
+      Some body -> http-response-bytes status-ok "application/json" body
+
+  -- | Adapt an RpcServer into an Effect.Http.Server HttpHandler serving HTTP POST JSON-RPC 2.0 requests.
+  -- Responds with Content-Type application/json (200 OK) for calls and 204 No Content for notifications.
+  rpc-http-handler :: forall r. using (io :: Io r) => RpcServer r -> HttpHandler r
+  rpc-http-handler srv = http-handler-func (\req -> handle-http-rpc srv req)
+
+  -- ---------------------------------------------------------------------
+  -- Stateful RPC client over Effect.Net TCP sockets.
+  -- ---------------------------------------------------------------------
+
+  -- | An immutable RPC client handle carrying a TCP socket, codec, unread byte buffer,
+  -- monotonic request sequence number, maximum frame size, and closed flag.
+  data RpcClient where
+    -- | Underlying socket, codec kind, buffered unread bytes, next sequence id, max frame bytes, and closed state.
+    RpcClient :: Socket -> RpcCodecKind -> Bytes -> I64 -> Nat -> Bool -> RpcClient
+
+  -- | Wrap an already-connected TCP Socket as an RpcClient using the specified wire codec.
+  rpc-client-from-socket :: Socket -> RpcCodecKind -> RpcClient
+  rpc-client-from-socket sock codec = RpcClient sock codec (bytes-new 0) 1 rpc-default-max-frame-bytes False
+
+  -- | Configure the maximum frame or line size in bytes accepted by an RpcClient.
+  rpc-client-with-max-frame :: Nat -> RpcClient -> RpcClient
+  rpc-client-with-max-frame limit client = case client of
+    RpcClient sock codec buf seq _ closed -> RpcClient sock codec buf seq limit closed
+
+  -- | Return the wire codec kind configured on an RpcClient.
+  rpc-client-codec :: RpcClient -> RpcCodecKind
+  rpc-client-codec client = case client of RpcClient _ codec _ _ _ _ -> codec
+
+  -- | Return the next request sequence number that will be assigned by an RpcClient.
+  rpc-client-seq :: RpcClient -> I64
+  rpc-client-seq client = case client of RpcClient _ _ _ seq _ _ -> seq
+
+  -- | Dial a TCP endpoint and wrap the connected socket with the given RPC codec.
+  dial-with-codec :: forall r. using (io :: Io r) => RpcCodecKind -> String -> Nat ->{IO r} Result RpcCallError RpcClient
+  dial-with-codec codec host port = case net-connect host port of
+    Err ne -> Err (RpcNetError ne)
+    Ok sock -> Ok (rpc-client-from-socket sock codec)
+
+  -- | Connect to a binary gob-RPC server at (host, port) over TCP.
+  rpc-dial :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result RpcCallError RpcClient
+  rpc-dial host port = dial-with-codec RpcCodecGob host port
+
+  -- | Connect to a newline-delimited JSON-RPC 2.0 server at (host, port) over TCP.
+  rpc-dial-jsonrpc :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result RpcCallError RpcClient
+  rpc-dial-jsonrpc host port = dial-with-codec RpcCodecJson2 host port
+
+  -- | Connect to a newline-delimited JSON-RPC 1.0 server at (host, port) over TCP.
+  rpc-dial-jsonrpc1 :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result RpcCallError RpcClient
+  rpc-dial-jsonrpc1 host port = dial-with-codec RpcCodecJson1 host port
+
+  -- | Read the next non-blank newline-delimited JSON response line from a socket.
+  read-nonblank-json-line :: forall r. using (io :: Io r) => Socket -> Bytes -> Nat ->{IO r} Result RpcCallError (Option Bytes, Bytes)
+  read-nonblank-json-line sock buf limit = case read-json-line sock buf limit of
+    Err err -> Err err
+    Ok (None, rest) -> Ok (None, rest)
+    Ok (Some line, rest) ->
+      if is-blank-bytes line 0 then read-nonblank-json-line sock rest limit
+      else Ok (Some line, rest)
+
+  -- | Invoke a JSON-RPC 1.0 or 2.0 method on an RpcClient and await its correlated response.
+  -- Returns the call outcome paired with the updated RpcClient carrying incremented sequence and buffer state.
+  rpc-call-json :: forall r. using (io :: Io r) => RpcClient -> String -> Json ->{IO r} (Result RpcCallError Json, RpcClient)
+  rpc-call-json client method params = case client of
+    RpcClient sock codec buf seq limit closed ->
+      if closed then (Err RpcClosed, client)
+      else case codec of
+        RpcCodecGob -> (Err (RpcProtocolError "cannot invoke JSON-RPC method on a gob-RPC client"), client)
+        _ ->
+          let req-id = RpcIdInt seq in
+          let next-seq = wrapping-add-i64 seq 1 in
+          let req = RpcRequest method params (Some req-id) codec in
+          let wire = jsonrpc-encode-request req in
+          case write-all-bytes sock wire of
+            Err err -> (Err err, RpcClient sock codec buf next-seq limit closed)
+            Ok _ -> case read-nonblank-json-line sock buf limit of
+              Err err -> (Err err, RpcClient sock codec (bytes-new 0) next-seq limit closed)
+              Ok (None, rest) -> (Err RpcClosed, RpcClient sock codec rest next-seq limit True)
+              Ok (Some line, rest) ->
+                let next-client = RpcClient sock codec rest next-seq limit closed in
+                case jsonrpc-decode-response line of
+                  Err parse-err -> (Err (RpcProtocolError (rpc-error-message parse-err)), next-client)
+                  Ok resp ->
+                    let resp-id = rpc-response-id resp in
+                    let outcome = rpc-response-result resp in
+                    if rpc-id-eq resp-id req-id then
+                      case outcome of
+                        Ok val -> (Ok val, next-client)
+                        Err remote-err -> (Err (RpcRemoteError remote-err), next-client)
+                    else if rpc-id-eq resp-id RpcIdNull then
+                      case outcome of
+                        Err remote-err -> (Err (RpcRemoteError remote-err), next-client)
+                        Ok _ -> (Err (RpcProtocolError "JSON-RPC response id mismatch"), next-client)
+                    else (Err (RpcProtocolError "JSON-RPC response id mismatch"), next-client)
+
+  -- | Send a JSON-RPC notification (no response expected) over an RpcClient.
+  rpc-notify-json :: forall r. using (io :: Io r) => RpcClient -> String -> Json ->{IO r} (Result RpcCallError Unit, RpcClient)
+  rpc-notify-json client method params = case client of
+    RpcClient sock codec buf seq limit closed ->
+      if closed then (Err RpcClosed, client)
+      else case codec of
+        RpcCodecGob -> (Err (RpcProtocolError "cannot send JSON-RPC notification on a gob-RPC client"), client)
+        _ ->
+          let req = RpcRequest method params None codec in
+          let wire = jsonrpc-encode-request req in
+          case write-all-bytes sock wire of
+            Err err -> (Err err, client)
+            Ok _ -> (Ok (), client)
+
+  -- | Check whether any request in a batch expects a response (i.e. is not a notification).
+  batch-has-non-notification :: List RpcRequest -> Bool
+  batch-has-non-notification reqs = case reqs of
+    Nil -> False
+    Cons req rest ->
+      if not (rpc-request-is-notification req) then True
+      else batch-has-non-notification rest
+
+  -- | Send a JSON-RPC 2.0 batch array over an RpcClient and decode the batch response array.
+  -- If every request in the batch is a notification, sends the batch and returns Ok Nil without awaiting a reply.
+  rpc-call-json-batch :: forall r. using (io :: Io r) => RpcClient -> List RpcRequest ->{IO r} (Result RpcCallError (List RpcResponse), RpcClient)
+  rpc-call-json-batch client reqs = case client of
+    RpcClient sock codec buf seq limit closed ->
+      if closed then (Err RpcClosed, client)
+      else case codec of
+        RpcCodecGob -> (Err (RpcProtocolError "cannot send JSON-RPC batch on a gob-RPC client"), client)
+        _ ->
+          let wire = jsonrpc-encode-batch reqs in
+          case write-all-bytes sock wire of
+            Err err -> (Err err, client)
+            Ok _ ->
+              if not (batch-has-non-notification reqs) then (Ok Nil, client)
+              else case read-nonblank-json-line sock buf limit of
+                Err err -> (Err err, RpcClient sock codec (bytes-new 0) seq limit closed)
+                Ok (None, rest) -> (Err RpcClosed, RpcClient sock codec rest seq limit True)
+                Ok (Some line, rest) ->
+                  let next-client = RpcClient sock codec rest seq limit closed in
+                  case jsonrpc-decode-batch-responses line of
+                    Err parse-err -> (Err (RpcProtocolError (rpc-error-message parse-err)), next-client)
+                    Ok resps -> (Ok resps, next-client)
+
+  -- | Invoke a binary gob-RPC method on an RpcClient and await its length-prefixed gob response.
+  rpc-call-gob :: forall r. using (io :: Io r) => RpcClient -> String -> GobValue ->{IO r} (Result RpcCallError GobValue, RpcClient)
+  rpc-call-gob client method arg = case client of
+    RpcClient sock codec buf seq limit closed ->
+      if closed then (Err RpcClosed, client)
+      else case codec of
+        RpcCodecGob ->
+          let next-seq = wrapping-add-i64 seq 1 in
+          let req = GobRpcRequest method seq arg in
+          case gobrpc-encode-request-limit limit req of
+            Err fe -> (Err (RpcProtocolError (rpc-frame-error-message fe)), client)
+            Ok wire -> case write-all-bytes sock wire of
+              Err err -> (Err err, RpcClient sock codec buf next-seq limit closed)
+              Ok _ -> case read-binary-frame sock buf limit of
+                Err err -> (Err err, RpcClient sock codec (bytes-new 0) next-seq limit closed)
+                Ok (None, rest) -> (Err RpcClosed, RpcClient sock codec rest next-seq limit True)
+                Ok (Some frame, rest) ->
+                  let next-client = RpcClient sock codec rest next-seq limit closed in
+                  case gobrpc-decode-response-payload frame of
+                    Err fe -> (Err (RpcProtocolError (rpc-frame-error-message fe)), next-client)
+                    Ok resp ->
+                      if not (eq-i64 (gobrpc-response-seq resp) seq) then
+                        (Err (RpcProtocolError "gob-RPC response sequence mismatch"), next-client)
+                      else case gobrpc-response-result resp of
+                        Ok val -> (Ok val, next-client)
+                        Err remote-err -> (Err (RpcRemoteError remote-err), next-client)
+        _ -> (Err (RpcProtocolError "cannot invoke gob-RPC method on a JSON-RPC client"), client)
+
+  -- | Close the underlying TCP socket of an RpcClient.
+  rpc-close :: forall r. using (io :: Io r) => RpcClient ->{IO r} Result RpcCallError Unit
+  rpc-close client = case client of
+    RpcClient sock _ _ _ _ closed ->
+      if closed then Ok ()
+      else case net-close sock of
+        Err ne -> Err (RpcNetError ne)
+        Ok u -> Ok u

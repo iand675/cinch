@@ -1,0 +1,1568 @@
+{
+  "status_texts": [
+    {
+      "code": 99,
+      "text": ""
+    },
+    {
+      "code": 100,
+      "text": "Continue"
+    },
+    {
+      "code": 101,
+      "text": "Switching Protocols"
+    },
+    {
+      "code": 102,
+      "text": "Processing"
+    },
+    {
+      "code": 103,
+      "text": "Early Hints"
+    },
+    {
+      "code": 104,
+      "text": ""
+    },
+    {
+      "code": 200,
+      "text": "OK"
+    },
+    {
+      "code": 201,
+      "text": "Created"
+    },
+    {
+      "code": 202,
+      "text": "Accepted"
+    },
+    {
+      "code": 203,
+      "text": "Non-Authoritative Information"
+    },
+    {
+      "code": 204,
+      "text": "No Content"
+    },
+    {
+      "code": 205,
+      "text": "Reset Content"
+    },
+    {
+      "code": 206,
+      "text": "Partial Content"
+    },
+    {
+      "code": 207,
+      "text": "Multi-Status"
+    },
+    {
+      "code": 208,
+      "text": "Already Reported"
+    },
+    {
+      "code": 226,
+      "text": "IM Used"
+    },
+    {
+      "code": 299,
+      "text": ""
+    },
+    {
+      "code": 300,
+      "text": "Multiple Choices"
+    },
+    {
+      "code": 301,
+      "text": "Moved Permanently"
+    },
+    {
+      "code": 302,
+      "text": "Found"
+    },
+    {
+      "code": 303,
+      "text": "See Other"
+    },
+    {
+      "code": 304,
+      "text": "Not Modified"
+    },
+    {
+      "code": 305,
+      "text": "Use Proxy"
+    },
+    {
+      "code": 307,
+      "text": "Temporary Redirect"
+    },
+    {
+      "code": 308,
+      "text": "Permanent Redirect"
+    },
+    {
+      "code": 400,
+      "text": "Bad Request"
+    },
+    {
+      "code": 401,
+      "text": "Unauthorized"
+    },
+    {
+      "code": 402,
+      "text": "Payment Required"
+    },
+    {
+      "code": 403,
+      "text": "Forbidden"
+    },
+    {
+      "code": 404,
+      "text": "Not Found"
+    },
+    {
+      "code": 405,
+      "text": "Method Not Allowed"
+    },
+    {
+      "code": 406,
+      "text": "Not Acceptable"
+    },
+    {
+      "code": 407,
+      "text": "Proxy Authentication Required"
+    },
+    {
+      "code": 408,
+      "text": "Request Timeout"
+    },
+    {
+      "code": 409,
+      "text": "Conflict"
+    },
+    {
+      "code": 410,
+      "text": "Gone"
+    },
+    {
+      "code": 411,
+      "text": "Length Required"
+    },
+    {
+      "code": 412,
+      "text": "Precondition Failed"
+    },
+    {
+      "code": 413,
+      "text": "Request Entity Too Large"
+    },
+    {
+      "code": 414,
+      "text": "Request URI Too Long"
+    },
+    {
+      "code": 415,
+      "text": "Unsupported Media Type"
+    },
+    {
+      "code": 416,
+      "text": "Requested Range Not Satisfiable"
+    },
+    {
+      "code": 417,
+      "text": "Expectation Failed"
+    },
+    {
+      "code": 418,
+      "text": "I'm a teapot"
+    },
+    {
+      "code": 419,
+      "text": ""
+    },
+    {
+      "code": 421,
+      "text": "Misdirected Request"
+    },
+    {
+      "code": 422,
+      "text": "Unprocessable Entity"
+    },
+    {
+      "code": 423,
+      "text": "Locked"
+    },
+    {
+      "code": 424,
+      "text": "Failed Dependency"
+    },
+    {
+      "code": 425,
+      "text": "Too Early"
+    },
+    {
+      "code": 426,
+      "text": "Upgrade Required"
+    },
+    {
+      "code": 428,
+      "text": "Precondition Required"
+    },
+    {
+      "code": 429,
+      "text": "Too Many Requests"
+    },
+    {
+      "code": 431,
+      "text": "Request Header Fields Too Large"
+    },
+    {
+      "code": 451,
+      "text": "Unavailable For Legal Reasons"
+    },
+    {
+      "code": 500,
+      "text": "Internal Server Error"
+    },
+    {
+      "code": 501,
+      "text": "Not Implemented"
+    },
+    {
+      "code": 502,
+      "text": "Bad Gateway"
+    },
+    {
+      "code": 503,
+      "text": "Service Unavailable"
+    },
+    {
+      "code": 504,
+      "text": "Gateway Timeout"
+    },
+    {
+      "code": 505,
+      "text": "HTTP Version Not Supported"
+    },
+    {
+      "code": 506,
+      "text": "Variant Also Negotiates"
+    },
+    {
+      "code": 507,
+      "text": "Insufficient Storage"
+    },
+    {
+      "code": 508,
+      "text": "Loop Detected"
+    },
+    {
+      "code": 510,
+      "text": "Not Extended"
+    },
+    {
+      "code": 511,
+      "text": "Network Authentication Required"
+    },
+    {
+      "code": 599,
+      "text": ""
+    },
+    {
+      "code": 600,
+      "text": ""
+    }
+  ],
+  "canonical_headers": [
+    {
+      "in": "content-type",
+      "out": "Content-Type"
+    },
+    {
+      "in": "CONTENT-LENGTH",
+      "out": "Content-Length"
+    },
+    {
+      "in": "x-forwarded-for",
+      "out": "X-Forwarded-For"
+    },
+    {
+      "in": "etag",
+      "out": "Etag"
+    },
+    {
+      "in": "www-authenticate",
+      "out": "Www-Authenticate"
+    },
+    {
+      "in": "Accept-Encoding",
+      "out": "Accept-Encoding"
+    },
+    {
+      "in": "x-custom-123-abc",
+      "out": "X-Custom-123-Abc"
+    },
+    {
+      "in": "a-b-c",
+      "out": "A-B-C"
+    },
+    {
+      "in": "bad header",
+      "out": "bad header"
+    },
+    {
+      "in": "sec-ch-ua",
+      "out": "Sec-Ch-Ua"
+    }
+  ],
+  "pattern_register": [
+    {
+      "name": "empty-pattern",
+      "patterns": [
+        ""
+      ],
+      "valid": false,
+      "error": "http: invalid pattern"
+    },
+    {
+      "name": "no-slash",
+      "patterns": [
+        "example.com"
+      ],
+      "valid": false,
+      "error": "parsing \"example.com\": at offset 0: host/path missing /"
+    },
+    {
+      "name": "root-valid",
+      "patterns": [
+        "/"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "exact-root-valid",
+      "patterns": [
+        "/{$}"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "root-and-exact-root",
+      "patterns": [
+        "/",
+        "/{$}"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "duplicate-exact",
+      "patterns": [
+        "/a",
+        "/a"
+      ],
+      "valid": false,
+      "error": "pattern \"/a\" (registered at /home/antigravity/iand675/cinch/tooling/http_server_vectors.go:136) conflicts with pattern \"/a\" (registered at /home/antigravity/iand675/cinch/tooling/http_server_vectors.go:136):\n/a matches the same requests as /a"
+    },
+    {
+      "name": "duplicate-method",
+      "patterns": [
+        "GET /a",
+        "GET /a"
+      ],
+      "valid": false,
+      "error": "pattern \"GET /a\" (registered at /home/antigravity/iand675/cinch/tooling/http_server_vectors.go:136) conflicts with pattern \"GET /a\" (registered at /home/antigravity/iand675/cinch/tooling/http_server_vectors.go:136):\nGET /a matches the same requests as GET /a"
+    },
+    {
+      "name": "get-and-head-no-conflict",
+      "patterns": [
+        "GET /a",
+        "HEAD /a"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "get-and-post-no-conflict",
+      "patterns": [
+        "GET /a",
+        "POST /a"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "method-and-wildcard-method-exact-path",
+      "patterns": [
+        "GET /a",
+        "/a"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "method-vs-path-conflict",
+      "patterns": [
+        "GET /",
+        "/index.html"
+      ],
+      "valid": false,
+      "error": "pattern \"/index.html\" (registered at /home/antigravity/iand675/cinch/tooling/http_server_vectors.go:136) conflicts with pattern \"GET /\" (registered at /home/antigravity/iand675/cinch/tooling/http_server_vectors.go:136):\n/index.html matches more methods than GET /, but has a more specific path pattern"
+    },
+    {
+      "name": "wildcard-conflict",
+      "patterns": [
+        "/a/{x}/b",
+        "/a/c/{y}"
+      ],
+      "valid": false,
+      "error": "pattern \"/a/c/{y}\" (registered at /home/antigravity/iand675/cinch/tooling/http_server_vectors.go:136) conflicts with pattern \"/a/{x}/b\" (registered at /home/antigravity/iand675/cinch/tooling/http_server_vectors.go:136):\n/a/c/{y} and /a/{x}/b both match some paths, like \"/a/c/b\".\nBut neither is more specific than the other.\n/a/c/{y} matches \"/a/c/y\", but /a/{x}/b doesn't.\n/a/{x}/b matches \"/a/x/b\", but /a/c/{y} doesn't."
+    },
+    {
+      "name": "wildcard-specific-ok",
+      "patterns": [
+        "/a/{x}/b",
+        "/a/c/b"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "multi-vs-single-ok",
+      "patterns": [
+        "/a/{x...}",
+        "/a/{x}"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "multi-vs-exact-ok",
+      "patterns": [
+        "/a/{x...}",
+        "/a/b/c"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "trailing-slash-vs-exact-end",
+      "patterns": [
+        "/a/",
+        "/a/{$}"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "host-wins-conflict",
+      "patterns": [
+        "example.com/a/{x}",
+        "/a/b"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "host-wins-method-conflict",
+      "patterns": [
+        "example.com/",
+        "GET /a"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "two-hosts-disjoint",
+      "patterns": [
+        "a.example/x",
+        "b.example/x"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "bad-wildcard-unclosed",
+      "patterns": [
+        "/{id"
+      ],
+      "valid": false,
+      "error": "parsing \"/{id\": at offset 1: bad wildcard segment (must end with '}')"
+    },
+    {
+      "name": "bad-wildcard-partial-prefix",
+      "patterns": [
+        "/a{id}"
+      ],
+      "valid": false,
+      "error": "parsing \"/a{id}\": at offset 1: bad wildcard segment (must start with '{')"
+    },
+    {
+      "name": "bad-wildcard-partial-suffix",
+      "patterns": [
+        "/{id}b"
+      ],
+      "valid": false,
+      "error": "parsing \"/{id}b\": at offset 1: bad wildcard segment (must end with '}')"
+    },
+    {
+      "name": "bad-wildcard-empty-name",
+      "patterns": [
+        "/{}"
+      ],
+      "valid": false,
+      "error": "parsing \"/{}\": at offset 1: empty wildcard"
+    },
+    {
+      "name": "bad-wildcard-digit-start",
+      "patterns": [
+        "/{1a}"
+      ],
+      "valid": false,
+      "error": "parsing \"/{1a}\": at offset 1: bad wildcard name \"1a\""
+    },
+    {
+      "name": "bad-wildcard-duplicate-name",
+      "patterns": [
+        "/{id}/sub/{id}"
+      ],
+      "valid": false,
+      "error": "parsing \"/{id}/sub/{id}\": at offset 10: duplicate wildcard name \"id\""
+    },
+    {
+      "name": "bad-multi-not-at-end",
+      "patterns": [
+        "/{rest...}/more"
+      ],
+      "valid": false,
+      "error": "parsing \"/{rest...}/more\": at offset 1: {...} wildcard not at end"
+    },
+    {
+      "name": "bad-multi-trailing-slash",
+      "patterns": [
+        "/{rest...}/"
+      ],
+      "valid": false,
+      "error": "parsing \"/{rest...}/\": at offset 1: {...} wildcard not at end"
+    },
+    {
+      "name": "bad-dollar-not-at-end",
+      "patterns": [
+        "/{$}/a"
+      ],
+      "valid": false,
+      "error": "parsing \"/{$}/a\": at offset 1: {$} not at end"
+    },
+    {
+      "name": "bad-brace-in-host",
+      "patterns": [
+        "{host}.example/a"
+      ],
+      "valid": false,
+      "error": "parsing \"{host}.example/a\": at offset 0: host contains '{' (missing initial '/'?)"
+    },
+    {
+      "name": "bad-method-chars",
+      "patterns": [
+        "G/T /a"
+      ],
+      "valid": false,
+      "error": "parsing \"G/T /a\": at offset 0: invalid method \"G/T\""
+    },
+    {
+      "name": "valid-custom-method",
+      "patterns": [
+        "PURGE /cache/{key}"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "valid-tab-after-method",
+      "patterns": [
+        "GET\t/tab"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "valid-multi-spaces-after-method",
+      "patterns": [
+        "POST   /spaces"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "valid-escaped-pattern-segment",
+      "patterns": [
+        "/a%2fb/{id}"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "exact-and-subtree-root",
+      "patterns": [
+        "/files/",
+        "/files"
+      ],
+      "valid": true,
+      "error": ""
+    },
+    {
+      "name": "wildcard-name-underscore",
+      "patterns": [
+        "/{_id_1}/items/{item_2...}"
+      ],
+      "valid": true,
+      "error": ""
+    }
+  ],
+  "mux_scenarios": [
+    {
+      "name": "rest-api-and-precedence",
+      "routes": [
+        "/{$}",
+        "GET /items",
+        "POST /items",
+        "GET /items/{id}",
+        "DELETE /items/{id}",
+        "GET /items/special",
+        "HEAD /items/special",
+        "GET /files/{path...}",
+        "GET /docs/",
+        "GET /docs/{$}"
+      ],
+      "params": [
+        "id",
+        "path"
+      ],
+      "queries": [
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/"
+        },
+        {
+          "method": "POST",
+          "host": "example.com",
+          "target": "/"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/missing"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/items"
+        },
+        {
+          "method": "HEAD",
+          "host": "example.com",
+          "target": "/items"
+        },
+        {
+          "method": "POST",
+          "host": "example.com",
+          "target": "/items"
+        },
+        {
+          "method": "PUT",
+          "host": "example.com",
+          "target": "/items"
+        },
+        {
+          "method": "DELETE",
+          "host": "example.com",
+          "target": "/items"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/items/42"
+        },
+        {
+          "method": "DELETE",
+          "host": "example.com",
+          "target": "/items/42"
+        },
+        {
+          "method": "PATCH",
+          "host": "example.com",
+          "target": "/items/42"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/items/special"
+        },
+        {
+          "method": "HEAD",
+          "host": "example.com",
+          "target": "/items/special"
+        },
+        {
+          "method": "DELETE",
+          "host": "example.com",
+          "target": "/items/special"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/files/a/b/c.txt"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/files/"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/files"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/docs/"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/docs/guide/intro"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/docs"
+        },
+        {
+          "method": "POST",
+          "host": "example.com",
+          "target": "/docs"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/items//42"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/a/../items/99"
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "pattern": "/{$}",
+          "handler": "/{$}",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "/{$}",
+          "handler": "/{$}",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 404,
+          "pattern": "",
+          "handler": "",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "GET /items",
+          "handler": "GET /items",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "GET /items",
+          "handler": "GET /items",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "POST /items",
+          "handler": "POST /items",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 405,
+          "pattern": "",
+          "handler": "",
+          "location": "",
+          "allow": "GET, HEAD, POST",
+          "path_values": {}
+        },
+        {
+          "status": 405,
+          "pattern": "",
+          "handler": "",
+          "location": "",
+          "allow": "GET, HEAD, POST",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "GET /items/{id}",
+          "handler": "GET /items/{id}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "id": "42"
+          }
+        },
+        {
+          "status": 200,
+          "pattern": "DELETE /items/{id}",
+          "handler": "DELETE /items/{id}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "id": "42"
+          }
+        },
+        {
+          "status": 405,
+          "pattern": "",
+          "handler": "",
+          "location": "",
+          "allow": "DELETE, GET, HEAD",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "GET /items/special",
+          "handler": "GET /items/special",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "HEAD /items/special",
+          "handler": "HEAD /items/special",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "DELETE /items/{id}",
+          "handler": "DELETE /items/{id}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "id": "special"
+          }
+        },
+        {
+          "status": 200,
+          "pattern": "GET /files/{path...}",
+          "handler": "GET /files/{path...}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "path": "a/b/c.txt"
+          }
+        },
+        {
+          "status": 200,
+          "pattern": "GET /files/{path...}",
+          "handler": "GET /files/{path...}",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 301,
+          "pattern": "/files/",
+          "handler": "",
+          "location": "/files/",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "GET /docs/{$}",
+          "handler": "GET /docs/{$}",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "GET /docs/",
+          "handler": "GET /docs/",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 301,
+          "pattern": "/docs/",
+          "handler": "",
+          "location": "/docs/",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 405,
+          "pattern": "",
+          "handler": "",
+          "location": "",
+          "allow": "GET, HEAD",
+          "path_values": {}
+        },
+        {
+          "status": 301,
+          "pattern": "GET /items/{id}",
+          "handler": "",
+          "location": "/items/42",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 301,
+          "pattern": "GET /items/{id}",
+          "handler": "",
+          "location": "/items/99",
+          "allow": "",
+          "path_values": {}
+        }
+      ]
+    },
+    {
+      "name": "hosts-and-escapes",
+      "routes": [
+        "api.example.com/v1/{resource}",
+        "api.example.com/v1/health",
+        "/v1/{resource}",
+        "GET /buckets/{bucket}/objects/{obj...}",
+        "GET /encoded/a%2Fb/{tail}"
+      ],
+      "params": [
+        "resource",
+        "bucket",
+        "obj",
+        "tail"
+      ],
+      "queries": [
+        {
+          "method": "GET",
+          "host": "api.example.com",
+          "target": "/v1/users"
+        },
+        {
+          "method": "GET",
+          "host": "api.example.com:8080",
+          "target": "/v1/users"
+        },
+        {
+          "method": "GET",
+          "host": "api.example.com",
+          "target": "/v1/health"
+        },
+        {
+          "method": "GET",
+          "host": "other.example.com",
+          "target": "/v1/health"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/buckets/my-bkt/objects/dir/file.json"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/buckets/b%2F1/objects/x%20y/z"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/encoded/a%2Fb/ok"
+        },
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/encoded/a/b/ok"
+        }
+      ],
+      "expected": [
+        {
+          "status": 200,
+          "pattern": "api.example.com/v1/{resource}",
+          "handler": "api.example.com/v1/{resource}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "resource": "users"
+          }
+        },
+        {
+          "status": 200,
+          "pattern": "api.example.com/v1/{resource}",
+          "handler": "api.example.com/v1/{resource}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "resource": "users"
+          }
+        },
+        {
+          "status": 200,
+          "pattern": "api.example.com/v1/health",
+          "handler": "api.example.com/v1/health",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "/v1/{resource}",
+          "handler": "/v1/{resource}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "resource": "health"
+          }
+        },
+        {
+          "status": 200,
+          "pattern": "GET /buckets/{bucket}/objects/{obj...}",
+          "handler": "GET /buckets/{bucket}/objects/{obj...}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "bucket": "my-bkt",
+            "obj": "dir/file.json"
+          }
+        },
+        {
+          "status": 200,
+          "pattern": "GET /buckets/{bucket}/objects/{obj...}",
+          "handler": "GET /buckets/{bucket}/objects/{obj...}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "bucket": "b/1",
+            "obj": "x y/z"
+          }
+        },
+        {
+          "status": 200,
+          "pattern": "GET /encoded/a%2Fb/{tail}",
+          "handler": "GET /encoded/a%2Fb/{tail}",
+          "location": "",
+          "allow": "",
+          "path_values": {
+            "tail": "ok"
+          }
+        },
+        {
+          "status": 404,
+          "pattern": "",
+          "handler": "",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        }
+      ]
+    },
+    {
+      "name": "method-405-and-fallback",
+      "routes": [
+        "POST /only-post",
+        "PUT /multi",
+        "DELETE /multi",
+        "GET /multi",
+        "/catch/"
+      ],
+      "params": [],
+      "queries": [
+        {
+          "method": "GET",
+          "host": "example.com",
+          "target": "/only-post"
+        },
+        {
+          "method": "POST",
+          "host": "example.com",
+          "target": "/only-post"
+        },
+        {
+          "method": "PATCH",
+          "host": "example.com",
+          "target": "/multi"
+        },
+        {
+          "method": "HEAD",
+          "host": "example.com",
+          "target": "/multi"
+        },
+        {
+          "method": "DELETE",
+          "host": "example.com",
+          "target": "/catch/anything"
+        }
+      ],
+      "expected": [
+        {
+          "status": 405,
+          "pattern": "",
+          "handler": "",
+          "location": "",
+          "allow": "POST",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "POST /only-post",
+          "handler": "POST /only-post",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 405,
+          "pattern": "",
+          "handler": "",
+          "location": "",
+          "allow": "DELETE, GET, HEAD, PUT",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "GET /multi",
+          "handler": "GET /multi",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        },
+        {
+          "status": 200,
+          "pattern": "/catch/",
+          "handler": "/catch/",
+          "location": "",
+          "allow": "",
+          "path_values": {}
+        }
+      ]
+    }
+  ],
+  "wire_requests": [
+    {
+      "name": "simple-get",
+      "raw": "GET /hello?a=1\u0026b=two HTTP/1.1\r\nHost: example.com\r\nUser-Agent: cinch/1\r\n\r\n",
+      "valid": true,
+      "method": "GET",
+      "target": "/hello?a=1\u0026b=two",
+      "path": "/hello",
+      "raw_query": "a=1\u0026b=two",
+      "host": "example.com",
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "User-Agent",
+          "cinch/1"
+        ]
+      ],
+      "body_hex": "",
+      "close": false,
+      "content_length": 0,
+      "query_params": {
+        "a": "1",
+        "b": "two"
+      },
+      "form_params": {
+        "a": "1",
+        "b": "two"
+      }
+    },
+    {
+      "name": "post-content-length-form",
+      "raw": "POST /submit?q=url HTTP/1.1\r\nHost: example.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 18\r\n\r\nname=ada\u0026q=bodyval",
+      "valid": true,
+      "method": "POST",
+      "target": "/submit?q=url",
+      "path": "/submit",
+      "raw_query": "q=url",
+      "host": "example.com",
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "Content-Length",
+          "18"
+        ],
+        [
+          "Content-Type",
+          "application/x-www-form-urlencoded"
+        ]
+      ],
+      "body_hex": "6e616d653d61646126713d626f647976616c",
+      "close": false,
+      "content_length": 18,
+      "query_params": {
+        "q": "url"
+      },
+      "form_params": {
+        "name": "ada",
+        "q": "bodyval"
+      }
+    },
+    {
+      "name": "chunked-request",
+      "raw": "POST /upload HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nHello\r\n7;ext=1\r\n, World\r\n0\r\n\r\n",
+      "valid": true,
+      "method": "POST",
+      "target": "/upload",
+      "path": "/upload",
+      "raw_query": "",
+      "host": "example.com",
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": null,
+      "body_hex": "48656c6c6f2c20576f726c64",
+      "close": false,
+      "content_length": -1,
+      "query_params": {},
+      "form_params": {}
+    },
+    {
+      "name": "http10-close",
+      "raw": "GET /legacy HTTP/1.0\r\nHost: old.example\r\n\r\n",
+      "valid": true,
+      "method": "GET",
+      "target": "/legacy",
+      "path": "/legacy",
+      "raw_query": "",
+      "host": "old.example",
+      "proto_major": 1,
+      "proto_minor": 0,
+      "headers": null,
+      "body_hex": "",
+      "close": true,
+      "content_length": 0,
+      "query_params": {},
+      "form_params": {}
+    },
+    {
+      "name": "http11-explicit-close",
+      "raw": "GET /bye HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n",
+      "valid": true,
+      "method": "GET",
+      "target": "/bye",
+      "path": "/bye",
+      "raw_query": "",
+      "host": "example.com",
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "Connection",
+          "close"
+        ]
+      ],
+      "body_hex": "",
+      "close": true,
+      "content_length": 0,
+      "query_params": {},
+      "form_params": {}
+    },
+    {
+      "name": "duplicate-headers",
+      "raw": "GET /h HTTP/1.1\r\nHost: example.com\r\nx-tag: one\r\nX-Tag: two\r\n\r\n",
+      "valid": true,
+      "method": "GET",
+      "target": "/h",
+      "path": "/h",
+      "raw_query": "",
+      "host": "example.com",
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "X-Tag",
+          "one"
+        ],
+        [
+          "X-Tag",
+          "two"
+        ]
+      ],
+      "body_hex": "",
+      "close": false,
+      "content_length": 0,
+      "query_params": {},
+      "form_params": {}
+    },
+    {
+      "name": "bad-request-line",
+      "raw": "NOT_A_REQUEST\r\n\r\n",
+      "valid": false,
+      "method": "",
+      "target": "",
+      "path": "",
+      "raw_query": "",
+      "host": "",
+      "proto_major": 0,
+      "proto_minor": 0,
+      "headers": null,
+      "body_hex": "",
+      "close": false,
+      "content_length": 0,
+      "query_params": null,
+      "form_params": null
+    },
+    {
+      "name": "bad-content-length",
+      "raw": "POST /x HTTP/1.1\r\nHost: example.com\r\nContent-Length: abc\r\n\r\n",
+      "valid": false,
+      "method": "",
+      "target": "",
+      "path": "",
+      "raw_query": "",
+      "host": "",
+      "proto_major": 0,
+      "proto_minor": 0,
+      "headers": null,
+      "body_hex": "",
+      "close": false,
+      "content_length": 0,
+      "query_params": null,
+      "form_params": null
+    }
+  ],
+  "wire_responses": [
+    {
+      "name": "ok-content-length",
+      "req_method": "GET",
+      "raw": "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello",
+      "valid": true,
+      "status": 200,
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "Content-Length",
+          "5"
+        ],
+        [
+          "Content-Type",
+          "text/plain"
+        ]
+      ],
+      "body_hex": "68656c6c6f"
+    },
+    {
+      "name": "chunked-response",
+      "req_method": "GET",
+      "raw": "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n",
+      "valid": true,
+      "status": 200,
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": null,
+      "body_hex": "57696b697065646961"
+    },
+    {
+      "name": "head-no-body",
+      "req_method": "HEAD",
+      "raw": "HTTP/1.1 200 OK\r\nContent-Length: 999\r\n\r\n",
+      "valid": true,
+      "status": 200,
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "Content-Length",
+          "999"
+        ]
+      ],
+      "body_hex": ""
+    },
+    {
+      "name": "no-content-204",
+      "req_method": "DELETE",
+      "raw": "HTTP/1.1 204 No Content\r\nX-Done: yes\r\n\r\n",
+      "valid": true,
+      "status": 204,
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "X-Done",
+          "yes"
+        ]
+      ],
+      "body_hex": ""
+    },
+    {
+      "name": "not-modified-304",
+      "req_method": "GET",
+      "raw": "HTTP/1.1 304 Not Modified\r\nETag: \"v1\"\r\n\r\n",
+      "valid": true,
+      "status": 304,
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "Etag",
+          "\"v1\""
+        ]
+      ],
+      "body_hex": ""
+    },
+    {
+      "name": "eof-delimited",
+      "req_method": "GET",
+      "raw": "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nuntil eof",
+      "valid": true,
+      "status": 200,
+      "proto_major": 1,
+      "proto_minor": 1,
+      "headers": [
+        [
+          "Content-Type",
+          "text/plain"
+        ]
+      ],
+      "body_hex": "756e74696c20656f66"
+    },
+    {
+      "name": "bad-status-line",
+      "req_method": "GET",
+      "raw": "GARBAGE\r\n\r\n",
+      "valid": false,
+      "status": 0,
+      "proto_major": 0,
+      "proto_minor": 0,
+      "headers": null,
+      "body_hex": ""
+    }
+  ],
+  "recorders": [
+    {
+      "name": "empty-default",
+      "status": 200,
+      "body": "",
+      "content_type": "",
+      "headers": null,
+      "flushed": false
+    },
+    {
+      "name": "implicit-200-and-snapshot",
+      "status": 200,
+      "body": "hello world",
+      "content_type": "text/plain; charset=utf-8",
+      "headers": [
+        [
+          "Content-Type",
+          "text/plain; charset=utf-8"
+        ],
+        [
+          "X-Before",
+          "1"
+        ]
+      ],
+      "flushed": false
+    },
+    {
+      "name": "created-json-flushed",
+      "status": 201,
+      "body": "{\"ok\":true}",
+      "content_type": "application/json",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ]
+      ],
+      "flushed": true
+    },
+    {
+      "name": "flush-triggers-200",
+      "status": 200,
+      "body": "",
+      "content_type": "",
+      "headers": [
+        [
+          "X-Multi",
+          "a"
+        ],
+        [
+          "X-Multi",
+          "b"
+        ]
+      ],
+      "flushed": true
+    }
+  ],
+  "new_requests": [
+    {
+      "name": "default-get",
+      "method": "",
+      "target": "/hello?x=1",
+      "body": "",
+      "got_method": "GET",
+      "got_host": "example.com",
+      "got_path": "/hello",
+      "got_query": "x=1",
+      "got_uri": "/hello?x=1",
+      "proto_major": 1,
+      "proto_minor": 1,
+      "remote_addr": "192.0.2.1:1234"
+    },
+    {
+      "name": "post-with-host",
+      "method": "POST",
+      "target": "http://api.local:8080/v1/items?k=v",
+      "body": "payload",
+      "got_method": "POST",
+      "got_host": "api.local:8080",
+      "got_path": "/v1/items",
+      "got_query": "k=v",
+      "got_uri": "http://api.local:8080/v1/items?k=v",
+      "proto_major": 1,
+      "proto_minor": 1,
+      "remote_addr": "192.0.2.1:1234"
+    },
+    {
+      "name": "root-path",
+      "method": "DELETE",
+      "target": "/",
+      "body": "",
+      "got_method": "DELETE",
+      "got_host": "example.com",
+      "got_path": "/",
+      "got_query": "",
+      "got_uri": "/",
+      "proto_major": 1,
+      "proto_minor": 1,
+      "remote_addr": "192.0.2.1:1234"
+    }
+  ]
+}

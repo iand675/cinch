@@ -37,6 +37,13 @@ module Data.Wide where
 
   export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-f32-to-i128, checked-f32-to-u128, checked-f64-to-i128, checked-f64-to-u128, checked-i128-to-i128, checked-i128-to-i16, checked-i128-to-i32, checked-i128-to-i64, checked-i128-to-i8, checked-i128-to-isize, checked-i128-to-u128, checked-i128-to-u16, checked-i128-to-u32, checked-i128-to-u64, checked-i128-to-u8, checked-i128-to-usize, checked-i16-to-i128, checked-i16-to-u128, checked-i32-to-i128, checked-i32-to-u128, checked-i64-to-i128, checked-i64-to-u128, checked-i8-to-i128, checked-i8-to-u128, checked-int-to-i128, checked-int-to-u128, checked-isize-to-i128, checked-isize-to-u128, checked-mul-i128, checked-mul-u128, checked-nat-to-i128, checked-nat-to-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-shl-i128, checked-shl-u128, checked-shr-i128, checked-shr-u128, checked-sub-i128, checked-sub-u128, checked-u128-to-i128, checked-u128-to-i16, checked-u128-to-i32, checked-u128-to-i64, checked-u128-to-i8, checked-u128-to-isize, checked-u128-to-u128, checked-u128-to-u16, checked-u128-to-u32, checked-u128-to-u64, checked-u128-to-u8, checked-u128-to-usize, checked-u16-to-i128, checked-u16-to-u128, checked-u32-to-i128, checked-u32-to-u128, checked-u64-to-i128, checked-u64-to-u128, checked-u8-to-i128, checked-u8-to-u128, checked-usize-to-i128, checked-usize-to-u128, count-ones-i128, count-ones-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, i128-to-f32, i128-to-f64, i128-to-i128, i16-to-i128, i32-to-i128, i64-to-i128, i8-to-i128, int-from-i128, int-from-u128, int-to-i128, isize-to-i128, le-i128, le-u128, leading-zeros-i128, leading-zeros-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, nat-from-u128, nat-to-u128, ne-i128, ne-u128, reverse-bits-i128, reverse-bits-u128, rotate-left-i128, rotate-left-u128, rotate-right-i128, rotate-right-u128, saturating-add-i128, saturating-add-u128, saturating-f32-to-i128, saturating-f32-to-u128, saturating-f64-to-i128, saturating-f64-to-u128, saturating-i128-to-i128, saturating-i128-to-i16, saturating-i128-to-i32, saturating-i128-to-i64, saturating-i128-to-i8, saturating-i128-to-isize, saturating-i128-to-u128, saturating-i128-to-u16, saturating-i128-to-u32, saturating-i128-to-u64, saturating-i128-to-u8, saturating-i128-to-usize, saturating-i16-to-i128, saturating-i16-to-u128, saturating-i32-to-i128, saturating-i32-to-u128, saturating-i64-to-i128, saturating-i64-to-u128, saturating-i8-to-i128, saturating-i8-to-u128, saturating-isize-to-i128, saturating-isize-to-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, saturating-u128-to-i128, saturating-u128-to-i16, saturating-u128-to-i32, saturating-u128-to-i64, saturating-u128-to-i8, saturating-u128-to-isize, saturating-u128-to-u128, saturating-u128-to-u16, saturating-u128-to-u32, saturating-u128-to-u64, saturating-u128-to-u8, saturating-u128-to-usize, saturating-u16-to-i128, saturating-u16-to-u128, saturating-u32-to-i128, saturating-u32-to-u128, saturating-u64-to-i128, saturating-u64-to-u128, saturating-u8-to-i128, saturating-u8-to-u128, saturating-usize-to-i128, saturating-usize-to-u128, swap-bytes-i128, swap-bytes-u128, trailing-zeros-i128, trailing-zeros-u128, u128-to-f32, u128-to-f64, u128-to-u128, u16-to-i128, u16-to-u128, u32-to-i128, u32-to-u128, u64-to-i128, u64-to-u128, u8-to-i128, u8-to-u128, usize-to-i128, usize-to-u128, wrapping-add-i128, wrapping-add-u128, wrapping-i128-to-i128, wrapping-i128-to-i16, wrapping-i128-to-i32, wrapping-i128-to-i64, wrapping-i128-to-i8, wrapping-i128-to-isize, wrapping-i128-to-u128, wrapping-i128-to-u16, wrapping-i128-to-u32, wrapping-i128-to-u64, wrapping-i128-to-u8, wrapping-i128-to-usize, wrapping-i16-to-i128, wrapping-i16-to-u128, wrapping-i32-to-i128, wrapping-i32-to-u128, wrapping-i64-to-i128, wrapping-i64-to-u128, wrapping-i8-to-i128, wrapping-i8-to-u128, wrapping-isize-to-i128, wrapping-isize-to-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-shl-i128, wrapping-shl-u128, wrapping-shr-i128, wrapping-shr-u128, wrapping-sub-i128, wrapping-sub-u128, wrapping-u128-to-i128, wrapping-u128-to-i16, wrapping-u128-to-i32, wrapping-u128-to-i64, wrapping-u128-to-i8, wrapping-u128-to-isize, wrapping-u128-to-u128, wrapping-u128-to-u16, wrapping-u128-to-u32, wrapping-u128-to-u64, wrapping-u128-to-u8, wrapping-u128-to-usize, wrapping-u16-to-i128, wrapping-u16-to-u128, wrapping-u32-to-i128, wrapping-u32-to-u128, wrapping-u64-to-i128, wrapping-u64-to-u128, wrapping-u8-to-i128, wrapping-u8-to-u128, wrapping-usize-to-i128, wrapping-usize-to-u128
 
+  export div-u128, rem-u128
+  export simd-bitselect
+  export simd-u8x16-splat, simd-u8x16-add, simd-u8x16-sub, simd-u8x16-cmpeq, simd-u8x16-cmplt, simd-u8x16-cmpgt, simd-u8x16-movemask
+  export simd-u16x8-splat, simd-u16x8-add, simd-u16x8-sub, simd-u16x8-mul, simd-u16x8-shl, simd-u16x8-shr, simd-i16x8-ashr, simd-u16x8-cmpeq, simd-u16x8-cmplt, simd-i16x8-cmplt, simd-i16x8-smin, simd-i16x8-smax
+  export simd-u32x4-splat, simd-u32x4-add, simd-u32x4-sub, simd-u32x4-mul, simd-u32x4-shl, simd-u32x4-shr, simd-i32x4-ashr, simd-u32x4-rotl, simd-u32x4-rotr, simd-i32x4-smin, simd-i32x4-smax, simd-u32x4-cmpeq, simd-u32x4-cmplt, simd-u32x4-pack
+  export simd-u64x2-splat, simd-u64x2-add, simd-u64x2-sub, simd-u64x2-shl, simd-u64x2-shr, simd-u64x2-rotl, simd-u64x2-rotr, simd-u64x2-pack
+
   -- I128 (128 bits).
   foreign import ccall "cinch.prim.minBoundI128" min-bound-i128 :: I128
   foreign import ccall "cinch.prim.maxBoundI128" max-bound-i128 :: I128
@@ -85,6 +92,8 @@ module Data.Wide where
   foreign import ccall "cinch.prim.checkedNegU128" checked-neg-u128 :: U128 -> Option U128
   foreign import ccall "cinch.prim.checkedDivU128" checked-div-u128 :: U128 -> U128 -> Option U128
   foreign import ccall "cinch.prim.checkedRemU128" checked-rem-u128 :: U128 -> U128 -> Option U128
+  foreign import ccall "cinch.prim.divU128" div-u128 :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.remU128" rem-u128 :: U128 -> U128 -> U128
   foreign import ccall "cinch.prim.wrappingAddU128" wrapping-add-u128 :: U128 -> U128 -> U128
   foreign import ccall "cinch.prim.wrappingSubU128" wrapping-sub-u128 :: U128 -> U128 -> U128
   foreign import ccall "cinch.prim.wrappingMulU128" wrapping-mul-u128 :: U128 -> U128 -> U128
@@ -114,6 +123,50 @@ module Data.Wide where
   foreign import ccall "cinch.prim.leU128" le-u128 :: U128 -> U128 -> Bool
   foreign import ccall "cinch.prim.gtU128" gt-u128 :: U128 -> U128 -> Bool
   foreign import ccall "cinch.prim.geU128" ge-u128 :: U128 -> U128 -> Bool
+
+  -- Portable 128-bit SIMD lane operations over U128 (lane 0 in least-significant bits).
+  foreign import ccall "cinch.prim.simdBitSelect" simd-bitselect :: U128 -> U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU8x16Splat" simd-u8x16-splat :: U8 -> U128
+  foreign import ccall "cinch.prim.simdU8x16Add" simd-u8x16-add :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU8x16Sub" simd-u8x16-sub :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU8x16CmpEq" simd-u8x16-cmpeq :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU8x16CmpLt" simd-u8x16-cmplt :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU8x16CmpGt" simd-u8x16-cmpgt :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU8x16Movemask" simd-u8x16-movemask :: U128 -> U32
+  foreign import ccall "cinch.prim.simdU16x8Splat" simd-u16x8-splat :: U16 -> U128
+  foreign import ccall "cinch.prim.simdU16x8Add" simd-u16x8-add :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU16x8Sub" simd-u16x8-sub :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU16x8Mul" simd-u16x8-mul :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU16x8Shl" simd-u16x8-shl :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU16x8Shr" simd-u16x8-shr :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdI16x8Ashr" simd-i16x8-ashr :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU16x8CmpEq" simd-u16x8-cmpeq :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU16x8CmpLt" simd-u16x8-cmplt :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdI16x8CmpLt" simd-i16x8-cmplt :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdI16x8Smin" simd-i16x8-smin :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdI16x8Smax" simd-i16x8-smax :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Splat" simd-u32x4-splat :: U32 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Add" simd-u32x4-add :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Sub" simd-u32x4-sub :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Mul" simd-u32x4-mul :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Shl" simd-u32x4-shl :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Shr" simd-u32x4-shr :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdI32x4Ashr" simd-i32x4-ashr :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Rotl" simd-u32x4-rotl :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Rotr" simd-u32x4-rotr :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdI32x4Smin" simd-i32x4-smin :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdI32x4Smax" simd-i32x4-smax :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU32x4CmpEq" simd-u32x4-cmpeq :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU32x4CmpLt" simd-u32x4-cmplt :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU32x4Pack" simd-u32x4-pack :: U32 -> U32 -> U32 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU64x2Splat" simd-u64x2-splat :: U64 -> U128
+  foreign import ccall "cinch.prim.simdU64x2Add" simd-u64x2-add :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU64x2Sub" simd-u64x2-sub :: U128 -> U128 -> U128
+  foreign import ccall "cinch.prim.simdU64x2Shl" simd-u64x2-shl :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU64x2Shr" simd-u64x2-shr :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU64x2Rotl" simd-u64x2-rotl :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU64x2Rotr" simd-u64x2-rotr :: U128 -> U32 -> U128
+  foreign import ccall "cinch.prim.simdU64x2Pack" simd-u64x2-pack :: U64 -> U64 -> U128
 
 
   -- Conversions with every numeric type, in the families of the primitive

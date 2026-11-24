@@ -487,7 +487,7 @@ fn total_primitive(primitive: PrimOp) -> Option<crate::total::Op> {
         PrimOp::Int(IntOp::Cmp) => Op::IntCmp,
         PrimOp::Int(IntOp::FromNat) => Op::IntFromNat,
         PrimOp::Int(IntOp::FromI64) => Op::IntFromI64,
-        PrimOp::Bytes(BytesOp::Len) => Op::BytesLen,
+        PrimOp::Bytes(BytesOp::Len | BytesOp::LenI64) => Op::BytesLen,
         PrimOp::Cmp { ty: Scalar::I64, op } => match op {
             CmpOp::Eq => Op::I64Eq, CmpOp::Ne => Op::I64Ne,
             CmpOp::Lt => Op::I64Lt, CmpOp::Le => Op::I64Le,
@@ -843,7 +843,7 @@ impl Checker {
                     ECore::Global(id, actuals) if actuals.is_empty() => self.fns.iter().find(|f| f.id == *id).and_then(|f| f.prim),
                     _ => None,
                 };
-                if primitive == Some(PrimOp::Bytes(BytesOp::Len)) && arguments.len() == 1 {
+                if matches!(primitive, Some(PrimOp::Bytes(BytesOp::Len | BytesOp::LenI64))) && arguments.len() == 1 {
                     let ECore::Var(local) = arguments[0] else { return None };
                     let (name, _, scheme) = env.locals.iter().rev().find(|(_, id, _)| id == local)?;
                     let ty = self.uni.zonk(&scheme.ty);

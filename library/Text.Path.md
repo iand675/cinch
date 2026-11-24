@@ -10,7 +10,7 @@ Import with `import Text.Path`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
 Non-embedded source closure: [Text.Path](Text.Path.md).
 
@@ -22,7 +22,7 @@ path text. Cleaning resolves dots lexically without touching the filesystem.
 Matching supports *, ?, escaped literals and nonempty Unicode range classes.
 Stars never consume /; classes can explicitly match it. Patterns are checked
 completely before matching, including patterns whose first term fails.
-Complete scans use inline LLVM SIMD lanes with retained owners and exact tails.
+Complete scans use portable 16-byte SIMD lanes with bounded loads and exact tails.
 
 </details>
 
@@ -36,7 +36,7 @@ Complete scans use inline LLVM SIMD lanes with retained owners and exact tails.
 
 An immutable, fully checked shell pattern reusable across independent path names.
 
-[Source](/reference-sources/Text.Path.cinch) · line 354
+[Source](/reference-sources/Text.Path.cinch) · line 334
 
 <a id="type-506174685061747465726e4572726f72"></a>
 
@@ -46,7 +46,7 @@ An immutable, fully checked shell pattern reusable across independent path names
 
 A shell pattern contains an incomplete escape or malformed Unicode range class.
 
-[Source](/reference-sources/Text.Path.cinch) · line 334
+[Source](/reference-sources/Text.Path.cinch) · line 314
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidPathPattern</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">PathPatternError</span></code></pre>
 
@@ -60,7 +60,7 @@ A shell pattern contains an incomplete escape or malformed Unicode range class.
 
 Return the final nonempty component, / for slash-only paths, and . for empty input.
 
-[Source](/reference-sources/Text.Path.cinch) · line 226
+[Source](/reference-sources/Text.Path.cinch) · line 206
 
 <a id="value-706174682d636c65616e"></a>
 
@@ -71,7 +71,7 @@ Return the final nonempty component, / for slash-only paths, and . for empty inp
 Lexically collapse separators and dot components; an empty result becomes .
 Rooted parent components stop at /; leading relative parent components are retained.
 
-[Source](/reference-sources/Text.Path.cinch) · line 255
+[Source](/reference-sources/Text.Path.cinch) · line 235
 
 <a id="value-706174682d646972"></a>
 
@@ -81,7 +81,7 @@ Rooted parent components stop at /; leading relative parent components are retai
 
 Return the cleaned directory portion, using . when no directory is present.
 
-[Source](/reference-sources/Text.Path.cinch) · line 239
+[Source](/reference-sources/Text.Path.cinch) · line 219
 
 <a id="value-706174682d657874"></a>
 
@@ -92,7 +92,7 @@ Return the cleaned directory portion, using . when no directory is present.
 Return the final dot and following bytes of the last component, or empty text.
 Leading dots count as extensions; a path ending in / has no extension.
 
-[Source](/reference-sources/Text.Path.cinch) · line 250
+[Source](/reference-sources/Text.Path.cinch) · line 230
 
 <a id="value-706174682d69732d6162736f6c757465"></a>
 
@@ -102,7 +102,7 @@ Leading dots count as extensions; a path ending in / has no extension.
 
 Whether a path starts with /; no normalization or filesystem lookup is performed.
 
-[Source](/reference-sources/Text.Path.cinch) · line 222
+[Source](/reference-sources/Text.Path.cinch) · line 202
 
 <a id="value-706174682d6a6f696e"></a>
 
@@ -113,7 +113,7 @@ Whether a path starts with /; no normalization or filesystem lookup is performed
 Join nonempty path elements with / and clean the result; all-empty input returns empty text.
 Later absolute-looking elements do not discard preceding elements.
 
-[Source](/reference-sources/Text.Path.cinch) · line 327
+[Source](/reference-sources/Text.Path.cinch) · line 307
 
 <a id="value-706174682d6d61746368"></a>
 
@@ -123,7 +123,7 @@ Later absolute-looking elements do not discard preceding elements.
 
 Check and match a shell pattern against the entire UTF-8 path name.
 
-[Source](/reference-sources/Text.Path.cinch) · line 514
+[Source](/reference-sources/Text.Path.cinch) · line 506
 
 <a id="value-706174682d7061747465726e"></a>
 
@@ -133,7 +133,7 @@ Check and match a shell pattern against the entire UTF-8 path name.
 
 Parse a complete pattern, rejecting malformed suffixes even when an earlier term cannot match.
 
-[Source](/reference-sources/Text.Path.cinch) · line 366
+[Source](/reference-sources/Text.Path.cinch) · line 346
 
 <a id="value-706174682d7061747465726e2d6572726f722d6d657373616765"></a>
 
@@ -143,7 +143,7 @@ Parse a complete pattern, rejecting malformed suffixes even when an earlier term
 
 Render the stable malformed-pattern diagnostic.
 
-[Source](/reference-sources/Text.Path.cinch) · line 339
+[Source](/reference-sources/Text.Path.cinch) · line 319
 
 <a id="value-706174682d7061747465726e2d6d61746368"></a>
 
@@ -154,7 +154,7 @@ Render the stable malformed-pattern diagnostic.
 Match a reusable checked pattern against an entire path name.
 Pattern state and path text remain immutable across repeated calls.
 
-[Source](/reference-sources/Text.Path.cinch) · line 510
+[Source](/reference-sources/Text.Path.cinch) · line 502
 
 <a id="value-706174682d73706c6974"></a>
 
@@ -164,8 +164,8 @@ Pattern state and path text remain immutable across repeated calls.
 
 Split immediately after the final slash, preserving repeated and trailing separators.
 
-[Source](/reference-sources/Text.Path.cinch) · line 233
+[Source](/reference-sources/Text.Path.cinch) · line 213
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Path.cinch`. Source SHA-256: `8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Path.cinch`. Source SHA-256: `850705b99461fccd2e8fc0bc88e28a7bd3b873ae694998c4496e8f0b5a770fb7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

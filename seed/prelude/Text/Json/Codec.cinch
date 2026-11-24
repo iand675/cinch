@@ -18,6 +18,7 @@ module Text.Json.Codec where
   import Data.Result
   import Data.String
   import Data.Unicode.Kernel
+  import Data.Wide
 
   export json-bytes-type, json-byte-slice-type, json-fixed-bytes-type
   export json-uint64-type, json-int8-type, json-int16-type, json-int32-type, json-isize-type, json-uint8-type, json-uint16-type, json-uint32-type, json-usize-type
@@ -1094,11 +1095,8 @@ module Text.Json.Codec where
     Type label "" (\options -> JsonArrayKind) JsonArrayKind (fixed-array-default descriptor size) (\values -> fixed-array-zero-from descriptor values 0) fixed-array-empty (fixed-array-encode descriptor size) (aggregate-update (fixed-array-update descriptor size label))
 
   -- | Observe floating-point exponent bits without changing NaN payloads or signed zero.
-  prim float64-bits :: F64 -> U64 where
-    llvm {
-      %bits = bitcast double %0 to i64
-      ret i64 %bits
-    }
+  float64-bits :: F64 -> U64
+  float64-bits value = f64-bits value
 
   -- | Whether a floating application value has a finite JSON representation.
   finite-float64 :: F64 -> Bool
@@ -1494,55 +1492,26 @@ module Text.Json.Codec where
 
 
   -- | Compare sixteen ASCII name bytes after simple case folding; zero requests scalar Unicode/delimiter handling.
-  -- The caller proves both complete intervals and retains both owners. This kernel performs no stores.
-  prim folded-ascii16 :: I64 -> I64 -> U8 -> U8 where
-    unsafe llvm {
-      %lp = inttoptr i64 %0 to ptr
-      %rp = inttoptr i64 %1 to ptr
-      %left = load <16 x i8>, ptr %lp, align 1
-      %right = load <16 x i8>, ptr %rp, align 1
-      %lascii = icmp ult <16 x i8> %left, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
-      %llower = icmp uge <16 x i8> %left, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
-      %lupper = icmp ule <16 x i8> %left, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
-      %lletter = and <16 x i1> %llower, %lupper
-      %ladded = add <16 x i8> %left, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %lfolded = select <16 x i1> %lletter, <16 x i8> %ladded, <16 x i8> %left
-      %ldash = icmp ne <16 x i8> %left, <i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45>
-      %lunder = icmp ne <16 x i8> %left, <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>
-      %lplain = and <16 x i1> %ldash, %lunder
-      %rascii = icmp ult <16 x i8> %right, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
-      %rlower = icmp uge <16 x i8> %right, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
-      %rupper = icmp ule <16 x i8> %right, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
-      %rletter = and <16 x i1> %rlower, %rupper
-      %radded = add <16 x i8> %right, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %rfolded = select <16 x i1> %rletter, <16 x i8> %radded, <16 x i8> %right
-      %rdash = icmp ne <16 x i8> %right, <i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45, i8 45>
-      %runder = icmp ne <16 x i8> %right, <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>
-      %rplain = and <16 x i1> %rdash, %runder
-      %ascii = and <16 x i1> %lascii, %rascii
-      %plain = and <16 x i1> %lplain, %rplain
-      %preserve = icmp ne i8 %2, 0
-      %plainascii = and <16 x i1> %ascii, %plain
-      %safe = select i1 %preserve, <16 x i1> %ascii, <16 x i1> %plainascii
-      %safebits = bitcast <16 x i1> %safe to i16
-      %all = icmp eq i16 %safebits, -1
-      %same = icmp eq <16 x i8> %lfolded, %rfolded
-      %samebits = bitcast <16 x i1> %same to i16
-      %equal = icmp eq i16 %samebits, -1
-      %classified = select i1 %equal, i8 2, i8 1
-      %out = select i1 %all, i8 %classified, i8 0
-      ret i8 %out
-    }
-
-  -- | Retain both immutable name buffers until the complete private load has returned.
-  hold-name-owners :: Bytes -> Bytes -> U8 -> U8
-  hold-name-owners left right result = case bytes-len left of _ -> case bytes-len right of _ -> result
+  folded-ascii16 :: U128 -> U128 -> Bool -> U8
+  folded-ascii16 left right preserve =
+    let ascii-ok = eq-u32 (simd-u8x16-movemask (bit-or-u128 left right)) 0 in
+    let delim-ok = (if preserve then True else
+      let ldel = bit-or-u128 (simd-u8x16-cmpeq left (simd-u8x16-splat 45)) (simd-u8x16-cmpeq left (simd-u8x16-splat 95)) in
+      let rdel = bit-or-u128 (simd-u8x16-cmpeq right (simd-u8x16-splat 45)) (simd-u8x16-cmpeq right (simd-u8x16-splat 95)) in
+      eq-u32 (simd-u8x16-movemask (bit-or-u128 ldel rdel)) 0) in
+    if ascii-ok && delim-ok then
+      let lletter = simd-u8x16-cmplt (simd-u8x16-sub left (simd-u8x16-splat 65)) (simd-u8x16-splat 26) in
+      let rletter = simd-u8x16-cmplt (simd-u8x16-sub right (simd-u8x16-splat 65)) (simd-u8x16-splat 26) in
+      let lfolded = bit-or-u128 left (bit-and-u128 lletter (simd-u8x16-splat 32)) in
+      let rfolded = bit-or-u128 right (bit-and-u128 rletter (simd-u8x16-splat 32)) in
+      if eq-u128 lfolded rfolded then 2 else 1
+    else 0
 
   -- | Skip equal ASCII blocks before the scalar Unicode/delimiter comparison fringe.
   folded-name-from :: Bytes -> Nat -> Bytes -> Nat -> Bool -> Bool
   folded-name-from left li right ri preserve =
     if li + 16 <= bytes-len left && ri + 16 <= bytes-len right then
-      let result = hold-name-owners left right (folded-ascii16 (wrapping-add-i64 (bytes-data left) (nat-to-i64 li)) (wrapping-add-i64 (bytes-data right) (nat-to-i64 ri)) (if preserve then 1 else 0)) in
+      let result = folded-ascii16 (bytes-load-u128 left li) (bytes-load-u128 right ri) preserve in
       if eq-u8 result 2 then folded-name-from left (li + 16) right (ri + 16) preserve
       else if eq-u8 result 1 then False else folded-name-scalar left li right ri preserve
     else folded-name-scalar left li right ri preserve
@@ -1623,28 +1592,16 @@ module Text.Json.Codec where
 
   -- | Decode eight validated ASCII decimal lanes in parallel, returning 100000000 for malformed input.
   -- The input word is explicitly little-endian, independent of the target byte order.
-  prim decimal-eight :: U64 -> U64 where
-    llvm {
-      %digits = sub i64 %0, 3472328296227680304
-      %upper = sub i64 4123389851770370361, %0
-      %outside = or i64 %digits, %upper
-      %bad = and i64 %outside, 9259542123273814144
-      %valid = icmp eq i64 %bad, 0
-      %times10 = mul i64 %digits, 10
-      %next = lshr i64 %digits, 8
-      %pairs0 = add i64 %times10, %next
-      %pairs = and i64 %pairs0, 71777214294589695
-      %times100 = mul i64 %pairs, 100
-      %nextpair = lshr i64 %pairs, 16
-      %quads0 = add i64 %times100, %nextpair
-      %quads = and i64 %quads0, 281470681808895
-      %times10000 = mul i64 %quads, 10000
-      %nextquad = lshr i64 %quads, 32
-      %full0 = add i64 %times10000, %nextquad
-      %full = and i64 %full0, 4294967295
-      %out = select i1 %valid, i64 %full, i64 100000000
-      ret i64 %out
-    }
+  decimal-eight :: U64 -> U64
+  decimal-eight word =
+    let digits = wrapping-sub-u64 word 3472328296227680304 in
+    let upper = wrapping-sub-u64 4123389851770370361 word in
+    let bad = bit-and-u64 (bit-or-u64 digits upper) 9259542123273814144 in
+    if eq-u64 bad 0 then
+      let pairs = bit-and-u64 (wrapping-add-u64 (wrapping-mul-u64 digits 10) (wrapping-shr-u64 digits 8)) 71777214294589695 in
+      let quads = bit-and-u64 (wrapping-add-u64 (wrapping-mul-u64 pairs 100) (wrapping-shr-u64 pairs 16)) 281470681808895 in
+      bit-and-u64 (wrapping-add-u64 (wrapping-mul-u64 quads 10000) (wrapping-shr-u64 quads 32)) 4294967295
+    else 100000000
 
   -- | Accumulate unsigned decimal digits with eight-lane SWAR blocks and explicit overflow refusal.
   unsigned-digits :: Bytes -> Nat -> U64 -> Option U64
@@ -1797,28 +1754,38 @@ module Text.Json.Codec where
       let overlaid = bytes-copy-range output prefix 0 0 (bytes-len prefix) in output
     else prior
 
-  -- | Detect CR or LF among eight byte lanes with parallel zero-byte predicates.
-  prim binary-linebreak-eight :: U64 -> U8 where
-    llvm {
-      %cr = xor i64 %0, 940422246894996749
-      %lf = xor i64 %0, 723401728380766730
-      %crminus = sub i64 %cr, 72340172838076673
-      %lfminus = sub i64 %lf, 72340172838076673
-      %crnot = xor i64 %cr, -1
-      %lfnot = xor i64 %lf, -1
-      %crzero = and i64 %crminus, %crnot
-      %lfzero = and i64 %lfminus, %lfnot
-      %either = or i64 %crzero, %lfzero
-      %masked = and i64 %either, 9259542123273814144
-      %any = icmp ne i64 %masked, 0
-      %out = zext i1 %any to i8
-      ret i8 %out
-    }
+  -- | Scan remaining scalar bytes for CR or LF within a checked binary text buffer.
+  binary-linebreak-tail :: Bytes -> I64 -> I64
+  binary-linebreak-tail input at =
+    if 0 <= at && at < bytes-len-i64 input then
+      let b = bytes-get-u8-at input at in
+      if eq-u8 b 13 || eq-u8 b 10 then at
+      else binary-linebreak-tail input (wrapping-add-i64 at 1)
+    else -1
 
-  -- | Skip complete line-break-free words before inspecting the bounded scalar fringe.
+  -- | Scan complete sixteen-byte SIMD blocks for CR or LF before checking the scalar fringe.
+  binary-linebreak-blocks :: Bytes -> I64 -> I64
+  binary-linebreak-blocks input at =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= at then
+      let nn = nat-from-i64 n in
+      let ni = nat-from-i64 at in
+      if 16 <= nn && ni <= nn - 16 then
+        let chunk = bytes-load-u128 input ni in
+        let crlf = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 13)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 10)) in
+        let mask = simd-u8x16-movemask crlf in
+        if eq-u32 mask 0 then binary-linebreak-blocks input (wrapping-add-i64 at 16)
+        else wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))
+      else binary-linebreak-tail input at
+    else binary-linebreak-tail input at
+
+  -- | Skip complete line-break-free blocks before inspecting the bounded scalar fringe.
   binary-linebreak-at :: Bytes -> Nat -> Option Nat
-  binary-linebreak-at input at = if at + 8 <= bytes-len input && eq-u8 (binary-linebreak-eight (bytes-read-le64 input at)) 0 then binary-linebreak-at input (at + 8)
-    else if at < bytes-len input then if bytes-get input at == 13 || bytes-get input at == 10 then Some at else binary-linebreak-at input (at + 1) else None
+  binary-linebreak-at input at =
+    if at <= bytes-len input then
+      let found = binary-linebreak-blocks input (nat-to-i64 at) in
+      if 0 <= found then Some (nat-from-i64 found) else None
+    else None
 
   -- | Encode binary bytes through the shared SIMD Base64 implementation and JSON string quoting.
   binary-encode :: JsonWriteOptions -> Bytes -> Result JsonError Bytes
@@ -1959,52 +1926,42 @@ module Text.Json.Codec where
   json-byte-key :: forall k. String -> (k -> k -> I64) -> (JsonWriteOptions -> k -> Result JsonError Bytes) -> (JsonReadOptions -> JsonMember -> Result JsonError k) -> JsonKey k
   json-byte-key label compare encode decode = KeySpec label compare (key-encode-bytes encode) decode
 
-  -- | Classify a complete sixteen-byte ASCII interval without reading any fringe bytes.
-  prim key-ascii16 :: I64 -> U8 where
-    unsafe llvm {
-      %address = inttoptr i64 %0 to ptr
-      %word = load <16 x i8>, ptr %address, align 1
-      %high = icmp uge <16 x i8> %word, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
-      %bits = bitcast <16 x i1> %high to i16
-      %ascii = icmp eq i16 %bits, 0
-      %out = zext i1 %ascii to i8
-      ret i8 %out
-    }
+  -- | Finish one bounded scalar ASCII fringe using bounded byte reads.
+  key-ascii-fringe :: Bytes -> I64 -> I64 -> I64
+  key-ascii-fringe input start at =
+    if 0 <= at && at < bytes-len-i64 input then
+      if lt-u8 (bytes-get-u8-at input at) 128 then key-ascii-fringe input start (wrapping-add-i64 at 1)
+      else wrapping-sub-i64 at start
+    else wrapping-sub-i64 at start
 
-  -- | Classify one proved remaining ASCII byte after a vector mismatch or at the final fringe.
-  prim key-ascii-byte :: I64 -> U8 where
-    unsafe llvm {
-      %address = inttoptr i64 %0 to ptr
-      %byte = load i8, ptr %address, align 1
-      %ascii = icmp ult i8 %byte, -128
-      %out = zext i1 %ascii to i8
-      ret i8 %out
-    }
-
-  -- | Finish one bounded scalar ASCII fringe using machine counters only.
-  key-ascii-fringe :: I64 -> U64 -> U64 -> U64
-  key-ascii-fringe address remaining skipped = if gt-u64 remaining 0 && eq-u8 (key-ascii-byte address) 1 then key-ascii-fringe (wrapping-add-i64 address 1) (wrapping-sub-u64 remaining 1) (wrapping-add-u64 skipped 1) else skipped
-
-  -- | Traverse complete ASCII blocks and a final fringe without natural arithmetic or per-byte ownership work.
-  key-ascii-distance :: I64 -> U64 -> U64 -> U64
-  key-ascii-distance address remaining skipped = if ge-u64 remaining 16 && eq-u8 (key-ascii16 address) 1 then key-ascii-distance (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) (wrapping-add-u64 skipped 16) else key-ascii-fringe address remaining skipped
-
-  -- | Retain the exact backing owner through a complete private raw-pointer traversal.
-  hold-key-scan :: Bytes -> U64 -> U64
-  hold-key-scan input result = case bytes-len input of _ -> result
+  -- | Traverse complete sixteen-byte ASCII SIMD blocks and jump straight to the first non-ASCII lane.
+  key-ascii-distance :: Bytes -> I64 -> I64 -> I64
+  key-ascii-distance input start at =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= at then
+      let nn = nat-from-i64 n in
+      let ni = nat-from-i64 at in
+      if 16 <= nn && ni <= nn - 16 then
+        let mask = simd-u8x16-movemask (bytes-load-u128 input ni) in
+        if eq-u32 mask 0 then key-ascii-distance input start (wrapping-add-i64 at 16)
+        else wrapping-sub-i64 (wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))) start
+      else key-ascii-fringe input start at
+    else key-ascii-fringe input start at
 
   -- | Validate scalar UTF-8 after bulk ASCII intervals without allocating a temporary string.
   key-valid-utf8-from :: Bytes -> Nat -> Bool
   key-valid-utf8-from input at = if at <= bytes-len input then
-    let remaining = bytes-len input - at in
-    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
-    let skipped = unsigned-natural (hold-key-scan input (key-ascii-distance address (wrapping-i64-to-u64 (nat-to-i64 remaining)) 0)) in
-    if skipped <= remaining then
-      let next = at + skipped in
-      if next < bytes-len input then case utf8-at input next of
-        None -> False
-        Some scalar -> case scalar of (character, width) -> if width > 0 then key-valid-utf8-from input (next + width) else False
-      else True
+    let start = nat-to-i64 at in
+    let dist = key-ascii-distance input start start in
+    if 0 <= dist then
+      let skipped = nat-from-i64 dist in
+      if skipped <= bytes-len input - at then
+        let next = at + skipped in
+        if next < bytes-len input then case utf8-at input next of
+          None -> False
+          Some scalar -> case scalar of (character, width) -> if width > 0 then key-valid-utf8-from input (next + width) else False
+        else True
+      else False
     else False
     else False
 

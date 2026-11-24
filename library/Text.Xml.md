@@ -10,7 +10,7 @@ Import with `import Text.Xml`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Show](Text.Show.md).
 
 Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Xml](Text.Xml.md).
 
@@ -43,7 +43,7 @@ An element tree (a sibling spine of nodes) can be built from a document.
 
 Name, then value.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 58
+[Source](/reference-sources/Text.Xml.cinch) · line 59
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlAttr</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span>))</code></pre>
 
@@ -55,7 +55,7 @@ Name, then value.
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 127
+[Source](/reference-sources/Text.Xml.cinch) · line 128
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlDecoder</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">Frame</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span>))))))</code></pre>
 
@@ -67,7 +67,7 @@ Fields in the order listed above.
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 677
+[Source](/reference-sources/Text.Xml.cinch) · line 679
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlEncoder</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span>)))))))))))</code></pre>
 
@@ -79,7 +79,7 @@ Fields in the order listed above.
 
 Why decoding or encoding failed.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 88
+[Source](/reference-sources/Text.Xml.cinch) · line 89
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlSyntaxError</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span>))</code></pre>
 
@@ -99,7 +99,7 @@ Why decoding or encoding failed.
 
 Namespace, then local part.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 41
+[Source](/reference-sources/Text.Xml.cinch) · line 42
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlName</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span>))</code></pre>
 
@@ -112,7 +112,7 @@ Namespace, then local part.
 A node in a sibling spine: each node holds the rest of its spine, and an element also holds the spine of
 its children.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 924
+[Source](/reference-sources/Text.Xml.cinch) · line 918
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlElementNode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>))))</code></pre>
 
@@ -134,7 +134,7 @@ its children.
 
 One unit of an XML document.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 73
+[Source](/reference-sources/Text.Xml.cinch) · line 74
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlStartElement</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>))</code></pre>
 
@@ -158,7 +158,7 @@ One unit of an XML document.
 
 Make an attribute.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 61
+[Source](/reference-sources/Text.Xml.cinch) · line 62
 
 <a id="value-786d6c2d617474722d6e616d65"></a>
 
@@ -168,7 +168,7 @@ Make an attribute.
 
 An attribute's name.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 65
+[Source](/reference-sources/Text.Xml.cinch) · line 66
 
 <a id="value-786d6c2d617474722d76616c7565"></a>
 
@@ -178,7 +178,7 @@ An attribute's name.
 
 An attribute's value.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 69
+[Source](/reference-sources/Text.Xml.cinch) · line 70
 
 <a id="value-786d6c2d617474726962757465"></a>
 
@@ -188,7 +188,7 @@ An attribute's value.
 
 The value of an element's attribute with a local name and no namespace.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 1014
+[Source](/reference-sources/Text.Xml.cinch) · line 1008
 
 <a id="value-786d6c2d6368696c642d656c656d656e7473"></a>
 
@@ -198,7 +198,7 @@ The value of an element's attribute with a local name and no namespace.
 
 The child elements of an element with a local name (any namespace), in order.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 1000
+[Source](/reference-sources/Text.Xml.cinch) · line 994
 
 <a id="value-786d6c2d6465636f646572"></a>
 
@@ -208,7 +208,7 @@ The child elements of an element with a local name (any namespace), in order.
 
 A decoder at the start of a document, without a depth limit.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 130
+[Source](/reference-sources/Text.Xml.cinch) · line 131
 
 <a id="value-786d6c2d6465636f6465722d6f6666736574"></a>
 
@@ -218,7 +218,7 @@ A decoder at the start of a document, without a depth limit.
 
 The byte offset of the next unread input.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 138
+[Source](/reference-sources/Text.Xml.cinch) · line 139
 
 <a id="value-786d6c2d6465636f6465722d776974682d64657074682d6c696d6974"></a>
 
@@ -228,7 +228,7 @@ The byte offset of the next unread input.
 
 A decoder that rejects elements nested deeper than the limit.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 134
+[Source](/reference-sources/Text.Xml.cinch) · line 135
 
 <a id="value-786d6c2d646f63756d656e74"></a>
 
@@ -238,7 +238,7 @@ A decoder that rejects elements nested deeper than the limit.
 
 Parse a document into its top-level spine (the declaration, comments, the root element and any other nodes).
 
-[Source](/reference-sources/Text.Xml.cinch) · line 944
+[Source](/reference-sources/Text.Xml.cinch) · line 938
 
 <a id="value-786d6c2d656e636f6465"></a>
 
@@ -248,7 +248,7 @@ Parse a document into its top-level spine (the declaration, comments, the root e
 
 Encode a token sequence and check that every element is closed.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 688
+[Source](/reference-sources/Text.Xml.cinch) · line 690
 
 <a id="value-786d6c2d656e636f64652d746f6b656e"></a>
 
@@ -258,7 +258,7 @@ Encode a token sequence and check that every element is closed.
 
 Write one token.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 701
+[Source](/reference-sources/Text.Xml.cinch) · line 703
 
 <a id="value-786d6c2d656e636f646572"></a>
 
@@ -268,7 +268,7 @@ Write one token.
 
 An encoder that writes tokens without added white space.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 680
+[Source](/reference-sources/Text.Xml.cinch) · line 682
 
 <a id="value-786d6c2d656e636f6465722d636c6f7365"></a>
 
@@ -278,7 +278,7 @@ An encoder that writes tokens without added white space.
 
 Finish: the bytes written, or an error naming the innermost unclosed tag.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 694
+[Source](/reference-sources/Text.Xml.cinch) · line 696
 
 <a id="value-786d6c2d656e636f6465722d696e64656e74"></a>
 
@@ -288,7 +288,7 @@ Finish: the bytes written, or an error naming the innermost unclosed tag.
 
 An encoder that starts each element on a new line with the prefix and one indent per level.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 684
+[Source](/reference-sources/Text.Xml.cinch) · line 686
 
 <a id="value-786d6c2d6572726f722d6d657373616765"></a>
 
@@ -298,7 +298,7 @@ An encoder that starts each element on a new line with the prefix and one indent
 
 Render an error.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 101
+[Source](/reference-sources/Text.Xml.cinch) · line 102
 
 <a id="value-786d6c2d6573636170652d617474726962757465"></a>
 
@@ -308,7 +308,7 @@ Render an error.
 
 Escape an attribute value or other quoted text (line feeds become references).
 
-[Source](/reference-sources/Text.Xml.cinch) · line 874
+[Source](/reference-sources/Text.Xml.cinch) · line 876
 
 <a id="value-786d6c2d6573636170652d74657874"></a>
 
@@ -318,7 +318,7 @@ Escape an attribute value or other quoted text (line feeds become references).
 
 Escape character data (line feeds stay as they are).
 
-[Source](/reference-sources/Text.Xml.cinch) · line 870
+[Source](/reference-sources/Text.Xml.cinch) · line 872
 
 <a id="value-786d6c2d6e616d65"></a>
 
@@ -328,7 +328,7 @@ Escape character data (line feeds stay as they are).
 
 Make a name from a namespace and a local part.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 44
+[Source](/reference-sources/Text.Xml.cinch) · line 45
 
 <a id="value-786d6c2d6e616d652d6c6f63616c"></a>
 
@@ -338,7 +338,7 @@ Make a name from a namespace and a local part.
 
 The local part.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 52
+[Source](/reference-sources/Text.Xml.cinch) · line 53
 
 <a id="value-786d6c2d6e616d652d7370616365"></a>
 
@@ -348,7 +348,7 @@ The local part.
 
 The namespace part.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 48
+[Source](/reference-sources/Text.Xml.cinch) · line 49
 
 <a id="value-786d6c2d6e657874"></a>
 
@@ -358,7 +358,7 @@ The namespace part.
 
 The next token with namespaces translated and end tags matched; None at the end of the document.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 169
+[Source](/reference-sources/Text.Xml.cinch) · line 170
 
 <a id="value-786d6c2d6e6578742d726177"></a>
 
@@ -368,7 +368,7 @@ The next token with namespaces translated and end tags matched; None at the end 
 
 The next raw token: names keep their prefixes and end tags are not matched against start tags.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 154
+[Source](/reference-sources/Text.Xml.cinch) · line 155
 
 <a id="value-786d6c2d6e6f646573"></a>
 
@@ -378,7 +378,7 @@ The next raw token: names keep their prefixes and end tags are not matched again
 
 The nodes of a spine as a list, in order.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 986
+[Source](/reference-sources/Text.Xml.cinch) · line 980
 
 <a id="value-786d6c2d72656e646572"></a>
 
@@ -389,7 +389,7 @@ The nodes of a spine as a list, in order.
 Encode a spine back to XML with an encoder. Names carry decoded namespace URLs, so qualified attributes
 (including namespace declarations, whose namespace is "xmlns") are written with generated prefixes.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 1034
+[Source](/reference-sources/Text.Xml.cinch) · line 1028
 
 <a id="value-786d6c2d74657874"></a>
 
@@ -399,7 +399,7 @@ Encode a spine back to XML with an encoder. Names carry decoded namespace URLs, 
 
 The character data of a node and its descendants, in document order.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 1026
+[Source](/reference-sources/Text.Xml.cinch) · line 1020
 
 <a id="value-786d6c2d746f6b656e73"></a>
 
@@ -409,8 +409,8 @@ The character data of a node and its descendants, in document order.
 
 Decode every token of a document.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 142
+[Source](/reference-sources/Text.Xml.cinch) · line 143
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Xml.cinch`. Source SHA-256: `3f790721d3186a9a3a2c7cc288608b39d2565307f09f13bea1693ea0d83e681b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Xml.cinch`. Source SHA-256: `3b6e28f6684a6a7fcccc4c6c3bdf996162acd9906568b30df6a59478a9da046d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

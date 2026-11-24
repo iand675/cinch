@@ -10,7 +10,7 @@ Import with `import Data.Word`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Machine](Data.Machine.md), [Data.Result](Data.Result.md).
+[Data.Bool](Data.Bool.md), [Data.Machine](Data.Machine.md), [Data.Result](Data.Result.md), [Data.Wide](Data.Wide.md).
 
 Non-embedded source closure: [Data.Word](Data.Word.md).
 
@@ -19,8 +19,8 @@ Non-embedded source closure: [Data.Word](Data.Word.md).
 Fixed-width word utilities and checked double-width unsigned arithmetic.
 Carry and borrow values use Bool. Wide products return high then low words;
 division returns quotient then remainder and names zero-divisor/overflow errors.
-Bit reversal is supplied by Data.Machine. Byte reversal and wide
-arithmetic use inline LLVM with exact double-width intermediates. Native-width
+Bit and byte reversal are supplied by Data.Machine. Wide arithmetic uses
+Data.Machine and Data.Wide with exact double-width intermediates. Native-width
 operations follow Usize's target width.
 
 </details>
@@ -35,7 +35,7 @@ operations follow Usize's target width.
 
 An undefined unsigned division is an explicit result, never a machine trap.
 
-[Source](/reference-sources/Data.Word.cinch) · line 26
+[Source](/reference-sources/Data.Word.cinch) · line 27
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">WordDivideByZero</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Word</span>.<span class="tok-constructor">WordDivisionError</span></code></pre>
 
@@ -51,7 +51,7 @@ An undefined unsigned division is an explicit result, never a machine trap.
 
 Add two 32-bit words and a carry, returning the low word and the outgoing carry.
 
-[Source](/reference-sources/Data.Word.cinch) · line 98
+[Source](/reference-sources/Data.Word.cinch) · line 99
 
 <a id="value-6164642d63617272792d753634"></a>
 
@@ -61,7 +61,7 @@ Add two 32-bit words and a carry, returning the low word and the outgoing carry.
 
 Add two 64-bit words and a carry, returning the low word and the outgoing carry.
 
-[Source](/reference-sources/Data.Word.cinch) · line 104
+[Source](/reference-sources/Data.Word.cinch) · line 106
 
 <a id="value-6164642d63617272792d7573697a65"></a>
 
@@ -71,7 +71,7 @@ Add two 64-bit words and a carry, returning the low word and the outgoing carry.
 
 Add native words and a carry, returning the low word and outgoing carry.
 
-[Source](/reference-sources/Data.Word.cinch) · line 173
+[Source](/reference-sources/Data.Word.cinch) · line 205
 
 <a id="value-6269742d6c656e6774682d753136"></a>
 
@@ -81,7 +81,7 @@ Add native words and a carry, returning the low word and outgoing carry.
 
 The significant bit count of a U16; zero has length zero.
 
-[Source](/reference-sources/Data.Word.cinch) · line 46
+[Source](/reference-sources/Data.Word.cinch) · line 47
 
 <a id="value-6269742d6c656e6774682d753332"></a>
 
@@ -91,7 +91,7 @@ The significant bit count of a U16; zero has length zero.
 
 The significant bit count of a U32; zero has length zero.
 
-[Source](/reference-sources/Data.Word.cinch) · line 59
+[Source](/reference-sources/Data.Word.cinch) · line 60
 
 <a id="value-6269742d6c656e6774682d753634"></a>
 
@@ -101,7 +101,7 @@ The significant bit count of a U32; zero has length zero.
 
 The significant bit count of a U64; zero has length zero.
 
-[Source](/reference-sources/Data.Word.cinch) · line 72
+[Source](/reference-sources/Data.Word.cinch) · line 73
 
 <a id="value-6269742d6c656e6774682d7538"></a>
 
@@ -111,7 +111,7 @@ The significant bit count of a U64; zero has length zero.
 
 The significant bit count of a U8; zero has length zero.
 
-[Source](/reference-sources/Data.Word.cinch) · line 37
+[Source](/reference-sources/Data.Word.cinch) · line 38
 
 <a id="value-6269742d6c656e6774682d7573697a65"></a>
 
@@ -121,7 +121,7 @@ The significant bit count of a U8; zero has length zero.
 
 The significant bit count of a Usize; zero has length zero.
 
-[Source](/reference-sources/Data.Word.cinch) · line 85
+[Source](/reference-sources/Data.Word.cinch) · line 86
 
 <a id="value-6469762d776964652d70726f76656e2d753332"></a>
 
@@ -132,7 +132,7 @@ The significant bit count of a Usize; zero has length zero.
 Divide a double-width dividend when the caller proves a nonzero divisor
 and a fitting quotient. The tuple result avoids allocating an error sum.
 
-[Source](/reference-sources/Data.Word.cinch) · line 149
+[Source](/reference-sources/Data.Word.cinch) · line 176
 
 <a id="value-6469762d776964652d70726f76656e2d753634"></a>
 
@@ -143,7 +143,7 @@ and a fitting quotient. The tuple result avoids allocating an error sum.
 Divide a double-width dividend under nonzero-divisor and quotient-fit proofs.
 The tuple result permits unboxed worker returns for already validated inputs.
 
-[Source](/reference-sources/Data.Word.cinch) · line 155
+[Source](/reference-sources/Data.Word.cinch) · line 184
 
 <a id="value-6469762d776964652d753332"></a>
 
@@ -153,7 +153,7 @@ The tuple result permits unboxed worker returns for already validated inputs.
 
 Divide a high/low 64-bit dividend by a 32-bit divisor, with a checked one-word quotient.
 
-[Source](/reference-sources/Data.Word.cinch) · line 131
+[Source](/reference-sources/Data.Word.cinch) · line 156
 
 <a id="value-6469762d776964652d753634"></a>
 
@@ -163,7 +163,7 @@ Divide a high/low 64-bit dividend by a 32-bit divisor, with a checked one-word q
 
 Divide a high/low 128-bit dividend by a 64-bit divisor, with a checked one-word quotient.
 
-[Source](/reference-sources/Data.Word.cinch) · line 140
+[Source](/reference-sources/Data.Word.cinch) · line 167
 
 <a id="value-6469762d776964652d7573697a65"></a>
 
@@ -173,7 +173,7 @@ Divide a high/low 128-bit dividend by a 64-bit divisor, with a checked one-word 
 
 Divide a high/low native double word, checking zero and quotient overflow.
 
-[Source](/reference-sources/Data.Word.cinch) · line 197
+[Source](/reference-sources/Data.Word.cinch) · line 229
 
 <a id="value-6d756c2d776964652d753332"></a>
 
@@ -183,7 +183,7 @@ Divide a high/low native double word, checking zero and quotient overflow.
 
 The exact 64-bit product of two 32-bit words, returned high word first.
 
-[Source](/reference-sources/Data.Word.cinch) · line 122
+[Source](/reference-sources/Data.Word.cinch) · line 129
 
 <a id="value-6d756c2d776964652d753634"></a>
 
@@ -193,7 +193,7 @@ The exact 64-bit product of two 32-bit words, returned high word first.
 
 The exact 128-bit product of two 64-bit words, returned high word first.
 
-[Source](/reference-sources/Data.Word.cinch) · line 127
+[Source](/reference-sources/Data.Word.cinch) · line 134
 
 <a id="value-6d756c2d776964652d7573697a65"></a>
 
@@ -203,7 +203,7 @@ The exact 128-bit product of two 64-bit words, returned high word first.
 
 The exact double-width product of native words, returned high word first.
 
-[Source](/reference-sources/Data.Word.cinch) · line 189
+[Source](/reference-sources/Data.Word.cinch) · line 221
 
 <a id="value-72656d2d776964652d753332"></a>
 
@@ -213,7 +213,7 @@ The exact double-width product of native words, returned high word first.
 
 The remainder of a high/low 64-bit dividend. The high word need not be below the divisor.
 
-[Source](/reference-sources/Data.Word.cinch) · line 159
+[Source](/reference-sources/Data.Word.cinch) · line 188
 
 <a id="value-72656d2d776964652d753634"></a>
 
@@ -223,7 +223,7 @@ The remainder of a high/low 64-bit dividend. The high word need not be below the
 
 The remainder of a high/low 128-bit dividend. The high word need not be below the divisor.
 
-[Source](/reference-sources/Data.Word.cinch) · line 166
+[Source](/reference-sources/Data.Word.cinch) · line 198
 
 <a id="value-72656d2d776964652d7573697a65"></a>
 
@@ -233,7 +233,7 @@ The remainder of a high/low 128-bit dividend. The high word need not be below th
 
 The remainder of a high/low native double word, checking only for a zero divisor.
 
-[Source](/reference-sources/Data.Word.cinch) · line 207
+[Source](/reference-sources/Data.Word.cinch) · line 239
 
 <a id="value-726576657273652d62797465732d753136"></a>
 
@@ -243,7 +243,7 @@ The remainder of a high/low native double word, checking only for a zero divisor
 
 Reverse byte order within a U16; bit order within each byte is preserved.
 
-[Source](/reference-sources/Data.Word.cinch) · line 51
+[Source](/reference-sources/Data.Word.cinch) · line 52
 
 <a id="value-726576657273652d62797465732d753332"></a>
 
@@ -253,7 +253,7 @@ Reverse byte order within a U16; bit order within each byte is preserved.
 
 Reverse byte order within a U32; bit order within each byte is preserved.
 
-[Source](/reference-sources/Data.Word.cinch) · line 64
+[Source](/reference-sources/Data.Word.cinch) · line 65
 
 <a id="value-726576657273652d62797465732d753634"></a>
 
@@ -263,7 +263,7 @@ Reverse byte order within a U32; bit order within each byte is preserved.
 
 Reverse byte order within a U64; bit order within each byte is preserved.
 
-[Source](/reference-sources/Data.Word.cinch) · line 77
+[Source](/reference-sources/Data.Word.cinch) · line 78
 
 <a id="value-726576657273652d62797465732d7573697a65"></a>
 
@@ -273,7 +273,7 @@ Reverse byte order within a U64; bit order within each byte is preserved.
 
 Reverse byte order within a Usize; bit order within each byte is preserved.
 
-[Source](/reference-sources/Data.Word.cinch) · line 90
+[Source](/reference-sources/Data.Word.cinch) · line 91
 
 <a id="value-726f746174652d7369676e65642d753136"></a>
 
@@ -283,7 +283,7 @@ Reverse byte order within a Usize; bit order within each byte is preserved.
 
 Rotate a U16 left by a signed count; negative counts rotate right and counts wrap by the width.
 
-[Source](/reference-sources/Data.Word.cinch) · line 55
+[Source](/reference-sources/Data.Word.cinch) · line 56
 
 <a id="value-726f746174652d7369676e65642d753332"></a>
 
@@ -293,7 +293,7 @@ Rotate a U16 left by a signed count; negative counts rotate right and counts wra
 
 Rotate a U32 left by a signed count; negative counts rotate right and counts wrap by the width.
 
-[Source](/reference-sources/Data.Word.cinch) · line 68
+[Source](/reference-sources/Data.Word.cinch) · line 69
 
 <a id="value-726f746174652d7369676e65642d753634"></a>
 
@@ -303,7 +303,7 @@ Rotate a U32 left by a signed count; negative counts rotate right and counts wra
 
 Rotate a U64 left by a signed count; negative counts rotate right and counts wrap by the width.
 
-[Source](/reference-sources/Data.Word.cinch) · line 81
+[Source](/reference-sources/Data.Word.cinch) · line 82
 
 <a id="value-726f746174652d7369676e65642d7538"></a>
 
@@ -313,7 +313,7 @@ Rotate a U64 left by a signed count; negative counts rotate right and counts wra
 
 Rotate a U8 left by a signed count; negative counts rotate right and counts wrap by the width.
 
-[Source](/reference-sources/Data.Word.cinch) · line 42
+[Source](/reference-sources/Data.Word.cinch) · line 43
 
 <a id="value-726f746174652d7369676e65642d7573697a65"></a>
 
@@ -323,7 +323,7 @@ Rotate a U8 left by a signed count; negative counts rotate right and counts wrap
 
 Rotate a Usize left by a signed count; negative counts rotate right and counts wrap by the width.
 
-[Source](/reference-sources/Data.Word.cinch) · line 94
+[Source](/reference-sources/Data.Word.cinch) · line 95
 
 <a id="value-7375622d626f72726f772d753332"></a>
 
@@ -333,7 +333,7 @@ Rotate a Usize left by a signed count; negative counts rotate right and counts w
 
 Subtract a 32-bit word and an incoming borrow, returning the low word and outgoing borrow.
 
-[Source](/reference-sources/Data.Word.cinch) · line 110
+[Source](/reference-sources/Data.Word.cinch) · line 113
 
 <a id="value-7375622d626f72726f772d753634"></a>
 
@@ -343,7 +343,7 @@ Subtract a 32-bit word and an incoming borrow, returning the low word and outgoi
 
 Subtract a 64-bit word and an incoming borrow, returning the low word and outgoing borrow.
 
-[Source](/reference-sources/Data.Word.cinch) · line 116
+[Source](/reference-sources/Data.Word.cinch) · line 121
 
 <a id="value-7375622d626f72726f772d7573697a65"></a>
 
@@ -353,7 +353,7 @@ Subtract a 64-bit word and an incoming borrow, returning the low word and outgoi
 
 Subtract native words and a borrow, returning the low word and outgoing borrow.
 
-[Source](/reference-sources/Data.Word.cinch) · line 181
+[Source](/reference-sources/Data.Word.cinch) · line 213
 
 <a id="value-776f72642d62697473"></a>
 
@@ -363,8 +363,8 @@ Subtract native words and a borrow, returning the low word and outgoing borrow.
 
 The native unsigned word width, 32 or 64, determined by the target's Usize operations.
 
-[Source](/reference-sources/Data.Word.cinch) · line 33
+[Source](/reference-sources/Data.Word.cinch) · line 34
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Word.cinch`. Source SHA-256: `1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Word.cinch`. Source SHA-256: `0242fdfc1db2ec8d84ca3dda30d80624e74e42dad42b6479a63176a316b2e3e1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

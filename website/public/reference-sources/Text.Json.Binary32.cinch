@@ -15,18 +15,12 @@ module Text.Json.Binary32 where
   export binary32-from-decimal, binary32-to-decimal
 
   -- | Observe the complete binary32 representation, preserving signed zero.
-  prim binary32-bits :: F32 -> U32 where
-    llvm {
-      %bits = bitcast float %0 to i32
-      ret i32 %bits
-    }
+  binary32-bits :: F32 -> U32
+  binary32-bits value = f32-bits value
 
   -- | Reconstruct one binary32 representation without numeric conversion.
-  prim binary32-value :: U32 -> F32 where
-    llvm {
-      %value = bitcast i32 %0 to float
-      ret float %value
-    }
+  binary32-value :: U32 -> F32
+  binary32-value bits = f32-from-bits bits
 
   -- | A nonnegative decimal coefficient and the power of ten multiplying it.
   data ExactDecimal where

@@ -10,14 +10,14 @@ Import with `import Text.Adler32`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Binary](Text.Binary.md).
 
 Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 Adler-32 checksums, persistent accumulators and versioned binary checkpoints.
-Updates consume sixteen bytes with SIMD weighted reductions and normalize
+Updates consume sixteen bytes with packed parallel weighted reductions and normalize
 the two sums after segments of at most 5552 bytes. Accumulators use explicit
 32-bit wrapping; normal states satisfy the segment's no-overflow bound.
 Digest bytes use network order. Retaining a state branches the computation,
@@ -35,7 +35,7 @@ and all returned byte buffers are fresh. This checksum does not authenticate dat
 
 An immutable scalar checksum accumulator; input buffers are never retained.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 67
+[Source](/reference-sources/Text.Adler32.cinch) · line 84
 
 <a id="type-41646c6572333253746174654572726f72"></a>
 
@@ -45,7 +45,7 @@ An immutable scalar checksum accumulator; input buffers are never retained.
 
 A checkpoint identifier or complete byte length is invalid.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 119
+[Source](/reference-sources/Text.Adler32.cinch) · line 136
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidAdler32StateIdentifier</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Adler32</span>.<span class="tok-constructor">Adler32StateError</span></code></pre>
 
@@ -61,7 +61,7 @@ A checkpoint identifier or complete byte length is invalid.
 
 Initial accumulator: low sum 1 and high sum 0.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 72
+[Source](/reference-sources/Text.Adler32.cinch) · line 89
 
 <a id="value-61646c657233322d73746174652d617070656e64"></a>
 
@@ -71,7 +71,7 @@ Initial accumulator: low sum 1 and high sum 0.
 
 Append the network-order digest to a copied prefix without changing either argument.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 107
+[Source](/reference-sources/Text.Adler32.cinch) · line 124
 
 <a id="value-61646c657233322d73746174652d617070656e642d73617665"></a>
 
@@ -81,7 +81,7 @@ Append the network-order digest to a copied prefix without changing either argum
 
 Append a complete binary checkpoint to a copied prefix, preserving the state.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 115
+[Source](/reference-sources/Text.Adler32.cinch) · line 132
 
 <a id="value-61646c657233322d73746174652d626c6f636b2d73697a65"></a>
 
@@ -91,7 +91,7 @@ Append a complete binary checkpoint to a copied prefix, preserving the state.
 
 Preferred input granularity in bytes, always four; updates accept any chunk length.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 88
+[Source](/reference-sources/Text.Adler32.cinch) · line 105
 
 <a id="value-61646c657233322d73746174652d6572726f722d6d657373616765"></a>
 
@@ -101,7 +101,7 @@ Preferred input granularity in bytes, always four; updates accept any chunk leng
 
 Render a checkpoint diagnostic with the complete required and actual lengths.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 126
+[Source](/reference-sources/Text.Adler32.cinch) · line 143
 
 <a id="value-61646c657233322d73746174652d6c6f6164"></a>
 
@@ -113,7 +113,7 @@ Restore a complete checkpoint without retaining its mutable input buffer.
 Identifier checks precede exact-size checks. Every stored word is accepted;
 ordinary checksum states should be produced by initialization and updates.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 134
+[Source](/reference-sources/Text.Adler32.cinch) · line 151
 
 <a id="value-61646c657233322d73746174652d7265736574"></a>
 
@@ -123,7 +123,7 @@ ordinary checksum states should be produced by initialization and updates.
 
 Return the initial accumulator, leaving the supplied state unchanged.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 80
+[Source](/reference-sources/Text.Adler32.cinch) · line 97
 
 <a id="value-61646c657233322d73746174652d73617665"></a>
 
@@ -133,7 +133,7 @@ Return the initial accumulator, leaving the supplied state unchanged.
 
 Return an eight-byte checkpoint: ASCII adl, version byte 1, and the network-order checksum.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 111
+[Source](/reference-sources/Text.Adler32.cinch) · line 128
 
 <a id="value-61646c657233322d73746174652d73697a65"></a>
 
@@ -143,7 +143,7 @@ Return an eight-byte checkpoint: ASCII adl, version byte 1, and the network-orde
 
 Digest size in bytes, always four.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 84
+[Source](/reference-sources/Text.Adler32.cinch) · line 101
 
 <a id="value-61646c657233322d73746174652d73756d"></a>
 
@@ -153,7 +153,7 @@ Digest size in bytes, always four.
 
 Return four fresh checksum bytes in network order without advancing or resetting.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 96
+[Source](/reference-sources/Text.Adler32.cinch) · line 113
 
 <a id="value-61646c657233322d73746174652d757064617465"></a>
 
@@ -163,7 +163,7 @@ Return four fresh checksum bytes in network order without advancing or resetting
 
 Consume a complete chunk without changing any earlier retained state or input bytes.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 76
+[Source](/reference-sources/Text.Adler32.cinch) · line 93
 
 <a id="value-61646c657233322d73746174652d776f7264"></a>
 
@@ -173,7 +173,7 @@ Consume a complete chunk without changing any earlier retained state or input by
 
 Observe the complete numeric checksum without advancing the state.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 92
+[Source](/reference-sources/Text.Adler32.cinch) · line 109
 
 <a id="value-61646c657233322d73756d"></a>
 
@@ -183,7 +183,7 @@ Observe the complete numeric checksum without advancing the state.
 
 Checksum all input bytes from the standard initial state 1. Empty input yields 1.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 24
+[Source](/reference-sources/Text.Adler32.cinch) · line 25
 
 <a id="value-61646c657233322d757064617465"></a>
 
@@ -194,8 +194,8 @@ Checksum all input bytes from the standard initial state 1. Empty input yields 1
 Continue a finished checksum with more bytes. Empty input preserves every supplied bit.
 Full segments use explicit machine-word wrapping before modular reduction.
 
-[Source](/reference-sources/Text.Adler32.cinch) · line 29
+[Source](/reference-sources/Text.Adler32.cinch) · line 30
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Adler32.cinch`. Source SHA-256: `30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Adler32.cinch`. Source SHA-256: `022af63e7649f9677139f4752d8a1a642c9c71ed079bef0ad4af8ad39ecdbdc4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

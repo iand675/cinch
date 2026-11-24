@@ -1,0 +1,1847 @@
+-- | Database driver protocol, STM-backed connection pooling, prepared
+-- statements, transactions, streaming row cursors, pool statistics, and an
+-- in-memory transactional driver.
+--
+-- Drivers are passed explicitly as values to `sql-open` rather than registered
+-- in global mutable state. Connection pool state is coordinated through
+-- `Effect.Stm`, providing atomic checkout, idle connection reuse, bounded open
+-- connection limits with blocking wakeups, idle eviction, transparent retries
+-- on `SqlErrBadConn`, and fallback from direct `Exec`/`Query` to prepared
+-- statements on `SqlErrSkip`.
+--
+-- For concurrent workloads spanning multiple tasks, `SqlPoolGate` and
+-- `SqlMemoryStore` contain only shareable representations and may be captured
+-- across tasks alongside `sql-open-with-gate`.
+module Effect.Sql where
+
+  import Algebra.Semigroup
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option hiding (or-else)
+  import Data.Result
+  import Data.Sql
+  import Data.String
+  import Effect.Stm
+  import Relation.Eq
+  import Text.Show
+
+  export SqlDriverRows, MkSqlDriverRows, sql-driver-rows
+  export driver-rows-columns, driver-rows-column-types, driver-rows-next, driver-rows-close
+  export SqlDriverStmt, MkSqlDriverStmt, sql-driver-stmt
+  export driver-stmt-exec, driver-stmt-query, driver-stmt-close, driver-stmt-num-input
+  export SqlDriverTx, MkSqlDriverTx, sql-driver-tx, driver-tx-commit, driver-tx-rollback
+  export SqlDriverConn, MkSqlDriverConn, sql-driver-conn
+  export driver-conn-ping, driver-conn-exec, driver-conn-query, driver-conn-prepare, driver-conn-begin, driver-conn-close
+  export SqlDriver, MkSqlDriver, sql-driver, driver-open
+  export SqlDbStats, MkSqlDbStats
+  export stats-max-open-connections, stats-open-connections, stats-in-use, stats-idle
+  export stats-wait-count, stats-max-idle-closed
+  export SqlPoolGate, sql-pool-gate-new, sql-pool-gate-set-max-open, sql-pool-gate-set-max-idle
+  export sql-pool-gate-stats, sql-pool-gate-close
+  export SqlDb, sql-open, sql-open-with-gate
+  export sql-db-set-max-open-conns, sql-db-set-max-idle-conns, sql-db-stats
+  export sql-db-ping, sql-db-close
+  export sql-db-exec, sql-db-query, sql-db-query-row, sql-db-prepare
+  export sql-db-begin, sql-db-begin-tx
+  export SqlRows, sql-rows-columns, sql-rows-column-types, sql-rows-next, sql-rows-all, sql-rows-close
+  export SqlStmt, sql-stmt-exec, sql-stmt-query, sql-stmt-query-row, sql-stmt-close
+  export SqlTx, sql-tx-exec, sql-tx-query, sql-tx-query-row, sql-tx-prepare, sql-tx-commit, sql-tx-rollback
+  export SqlMemoryStore, sql-memory-store-new, sql-memory-store-open-count, sql-memory-store-close-count
+  export sql-memory-driver, sql-memory-driver-new
+
+  -- ---------------------------------------------------------------------------
+  -- Driver protocol
+  -- ---------------------------------------------------------------------------
+
+  -- | Low-level row cursor supplied by a database driver.
+  data SqlDriverRows r where
+    -- | Callbacks for column names, column metadata, next row, and cursor close.
+    MkSqlDriverRows ::
+      (Unit ->{IO r, STM, Diverge} List String) ->
+      (Unit ->{IO r, STM, Diverge} List SqlColumnType) ->
+      (Unit ->{IO r, STM, Diverge} Result SqlError (Option (List SqlValue))) ->
+      (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+      SqlDriverRows r
+
+  -- | Construct a driver row cursor from its callbacks.
+  sql-driver-rows :: forall r.
+    (Unit ->{IO r, STM, Diverge} List String) ->
+    (Unit ->{IO r, STM, Diverge} List SqlColumnType) ->
+    (Unit ->{IO r, STM, Diverge} Result SqlError (Option (List SqlValue))) ->
+    (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+    SqlDriverRows r
+  sql-driver-rows cols col-types next close = MkSqlDriverRows cols col-types next close
+
+  -- | Fetch column names from a driver row cursor.
+  driver-rows-columns :: forall r. SqlDriverRows r ->{IO r, STM, Diverge} List String
+  driver-rows-columns r = case r of
+    MkSqlDriverRows cols _ _ _ -> cols ()
+
+  -- | Fetch column metadata from a driver row cursor.
+  driver-rows-column-types :: forall r. SqlDriverRows r ->{IO r, STM, Diverge} List SqlColumnType
+  driver-rows-column-types r = case r of
+    MkSqlDriverRows _ col-types _ _ -> col-types ()
+
+  -- | Advance a driver row cursor to the next row, returning `Ok None` at end of set.
+  driver-rows-next :: forall r. SqlDriverRows r ->{IO r, STM, Diverge} Result SqlError (Option (List SqlValue))
+  driver-rows-next r = case r of
+    MkSqlDriverRows _ _ next _ -> next ()
+
+  -- | Close a driver row cursor.
+  driver-rows-close :: forall r. SqlDriverRows r ->{IO r, STM, Diverge} Result SqlError Unit
+  driver-rows-close r = case r of
+    MkSqlDriverRows _ _ _ close -> close ()
+
+  -- | Low-level prepared statement bound to a single driver connection.
+  data SqlDriverStmt r where
+    -- | Callbacks for exec, query, close, and declared placeholder count (`-1` if unknown).
+    MkSqlDriverStmt ::
+      (List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult) ->
+      (List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlDriverRows r)) ->
+      (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+      Int ->
+      SqlDriverStmt r
+
+  -- | Construct a driver prepared statement.
+  sql-driver-stmt :: forall r.
+    (List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult) ->
+    (List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlDriverRows r)) ->
+    (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+    Int ->
+    SqlDriverStmt r
+  sql-driver-stmt exec query close num-input = MkSqlDriverStmt exec query close num-input
+
+  -- | Execute a driver prepared statement without returning rows.
+  driver-stmt-exec :: forall r. SqlDriverStmt r -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult
+  driver-stmt-exec s args = case s of
+    MkSqlDriverStmt exec _ _ _ -> exec args
+
+  -- | Execute a driver prepared statement that returns rows.
+  driver-stmt-query :: forall r. SqlDriverStmt r -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlDriverRows r)
+  driver-stmt-query s args = case s of
+    MkSqlDriverStmt _ query _ _ -> query args
+
+  -- | Close a driver prepared statement.
+  driver-stmt-close :: forall r. SqlDriverStmt r ->{IO r, STM, Diverge} Result SqlError Unit
+  driver-stmt-close s = case s of
+    MkSqlDriverStmt _ _ close _ -> close ()
+
+  -- | Return the expected placeholder count for a driver statement (`-1` if unknown).
+  driver-stmt-num-input :: forall (r :: Region). SqlDriverStmt r -> Int
+  driver-stmt-num-input s = case s of
+    MkSqlDriverStmt _ _ _ n -> n
+
+  -- | Low-level transaction handle bound to a single driver connection.
+  data SqlDriverTx r where
+    -- | Callbacks for committing and rolling back the transaction.
+    MkSqlDriverTx ::
+      (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+      (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+      SqlDriverTx r
+
+  -- | Construct a driver transaction handle.
+  sql-driver-tx :: forall r.
+    (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+    (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+    SqlDriverTx r
+  sql-driver-tx commit rollback = MkSqlDriverTx commit rollback
+
+  -- | Commit a driver transaction.
+  driver-tx-commit :: forall r. SqlDriverTx r ->{IO r, STM, Diverge} Result SqlError Unit
+  driver-tx-commit tx = case tx of
+    MkSqlDriverTx commit _ -> commit ()
+
+  -- | Roll back a driver transaction.
+  driver-tx-rollback :: forall r. SqlDriverTx r ->{IO r, STM, Diverge} Result SqlError Unit
+  driver-tx-rollback tx = case tx of
+    MkSqlDriverTx _ rollback -> rollback ()
+
+  -- | Low-level connection to a database backend. Used by at most one caller at a time.
+  data SqlDriverConn r where
+    -- | Callbacks for ping, exec, query, prepare, begin transaction, and close.
+    MkSqlDriverConn ::
+      (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+      (String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult) ->
+      (String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlDriverRows r)) ->
+      (String ->{IO r, STM, Diverge} Result SqlError (SqlDriverStmt r)) ->
+      (SqlTxOptions ->{IO r, STM, Diverge} Result SqlError (SqlDriverTx r)) ->
+      (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+      SqlDriverConn r
+
+  -- | Construct a driver connection from its operation callbacks.
+  sql-driver-conn :: forall r.
+    (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+    (String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult) ->
+    (String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlDriverRows r)) ->
+    (String ->{IO r, STM, Diverge} Result SqlError (SqlDriverStmt r)) ->
+    (SqlTxOptions ->{IO r, STM, Diverge} Result SqlError (SqlDriverTx r)) ->
+    (Unit ->{IO r, STM, Diverge} Result SqlError Unit) ->
+    SqlDriverConn r
+  sql-driver-conn ping exec query prepare begin close =
+    MkSqlDriverConn ping exec query prepare begin close
+
+  -- | Verify that a driver connection is alive.
+  driver-conn-ping :: forall r. SqlDriverConn r ->{IO r, STM, Diverge} Result SqlError Unit
+  driver-conn-ping c = case c of
+    MkSqlDriverConn ping _ _ _ _ _ -> ping ()
+
+  -- | Execute a non-query statement directly on a driver connection.
+  driver-conn-exec :: forall r. SqlDriverConn r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult
+  driver-conn-exec c q args = case c of
+    MkSqlDriverConn _ exec _ _ _ _ -> exec q args
+
+  -- | Execute a row-returning query directly on a driver connection.
+  driver-conn-query :: forall r. SqlDriverConn r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlDriverRows r)
+  driver-conn-query c q args = case c of
+    MkSqlDriverConn _ _ query _ _ _ -> query q args
+
+  -- | Prepare a statement on a driver connection.
+  driver-conn-prepare :: forall r. SqlDriverConn r -> String ->{IO r, STM, Diverge} Result SqlError (SqlDriverStmt r)
+  driver-conn-prepare c q = case c of
+    MkSqlDriverConn _ _ _ prepare _ _ -> prepare q
+
+  -- | Start a transaction on a driver connection.
+  driver-conn-begin :: forall r. SqlDriverConn r -> SqlTxOptions ->{IO r, STM, Diverge} Result SqlError (SqlDriverTx r)
+  driver-conn-begin c opts = case c of
+    MkSqlDriverConn _ _ _ _ begin _ -> begin opts
+
+  -- | Close a driver connection and release its backend resources.
+  driver-conn-close :: forall r. SqlDriverConn r ->{IO r, STM, Diverge} Result SqlError Unit
+  driver-conn-close c = case c of
+    MkSqlDriverConn _ _ _ _ _ close -> close ()
+
+  -- | Explicit database driver value that opens connections from a DSN string.
+  data SqlDriver r where
+    -- | Callback that opens one fresh connection for the given DSN.
+    MkSqlDriver :: (String ->{IO r, STM, Diverge} Result SqlError (SqlDriverConn r)) -> SqlDriver r
+
+  -- | Construct a database driver from its connection-opening callback.
+  sql-driver :: forall r. (String ->{IO r, STM, Diverge} Result SqlError (SqlDriverConn r)) -> SqlDriver r
+  sql-driver open-fn = MkSqlDriver open-fn
+
+  -- | Open one fresh connection using a driver and DSN string.
+  driver-open :: forall r. SqlDriver r -> String ->{IO r, STM, Diverge} Result SqlError (SqlDriverConn r)
+  driver-open drv dsn = case drv of
+    MkSqlDriver open-fn -> open-fn dsn
+
+  -- ---------------------------------------------------------------------------
+  -- Connection pool state and statistics
+  -- ---------------------------------------------------------------------------
+
+  -- | Snapshot of connection pool limits, utilization, and lifetime counters.
+  data SqlDbStats where
+    -- | Max open limit, open connections, in-use connections, idle connections, wait count, and max-idle closed count.
+    MkSqlDbStats :: Nat -> Nat -> Nat -> Nat -> I64 -> I64 -> SqlDbStats
+
+  -- | Maximum open connections permitted (`0` means unlimited).
+  stats-max-open-connections :: SqlDbStats -> Nat
+  stats-max-open-connections s = case s of
+    MkSqlDbStats max-open _ _ _ _ _ -> max-open
+
+  -- | Total established connections currently tracked by the pool (in-use plus idle).
+  stats-open-connections :: SqlDbStats -> Nat
+  stats-open-connections s = case s of
+    MkSqlDbStats _ open _ _ _ _ -> open
+
+  -- | Number of connections currently checked out for queries or transactions.
+  stats-in-use :: SqlDbStats -> Nat
+  stats-in-use s = case s of
+    MkSqlDbStats _ _ in-use _ _ _ -> in-use
+
+  -- | Number of idle connections retained in the pool.
+  stats-idle :: SqlDbStats -> Nat
+  stats-idle s = case s of
+    MkSqlDbStats _ _ _ idle _ _ -> idle
+
+  -- | Cumulative count of connection checkouts that blocked waiting for a slot.
+  stats-wait-count :: SqlDbStats -> I64
+  stats-wait-count s = case s of
+    MkSqlDbStats _ _ _ _ waits _ -> waits
+
+  -- | Cumulative count of healthy connections closed due to the max-idle limit.
+  stats-max-idle-closed :: SqlDbStats -> I64
+  stats-max-idle-closed s = case s of
+    MkSqlDbStats _ _ _ _ _ idle-closed -> idle-closed
+
+  -- | Structural equality instance for `SqlDbStats`.
+  implicit instance Eq_SqlDbStats :: Eq SqlDbStats where
+    (==) a b = case (a, b) of
+      (MkSqlDbStats m1 o1 u1 i1 w1 c1, MkSqlDbStats m2 o2 u2 i2 w2 c2) ->
+        m1 == m2 && o1 == o2 && u1 == u2 && i1 == i2 && w1 == w2 && c1 == c2
+    (/=) a b = not (a == b)
+
+  -- | Internal shareable STM state for pool limits and counters.
+  data PoolGateState where
+    -- | Max open, max idle, open count, in-use count, idle count, closed flag, wait count, and max-idle-closed count.
+    MkPoolGateState :: Nat -> Nat -> Nat -> Nat -> Nat -> Bool -> I64 -> I64 -> PoolGateState
+
+  -- | Shareable STM coordination gate for connection pool limits and stats.
+  -- Contains only shareable scalars and a `TVar`, so it may be shared across concurrent tasks.
+  data SqlPoolGate where
+    -- | Transactional cell storing the current pool gate state.
+    MkSqlPoolGate :: TVar PoolGateState -> SqlPoolGate
+
+  -- | Allocate a new pool coordination gate with unlimited max open connections and default max idle of 2.
+  sql-pool-gate-new :: Unit ->{STM} SqlPoolGate
+  sql-pool-gate-new u = MkSqlPoolGate (tvar-new-io (MkPoolGateState 0 2 0 0 0 False 0 0))
+
+  -- | Extract the underlying transactional cell of a pool gate.
+  gate-var :: SqlPoolGate -> TVar PoolGateState
+  gate-var g = case g of
+    MkSqlPoolGate tv -> tv
+
+  -- | Project `SqlDbStats` from internal gate state.
+  gate-state-stats :: PoolGateState -> SqlDbStats
+  gate-state-stats st = case st of
+    MkPoolGateState max-open _ open in-use idle _ waits idle-closed ->
+      MkSqlDbStats max-open open in-use idle waits idle-closed
+
+  -- | Read a consistent snapshot of pool statistics from a shared gate.
+  sql-pool-gate-stats :: SqlPoolGate ->{STM} SqlDbStats
+  sql-pool-gate-stats g = gate-state-stats (tvar-read-io (gate-var g))
+
+  -- | Update the maximum open connections limit on a shared pool gate.
+  -- Reduces `max-idle` if the new positive limit is smaller than `max-idle`.
+  sql-pool-gate-set-max-open :: SqlPoolGate -> Nat ->{STM, Diverge} Unit
+  sql-pool-gate-set-max-open g n =
+    atomically (tvar-modify (gate-var g) (\st -> case st of
+      MkPoolGateState _ max-idle open in-use idle closed waits idle-closed ->
+        let new-idle = if n > 0 && max-idle > n then n else max-idle in
+        MkPoolGateState n new-idle open in-use idle closed waits idle-closed))
+
+  -- | Update the maximum idle connections limit on a shared pool gate.
+  -- Clamps the limit to `max-open` when `max-open > 0`.
+  sql-pool-gate-set-max-idle :: SqlPoolGate -> Nat ->{STM, Diverge} Unit
+  sql-pool-gate-set-max-idle g n =
+    atomically (tvar-modify (gate-var g) (\st -> case st of
+      MkPoolGateState max-open _ open in-use idle closed waits idle-closed ->
+        let clamped = if max-open > 0 && n > max-open then max-open else n in
+        MkPoolGateState max-open clamped open in-use idle closed waits idle-closed))
+
+  -- | Mark a shared pool gate as closed, waking any waiting acquirers.
+  sql-pool-gate-close :: SqlPoolGate ->{STM, Diverge} Unit
+  sql-pool-gate-close g =
+    atomically (tvar-modify (gate-var g) (\st -> case st of
+      MkPoolGateState max-open max-idle open in-use idle _ waits idle-closed ->
+        MkPoolGateState max-open max-idle open in-use idle True waits idle-closed))
+
+  -- | Connection pool handle backed by an explicit driver and STM coordination.
+  data SqlDb r where
+    -- | Driver, DSN string, coordination gate, idle connection stack, and shared-gate flag.
+    MkSqlDb :: SqlDriver r -> String -> SqlPoolGate -> TVar (List (SqlDriverConn r)) -> Bool -> SqlDb r
+
+  -- | Open a connection pool lazily for the given driver and DSN string.
+  -- Does not open a backend connection until `sql-db-ping` or a query executes.
+  sql-open :: forall (r :: Region). SqlDriver r -> String ->{STM} Result SqlError (SqlDb r)
+  sql-open drv dsn =
+    let gate = sql-pool-gate-new () in
+    let idle = tvar-new-io Nil in
+    Ok (MkSqlDb drv dsn gate idle False)
+
+  -- | Open a pool handle participating in a shared `SqlPoolGate` across concurrent tasks.
+  -- Connections checked out through a shared gate are closed on release so their slot returns immediately to waiting tasks.
+  sql-open-with-gate :: forall (r :: Region). SqlPoolGate -> SqlDriver r -> String ->{STM} Result SqlError (SqlDb r)
+  sql-open-with-gate gate drv dsn =
+    let idle = tvar-new-io Nil in
+    Ok (MkSqlDb drv dsn gate idle True)
+
+  -- | Return a consistent snapshot of the pool's current statistics.
+  sql-db-stats :: forall (r :: Region). SqlDb r ->{STM} SqlDbStats
+  sql-db-stats db = case db of
+    MkSqlDb _ _ gate _ _ -> sql-pool-gate-stats gate
+
+  -- | Saturating natural subtraction helper.
+  nat-sub-sat :: Nat -> Nat -> Nat
+  nat-sub-sat a b = if b <= a then a - b else 0
+
+  -- | Convert a `Nat` to `I64`, clamping values above `max-bound-i64`.
+  nat-to-i64-clamped :: Nat -> I64
+  nat-to-i64-clamped n =
+    if n <= 9223372036854775807 then nat-to-i64 n else 9223372036854775807
+
+  -- | Split a list into its first `k` elements to keep and the remaining elements to evict.
+  split-keep :: forall a. Nat -> List a -> List a -> (List a, List a)
+  split-keep k xs kept =
+    if k == 0 then (reverse kept, xs)
+    else case xs of
+      Nil -> (reverse kept, Nil)
+      Cons x rest -> split-keep (k - 1) rest (Cons x kept)
+
+  -- | Close a list of driver connections, returning the first error encountered.
+  close-conns :: forall r. List (SqlDriverConn r) -> Result SqlError Unit ->{IO r, STM, Diverge} Result SqlError Unit
+  close-conns conns first-err = case conns of
+    Nil -> first-err
+    Cons c rest ->
+      let res = driver-conn-close c in
+      let next-err = (case first-err of
+        Err e -> Err e
+        Ok _ -> res) in
+      close-conns rest next-err
+
+  -- | STM transaction adjusting `max-idle` and draining excess idle connections.
+  stm-set-max-idle :: forall (r :: Region). TVar PoolGateState -> TVar (List (SqlDriverConn r)) -> Nat -> STM (List (SqlDriverConn r))
+  stm-set-max-idle gvar ivar n =
+    stm-bind (tvar-read gvar) (\st -> case st of
+      MkPoolGateState max-open _ open in-use idle-count closed waits idle-closed ->
+        let new-max-idle = if max-open > 0 && n > max-open then max-open else n in
+        stm-bind (tvar-read ivar) (\conns ->
+          case split-keep new-max-idle conns Nil of
+            (keep, evict) ->
+              let evicted = list-length evict in
+              let new-open = nat-sub-sat open evicted in
+              let new-idle-cnt = nat-sub-sat idle-count evicted in
+              let new-closed-cnt = wrapping-add-i64 idle-closed (nat-to-i64-clamped evicted) in
+              stm-then
+                (tvar-write ivar keep)
+                (stm-then
+                  (tvar-write gvar (MkPoolGateState max-open new-max-idle new-open in-use new-idle-cnt closed waits new-closed-cnt))
+                  (stm-pure evict))))
+
+  -- | STM transaction adjusting `max-open`, clamping `max-idle`, and draining excess idle connections.
+  stm-set-max-open :: forall (r :: Region). TVar PoolGateState -> TVar (List (SqlDriverConn r)) -> Nat -> STM (List (SqlDriverConn r))
+  stm-set-max-open gvar ivar n =
+    stm-bind (tvar-read gvar) (\st -> case st of
+      MkPoolGateState _ max-idle open in-use idle-count closed waits idle-closed ->
+        let new-max-idle = if n > 0 && max-idle > n then n else max-idle in
+        stm-bind (tvar-read ivar) (\conns ->
+          case split-keep new-max-idle conns Nil of
+            (keep, evict) ->
+              let evicted = list-length evict in
+              let new-open = nat-sub-sat open evicted in
+              let new-idle-cnt = nat-sub-sat idle-count evicted in
+              let new-closed-cnt = wrapping-add-i64 idle-closed (nat-to-i64-clamped evicted) in
+              stm-then
+                (tvar-write ivar keep)
+                (stm-then
+                  (tvar-write gvar (MkPoolGateState n new-max-idle new-open in-use new-idle-cnt closed waits new-closed-cnt))
+                  (stm-pure evict))))
+
+  -- | Set the maximum number of open connections (`0` means unlimited).
+  -- If positive and lower than `max-idle`, reduces `max-idle` and closes surplus idle connections.
+  sql-db-set-max-open-conns :: forall r. SqlDb r -> Nat ->{IO r, STM, Diverge} Unit
+  sql-db-set-max-open-conns db n = case db of
+    MkSqlDb _ _ gate ivar _ ->
+      let evicted = atomically (stm-set-max-open (gate-var gate) ivar n) in
+      case close-conns evicted (Ok ()) of
+        _ -> ()
+
+  -- | Set the maximum number of idle connections retained in the pool (`0` retains none).
+  -- Clamped to `max-open` when `max-open > 0`, closing any surplus idle connections immediately.
+  sql-db-set-max-idle-conns :: forall r. SqlDb r -> Nat ->{IO r, STM, Diverge} Unit
+  sql-db-set-max-idle-conns db n = case db of
+    MkSqlDb _ _ gate ivar _ ->
+      let evicted = atomically (stm-set-max-idle (gate-var gate) ivar n) in
+      case close-conns evicted (Ok ()) of
+        _ -> ()
+
+  -- | Outcome of an STM connection acquisition attempt.
+  data AcquireStep r where
+    -- | The pool has been closed.
+    AcquireClosed :: AcquireStep r
+    -- | An idle connection was popped from the pool.
+    AcquireReused :: SqlDriverConn r -> AcquireStep r
+    -- | A fresh connection slot was reserved; caller must open via driver.
+    AcquireOpenNew :: AcquireStep r
+    -- | An idle connection was evicted to make room for a fresh connection; caller must close it then open a new one.
+    AcquireReplaceIdle :: SqlDriverConn r -> AcquireStep r
+    -- | All slots are currently in use; caller must block until one frees up.
+    AcquireMustWait :: AcquireStep r
+
+  -- | Non-blocking STM acquisition attempt that records `wait-count` when no slot is immediately available.
+  stm-try-acquire :: forall (r :: Region). TVar PoolGateState -> TVar (List (SqlDriverConn r)) -> Bool -> STM (AcquireStep r)
+  stm-try-acquire gvar ivar allow-cached =
+    stm-bind (tvar-read gvar) (\st -> case st of
+      MkPoolGateState max-open max-idle open in-use idle-count closed waits idle-closed ->
+        if closed then stm-pure AcquireClosed
+        else stm-bind (tvar-read ivar) (\conns ->
+          if allow-cached then
+            (case conns of
+              Cons c rest ->
+                stm-then
+                  (tvar-write ivar rest)
+                  (stm-then
+                    (tvar-write gvar (MkPoolGateState max-open max-idle open (in-use + 1) (nat-sub-sat idle-count 1) closed waits idle-closed))
+                    (stm-pure (AcquireReused c)))
+              Nil ->
+                if max-open == 0 || open < max-open then
+                  stm-then
+                    (tvar-write gvar (MkPoolGateState max-open max-idle (open + 1) (in-use + 1) idle-count closed waits idle-closed))
+                    (stm-pure AcquireOpenNew)
+                else
+                  stm-then
+                    (tvar-write gvar (MkPoolGateState max-open max-idle open in-use idle-count closed (wrapping-add-i64 waits 1) idle-closed))
+                    (stm-pure AcquireMustWait))
+          else
+            if max-open == 0 || open < max-open then
+              stm-then
+                (tvar-write gvar (MkPoolGateState max-open max-idle (open + 1) (in-use + 1) idle-count closed waits idle-closed))
+                (stm-pure AcquireOpenNew)
+            else case conns of
+              Cons c rest ->
+                stm-then
+                  (tvar-write ivar rest)
+                  (stm-then
+                    (tvar-write gvar (MkPoolGateState max-open max-idle open (in-use + 1) (nat-sub-sat idle-count 1) closed waits idle-closed))
+                    (stm-pure (AcquireReplaceIdle c)))
+              Nil ->
+                stm-then
+                  (tvar-write gvar (MkPoolGateState max-open max-idle open in-use idle-count closed (wrapping-add-i64 waits 1) idle-closed))
+                  (stm-pure AcquireMustWait)))
+
+  -- | Blocking STM acquisition that retries until the pool closes or a slot opens.
+  stm-wait-acquire :: forall (r :: Region). TVar PoolGateState -> TVar (List (SqlDriverConn r)) -> Bool -> STM (AcquireStep r)
+  stm-wait-acquire gvar ivar allow-cached =
+    stm-bind (tvar-read gvar) (\st -> case st of
+      MkPoolGateState max-open max-idle open in-use idle-count closed waits idle-closed ->
+        if closed then stm-pure AcquireClosed
+        else stm-bind (tvar-read ivar) (\conns ->
+          if allow-cached then
+            (case conns of
+              Cons c rest ->
+                stm-then
+                  (tvar-write ivar rest)
+                  (stm-then
+                    (tvar-write gvar (MkPoolGateState max-open max-idle open (in-use + 1) (nat-sub-sat idle-count 1) closed waits idle-closed))
+                    (stm-pure (AcquireReused c)))
+              Nil ->
+                if max-open == 0 || open < max-open then
+                  stm-then
+                    (tvar-write gvar (MkPoolGateState max-open max-idle (open + 1) (in-use + 1) idle-count closed waits idle-closed))
+                    (stm-pure AcquireOpenNew)
+                else retry)
+          else
+            if max-open == 0 || open < max-open then
+              stm-then
+                (tvar-write gvar (MkPoolGateState max-open max-idle (open + 1) (in-use + 1) idle-count closed waits idle-closed))
+                (stm-pure AcquireOpenNew)
+            else case conns of
+              Cons c rest ->
+                stm-then
+                  (tvar-write ivar rest)
+                  (stm-then
+                    (tvar-write gvar (MkPoolGateState max-open max-idle open (in-use + 1) (nat-sub-sat idle-count 1) closed waits idle-closed))
+                    (stm-pure (AcquireReplaceIdle c)))
+              Nil -> retry))
+
+  -- | Undo a reserved open/in-use slot when `driver-open` fails.
+  abort-reserved-slot :: TVar PoolGateState ->{STM, Diverge} Unit
+  abort-reserved-slot gvar =
+    atomically (tvar-modify gvar (\st -> case st of
+      MkPoolGateState max-open max-idle open in-use idle-count closed waits idle-closed ->
+        MkPoolGateState max-open max-idle (nat-sub-sat open 1) (nat-sub-sat in-use 1) idle-count closed waits idle-closed))
+
+  -- | Complete an acquisition step outside STM, opening a fresh driver connection if needed.
+  finish-acquire :: forall r. SqlDb r -> AcquireStep r ->{IO r, STM, Diverge} Result SqlError (SqlDriverConn r)
+  finish-acquire db step = case db of
+    MkSqlDb drv dsn gate _ _ -> case step of
+      AcquireClosed -> Err SqlErrPoolClosed
+      AcquireReused c -> Ok c
+      AcquireOpenNew -> case driver-open drv dsn of
+        Ok c -> Ok c
+        Err e -> case abort-reserved-slot (gate-var gate) of
+          _ -> Err e
+      AcquireReplaceIdle old ->
+        case driver-conn-close old of
+          _ -> case driver-open drv dsn of
+            Ok c -> Ok c
+            Err e -> case abort-reserved-slot (gate-var gate) of
+              _ -> Err e
+      AcquireMustWait -> Err SqlErrPoolClosed
+
+  -- | Acquire a connection from the pool, waiting if `max-open` is reached.
+  acquire-conn :: forall r. SqlDb r -> Bool ->{IO r, STM, Diverge} Result SqlError (SqlDriverConn r)
+  acquire-conn db allow-cached = case db of
+    MkSqlDb _ _ gate ivar _ ->
+      let step = atomically (stm-try-acquire (gate-var gate) ivar allow-cached) in
+      case step of
+        AcquireMustWait ->
+          let awaited = atomically (stm-wait-acquire (gate-var gate) ivar allow-cached) in
+          finish-acquire db awaited
+        other -> finish-acquire db other
+
+  -- | STM transaction returning a connection to the idle stack or releasing its slot.
+  -- Returns `True` when the caller must close the connection outside STM.
+  stm-release-conn :: forall (r :: Region). TVar PoolGateState -> TVar (List (SqlDriverConn r)) -> Bool -> SqlDriverConn r -> Bool -> STM Bool
+  stm-release-conn gvar ivar shared-gate conn keep =
+    stm-bind (tvar-read gvar) (\st -> case st of
+      MkPoolGateState max-open max-idle open in-use idle-count closed waits idle-closed ->
+        let next-in-use = nat-sub-sat in-use 1 in
+        let can-keep = keep && not closed && not shared-gate && max-idle > 0 && idle-count < max-idle && (max-open == 0 || open <= max-open) in
+        if can-keep then
+          stm-then
+            (tvar-modify ivar (\cs -> Cons conn cs))
+            (stm-then
+              (tvar-write gvar (MkPoolGateState max-open max-idle open next-in-use (idle-count + 1) closed waits idle-closed))
+              (stm-pure False))
+        else
+          let hit-idle-cap = keep && not closed && not shared-gate && idle-count >= max-idle in
+          let next-idle-closed = if hit-idle-cap then wrapping-add-i64 idle-closed 1 else idle-closed in
+          stm-then
+            (tvar-write gvar (MkPoolGateState max-open max-idle (nat-sub-sat open 1) next-in-use idle-count closed waits next-idle-closed))
+            (stm-pure True))
+
+  -- | Return a checked-out connection to the pool, closing it when unhealthy or over the idle limit.
+  release-conn :: forall r. SqlDb r -> SqlDriverConn r -> Bool ->{IO r, STM, Diverge} Unit
+  release-conn db conn keep = case db of
+    MkSqlDb _ _ gate ivar shared-gate ->
+      let should-close = atomically (stm-release-conn (gate-var gate) ivar shared-gate conn keep) in
+      if should-close then
+        (case driver-conn-close conn of
+          _ -> ())
+      else ()
+
+  -- | STM transaction marking the pool closed and draining all idle connections.
+  stm-close-pool :: forall (r :: Region). TVar PoolGateState -> TVar (List (SqlDriverConn r)) -> STM (List (SqlDriverConn r))
+  stm-close-pool gvar ivar =
+    stm-bind (tvar-read gvar) (\st -> case st of
+      MkPoolGateState max-open max-idle open in-use idle-count _ waits idle-closed ->
+        stm-bind (tvar-read ivar) (\conns ->
+          let drained = list-length conns in
+          stm-then
+            (tvar-write ivar Nil)
+            (stm-then
+              (tvar-write gvar (MkPoolGateState max-open max-idle (nat-sub-sat open drained) in-use (nat-sub-sat idle-count drained) True waits idle-closed))
+              (stm-pure conns))))
+
+  -- | Close the database pool, preventing new operations and closing all idle connections.
+  -- Idempotent when called more than once.
+  sql-db-close :: forall r. SqlDb r ->{IO r, STM, Diverge} Result SqlError Unit
+  sql-db-close db = case db of
+    MkSqlDb _ _ gate ivar _ ->
+      let idle-conns = atomically (stm-close-pool (gate-var gate) ivar) in
+      close-conns idle-conns (Ok ())
+
+  -- | Execute a non-query statement on a single connection, falling back to prepare on `SqlErrSkip`.
+  exec-on-conn :: forall r. SqlDriverConn r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult
+  exec-on-conn conn query args =
+    case driver-conn-exec conn query args of
+      Err SqlErrSkip ->
+        case driver-conn-prepare conn query of
+          Err e -> Err e
+          Ok stmt ->
+            let res = driver-stmt-exec stmt args in
+            case driver-stmt-close stmt of
+              _ -> res
+      other -> other
+
+  -- | Execute a query on a single connection, falling back to prepare on `SqlErrSkip`.
+  -- Returns the driver rows plus an optional fallback statement that must close with the rows.
+  query-on-conn :: forall r. SqlDriverConn r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlDriverRows r, Option (SqlDriverStmt r))
+  query-on-conn conn query args =
+    case driver-conn-query conn query args of
+      Ok drows -> Ok (drows, None)
+      Err SqlErrSkip ->
+        case driver-conn-prepare conn query of
+          Err e -> Err e
+          Ok stmt ->
+            case driver-stmt-query stmt args of
+              Ok drows -> Ok (drows, Some stmt)
+              Err e -> case driver-stmt-close stmt of
+                _ -> Err e
+      Err e -> Err e
+
+  -- | Maximum number of fresh-connection retries after `SqlErrBadConn`.
+  max-bad-conn-retries :: Nat
+  max-bad-conn-retries = 2
+
+  -- | Run a connection action with up to 2 automatic retries on `SqlErrBadConn`.
+  -- Attempt 0 may reuse an idle connection; retries open fresh connections.
+  with-retry :: forall r a. SqlDb r -> Nat -> (SqlDriverConn r ->{IO r, STM, Diverge} Result SqlError a) ->{IO r, STM, Diverge} Result SqlError a
+  with-retry db attempt action =
+    let allow-cached = attempt == 0 in
+    case acquire-conn db allow-cached of
+      Err e -> Err e
+      Ok conn ->
+        case action conn of
+          Ok v -> case release-conn db conn True of
+            _ -> Ok v
+          Err SqlErrBadConn ->
+            case release-conn db conn False of
+              _ -> if attempt < max-bad-conn-retries then with-retry db (attempt + 1) action
+                   else Err SqlErrBadConn
+          Err e -> case release-conn db conn True of
+            _ -> Err e
+
+  -- | Verify connectivity to the database, establishing a connection if necessary.
+  -- Retries automatically on `SqlErrBadConn`.
+  sql-db-ping :: forall r. SqlDb r ->{IO r, STM, Diverge} Result SqlError Unit
+  sql-db-ping db = with-retry db 0 (\conn -> driver-conn-ping conn)
+
+  -- | Execute a statement that does not return rows, retrying on `SqlErrBadConn`.
+  sql-db-exec :: forall r. SqlDb r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult
+  sql-db-exec db query args = with-retry db 0 (\conn -> exec-on-conn conn query args)
+
+  -- ---------------------------------------------------------------------------
+  -- Rows cursor
+  -- ---------------------------------------------------------------------------
+
+  -- | Active query result cursor. Must be exhausted or closed to release its connection.
+  data SqlRows r where
+    -- | Underlying driver rows, cached column names, closed flag, and cleanup hook taking connection health.
+    MkSqlRows ::
+      SqlDriverRows r ->
+      List String ->
+      TVar Bool ->
+      (Bool ->{IO r, STM, Diverge} Result SqlError Unit) ->
+      SqlRows r
+
+  -- | Wrap a driver row cursor with cached column names and an idempotent close hook.
+  make-sql-rows :: forall r.
+    SqlDriverRows r ->
+    (Bool ->{IO r, STM, Diverge} Result SqlError Unit) ->
+    {IO r, STM, Diverge} SqlRows r
+  make-sql-rows drows on-close =
+    let cols = driver-rows-columns drows in
+    let closed-var = tvar-new-io False in
+    MkSqlRows drows cols closed-var on-close
+
+  -- | Atomically transition a boolean flag from `False` to `True`, returning `True` only on the first transition.
+  claim-close-flag :: TVar Bool ->{STM, Diverge} Bool
+  claim-close-flag flag =
+    atomically (stm-bind (tvar-read flag) (\already ->
+      if already then stm-pure False
+      else stm-then (tvar-write flag True) (stm-pure True)))
+
+  -- | Internal close helper propagating connection health to the release hook.
+  close-rows-internal :: forall r. SqlRows r -> Bool ->{IO r, STM, Diverge} Result SqlError Unit
+  close-rows-internal rows healthy = case rows of
+    MkSqlRows drows _ closed-var on-close ->
+      if claim-close-flag closed-var then
+        let r1 = driver-rows-close drows in
+        let r2 = on-close healthy in
+        case r1 of
+          Err e -> Err e
+          Ok _ -> r2
+      else Ok ()
+
+  -- | Close a row cursor and return any associated connection to the pool. Idempotent.
+  sql-rows-close :: forall r. SqlRows r ->{IO r, STM, Diverge} Result SqlError Unit
+  sql-rows-close rows = close-rows-internal rows True
+
+  -- | Return the column names of a result set.
+  sql-rows-columns :: forall r. SqlRows r ->{IO r, STM, Diverge} List String
+  sql-rows-columns rows = case rows of
+    MkSqlRows _ cols _ _ -> cols
+
+  -- | Return detailed column metadata for a result set.
+  sql-rows-column-types :: forall r. SqlRows r ->{IO r, STM, Diverge} List SqlColumnType
+  sql-rows-column-types rows = case rows of
+    MkSqlRows drows _ _ _ -> driver-rows-column-types drows
+
+  -- | Read the next row from the cursor. Automatically closes the cursor on EOF or error.
+  sql-rows-next :: forall r. SqlRows r ->{IO r, STM, Diverge} Result SqlError (Option SqlRow)
+  sql-rows-next rows = case rows of
+    MkSqlRows drows cols closed-var _ ->
+      if tvar-read-io closed-var then Ok None
+      else case driver-rows-next drows of
+        Ok (Some vals) -> Ok (Some (sql-row cols vals))
+        Ok None -> case close-rows-internal rows True of
+          Err e -> Err e
+          Ok _ -> Ok None
+        Err SqlErrBadConn -> case close-rows-internal rows False of
+          _ -> Err SqlErrBadConn
+        Err e -> case close-rows-internal rows True of
+          _ -> Err e
+
+  -- | Tail-recursive accumulator draining a row cursor until EOF or error.
+  collect-rows :: forall r. SqlRows r -> List SqlRow ->{IO r, STM, Diverge} Result SqlError (List SqlRow)
+  collect-rows rows acc = case sql-rows-next rows of
+    Err e -> Err e
+    Ok None -> Ok (reverse acc)
+    Ok (Some row) -> collect-rows rows (Cons row acc)
+
+  -- | Materialize all remaining rows into a list and close the cursor.
+  sql-rows-all :: forall r. SqlRows r ->{IO r, STM, Diverge} Result SqlError (List SqlRow)
+  sql-rows-all rows = collect-rows rows Nil
+
+  -- | Execute a query on a pool with automatic `SqlErrBadConn` retries.
+  db-query-attempt :: forall r. SqlDb r -> String -> List SqlNamedArg -> Nat ->{IO r, STM, Diverge} Result SqlError (SqlRows r)
+  db-query-attempt db query args attempt =
+    let allow-cached = attempt == 0 in
+    case acquire-conn db allow-cached of
+      Err e -> Err e
+      Ok conn ->
+        case query-on-conn conn query args of
+          Ok pair -> case pair of
+            (drows, opt-stmt) ->
+              let cleanup = (\healthy ->
+                let stmt-res = (case opt-stmt of
+                  None -> Ok ()
+                  Some stmt -> driver-stmt-close stmt) in
+                case release-conn db conn healthy of
+                  _ -> stmt-res) in
+              Ok (make-sql-rows drows cleanup)
+          Err SqlErrBadConn ->
+            case release-conn db conn False of
+              _ -> if attempt < max-bad-conn-retries then db-query-attempt db query args (attempt + 1)
+                   else Err SqlErrBadConn
+          Err e -> case release-conn db conn True of
+            _ -> Err e
+
+  -- | Execute a query returning a streaming row cursor, retrying on `SqlErrBadConn`.
+  sql-db-query :: forall r. SqlDb r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlRows r)
+  sql-db-query db query args = db-query-attempt db query args 0
+
+  -- | Take the first row from a cursor and close it, returning `SqlErrNoRows` when empty.
+  take-single-row :: forall r. SqlRows r ->{IO r, STM, Diverge} Result SqlError SqlRow
+  take-single-row rows = case sql-rows-next rows of
+    Err e -> case sql-rows-close rows of
+      _ -> Err e
+    Ok None -> case sql-rows-close rows of
+      _ -> Err SqlErrNoRows
+    Ok (Some row) -> case sql-rows-close rows of
+      Err e -> Err e
+      Ok _ -> Ok row
+
+  -- | Execute a query expected to return at most one row and automatically close its cursor.
+  -- Returns `Err SqlErrNoRows` when the query yields no rows.
+  sql-db-query-row :: forall r. SqlDb r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlRow
+  sql-db-query-row db query args = case sql-db-query db query args of
+    Err e -> Err e
+    Ok rows -> take-single-row rows
+
+  -- ---------------------------------------------------------------------------
+  -- Prepared statements
+  -- ---------------------------------------------------------------------------
+
+  -- | A prepared statement bound either to a connection pool or an active transaction.
+  data SqlStmt r where
+    -- | Pool-scoped prepared statement: query text, pool reference, and closed flag.
+    PoolStmt :: SqlDb r -> String -> TVar Bool -> SqlStmt r
+    -- | Transaction-scoped prepared statement: transaction done flag, driver statement, and closed flag.
+    TxStmt :: TVar Bool -> SqlDriverStmt r -> TVar Bool -> SqlStmt r
+
+  -- | Prepare a statement against the pool, validating it on a connection immediately.
+  sql-db-prepare :: forall r. SqlDb r -> String ->{IO r, STM, Diverge} Result SqlError (SqlStmt r)
+  sql-db-prepare db query =
+    case with-retry db 0 (\conn ->
+      case driver-conn-prepare conn query of
+        Err e -> Err e
+        Ok drv-stmt -> case driver-stmt-close drv-stmt of
+          Err e -> Err e
+          Ok _ -> Ok ()) of
+      Err e -> Err e
+      Ok _ -> Ok (PoolStmt db query (tvar-new-io False))
+
+  -- | Execute a pool-scoped prepared statement on a checked-out connection with retry.
+  pool-stmt-query-attempt :: forall r. SqlDb r -> String -> List SqlNamedArg -> Nat ->{IO r, STM, Diverge} Result SqlError (SqlRows r)
+  pool-stmt-query-attempt db query args attempt =
+    let allow-cached = attempt == 0 in
+    case acquire-conn db allow-cached of
+      Err e -> Err e
+      Ok conn ->
+        case driver-conn-prepare conn query of
+          Err SqlErrBadConn ->
+            case release-conn db conn False of
+              _ -> if attempt < max-bad-conn-retries then pool-stmt-query-attempt db query args (attempt + 1)
+                   else Err SqlErrBadConn
+          Err e -> case release-conn db conn True of
+            _ -> Err e
+          Ok drv-stmt ->
+            case driver-stmt-query drv-stmt args of
+              Ok drows ->
+                let cleanup = (\healthy ->
+                  let r1 = driver-stmt-close drv-stmt in
+                  case release-conn db conn healthy of
+                    _ -> r1) in
+                Ok (make-sql-rows drows cleanup)
+              Err SqlErrBadConn ->
+                case driver-stmt-close drv-stmt of
+                  _ -> case release-conn db conn False of
+                    _ -> if attempt < max-bad-conn-retries then pool-stmt-query-attempt db query args (attempt + 1)
+                         else Err SqlErrBadConn
+              Err e ->
+                case driver-stmt-close drv-stmt of
+                  _ -> case release-conn db conn True of
+                    _ -> Err e
+
+  -- | Execute a prepared statement without returning rows.
+  sql-stmt-exec :: forall r. SqlStmt r -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult
+  sql-stmt-exec stmt args = case stmt of
+    PoolStmt db query closed-var ->
+      if tvar-read-io closed-var then Err (SqlErrDriver "sql: statement is closed")
+      else with-retry db 0 (\conn ->
+        case driver-conn-prepare conn query of
+          Err e -> Err e
+          Ok drv-stmt ->
+            let res = driver-stmt-exec drv-stmt args in
+            case driver-stmt-close drv-stmt of
+              _ -> res)
+    TxStmt tx-done drv-stmt closed-var ->
+      if tvar-read-io tx-done then Err SqlErrTxDone
+      else if tvar-read-io closed-var then Err (SqlErrDriver "sql: statement is closed")
+      else driver-stmt-exec drv-stmt args
+
+  -- | Execute a prepared statement returning a row cursor.
+  sql-stmt-query :: forall r. SqlStmt r -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlRows r)
+  sql-stmt-query stmt args = case stmt of
+    PoolStmt db query closed-var ->
+      if tvar-read-io closed-var then Err (SqlErrDriver "sql: statement is closed")
+      else pool-stmt-query-attempt db query args 0
+    TxStmt tx-done drv-stmt closed-var ->
+      if tvar-read-io tx-done then Err SqlErrTxDone
+      else if tvar-read-io closed-var then Err (SqlErrDriver "sql: statement is closed")
+      else case driver-stmt-query drv-stmt args of
+        Err e -> Err e
+        Ok drows -> Ok (make-sql-rows drows (\_ -> Ok ()))
+
+  -- | Execute a prepared statement expected to return a single row, closing the cursor automatically.
+  sql-stmt-query-row :: forall r. SqlStmt r -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlRow
+  sql-stmt-query-row stmt args = case sql-stmt-query stmt args of
+    Err e -> Err e
+    Ok rows -> take-single-row rows
+
+  -- | Close a prepared statement. Idempotent.
+  sql-stmt-close :: forall r. SqlStmt r ->{IO r, STM, Diverge} Result SqlError Unit
+  sql-stmt-close stmt = case stmt of
+    PoolStmt _ _ closed-var ->
+      case claim-close-flag closed-var of
+        _ -> Ok ()
+    TxStmt _ drv-stmt closed-var ->
+      if claim-close-flag closed-var then driver-stmt-close drv-stmt
+      else Ok ()
+
+  -- ---------------------------------------------------------------------------
+  -- Transactions
+  -- ---------------------------------------------------------------------------
+
+  -- | An active database transaction pinning one pooled connection until commit or rollback.
+  data SqlTx r where
+    -- | Owning pool, pinned connection, driver tx handle, finished flag, and tracked tx statements.
+    MkSqlTx :: SqlDb r -> SqlDriverConn r -> SqlDriverTx r -> TVar Bool -> TVar (List (SqlStmt r)) -> SqlTx r
+
+  -- | Attempt to begin a transaction on a pooled connection with `SqlErrBadConn` retries.
+  begin-tx-attempt :: forall r. SqlDb r -> SqlTxOptions -> Nat ->{IO r, STM, Diverge} Result SqlError (SqlTx r)
+  begin-tx-attempt db opts attempt =
+    let allow-cached = attempt == 0 in
+    case acquire-conn db allow-cached of
+      Err e -> Err e
+      Ok conn ->
+        case driver-conn-begin conn opts of
+          Ok drv-tx ->
+            let done-var = tvar-new-io False in
+            let stmts-var = tvar-new-io Nil in
+            Ok (MkSqlTx db conn drv-tx done-var stmts-var)
+          Err SqlErrBadConn ->
+            case release-conn db conn False of
+              _ -> if attempt < max-bad-conn-retries then begin-tx-attempt db opts (attempt + 1)
+                   else Err SqlErrBadConn
+          Err e -> case release-conn db conn True of
+            _ -> Err e
+
+  -- | Begin a transaction with default options (`IsolationDefault`, read-write).
+  sql-db-begin :: forall r. SqlDb r ->{IO r, STM, Diverge} Result SqlError (SqlTx r)
+  sql-db-begin db = sql-db-begin-tx db sql-tx-options-default
+
+  -- | Begin a transaction with explicit isolation and read-only options.
+  sql-db-begin-tx :: forall r. SqlDb r -> SqlTxOptions ->{IO r, STM, Diverge} Result SqlError (SqlTx r)
+  sql-db-begin-tx db opts = begin-tx-attempt db opts 0
+
+  -- | Close all statements tracked by a finishing transaction.
+  close-tx-stmts :: forall r. List (SqlStmt r) ->{IO r, STM, Diverge} Unit
+  close-tx-stmts stmts = case stmts of
+    Nil -> ()
+    Cons s rest -> case sql-stmt-close s of
+      _ -> close-tx-stmts rest
+
+  -- | Execute a non-query statement within an active transaction.
+  sql-tx-exec :: forall r. SqlTx r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlExecResult
+  sql-tx-exec tx query args = case tx of
+    MkSqlTx _ conn _ done-var _ ->
+      if tvar-read-io done-var then Err SqlErrTxDone
+      else exec-on-conn conn query args
+
+  -- | Execute a query within an active transaction. Closing the rows does not release the transaction's connection.
+  sql-tx-query :: forall r. SqlTx r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError (SqlRows r)
+  sql-tx-query tx query args = case tx of
+    MkSqlTx _ conn _ done-var _ ->
+      if tvar-read-io done-var then Err SqlErrTxDone
+      else case query-on-conn conn query args of
+        Err e -> Err e
+        Ok pair -> case pair of
+          (drows, opt-stmt) ->
+            let cleanup = (\_ -> case opt-stmt of
+              None -> Ok ()
+              Some stmt -> driver-stmt-close stmt) in
+            Ok (make-sql-rows drows cleanup)
+
+  -- | Execute a single-row query within an active transaction, returning `SqlErrNoRows` when empty.
+  sql-tx-query-row :: forall r. SqlTx r -> String -> List SqlNamedArg ->{IO r, STM, Diverge} Result SqlError SqlRow
+  sql-tx-query-row tx query args = case sql-tx-query tx query args of
+    Err e -> Err e
+    Ok rows -> take-single-row rows
+
+  -- | Prepare a statement bound to an active transaction.
+  sql-tx-prepare :: forall r. SqlTx r -> String ->{IO r, STM, Diverge} Result SqlError (SqlStmt r)
+  sql-tx-prepare tx query = case tx of
+    MkSqlTx _ conn _ done-var stmts-var ->
+      if tvar-read-io done-var then Err SqlErrTxDone
+      else case driver-conn-prepare conn query of
+        Err e -> Err e
+        Ok drv-stmt ->
+          let stmt = TxStmt done-var drv-stmt (tvar-new-io False) in
+          case atomically (tvar-modify stmts-var (\xs -> Cons stmt xs)) of
+            _ -> Ok stmt
+
+  -- | Commit an active transaction and release its connection back to the pool.
+  -- Returns `Err SqlErrTxDone` if the transaction was already committed or rolled back.
+  sql-tx-commit :: forall r. SqlTx r ->{IO r, STM, Diverge} Result SqlError Unit
+  sql-tx-commit tx = case tx of
+    MkSqlTx db conn drv-tx done-var stmts-var ->
+      if not (claim-close-flag done-var) then Err SqlErrTxDone
+      else
+        let stmts = atomically (tvar-swap stmts-var Nil) in
+        case close-tx-stmts stmts of
+          _ ->
+            let res = driver-tx-commit drv-tx in
+            let healthy = (case res of
+              Err SqlErrBadConn -> False
+              _ -> True) in
+            case release-conn db conn healthy of
+              _ -> res
+
+  -- | Roll back an active transaction and release its connection back to the pool.
+  -- Returns `Err SqlErrTxDone` if the transaction was already committed or rolled back.
+  sql-tx-rollback :: forall r. SqlTx r ->{IO r, STM, Diverge} Result SqlError Unit
+  sql-tx-rollback tx = case tx of
+    MkSqlTx db conn drv-tx done-var stmts-var ->
+      if not (claim-close-flag done-var) then Err SqlErrTxDone
+      else
+        let stmts = atomically (tvar-swap stmts-var Nil) in
+        case close-tx-stmts stmts of
+          _ ->
+            let res = driver-tx-rollback drv-tx in
+            let healthy = (case res of
+              Err SqlErrBadConn -> False
+              _ -> True) in
+            case release-conn db conn healthy of
+              _ -> res
+
+  -- ---------------------------------------------------------------------------
+  -- Shareable in-memory transactional driver
+  -- ---------------------------------------------------------------------------
+
+  -- | Shareable internal representation of a `SqlValue` stored inside `SqlMemoryStore`.
+  data MemVal where
+    -- | NULL cell.
+    MemNull :: MemVal
+    -- | Boolean cell.
+    MemBool :: Bool -> MemVal
+    -- | 64-bit integer cell.
+    MemInt :: I64 -> MemVal
+    -- | 64-bit float cell.
+    MemFloat :: F64 -> MemVal
+    -- | UTF-8 text stored as immutable byte list.
+    MemString :: List U8 -> MemVal
+    -- | Binary blob stored as immutable byte list.
+    MemBytes :: List U8 -> MemVal
+    -- | Unix nanosecond timestamp cell.
+    MemTimestamp :: I64 -> MemVal
+
+  -- | Internal shareable table stored in `SqlMemoryStore`.
+  data MemTable where
+    -- | Table name bytes, column name byte lists, rows in insertion order, and next auto-increment ID.
+    MkMemTable :: List U8 -> List (List U8) -> List (List MemVal) -> I64 -> MemTable
+
+  -- | Internal shareable database state held inside a `TVar`.
+  data MemDbState where
+    -- | Tables list, total connections opened, and total connections closed.
+    MkMemDbState :: List MemTable -> I64 -> I64 -> MemDbState
+
+  -- | Shareable transactional in-memory database store.
+  -- Contains only shareable types and a `TVar`, so concurrent tasks may share one store safely.
+  data SqlMemoryStore where
+    -- | Transactional cell storing the database tables and connection counters.
+    MkSqlMemoryStore :: TVar MemDbState -> SqlMemoryStore
+
+  -- | Create an empty shareable in-memory SQL store.
+  sql-memory-store-new :: Unit ->{STM} SqlMemoryStore
+  sql-memory-store-new u = MkSqlMemoryStore (tvar-new-io (MkMemDbState Nil 0 0))
+
+  -- | Return the total number of driver connections opened against a memory store.
+  sql-memory-store-open-count :: SqlMemoryStore ->{STM} I64
+  sql-memory-store-open-count store = case store of
+    MkSqlMemoryStore tv -> case tvar-read-io tv of
+      MkMemDbState _ opens _ -> opens
+
+  -- | Return the total number of driver connections closed against a memory store.
+  sql-memory-store-close-count :: SqlMemoryStore ->{STM} I64
+  sql-memory-store-close-count store = case store of
+    MkSqlMemoryStore tv -> case tvar-read-io tv of
+      MkMemDbState _ _ closes -> closes
+
+  -- | Convert `Bytes` into a shareable `List U8` tail-recursively.
+  bytes-to-u8s-go :: Bytes -> Nat -> List U8 -> List U8
+  bytes-to-u8s-go b i acc =
+    if i == 0 then acc
+    else
+      let idx = i - 1 in
+      if idx < bytes-len b then
+        let w = wrapping-i64-to-u8 (nat-to-i64 (bytes-get b idx)) in
+        bytes-to-u8s-go b idx (Cons w acc)
+      else acc
+
+  -- | Convert a byte buffer into a shareable byte list.
+  bytes-to-u8s :: Bytes -> List U8
+  bytes-to-u8s b = bytes-to-u8s-go b (bytes-len b) Nil
+
+  -- | Convert a `String` into a shareable UTF-8 byte list.
+  str-to-u8s :: String -> List U8
+  str-to-u8s s = bytes-to-u8s (string-to-bytes s)
+
+  -- | Convert a UTF-8 byte list back into a `String`.
+  u8s-to-str :: List U8 -> String
+  u8s-to-str xs = case string-from-bytes (bytes-from-u8s xs) of
+    Some s -> s
+    None -> ""
+
+  -- | Structural equality on `List U8`.
+  u8-list-eq :: List U8 -> List U8 -> Bool
+  u8-list-eq a b = case (a, b) of
+    (Nil, Nil) -> True
+    (Cons x rx, Cons y ry) -> if eq-u8 x y then u8-list-eq rx ry else False
+    _ -> False
+
+  -- | Convert a `SqlValue` into its shareable `MemVal` representation.
+  sql-to-mem :: SqlValue -> MemVal
+  sql-to-mem v = case v of
+    SqlNull -> MemNull
+    SqlBool b -> MemBool b
+    SqlInt n -> MemInt n
+    SqlFloat f -> MemFloat f
+    SqlString s -> MemString (str-to-u8s s)
+    SqlBytes b -> MemBytes (bytes-to-u8s b)
+    SqlTimestamp ts -> MemTimestamp ts
+
+  -- | Convert a `MemVal` back into a `SqlValue`.
+  mem-to-sql :: MemVal -> SqlValue
+  mem-to-sql v = case v of
+    MemNull -> SqlNull
+    MemBool b -> SqlBool b
+    MemInt n -> SqlInt n
+    MemFloat f -> SqlFloat f
+    MemString xs -> SqlString (u8s-to-str xs)
+    MemBytes xs -> SqlBytes (bytes-from-u8s xs)
+    MemTimestamp ts -> SqlTimestamp ts
+
+  -- | Structural equality on `MemVal` for WHERE predicate matching.
+  mem-val-eq :: MemVal -> MemVal -> Bool
+  mem-val-eq a b = case (a, b) of
+    (MemNull, MemNull) -> True
+    (MemBool x, MemBool y) -> x == y
+    (MemInt x, MemInt y) -> x == y
+    (MemFloat x, MemFloat y) -> feq-f64 x y || (is-na-nf64 x && is-na-nf64 y)
+    (MemString x, MemString y) -> u8-list-eq x y
+    (MemBytes x, MemBytes y) -> u8-list-eq x y
+    (MemTimestamp x, MemTimestamp y) -> x == y
+    _ -> False
+
+  -- | Map a list of `MemVal` cells back to `SqlValue`.
+  mem-row-to-sql :: List MemVal -> List SqlValue
+  mem-row-to-sql xs = map mem-to-sql xs
+
+  -- | Map a list of byte-list column names back to `String`.
+  u8-cols-to-strs :: List (List U8) -> List String
+  u8-cols-to-strs xs = map u8s-to-str xs
+
+  -- | Convert an ASCII byte to uppercase when it is lowercase `a`..`z`.
+  ascii-upper-byte :: Nat -> InRange 0 255 Nat
+  ascii-upper-byte b =
+    if b >= 97 && b <= 122 then b - 32
+    else if b <= 255 then b
+    else 0
+
+  -- | Convert an ASCII string to uppercase for keyword matching.
+  ascii-upper-into :: Bytes -> Bytes -> Nat -> Unit
+  ascii-upper-into dst src i =
+    if i >= bytes-len src then ()
+    else if i < bytes-len dst then
+      let u = bytes-set dst i (ascii-upper-byte (bytes-get src i)) in
+      ascii-upper-into dst src (i + 1)
+    else ()
+
+  -- | Return an uppercase ASCII copy of a string.
+  ascii-upper :: String -> String
+  ascii-upper s =
+    let src = string-to-bytes s in
+    let n = bytes-len src in
+    let dst = bytes-new n in
+    let u = ascii-upper-into dst src 0 in
+    case string-from-bytes dst of
+      Some t -> t
+      None -> ""
+
+  -- | Check whether a byte is ASCII whitespace or semicolon.
+  is-sep-byte :: Nat -> Bool
+  is-sep-byte b = b == 32 || b == 9 || b == 10 || b == 13 || b == 59
+
+  -- | Check whether a byte is a standalone SQL punctuation token `(`, `)`, `,`, or `=`.
+  is-punct-byte :: Nat -> Bool
+  is-punct-byte b = b == 40 || b == 41 || b == 44 || b == 61
+
+  -- | Slice `[start, end)` from a byte buffer as UTF-8 text.
+  slice-text :: Bytes -> Nat -> Nat -> String
+  slice-text b start end =
+    let n = nat-sub-sat end start in
+    let out = bytes-new n in
+    let copied = (if start + n <= bytes-len b then bytes-copy-range out b 0 start n else ()) in
+    case string-from-bytes out of
+      Some s -> s
+      None -> ""
+
+  -- | Scan a non-separator, non-punctuation token starting at `i`.
+  scan-word-end :: Bytes -> Nat -> Nat
+  scan-word-end b i =
+    if i >= bytes-len b then i
+    else
+      let c = bytes-get b i in
+      if is-sep-byte c || is-punct-byte c then i
+      else scan-word-end b (i + 1)
+
+  -- | Tokenize a SQL statement into words and punctuation tokens `(`, `)`, `,`, `=`.
+  tokenize-go :: Bytes -> Nat -> List String -> List String
+  tokenize-go b i acc =
+    if i >= bytes-len b then reverse acc
+    else
+      let c = bytes-get b i in
+      if is-sep-byte c then tokenize-go b (i + 1) acc
+      else if is-punct-byte c then
+        tokenize-go b (i + 1) (Cons (slice-text b i (i + 1)) acc)
+      else
+        let end = scan-word-end b i in
+        tokenize-go b end (Cons (slice-text b i end) acc)
+
+  -- | Tokenize a mini-SQL query string.
+  tokenize-sql :: String -> List String
+  tokenize-sql q = tokenize-go (string-to-bytes q) 0 Nil
+
+  -- | Check whether a token begins with a specific ASCII byte.
+  starts-with-byte :: String -> Nat -> Bool
+  starts-with-byte s code =
+    let b = string-to-bytes s in
+    if bytes-len b > 0 then bytes-get b 0 == code else False
+
+  -- | Drop the first byte of a string.
+  drop-first-byte :: String -> String
+  drop-first-byte s =
+    let b = string-to-bytes s in
+    if bytes-len b > 0 then slice-text b 1 (bytes-len b) else ""
+
+  -- | Parse a positive 1-based decimal index after `$` (e.g. `$1` -> `Some 0`).
+  parse-pos-digits :: Bytes -> Nat -> Nat -> Option Nat
+  parse-pos-digits b i acc =
+    if i >= bytes-len b then
+      if acc == 0 then None else Some (acc - 1)
+    else
+      let c = bytes-get b i in
+      if c >= 48 && c <= 57 then
+        parse-pos-digits b (i + 1) (acc * 10 + (c - 48))
+      else None
+
+  -- | Look up a named argument by parameter name.
+  find-named-arg :: List SqlNamedArg -> String -> Option SqlValue
+  find-named-arg args name = case args of
+    Nil -> None
+    Cons a rest -> case a of
+      SqlNamed n v -> if n == name then Some v else find-named-arg rest name
+      SqlPositional _ -> find-named-arg rest name
+
+  -- | Look up the `idx`-th argument (0-based) in the argument list.
+  nth-arg-value :: List SqlNamedArg -> Nat -> Option SqlValue
+  nth-arg-value args idx = case args of
+    Nil -> None
+    Cons a rest ->
+      if idx == 0 then Some (sql-arg-value a)
+      else nth-arg-value rest (idx - 1)
+
+  -- | Resolve a placeholder token (`?`, `$N`, `@name`, `:name`) against `args` and current positional cursor.
+  resolve-placeholder :: String -> List SqlNamedArg -> Nat -> Result SqlError (SqlValue, Nat)
+  resolve-placeholder tok args pos =
+    if tok == "?" then
+      case nth-arg-value args pos of
+        Some v -> Ok (v, pos + 1)
+        None -> Err (SqlErrDriver "missing positional parameter")
+    else if starts-with-byte tok 64 || starts-with-byte tok 58 then
+      let name = drop-first-byte tok in
+      case find-named-arg args name of
+        Some v -> Ok (v, pos)
+        None -> Err (SqlErrDriver (string-concat "missing named parameter: " name))
+    else if starts-with-byte tok 36 then
+      let rest = string-to-bytes (drop-first-byte tok) in
+      case parse-pos-digits rest 0 0 of
+        Some idx -> case nth-arg-value args idx of
+          Some v -> Ok (v, pos)
+          None -> Err (SqlErrDriver (string-concat "missing positional parameter: " tok))
+        None -> Err (SqlErrDriver (string-concat "invalid placeholder: " tok))
+    else if ascii-upper tok == "NULL" then
+      Ok (SqlNull, pos)
+    else
+      Err (SqlErrDriver (string-concat "unsupported literal or placeholder: " tok))
+
+  -- | Parse a comma-separated list inside parentheses `(...)` up to `)`.
+  parse-paren-items :: List String -> List String -> Result SqlError (List String, List String)
+  parse-paren-items toks acc = case toks of
+    Nil -> Err (SqlErrDriver "unterminated parenthesized list")
+    Cons t rest ->
+      if t == ")" then Ok (reverse acc, rest)
+      else if t == "," then parse-paren-items rest acc
+      else parse-paren-items rest (Cons t acc)
+
+  -- | Parsed mini-SQL command for the in-memory driver.
+  data MemCmd where
+    -- | Create a table with name and column list.
+    CmdCreateTable :: String -> List String -> MemCmd
+    -- | Drop a table by name.
+    CmdDropTable :: String -> MemCmd
+    -- | Insert one row of placeholder tokens into a table.
+    CmdInsert :: String -> List String -> MemCmd
+    -- | Select columns (empty list means `*`) from a table with optional `WHERE col = placeholder`.
+    CmdSelect :: String -> List String -> Option (String, String) -> MemCmd
+    -- | Select row count from a table with optional `WHERE col = placeholder`.
+    CmdCount :: String -> Option (String, String) -> MemCmd
+    -- | Update a column with a placeholder value, optionally filtered by `WHERE col = placeholder`.
+    CmdUpdate :: String -> String -> String -> Option (String, String) -> MemCmd
+    -- | Delete rows from a table, optionally filtered by `WHERE col = placeholder`.
+    CmdDelete :: String -> Option (String, String) -> MemCmd
+    -- | Force a driver error for testing failure paths.
+    CmdFail :: MemCmd
+
+  -- | Parse an optional `WHERE <col> = <placeholder>` clause.
+  parse-where :: List String -> Result SqlError (Option (String, String))
+  parse-where toks = case toks of
+    Nil -> Ok None
+    Cons kw (Cons col (Cons eq (Cons ph Nil))) ->
+      if ascii-upper kw == "WHERE" && eq == "=" then Ok (Some (col, ph))
+      else Err (SqlErrDriver "invalid WHERE clause")
+    _ -> Err (SqlErrDriver "invalid trailing SQL clause")
+
+  -- | Collect comma-separated column names until `FROM`.
+  parse-select-cols :: List String -> List String -> Result SqlError (List String, List String)
+  parse-select-cols toks acc = case toks of
+    Nil -> Err (SqlErrDriver "expected FROM in SELECT")
+    Cons t rest ->
+      if ascii-upper t == "FROM" then Ok (reverse acc, rest)
+      else if t == "," then parse-select-cols rest acc
+      else parse-select-cols rest (Cons t acc)
+
+  -- | Parse non-COUNT `SELECT * FROM ...` or `SELECT c1, c2 FROM ...` clauses.
+  parse-select-general :: List String -> Result SqlError MemCmd
+  parse-select-general rest = case rest of
+    Cons star (Cons kfrom (Cons tbl tail-toks)) ->
+      if star == "*" && ascii-upper kfrom == "FROM" then
+        case parse-where tail-toks of
+          Err e -> Err e
+          Ok wh -> Ok (CmdSelect tbl Nil wh)
+      else
+        case parse-select-cols rest Nil of
+          Err e -> Err e
+          Ok pair -> case pair of
+            (cols, after-from) -> case after-from of
+              Cons tbl2 tail2 -> case parse-where tail2 of
+                Err e -> Err e
+                Ok wh -> Ok (CmdSelect tbl2 cols wh)
+              Nil -> Err (SqlErrDriver "missing table name in SELECT")
+    _ ->
+      case parse-select-cols rest Nil of
+        Err e -> Err e
+        Ok pair -> case pair of
+          (cols, after-from) -> case after-from of
+            Cons tbl2 tail2 -> case parse-where tail2 of
+              Err e -> Err e
+              Ok wh -> Ok (CmdSelect tbl2 cols wh)
+            Nil -> Err (SqlErrDriver "missing table name in SELECT")
+
+  -- | Parse a mini-SQL statement string into a structured command.
+  parse-mem-cmd :: String -> Result SqlError MemCmd
+  parse-mem-cmd query =
+    let toks = tokenize-sql query in
+    case toks of
+      Nil -> Err (SqlErrDriver "empty SQL statement")
+      Cons kw rest ->
+        let up = ascii-upper kw in
+        if up == "FAIL" then Ok CmdFail
+        else if up == "CREATE" then
+          (case rest of
+            Cons k2 (Cons tbl (Cons lp after-lp)) ->
+              if ascii-upper k2 == "TABLE" && lp == "(" then
+                case parse-paren-items after-lp Nil of
+                  Err e -> Err e
+                  Ok pair -> case pair of
+                    (cols, Nil) -> Ok (CmdCreateTable tbl cols)
+                    _ -> Err (SqlErrDriver "unexpected tokens after CREATE TABLE")
+              else Err (SqlErrDriver "expected CREATE TABLE <name> (<cols>)")
+            _ -> Err (SqlErrDriver "expected CREATE TABLE <name> (<cols>)"))
+        else if up == "DROP" then
+          (case rest of
+            Cons k2 (Cons tbl Nil) ->
+              if ascii-upper k2 == "TABLE" then Ok (CmdDropTable tbl)
+              else Err (SqlErrDriver "expected DROP TABLE <name>")
+            _ -> Err (SqlErrDriver "expected DROP TABLE <name>"))
+        else if up == "INSERT" then
+          (case rest of
+            Cons k2 (Cons tbl after-tbl) ->
+              if ascii-upper k2 == "INTO" then
+                (case after-tbl of
+                  Cons k3 (Cons lp after-lp) ->
+                    if ascii-upper k3 == "VALUES" && lp == "(" then
+                      case parse-paren-items after-lp Nil of
+                        Err e -> Err e
+                        Ok pair -> case pair of
+                          (phs, Nil) -> Ok (CmdInsert tbl phs)
+                          _ -> Err (SqlErrDriver "unexpected tokens after INSERT VALUES")
+                    else Err (SqlErrDriver "expected INSERT INTO <table> VALUES (...)")
+                  Nil -> Ok (CmdInsert tbl Nil)
+                  _ -> Err (SqlErrDriver "expected INSERT INTO <table> VALUES (...)"))
+              else Err (SqlErrDriver "expected INSERT INTO <table> VALUES (...)")
+            _ -> Err (SqlErrDriver "expected INSERT INTO <table> VALUES (...)"))
+        else if up == "SELECT" then
+          (case rest of
+            Cons c1 (Cons lp (Cons star (Cons rp (Cons kfrom (Cons tbl tail-toks))))) ->
+              if ascii-upper c1 == "COUNT" && lp == "(" && star == "*" && rp == ")" && ascii-upper kfrom == "FROM" then
+                case parse-where tail-toks of
+                  Err e -> Err e
+                  Ok wh -> Ok (CmdCount tbl wh)
+              else parse-select-general rest
+            _ -> parse-select-general rest)
+        else if up == "UPDATE" then
+          (case rest of
+            Cons tbl (Cons kset (Cons col (Cons eq (Cons ph tail-toks)))) ->
+              if ascii-upper kset == "SET" && eq == "=" then
+                case parse-where tail-toks of
+                  Err e -> Err e
+                  Ok wh -> Ok (CmdUpdate tbl col ph wh)
+              else Err (SqlErrDriver "expected UPDATE <table> SET <col> = <param> [WHERE ...]")
+            _ -> Err (SqlErrDriver "expected UPDATE <table> SET <col> = <param> [WHERE ...]"))
+        else if up == "DELETE" then
+          (case rest of
+            Cons kfrom (Cons tbl tail-toks) ->
+              if ascii-upper kfrom == "FROM" then
+                case parse-where tail-toks of
+                  Err e -> Err e
+                  Ok wh -> Ok (CmdDelete tbl wh)
+              else Err (SqlErrDriver "expected DELETE FROM <table> [WHERE ...]")
+            _ -> Err (SqlErrDriver "expected DELETE FROM <table> [WHERE ...]"))
+        else Err (SqlErrDriver (string-concat "unsupported SQL statement: " query))
+
+  -- | Count placeholder tokens in a parsed command for `driver-stmt-num-input`.
+  cmd-num-input :: MemCmd -> Int
+  cmd-num-input cmd = case cmd of
+    CmdCreateTable _ _ -> 0
+    CmdDropTable _ -> 0
+    CmdInsert _ phs -> if is-empty phs then -1 else length phs
+    CmdSelect _ _ wh -> case wh of
+      None -> 0
+      Some _ -> 1
+    CmdCount _ wh -> case wh of
+      None -> 0
+      Some _ -> 1
+    CmdUpdate _ _ _ wh -> case wh of
+      None -> 1
+      Some _ -> 2
+    CmdDelete _ wh -> case wh of
+      None -> 0
+      Some _ -> 1
+    CmdFail -> 0
+
+  -- | Resolve a list of placeholder tokens into `MemVal` cells.
+  resolve-placeholders :: List String -> List SqlNamedArg -> Nat -> List MemVal -> Result SqlError (List MemVal)
+  resolve-placeholders phs args pos acc = case phs of
+    Nil -> Ok (reverse acc)
+    Cons ph rest -> case resolve-placeholder ph args pos of
+      Err e -> Err e
+      Ok pair -> case pair of
+        (v, next-pos) -> resolve-placeholders rest args next-pos (Cons (sql-to-mem v) acc)
+
+  -- | Find a table by byte-encoded name in the table list.
+  find-table :: List MemTable -> List U8 -> Option MemTable
+  find-table tables name = case tables of
+    Nil -> None
+    Cons t rest -> case t of
+      MkMemTable tname _ _ _ ->
+        if u8-list-eq tname name then Some t else find-table rest name
+
+  -- | Replace an existing table by byte-encoded name.
+  replace-table :: List MemTable -> MemTable -> List MemTable -> List MemTable
+  replace-table tables updated acc = case tables of
+    Nil -> reverse acc
+    Cons t rest -> case t of
+      MkMemTable tname _ _ _ -> case updated of
+        MkMemTable uname _ _ _ ->
+          if u8-list-eq tname uname then reverse acc <> Cons updated rest
+          else replace-table rest updated (Cons t acc)
+
+  -- | Remove a table by byte-encoded name.
+  remove-table :: List MemTable -> List U8 -> List MemTable -> Option (List MemTable)
+  remove-table tables name acc = case tables of
+    Nil -> None
+    Cons t rest -> case t of
+      MkMemTable tname _ _ _ ->
+        if u8-list-eq tname name then Some (reverse acc <> rest)
+        else remove-table rest name (Cons t acc)
+
+  -- | Find the zero-based index of a column byte-name in a table's column list.
+  find-mem-col-idx :: List (List U8) -> List U8 -> Nat -> Option Nat
+  find-mem-col-idx cols name idx = case cols of
+    Nil -> None
+    Cons c rest -> if u8-list-eq c name then Some idx else find-mem-col-idx rest name (idx + 1)
+
+  -- | Get the `idx`-th `MemVal` in a row.
+  nth-mem-val :: List MemVal -> Nat -> Option MemVal
+  nth-mem-val vals idx = case vals of
+    Nil -> None
+    Cons v rest -> if idx == 0 then Some v else nth-mem-val rest (idx - 1)
+
+  -- | Update the `idx`-th `MemVal` in a row.
+  set-mem-val :: List MemVal -> Nat -> MemVal -> List MemVal -> List MemVal
+  set-mem-val vals idx new-v acc = case vals of
+    Nil -> reverse acc
+    Cons v rest ->
+      if idx == 0 then reverse acc <> Cons new-v rest
+      else set-mem-val rest (idx - 1) new-v (Cons v acc)
+
+  -- | Filter rows by optional `(column-index, expected-value)`.
+  filter-mem-rows :: List (List MemVal) -> Option (Nat, MemVal) -> List (List MemVal) -> List (List MemVal)
+  filter-mem-rows rows pred acc = case rows of
+    Nil -> reverse acc
+    Cons r rest ->
+      let keep = (case pred of
+        None -> True
+        Some pair -> case pair of
+          (cidx, expected) -> case nth-mem-val r cidx of
+            Some actual -> mem-val-eq actual expected
+            None -> False) in
+      filter-mem-rows rest pred (if keep then Cons r acc else acc)
+
+  -- | Project selected column indices from one row.
+  project-row :: List MemVal -> List Nat -> List MemVal -> List MemVal
+  project-row row idxs acc = case idxs of
+    Nil -> reverse acc
+    Cons i rest ->
+      let v = (case nth-mem-val row i of
+        Some x -> x
+        None -> MemNull) in
+      project-row row rest (Cons v acc)
+
+  -- | Resolve requested column names into zero-based column indices.
+  resolve-col-idxs :: List (List U8) -> List String -> List Nat -> Result SqlError (List Nat)
+  resolve-col-idxs table-cols req acc = case req of
+    Nil -> Ok (reverse acc)
+    Cons name rest -> case find-mem-col-idx table-cols (str-to-u8s name) 0 of
+      Some idx -> resolve-col-idxs table-cols rest (Cons idx acc)
+      None -> Err (SqlErrDriver (string-concat "unknown column: " name))
+
+  -- | Update matching rows in a table, returning updated rows and affected row count.
+  update-mem-rows :: List (List MemVal) -> Nat -> MemVal -> Option (Nat, MemVal) -> List (List MemVal) -> I64 -> (List (List MemVal), I64)
+  update-mem-rows rows set-idx new-v pred acc count = case rows of
+    Nil -> (reverse acc, count)
+    Cons r rest ->
+      let matches = (case pred of
+        None -> True
+        Some pair -> case pair of
+          (cidx, expected) -> case nth-mem-val r cidx of
+            Some actual -> mem-val-eq actual expected
+            None -> False) in
+      if matches then
+        update-mem-rows rest set-idx new-v pred (Cons (set-mem-val r set-idx new-v Nil) acc) (wrapping-add-i64 count 1)
+      else
+        update-mem-rows rest set-idx new-v pred (Cons r acc) count
+
+  -- | Delete matching rows in a table, returning remaining rows and deleted row count.
+  delete-mem-rows :: List (List MemVal) -> Option (Nat, MemVal) -> List (List MemVal) -> I64 -> (List (List MemVal), I64)
+  delete-mem-rows rows pred acc count = case rows of
+    Nil -> (reverse acc, count)
+    Cons r rest ->
+      let matches = (case pred of
+        None -> True
+        Some pair -> case pair of
+          (cidx, expected) -> case nth-mem-val r cidx of
+            Some actual -> mem-val-eq actual expected
+            None -> False) in
+      if matches then delete-mem-rows rest pred acc (wrapping-add-i64 count 1)
+      else delete-mem-rows rest pred (Cons r acc) count
+
+  -- | Resolve an optional WHERE clause against a table's column list and query arguments.
+  resolve-where-pred :: List (List U8) -> Option (String, String) -> List SqlNamedArg -> Nat -> Result SqlError (Option (Nat, MemVal))
+  resolve-where-pred cols wh args pos = case wh of
+    None -> Ok None
+    Some pair -> case pair of
+      (col-name, ph) -> case find-mem-col-idx cols (str-to-u8s col-name) 0 of
+        None -> Err (SqlErrDriver (string-concat "unknown WHERE column: " col-name))
+        Some idx -> case resolve-placeholder ph args pos of
+          Err e -> Err e
+          Ok vp -> case vp of
+            (v, _) -> Ok (Some (idx, sql-to-mem v))
+
+  -- | Execute a mutating command on a list of tables, returning updated tables and execution summary.
+  apply-mem-exec :: List MemTable -> MemCmd -> List SqlNamedArg -> Result SqlError (List MemTable, SqlExecResult)
+  apply-mem-exec tables cmd args = case cmd of
+    CmdFail -> Err (SqlErrDriver "forced failure")
+    CmdCreateTable name cols ->
+      let tname = str-to-u8s name in
+      case find-table tables tname of
+        Some _ -> Err (SqlErrDriver (string-concat "table already exists: " name))
+        None ->
+          let u8cols = map str-to-u8s cols in
+          let tbl = MkMemTable tname u8cols Nil 1 in
+          Ok (Cons tbl tables, sql-exec-result None (Some 0))
+    CmdDropTable name ->
+      case remove-table tables (str-to-u8s name) Nil of
+        None -> Err (SqlErrDriver (string-concat "no such table: " name))
+        Some next -> Ok (next, sql-exec-result None (Some 0))
+    CmdInsert name phs ->
+      let tname = str-to-u8s name in
+      case find-table tables tname of
+        None -> Err (SqlErrDriver (string-concat "no such table: " name))
+        Some tbl -> case tbl of
+          MkMemTable tn cols rows next-id ->
+            let resolved = (if is-empty phs then Ok (map (\a -> sql-to-mem (sql-arg-value a)) args)
+              else resolve-placeholders phs args 0 Nil) in
+            case resolved of
+              Err e -> Err e
+              Ok vals ->
+                if list-length vals /= list-length cols then
+                  Err (SqlErrDriver "column count does not match value count")
+                else
+                  let updated = MkMemTable tn cols (rows <> [vals]) (wrapping-add-i64 next-id 1) in
+                  Ok (replace-table tables updated Nil, sql-exec-result (Some next-id) (Some 1))
+    CmdUpdate name set-col set-ph wh ->
+      let tname = str-to-u8s name in
+      case find-table tables tname of
+        None -> Err (SqlErrDriver (string-concat "no such table: " name))
+        Some tbl -> case tbl of
+          MkMemTable tn cols rows next-id ->
+            case find-mem-col-idx cols (str-to-u8s set-col) 0 of
+              None -> Err (SqlErrDriver (string-concat "unknown column: " set-col))
+              Some set-idx ->
+                case resolve-placeholder set-ph args 0 of
+                  Err e -> Err e
+                  Ok pair -> case pair of
+                    (sv, next-pos) ->
+                      case resolve-where-pred cols wh args next-pos of
+                        Err e -> Err e
+                        Ok pred ->
+                          case update-mem-rows rows set-idx (sql-to-mem sv) pred Nil 0 of
+                            (new-rows, cnt) ->
+                              let updated = MkMemTable tn cols new-rows next-id in
+                              Ok (replace-table tables updated Nil, sql-exec-result None (Some cnt))
+    CmdDelete name wh ->
+      let tname = str-to-u8s name in
+      case find-table tables tname of
+        None -> Err (SqlErrDriver (string-concat "no such table: " name))
+        Some tbl -> case tbl of
+          MkMemTable tn cols rows next-id ->
+            case resolve-where-pred cols wh args 0 of
+              Err e -> Err e
+              Ok pred ->
+                case delete-mem-rows rows pred Nil 0 of
+                  (new-rows, cnt) ->
+                    let updated = MkMemTable tn cols new-rows next-id in
+                    Ok (replace-table tables updated Nil, sql-exec-result None (Some cnt))
+    _ -> Err (SqlErrDriver "statement does not support exec")
+
+  -- | Infer a database type name for a column from the first non-null cell in result rows.
+  infer-col-type-name :: List (List SqlValue) -> Nat -> String
+  infer-col-type-name rows idx = case rows of
+    Nil -> "ANY"
+    Cons r rest -> case nth-value-sql r idx of
+      None -> infer-col-type-name rest idx
+      Some SqlNull -> infer-col-type-name rest idx
+      Some v -> sql-value-type-name v
+
+  -- | Look up the `idx`-th `SqlValue` in a list.
+  nth-value-sql :: List SqlValue -> Nat -> Option SqlValue
+  nth-value-sql xs idx = case xs of
+    Nil -> None
+    Cons x rest -> if idx == 0 then Some x else nth-value-sql rest (idx - 1)
+
+  -- | Build `SqlColumnType` metadata for result columns.
+  build-col-types :: List String -> List (List SqlValue) -> Nat -> List SqlColumnType -> List SqlColumnType
+  build-col-types cols rows idx acc = case cols of
+    Nil -> reverse acc
+    Cons name rest ->
+      let tname = infer-col-type-name rows idx in
+      let ct = sql-column-type name tname (Some True) None None None in
+      build-col-types rest rows (idx + 1) (Cons ct acc)
+
+  -- | Execute a read-only query command against a snapshot of tables.
+  apply-mem-query :: List MemTable -> MemCmd -> List SqlNamedArg -> Result SqlError (List String, List SqlColumnType, List (List SqlValue))
+  apply-mem-query tables cmd args = case cmd of
+    CmdFail -> Err (SqlErrDriver "forced failure")
+    CmdCount name wh ->
+      case find-table tables (str-to-u8s name) of
+        None -> Err (SqlErrDriver (string-concat "no such table: " name))
+        Some tbl -> case tbl of
+          MkMemTable _ cols rows _ ->
+            case resolve-where-pred cols wh args 0 of
+              Err e -> Err e
+              Ok pred ->
+                let matched = filter-mem-rows rows pred Nil in
+                let cnt = nat-to-i64-clamped (list-length matched) in
+                let ct = sql-column-type "count" "INT" (Some False) None None None in
+                Ok (["count"], [ct], [[SqlInt cnt]])
+    CmdSelect name req-cols wh ->
+      case find-table tables (str-to-u8s name) of
+        None -> Err (SqlErrDriver (string-concat "no such table: " name))
+        Some tbl -> case tbl of
+          MkMemTable _ cols rows _ ->
+            case resolve-where-pred cols wh args 0 of
+              Err e -> Err e
+              Ok pred ->
+                let matched = filter-mem-rows rows pred Nil in
+                if is-empty req-cols then
+                  let col-names = u8-cols-to-strs cols in
+                  let sql-rows = map mem-row-to-sql matched in
+                  let col-types = build-col-types col-names sql-rows 0 Nil in
+                  Ok (col-names, col-types, sql-rows)
+                else
+                  case resolve-col-idxs cols req-cols Nil of
+                    Err e -> Err e
+                    Ok idxs ->
+                      let projected = map (\r -> mem-row-to-sql (project-row r idxs Nil)) matched in
+                      let col-types = build-col-types req-cols projected 0 Nil in
+                      Ok (req-cols, col-types, projected)
+    _ -> Err (SqlErrDriver "statement does not return rows")
+
+  -- | Active transaction snapshot inside an in-memory driver connection.
+  data MemTxState where
+    -- | Snapshot tables, read-only flag, and dirty flag tracking whether writes occurred.
+    MkMemTxState :: List MemTable -> Bool -> Bool -> MemTxState
+
+  -- | Build a driver row cursor over materialized rows.
+  make-mem-driver-rows :: forall (r :: Region). List String -> List SqlColumnType -> List (List SqlValue) ->{STM} SqlDriverRows r
+  make-mem-driver-rows cols col-types rows =
+    let state-var = tvar-new-io (Some rows) in
+    sql-driver-rows
+      (\() -> cols)
+      (\() -> col-types)
+      (\() ->
+        atomically (stm-bind (tvar-read state-var) (\st -> case st of
+          None -> stm-pure (Ok None)
+          Some Nil -> stm-then (tvar-write state-var None) (stm-pure (Ok None))
+          Some (Cons r rest) -> stm-then (tvar-write state-var (Some rest)) (stm-pure (Ok (Some r))))))
+      (\() ->
+        case atomically (tvar-write state-var None) of
+          _ -> Ok ())
+
+  -- | Execute a parsed command on an in-memory connection (autocommit or inside active tx).
+  mem-conn-exec-cmd :: TVar MemDbState -> TVar Bool -> TVar (Option MemTxState) -> MemCmd -> List SqlNamedArg ->{STM, Diverge} Result SqlError SqlExecResult
+  mem-conn-exec-cmd db-var closed-var tx-var cmd args =
+    if tvar-read-io closed-var then Err SqlErrConnDone
+    else
+      atomically (stm-bind (tvar-read tx-var) (\tx-opt -> case tx-opt of
+        Some (MkMemTxState snap ro _) ->
+          if ro then stm-pure (Err (SqlErrDriver "read-only transaction"))
+          else case apply-mem-exec snap cmd args of
+            Err e -> stm-pure (Err e)
+            Ok pair -> case pair of
+              (next-snap, res) ->
+                stm-then (tvar-write tx-var (Some (MkMemTxState next-snap ro True))) (stm-pure (Ok res))
+        None ->
+          stm-bind (tvar-read db-var) (\db-st -> case db-st of
+            MkMemDbState tables opens closes ->
+              case apply-mem-exec tables cmd args of
+                Err e -> stm-pure (Err e)
+                Ok pair -> case pair of
+                  (next-tables, res) ->
+                    stm-then (tvar-write db-var (MkMemDbState next-tables opens closes)) (stm-pure (Ok res)))))
+
+  -- | Execute a parsed query command on an in-memory connection (autocommit or inside active tx).
+  mem-conn-query-cmd :: forall (r :: Region). TVar MemDbState -> TVar Bool -> TVar (Option MemTxState) -> MemCmd -> List SqlNamedArg ->{STM, Diverge} Result SqlError (SqlDriverRows r)
+  mem-conn-query-cmd db-var closed-var tx-var cmd args =
+    if tvar-read-io closed-var then Err SqlErrConnDone
+    else
+      let tables = atomically (stm-bind (tvar-read tx-var) (\tx-opt -> case tx-opt of
+        Some (MkMemTxState snap _ _) -> stm-pure snap
+        None -> stm-bind (tvar-read db-var) (\db-st -> case db-st of
+          MkMemDbState ts _ _ -> stm-pure ts))) in
+      case apply-mem-query tables cmd args of
+        Err e -> Err e
+        Ok triple -> case triple of
+          (cols, col-types, rows) -> Ok (make-mem-driver-rows cols col-types rows)
+
+  -- | Construct a driver connection backed by a shared `SqlMemoryStore`.
+  open-mem-conn :: forall r. SqlMemoryStore -> String ->{IO r, STM, Diverge} Result SqlError (SqlDriverConn r)
+  open-mem-conn store dsn =
+    if dsn == "fail-open" then Err (SqlErrDriver "failed to open connection")
+    else case store of
+      MkSqlMemoryStore db-var ->
+        let bump = atomically (tvar-modify db-var (\st -> case st of
+          MkMemDbState ts opens closes -> MkMemDbState ts (wrapping-add-i64 opens 1) closes)) in
+        case bump of
+          _ ->
+            let closed-var = tvar-new-io False in
+            let tx-var = tvar-new-io None in
+            let ping-fn = (\() ->
+              if tvar-read-io closed-var then Err SqlErrConnDone else Ok ()) in
+            let exec-fn = (\query args ->
+              case parse-mem-cmd query of
+                Err e -> Err e
+                Ok cmd -> mem-conn-exec-cmd db-var closed-var tx-var cmd args) in
+            let query-fn = (\query args ->
+              case parse-mem-cmd query of
+                Err e -> Err e
+                Ok cmd -> mem-conn-query-cmd db-var closed-var tx-var cmd args) in
+            let prepare-fn = (\query ->
+              if tvar-read-io closed-var then Err SqlErrConnDone
+              else case parse-mem-cmd query of
+                Err e -> Err e
+                Ok cmd ->
+                  let stmt-closed = tvar-new-io False in
+                  let s-exec = (\args ->
+                    if tvar-read-io stmt-closed then Err (SqlErrDriver "sql: statement is closed")
+                    else mem-conn-exec-cmd db-var closed-var tx-var cmd args) in
+                  let s-query = (\args ->
+                    if tvar-read-io stmt-closed then Err (SqlErrDriver "sql: statement is closed")
+                    else mem-conn-query-cmd db-var closed-var tx-var cmd args) in
+                  let s-close = (\() ->
+                    case atomically (tvar-write stmt-closed True) of
+                      _ -> Ok ()) in
+                  Ok (sql-driver-stmt s-exec s-query s-close (cmd-num-input cmd))) in
+            let begin-fn = (\opts ->
+              if tvar-read-io closed-var then Err SqlErrConnDone
+              else
+                let started = atomically (stm-bind (tvar-read tx-var) (\cur -> case cur of
+                  Some _ -> stm-pure False
+                  None -> stm-bind (tvar-read db-var) (\db-st -> case db-st of
+                    MkMemDbState ts _ _ ->
+                      stm-then (tvar-write tx-var (Some (MkMemTxState ts (sql-tx-read-only opts) False))) (stm-pure True)))) in
+                if not started then Err (SqlErrDriver "transaction already active")
+                else
+                  let commit-fn = (\() ->
+                    atomically (stm-bind (tvar-read tx-var) (\cur -> case cur of
+                      None -> stm-pure (Err SqlErrTxDone)
+                      Some (MkMemTxState snap _ dirty) ->
+                        stm-then
+                          (tvar-write tx-var None)
+                          (if dirty then
+                            stm-then
+                              (tvar-modify db-var (\db-st -> case db-st of
+                                MkMemDbState _ opens closes -> MkMemDbState snap opens closes))
+                              (stm-pure (Ok ()))
+                           else stm-pure (Ok ()))))) in
+                  let rollback-fn = (\() ->
+                    atomically (stm-bind (tvar-read tx-var) (\cur -> case cur of
+                      None -> stm-pure (Err SqlErrTxDone)
+                      Some _ -> stm-then (tvar-write tx-var None) (stm-pure (Ok ()))))) in
+                  Ok (sql-driver-tx commit-fn rollback-fn)) in
+            let close-fn = (\() ->
+              if claim-close-flag closed-var then
+                case atomically (stm-then
+                  (tvar-write tx-var None)
+                  (tvar-modify db-var (\st -> case st of
+                    MkMemDbState ts opens closes -> MkMemDbState ts opens (wrapping-add-i64 closes 1)))) of
+                  _ -> Ok ()
+              else Ok ()) in
+            Ok (sql-driver-conn ping-fn exec-fn query-fn prepare-fn begin-fn close-fn)
+
+  -- | Create an in-memory transactional driver backed by an explicit `SqlMemoryStore`.
+  sql-memory-driver :: forall (r :: Region). SqlMemoryStore -> SqlDriver r
+  sql-memory-driver store = sql-driver (\dsn -> open-mem-conn store dsn)
+
+  -- | Create an in-memory transactional driver backed by a fresh private store.
+  sql-memory-driver-new :: forall (r :: Region). Unit ->{STM} SqlDriver r
+  sql-memory-driver-new u = sql-memory-driver (sql-memory-store-new u)

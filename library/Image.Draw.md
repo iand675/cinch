@@ -10,7 +10,7 @@ Import with `import Image.Draw`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Image.Raster](Image.Raster.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md).
 
 Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Draw](Image.Draw.md), [Image.Raster](Image.Raster.md).
 
@@ -41,7 +41,7 @@ pixel's quantization error to its neighbours (7/16 right, 3/16, 5/16 and
 
 How source pixels combine with the destination.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 26
+[Source](/reference-sources/Image.Draw.cinch) · line 27
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DrawOver</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawOp</span></code></pre>
 
@@ -55,7 +55,7 @@ How source pixels combine with the destination.
 
 Corners in the order listed above.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 35
+[Source](/reference-sources/Image.Draw.cinch) · line 36
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DrawRect</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Draw</span>.<span class="tok-constructor">DrawRect</span>))))</code></pre>
 
@@ -69,7 +69,7 @@ Corners in the order listed above.
 
 Draw the source onto the destination within the rectangle, source point sp aligned with its corner.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 49
+[Source](/reference-sources/Image.Draw.cinch) · line 50
 
 <a id="value-647261772d666c6f79642d737465696e62657267"></a>
 
@@ -80,7 +80,7 @@ Draw the source onto the destination within the rectangle, source point sp align
 Draw a source onto an indexed raster with Floyd-Steinberg error diffusion (Src compositing). Other rasters are
 returned unchanged.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 324
+[Source](/reference-sources/Image.Draw.cinch) · line 318
 
 <a id="value-647261772d6d61736b"></a>
 
@@ -90,7 +90,7 @@ returned unchanged.
 
 Draw through a mask: the mask's alpha at point mp onward scales the source.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 53
+[Source](/reference-sources/Image.Draw.cinch) · line 54
 
 <a id="value-647261772d72656374"></a>
 
@@ -100,7 +100,7 @@ Draw through a mask: the mask's alpha at point mp onward scales the source.
 
 Make a rectangle from its corners.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 38
+[Source](/reference-sources/Image.Draw.cinch) · line 39
 
 <a id="value-647261772d756e69666f726d"></a>
 
@@ -110,8 +110,8 @@ Make a rectangle from its corners.
 
 Draw one non-premultiplied 8-bit color (red, green, blue, alpha) over the rectangle.
 
-[Source](/reference-sources/Image.Draw.cinch) · line 57
+[Source](/reference-sources/Image.Draw.cinch) · line 58
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Draw.cinch`. Source SHA-256: `bf28ed300fee4c128ae7405b125f650ee0d60dc7c7f41dd42f915a34b549e48f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Image/Draw.cinch`. Source SHA-256: `815418a8361b6fec8f7809d64e582123c122c5bf70d49dcac5e2af847f2b03f6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

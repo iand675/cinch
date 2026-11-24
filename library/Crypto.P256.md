@@ -10,7 +10,7 @@ Import with `import Crypto.P256`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
 Non-embedded source closure: [Crypto.P256](Crypto.P256.md), [Data.Bytes.Word](Data.Bytes.Word.md).
 
@@ -18,14 +18,16 @@ Non-embedded source closure: [Crypto.P256](Crypto.P256.md), [Data.Bytes.Word](Da
 
 The NIST P-256 curve (secp256r1): constant-time field, scalar and point arithmetic, keys and ECDH.
 Field elements and scalars are fixed 256-bit values in Montgomery form, held as
-two U128 halves and operated on by generated straight-line limb kernels, so
-no arithmetic branches on secret data. Points use projective coordinates and
-the complete addition and doubling formulas for a = -3 (Renes, Costello and
-Batina), which have no exceptional cases; scalar multiplication is a fixed
-4-bit window whose table entry is chosen by scanning every entry. Public keys
-are SEC 1 points (uncompressed, or compressed on input), checked to lie on
-the curve; private keys are scalars in [1, n - 1]. ECDH yields the shared
-point's x-coordinate. Crypto.Ecdsa signs and verifies over this module.
+two U128 halves and operated on by straight-line pure-Cinch limb arithmetic
+over Data.Wide and Data.Machine, so no arithmetic branches on secret data and
+field and scalar operations return unboxed pairs without heap allocation. Points
+use projective coordinates and the complete addition and doubling formulas for
+a = -3 (Renes, Costello and Batina), which have no exceptional cases; scalar
+multiplication is a fixed 4-bit window whose table entry is chosen by scanning
+every entry. Public keys are SEC 1 points (uncompressed, or compressed on
+input), checked to lie on the curve; private keys are scalars in [1, n - 1].
+ECDH yields the shared point's x-coordinate. Crypto.Ecdsa signs and verifies
+over this module.
 
 </details>
 
@@ -39,7 +41,7 @@ point's x-coordinate. Crypto.Ecdsa signs and verifies over this module.
 
 A rejected key or scalar.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 32
+[Source](/reference-sources/Crypto.P256.cinch) · line 35
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256InvalidPrivateKey</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Error</span></code></pre>
 
@@ -55,7 +57,7 @@ A rejected key or scalar.
 
 The point.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 174
+[Source](/reference-sources/Crypto.P256.cinch) · line 177
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256Point</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Point</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Point</span>)</code></pre>
 
@@ -67,7 +69,7 @@ The point.
 
 Scalar, then bytes.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 50
+[Source](/reference-sources/Crypto.P256.cinch) · line 53
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256PrivateKey</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Sc</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span>))</code></pre>
 
@@ -79,7 +81,7 @@ Scalar, then bytes.
 
 x, then y.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 55
+[Source](/reference-sources/Crypto.P256.cinch) · line 58
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256PublicKey</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Fe</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span>))</code></pre>
 
@@ -91,7 +93,7 @@ x, then y.
 
 The Montgomery-form value.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 138
+[Source](/reference-sources/Crypto.P256.cinch) · line 141
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">P256Scalar</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">Sc</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>)</code></pre>
 
@@ -105,7 +107,7 @@ The Montgomery-form value.
 
 s * G.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 181
+[Source](/reference-sources/Crypto.P256.cinch) · line 184
 
 <a id="value-703235362d65636468"></a>
 
@@ -115,7 +117,7 @@ s * G.
 
 ECDH: the x-coordinate (32 bytes) of the private scalar times the peer's point.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 106
+[Source](/reference-sources/Crypto.P256.cinch) · line 109
 
 <a id="value-703235362d6572726f722d6d657373616765"></a>
 
@@ -125,7 +127,7 @@ ECDH: the x-coordinate (32 bytes) of the private scalar times the peer's point.
 
 Render an error.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 41
+[Source](/reference-sources/Crypto.P256.cinch) · line 44
 
 <a id="value-703235362d706f696e742d616464"></a>
 
@@ -135,7 +137,7 @@ Render an error.
 
 P + Q.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 189
+[Source](/reference-sources/Crypto.P256.cinch) · line 192
 
 <a id="value-703235362d706f696e742d69732d6964656e74697479"></a>
 
@@ -145,7 +147,7 @@ P + Q.
 
 Whether a point is the identity.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 193
+[Source](/reference-sources/Crypto.P256.cinch) · line 196
 
 <a id="value-703235362d706f696e742d6d756c74"></a>
 
@@ -155,7 +157,7 @@ Whether a point is the identity.
 
 s * P.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 185
+[Source](/reference-sources/Crypto.P256.cinch) · line 188
 
 <a id="value-703235362d706f696e742d782d7363616c6172"></a>
 
@@ -165,7 +167,7 @@ s * P.
 
 The affine x-coordinate reduced modulo n (None for the identity).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 197
+[Source](/reference-sources/Crypto.P256.cinch) · line 200
 
 <a id="value-703235362d707269766174652d6b6579"></a>
 
@@ -175,7 +177,7 @@ The affine x-coordinate reduced modulo n (None for the identity).
 
 Parse a 32-byte big-endian private key in [1, n - 1].
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 58
+[Source](/reference-sources/Crypto.P256.cinch) · line 61
 
 <a id="value-703235362d707269766174652d6b65792d6279746573"></a>
 
@@ -185,7 +187,7 @@ Parse a 32-byte big-endian private key in [1, n - 1].
 
 The private key's 32 bytes.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 65
+[Source](/reference-sources/Crypto.P256.cinch) · line 68
 
 <a id="value-703235362d707269766174652d7363616c6172"></a>
 
@@ -195,7 +197,7 @@ The private key's 32 bytes.
 
 The private key's scalar.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 69
+[Source](/reference-sources/Crypto.P256.cinch) · line 72
 
 <a id="value-703235362d7075626c69632d6b6579"></a>
 
@@ -205,7 +207,7 @@ The private key's scalar.
 
 Parse a SEC 1 public key: 0x04 || x || y (65 bytes) or 0x02/0x03 || x (33 bytes); the point must be on the curve.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 80
+[Source](/reference-sources/Crypto.P256.cinch) · line 83
 
 <a id="value-703235362d7075626c69632d6b65792d6279746573"></a>
 
@@ -215,7 +217,7 @@ Parse a SEC 1 public key: 0x04 || x || y (65 bytes) or 0x02/0x03 || x (33 bytes)
 
 The uncompressed encoding (65 bytes).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 93
+[Source](/reference-sources/Crypto.P256.cinch) · line 96
 
 <a id="value-703235362d7075626c69632d6b65792d636f6d70726573736564"></a>
 
@@ -225,7 +227,7 @@ The uncompressed encoding (65 bytes).
 
 The compressed encoding (33 bytes).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 97
+[Source](/reference-sources/Crypto.P256.cinch) · line 100
 
 <a id="value-703235362d7075626c69632d6b65792d636f6f7264696e61746573"></a>
 
@@ -235,7 +237,7 @@ The compressed encoding (33 bytes).
 
 The affine coordinates as 32-byte big-endian values.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 102
+[Source](/reference-sources/Crypto.P256.cinch) · line 105
 
 <a id="value-703235362d7075626c69632d6b65792d6f66"></a>
 
@@ -245,7 +247,7 @@ The affine coordinates as 32-byte big-endian values.
 
 The public key d * G.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 73
+[Source](/reference-sources/Crypto.P256.cinch) · line 76
 
 <a id="value-703235362d7075626c69632d706f696e74"></a>
 
@@ -255,7 +257,7 @@ The public key d * G.
 
 A public key's point.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 177
+[Source](/reference-sources/Crypto.P256.cinch) · line 180
 
 <a id="value-703235362d7363616c6172"></a>
 
@@ -265,7 +267,7 @@ A public key's point.
 
 Parse a 32-byte big-endian scalar below n.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 141
+[Source](/reference-sources/Crypto.P256.cinch) · line 144
 
 <a id="value-703235362d7363616c61722d616464"></a>
 
@@ -275,7 +277,7 @@ Parse a 32-byte big-endian scalar below n.
 
 Sum modulo n.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 164
+[Source](/reference-sources/Crypto.P256.cinch) · line 167
 
 <a id="value-703235362d7363616c61722d6279746573"></a>
 
@@ -285,7 +287,7 @@ Sum modulo n.
 
 The scalar's 32-byte big-endian encoding.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 152
+[Source](/reference-sources/Crypto.P256.cinch) · line 155
 
 <a id="value-703235362d7363616c61722d696e7665727365"></a>
 
@@ -295,7 +297,7 @@ The scalar's 32-byte big-endian encoding.
 
 Inverse modulo n (zero maps to zero).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 168
+[Source](/reference-sources/Crypto.P256.cinch) · line 171
 
 <a id="value-703235362d7363616c61722d69732d7a65726f"></a>
 
@@ -305,7 +307,7 @@ Inverse modulo n (zero maps to zero).
 
 Whether the scalar is zero.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 156
+[Source](/reference-sources/Crypto.P256.cinch) · line 159
 
 <a id="value-703235362d7363616c61722d6d756c"></a>
 
@@ -315,7 +317,7 @@ Whether the scalar is zero.
 
 Product modulo n.
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 160
+[Source](/reference-sources/Crypto.P256.cinch) · line 163
 
 <a id="value-703235362d7363616c61722d726564756365"></a>
 
@@ -325,8 +327,8 @@ Product modulo n.
 
 Interpret up to the first 32 bytes as a big-endian integer and reduce it modulo n (shorter inputs are left-padded).
 
-[Source](/reference-sources/Crypto.P256.cinch) · line 146
+[Source](/reference-sources/Crypto.P256.cinch) · line 149
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/P256.cinch`. Source SHA-256: `bfc177e66a34f67b929e74cb4a0050790c35e2e0ad12f915e224390c9738ec12`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/P256.cinch`. Source SHA-256: `6587ebc2b98dc040e635544f5b181ff4dae6479692077d8a32a795c58b9baf5f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

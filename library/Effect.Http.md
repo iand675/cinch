@@ -1,6 +1,6 @@
 # Effect.Http
 
-A bounded plaintext HTTP client with response framing and named errors. HTTPS is explicitly refused; this module has no TLS implementation.
+Bounded HTTP/1.1 and TLS 1.3 HTTPS client operations with response framing, header helpers, and named errors.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -10,9 +10,9 @@ Import with `import Effect.Http`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md), [Text.Uri](Text.Uri.md).
+[Crypto.Tls](Crypto.Tls.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Effect.Tls](Effect.Tls.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md), [Text.Uri](Text.Uri.md).
 
-Non-embedded source closure: [Data.IpAddr](Data.IpAddr.md), [Effect.Http](Effect.Http.md), [Effect.Net](Effect.Net.md), [Text.Uri](Text.Uri.md).
+Non-embedded source closure: [Crypto.Aes](Crypto.Aes.md), [Crypto.ChaCha20Poly1305](Crypto.ChaCha20Poly1305.md), [Crypto.Cipher](Crypto.Cipher.md), [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Ecdsa](Crypto.Ecdsa.md), [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Field25519](Crypto.Field25519.md), [Crypto.Hmac](Crypto.Hmac.md), [Crypto.Kdf](Crypto.Kdf.md), [Crypto.P256](Crypto.P256.md), [Crypto.Pkix](Crypto.Pkix.md), [Crypto.Rsa](Crypto.Rsa.md), [Crypto.Tls](Crypto.Tls.md), [Crypto.X25519](Crypto.X25519.md), [Crypto.X509](Crypto.X509.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.IpAddr](Data.IpAddr.md), [Data.NetIp](Data.NetIp.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Http](Effect.Http.md), [Effect.Net](Effect.Net.md), [Effect.Random](Effect.Random.md), [Effect.Stream](Effect.Stream.md), [Effect.Tls](Effect.Tls.md), [Text.Asn1](Text.Asn1.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Binary](Text.Binary.md), [Text.Digest](Text.Digest.md), [Text.Hex](Text.Hex.md), [Text.Md5](Text.Md5.md), [Text.Pem](Text.Pem.md), [Text.Sha1](Text.Sha1.md), [Text.Sha256](Text.Sha256.md), [Text.Sha512](Text.Sha512.md), [Text.Uri](Text.Uri.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -112,7 +112,7 @@ an explicit decision rather than a silent gap):
 What went wrong: a malformed or refused reply, a bad URL, or the
 socket layer's own named failure (wrapped, not flattened).
 
-[Source](/reference-sources/Effect.Http.cinch) · line 112
+[Source](/reference-sources/Effect.Http.cinch) · line 114
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadStatusLine</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
 
@@ -132,6 +132,8 @@ socket layer's own named failure (wrapped, not flattened).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNetworkError</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span>)</code></pre>
 
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpTlsError</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Tls</span>.<span class="tok-constructor">TlsIoError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span>)</code></pre>
+
 <a id="type-4874747052657175657374"></a>
 
 ## `HttpRequest`
@@ -142,7 +144,7 @@ A request: method, host, port, request-target path, headers, and an
 optional body. The path is sent as given, with a leading `/` supplied
 when it is empty or does not start with one.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 149
+[Source](/reference-sources/Effect.Http.cinch) · line 154
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpRequest</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span>))))))</code></pre>
 
@@ -155,7 +157,7 @@ when it is empty or does not start with one.
 A response: status code, reason phrase, the header list (duplicates
 kept, in arrival order) and the decoded body bytes.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 178
+[Source](/reference-sources/Effect.Http.cinch) · line 183
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpResponse</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>))))</code></pre>
 
@@ -180,7 +182,18 @@ GET `url` on a fresh connection. The URL is parsed with Text.Uri. An
 refused (HttpUnsupportedScheme); a URL with no host is HttpBadUrl. A
 missing port is 80.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 661
+[Source](/reference-sources/Effect.Http.cinch) · line 704
+
+<a id="value-687474702d6765742d746c73"></a>
+
+## `http-get-tls`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-get-tls</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Tls</span>.<span class="tok-constructor">TlsConfig</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>)))</code></pre>
+
+GET `url` over HTTP or HTTPS using `cfg` for TLS 1.3 connections.
+Accepts `https://` (default port 443) and `http://` (default port 80).
+
+[Source](/reference-sources/Effect.Http.cinch) · line 721
 
 <a id="value-687474702d686561646572"></a>
 
@@ -192,7 +205,7 @@ The FIRST value of `name`, matched case-insensitively (ASCII folding:
 a header name is ASCII, so `Content-Length` and `content-length` are
 the same name, and no locale folding is done), or `None`.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 200
+[Source](/reference-sources/Effect.Http.cinch) · line 205
 
 <a id="value-687474702d6865616465722d616c6c"></a>
 
@@ -203,7 +216,7 @@ the same name, and no locale folding is done), or `None`.
 Every value of `name`, matched case-insensitively, in arrival order
 (a repeated header keeps every value).
 
-[Source](/reference-sources/Effect.Http.cinch) · line 205
+[Source](/reference-sources/Effect.Http.cinch) · line 210
 
 <a id="value-687474702d68656164657273"></a>
 
@@ -231,7 +244,7 @@ Send `q` on a fresh connection and read the whole reply. The default
 bound (max-response-bytes) applies; use http-request-max for an
 explicit one.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 589
+[Source](/reference-sources/Effect.Http.cinch) · line 600
 
 <a id="value-687474702d726571756573742d626f6479"></a>
 
@@ -266,7 +279,7 @@ explicit one.
 Send `q` with an explicit bound on the received bytes (headers plus
 body). Refuses past it with HttpBodyTooLarge.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 594
+[Source](/reference-sources/Effect.Http.cinch) · line 605
 
 <a id="value-687474702d726571756573742d6d6574686f64"></a>
 
@@ -292,6 +305,27 @@ body). Refuses past it with HttpBodyTooLarge.
 
 [Source](/reference-sources/Effect.Http.cinch)
 
+<a id="value-687474702d726571756573742d746c73"></a>
+
+## `http-request-tls`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-tls</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Tls</span>.<span class="tok-constructor">TlsConfig</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>)))</code></pre>
+
+Send `q` over a fresh TLS 1.3 connection using `cfg` and read the whole reply.
+Uses `max-response-bytes` as the received byte cap; see `http-request-tls-max` for an explicit bound.
+
+[Source](/reference-sources/Effect.Http.cinch) · line 618
+
+<a id="value-687474702d726571756573742d746c732d6d6178"></a>
+
+## `http-request-tls-max`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-tls-max</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Tls</span>.<span class="tok-constructor">TlsConfig</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>))))</code></pre>
+
+Send `q` over a fresh TLS 1.3 connection using `cfg`, bounded by `bound` received bytes.
+
+[Source](/reference-sources/Effect.Http.cinch) · line 622
+
 <a id="value-687474702d737461747573"></a>
 
 ## `http-status`
@@ -309,7 +343,7 @@ body). Refuses past it with HttpBodyTooLarge.
 The default bound on a whole received response, in bytes (the
 no-framing case and the header section share it).
 
-[Source](/reference-sources/Effect.Http.cinch) · line 138
+[Source](/reference-sources/Effect.Http.cinch) · line 143
 
 <a id="value-72656e6465722d687474702d6572726f72"></a>
 
@@ -319,8 +353,8 @@ no-framing case and the header section share it).
 
 The diagnostic line for a named error.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 124
+[Source](/reference-sources/Effect.Http.cinch) · line 128
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Http.cinch`. Source SHA-256: `402d0270a2549a552be4c7f6e243724f9fe1f63eceb0f2597f0b588c4485035e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Http.cinch`. Source SHA-256: `20b8433e4a67d8111ec71dedb84cd180bd142024b99bae058f33b5813bcb4986`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -12,7 +12,7 @@ Import with `import Effect.Fnv`. Selected exports may already be in Prelude.
 
 [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Fnv.State](Text.Fnv.State.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Fnv](Effect.Fnv.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Fnv](Text.Fnv.md), [Text.Fnv.State](Text.Fnv.State.md).
+Non-embedded source closure: [Effect.Fnv](Effect.Fnv.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Fnv](Text.Fnv.md), [Text.Fnv.State](Text.Fnv.State.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

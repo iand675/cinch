@@ -1,17 +1,18 @@
 -- | SHA-224 and SHA-256 digests, persistent streaming states and binary checkpoints.
--- Compression expands four schedule words in SIMD and evaluates every ordered
--- round once. Updates read exact 64-byte blocks while retaining their input
--- owner, and copy pending tails into private storage. Retaining a state branches
--- the computation. Digest and checkpoint words use network order; byte counts
--- wrap at 64 bits. Checkpoint input and returned buffers never alias the state.
+-- Compression expands four schedule words per step in portable 128-bit SIMD lanes
+-- and evaluates all sixty-four ordered rounds in registers with native rotates.
+-- Updates read checked 64-byte blocks directly from the input buffer and copy
+-- pending tails into private storage. Retaining a state branches the computation.
+-- Digest and checkpoint words use network order; byte counts wrap at 64 bits.
+-- Checkpoint input and returned buffers never alias the state.
 module Text.Sha256 where
 
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Machine
   import Data.Nat
   import Data.Result
   import Data.String
+  import Data.Wide (bit-or-u128, bit-xor-u128, simd-u32x4-add, simd-u32x4-rotr, simd-u32x4-shr, simd-u64x2-pack, u64-to-u128, wrapping-shl-u128, wrapping-shr-u128, wrapping-u128-to-u32, wrapping-u128-to-u64)
   import Text.Binary
 
   export sha256-size, sha224-size, sha256-block-size, sha256-sum, sha224-sum
@@ -64,7 +65,7 @@ module Text.Sha256 where
   one-shot short input =
     let n = bytes-len input in
     let count = wrapping-i64-to-u64 (nat-to-i64 n) in
-    let words = hold-input input (blocks (sha256-initial-words short) (bytes-data input) count) in
+    let words = blocks-from (sha256-initial-words short) input 0 in
     let tail = nat-rem n 64 in
     if tail <= n then
       let final = finish-interval count input (n - tail) tail words in render-words short final
@@ -90,7 +91,7 @@ module Text.Sha256 where
           let block = bytes-new 64 in
           let first = bytes-copy-range block pending 0 0 have in
           let last = bytes-copy-range block input have 0 needed in
-          let next = hold-input block (compress-at words (bytes-data block)) in
+          let next = blocks-from words block 0 in
           process-from short total next input needed
     else State256 short count pending words
 
@@ -99,50 +100,13 @@ module Text.Sha256 where
   process-from short total words input start =
     if start <= bytes-len input then
       let remaining = bytes-len input - start in
-      let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 start) in
-      let next = hold-input input (blocks words address (wrapping-i64-to-u64 (nat-to-i64 remaining))) in
+      let next = blocks-from words input (nat-to-i64 start) in
       let tail = nat-rem remaining 64 in
       if tail <= bytes-len input then
         let from = bytes-len input - tail in
         State256 short total (part input from tail) next
       else State256 short total (bytes-new 0) next
     else State256 short total (bytes-new 0) words
-
-  -- | Read only full remaining blocks, using machine counters and a retained caller-owned interval.
-  -- This private boundary carries ordinary words and an opaque chaining object through tail calls.
-  blocks :: Sha256Words -> I64 -> U64 -> Sha256Words
-  blocks words address remaining =
-    if ge-u64 remaining 64 then blocks (compress-at words address) (wrapping-add-i64 address 64) (wrapping-sub-u64 remaining 64)
-    else words
-
-  -- | Load exactly one caller-proved complete block before entering the pure generated compression.
-  compress-at :: Sha256Words -> I64 -> Sha256Words
-  compress-at words address =
-    let w0 = block-word address 0 in let w1 = block-word address 8 in
-    let w2 = block-word address 16 in let w3 = block-word address 24 in
-    let w4 = block-word address 32 in let w5 = block-word address 40 in
-    let w6 = block-word address 48 in let w7 = block-word address 56 in
-    sha256-compress words w0 w1 w2 w3 w4 w5 w6 w7
-
-  -- | Load an exact eight-byte interval inside the proved 64-byte block, normalized to little-endian packing.
-  prim block-word :: I64 -> I64 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %value = load i64, ptr %at, align 1
-      ret i64 %value
-    } when endian little
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %host = load i64, ptr %at, align 1
-      %value = call i64 @llvm.bswap.i64(i64 %host)
-      ret i64 %value
-    } when endian big
-
-  -- | Keep an owner alive until a strict raw-address computation has completed.
-  hold-input :: forall a. Bytes -> a -> a
-  hold-input owner value = case bytes-len owner of _ -> value
 
   -- | Copy an exact interval into fresh storage without retaining a mutable source alias.
   part :: Bytes -> Nat -> Nat -> Bytes
@@ -186,7 +150,7 @@ module Text.Sha256 where
       let copied = bytes-copy-range padding pending 0 0 n in
       let mark = bytes-set padding n 128 in
       let length = binary-put-u64 BigEndian padding (size - 8) (wrapping-shl-u64 count 3) in
-      hold-input padding (blocks words (bytes-data padding) (wrapping-i64-to-u64 (nat-to-i64 size)))
+      blocks-from words padding 0
     else words
 
   -- | Copy an exactly bounded source tail into one or two private finalization blocks.
@@ -198,22 +162,16 @@ module Text.Sha256 where
       let copied = bytes-copy-range padding input 0 start n in
       let mark = bytes-set padding n 128 in
       let length = binary-put-u64 BigEndian padding (size - 8) (wrapping-shl-u64 count 3) in
-      hold-input padding (blocks words (bytes-data padding) (wrapping-i64-to-u64 (nat-to-i64 size)))
+      blocks-from words padding 0
     else words
 
   -- | Convert a numeric pair to little-endian storage whose bytes contain both words in network order.
-  prim wire-pair :: U64 -> U64 where
-    llvm {
-      %swap = call i64 @llvm.bswap.i64(i64 %0)
-      %a = shl i64 %swap, 32
-      %b = lshr i64 %swap, 32
-      %value = or i64 %a, %b
-      ret i64 %value
-    }
+  wire-pair :: U64 -> U64
+  wire-pair pair = rotate-left-u64 (swap-bytes-u64 pair) 32
 
   -- | Store two network-order chaining words only within a checked complete destination interval.
   put-pair :: Bytes -> Nat -> U64 -> Unit
-  put-pair out pos pair = if pos + 8 <= bytes-len out then bytes-write-le64 out pos (wire-pair pair) else ()
+  put-pair out pos pair = if pos + 8 <= bytes-len out then bytes-store-le64 out pos (wire-pair pair) else ()
 
   -- | Render all eight chaining words into an existing complete network-order interval.
   put-words :: Bytes -> Nat -> Sha256Words -> Unit
@@ -232,7 +190,7 @@ module Text.Sha256 where
         ShaWords ab cd ef gh ->
           let a = put-pair out 0 ab in let b = put-pair out 8 cd in
           let c = put-pair out 16 ef in
-          let d = if size == 32 then put-pair out 24 gh else bytes-write-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out
+          let d = if size == 32 then put-pair out 24 gh else bytes-store-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out
 
   -- | Dispatch to a fixed-size renderer before allocating the result buffer.
   render-words :: Bool -> Sha256Words -> Bytes
@@ -243,20 +201,20 @@ module Text.Sha256 where
   render-full words = case words of
     ShaWords ab cd ef gh ->
       let out = bytes-new 32 in
-      let a = bytes-write-le64 out 0 (wire-pair ab) in
-      let b = bytes-write-le64 out 8 (wire-pair cd) in
-      let c = bytes-write-le64 out 16 (wire-pair ef) in
-      let d = bytes-write-le64 out 24 (wire-pair gh) in out
+      let a = bytes-store-le64 out 0 (wire-pair ab) in
+      let b = bytes-store-le64 out 8 (wire-pair cd) in
+      let c = bytes-store-le64 out 16 (wire-pair ef) in
+      let d = bytes-store-le64 out 24 (wire-pair gh) in out
 
   -- | Render the first seven finalized words with an exact four-byte final store.
   render-short :: Sha256Words -> Bytes
   render-short words = case words of
     ShaWords ab cd ef gh ->
       let out = bytes-new 28 in
-      let a = bytes-write-le64 out 0 (wire-pair ab) in
-      let b = bytes-write-le64 out 8 (wire-pair cd) in
-      let c = bytes-write-le64 out 16 (wire-pair ef) in
-      let d = bytes-write-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out
+      let a = bytes-store-le64 out 0 (wire-pair ab) in
+      let b = bytes-store-le64 out 8 (wire-pair cd) in
+      let c = bytes-store-le64 out 16 (wire-pair ef) in
+      let d = bytes-store-le32 out 24 (wrapping-u64-to-u32 (wire-pair gh)) in out
 
   -- | Append the selected digest to a copied prefix, preserving the state and caller buffer.
   sha256-state-append :: Bytes -> Sha256State -> Bytes
@@ -293,7 +251,7 @@ module Text.Sha256 where
 
   -- | Read two network-order chaining words after checking their complete interval.
   read-pair :: Bytes -> Nat -> U64
-  read-pair input pos = if pos + 8 <= bytes-len input then wire-pair (bytes-read-le64 input pos) else 0
+  read-pair input pos = if pos + 8 <= bytes-len input then wire-pair (bytes-load-le64 input pos) else 0
 
   -- | Restore every chaining/count bit, copying only the live partial block into private storage.
   -- The template selects the variant. Identifier checks precede exact-size checks;
@@ -313,584 +271,201 @@ module Text.Sha256 where
         else Err InvalidSha256StateIdentifier
       else Err InvalidSha256StateIdentifier
 
-  -- | Generated SHA-256 compression: consume sixteen network-order words without retaining inputs.
-  -- Regenerate with python3 tooling/generate_sha256_kernels.py; do not edit this suffix.
-  sha256-compress :: Sha256Words -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> Sha256Words
-  sha256-compress prior w0 w1 w2 w3 w4 w5 w6 w7 = case prior of
-    ShaWords ab cd ef gh ->
-      let g0 = sha256-input-group w0 w1 in
-      let g1 = sha256-input-group w2 w3 in
-      let g2 = sha256-input-group w4 w5 in
-      let g3 = sha256-input-group w6 w7 in
-      let g4 = sha256-schedule g0 g1 g2 g3 in
-      let g5 = sha256-schedule g1 g2 g3 g4 in
-      let g6 = sha256-schedule g2 g3 g4 g5 in
-      let g7 = sha256-schedule g3 g4 g5 g6 in
-      let g8 = sha256-schedule g4 g5 g6 g7 in
-      let g9 = sha256-schedule g5 g6 g7 g8 in
-      let g10 = sha256-schedule g6 g7 g8 g9 in
-      let g11 = sha256-schedule g7 g8 g9 g10 in
-      let g12 = sha256-schedule g8 g9 g10 g11 in
-      let g13 = sha256-schedule g9 g10 g11 g12 in
-      let g14 = sha256-schedule g10 g11 g12 g13 in
-      let g15 = sha256-schedule g11 g12 g13 g14 in
-      let s0 = sha256-rounds-a (ShaWords ab cd ef gh) (sha256-lane0 g0) (sha256-lane1 g0) (sha256-lane2 g0) (sha256-lane3 g0) (sha256-lane0 g1) (sha256-lane1 g1) (sha256-lane2 g1) (sha256-lane3 g1) (sha256-lane0 g2) (sha256-lane1 g2) (sha256-lane2 g2) (sha256-lane3 g2) (sha256-lane0 g3) (sha256-lane1 g3) (sha256-lane2 g3) (sha256-lane3 g3) in
-      let s1 = sha256-rounds-b s0 (sha256-lane0 g4) (sha256-lane1 g4) (sha256-lane2 g4) (sha256-lane3 g4) (sha256-lane0 g5) (sha256-lane1 g5) (sha256-lane2 g5) (sha256-lane3 g5) (sha256-lane0 g6) (sha256-lane1 g6) (sha256-lane2 g6) (sha256-lane3 g6) (sha256-lane0 g7) (sha256-lane1 g7) (sha256-lane2 g7) (sha256-lane3 g7) in
-      let s2 = sha256-rounds-c s1 (sha256-lane0 g8) (sha256-lane1 g8) (sha256-lane2 g8) (sha256-lane3 g8) (sha256-lane0 g9) (sha256-lane1 g9) (sha256-lane2 g9) (sha256-lane3 g9) (sha256-lane0 g10) (sha256-lane1 g10) (sha256-lane2 g10) (sha256-lane3 g10) (sha256-lane0 g11) (sha256-lane1 g11) (sha256-lane2 g11) (sha256-lane3 g11) in
-      let s3 = sha256-rounds-d s2 (sha256-lane0 g12) (sha256-lane1 g12) (sha256-lane2 g12) (sha256-lane3 g12) (sha256-lane0 g13) (sha256-lane1 g13) (sha256-lane2 g13) (sha256-lane3 g13) (sha256-lane0 g14) (sha256-lane1 g14) (sha256-lane2 g14) (sha256-lane3 g14) (sha256-lane0 g15) (sha256-lane1 g15) (sha256-lane2 g15) (sha256-lane3 g15) in
-      case s3 of
-        ShaWords last-ab last-cd last-ef last-gh ->
-          ShaWords (sha256-feed-pair ab last-ab) (sha256-feed-pair cd last-cd)
-            (sha256-feed-pair ef last-ef) (sha256-feed-pair gh last-gh)
+  -- | Extract the low U32 lane from a packed pair of chaining words.
+  word-low :: U64 -> U32
+  word-low pair = wrapping-u64-to-u32 pair
 
-  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior chaining value.
-  sha256-rounds-a :: Sha256Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha256Words
-  sha256-rounds-a prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
-    ShaWords ab cd ef gh ->
-      let initial0 = sha256-word-low ab in
-      let initial1 = sha256-word-high ab in
-      let initial2 = sha256-word-low cd in
-      let initial3 = sha256-word-high cd in
-      let initial4 = sha256-word-low ef in
-      let initial5 = sha256-word-high ef in
-      let initial6 = sha256-word-low gh in
-      let initial7 = sha256-word-high gh in
-      let first0 = sha256-t1 initial4 initial5 initial6 initial7 m0 1116352408 in
-      let second0 = sha256-t2 initial0 initial1 initial2 in
-      let a0 = wrapping-add-u32 first0 second0 in
-      let e0 = wrapping-add-u32 initial3 first0 in
-      let first1 = sha256-t1 e0 initial4 initial5 initial6 m1 1899447441 in
-      let second1 = sha256-t2 a0 initial0 initial1 in
-      let a1 = wrapping-add-u32 first1 second1 in
-      let e1 = wrapping-add-u32 initial2 first1 in
-      let first2 = sha256-t1 e1 e0 initial4 initial5 m2 3049323471 in
-      let second2 = sha256-t2 a1 a0 initial0 in
-      let a2 = wrapping-add-u32 first2 second2 in
-      let e2 = wrapping-add-u32 initial1 first2 in
-      let first3 = sha256-t1 e2 e1 e0 initial4 m3 3921009573 in
-      let second3 = sha256-t2 a2 a1 a0 in
-      let a3 = wrapping-add-u32 first3 second3 in
-      let e3 = wrapping-add-u32 initial0 first3 in
-      let first4 = sha256-t1 e3 e2 e1 e0 m4 961987163 in
-      let second4 = sha256-t2 a3 a2 a1 in
-      let a4 = wrapping-add-u32 first4 second4 in
-      let e4 = wrapping-add-u32 a0 first4 in
-      let first5 = sha256-t1 e4 e3 e2 e1 m5 1508970993 in
-      let second5 = sha256-t2 a4 a3 a2 in
-      let a5 = wrapping-add-u32 first5 second5 in
-      let e5 = wrapping-add-u32 a1 first5 in
-      let first6 = sha256-t1 e5 e4 e3 e2 m6 2453635748 in
-      let second6 = sha256-t2 a5 a4 a3 in
-      let a6 = wrapping-add-u32 first6 second6 in
-      let e6 = wrapping-add-u32 a2 first6 in
-      let first7 = sha256-t1 e6 e5 e4 e3 m7 2870763221 in
-      let second7 = sha256-t2 a6 a5 a4 in
-      let a7 = wrapping-add-u32 first7 second7 in
-      let e7 = wrapping-add-u32 a3 first7 in
-      let first8 = sha256-t1 e7 e6 e5 e4 m8 3624381080 in
-      let second8 = sha256-t2 a7 a6 a5 in
-      let a8 = wrapping-add-u32 first8 second8 in
-      let e8 = wrapping-add-u32 a4 first8 in
-      let first9 = sha256-t1 e8 e7 e6 e5 m9 310598401 in
-      let second9 = sha256-t2 a8 a7 a6 in
-      let a9 = wrapping-add-u32 first9 second9 in
-      let e9 = wrapping-add-u32 a5 first9 in
-      let first10 = sha256-t1 e9 e8 e7 e6 m10 607225278 in
-      let second10 = sha256-t2 a9 a8 a7 in
-      let a10 = wrapping-add-u32 first10 second10 in
-      let e10 = wrapping-add-u32 a6 first10 in
-      let first11 = sha256-t1 e10 e9 e8 e7 m11 1426881987 in
-      let second11 = sha256-t2 a10 a9 a8 in
-      let a11 = wrapping-add-u32 first11 second11 in
-      let e11 = wrapping-add-u32 a7 first11 in
-      let first12 = sha256-t1 e11 e10 e9 e8 m12 1925078388 in
-      let second12 = sha256-t2 a11 a10 a9 in
-      let a12 = wrapping-add-u32 first12 second12 in
-      let e12 = wrapping-add-u32 a8 first12 in
-      let first13 = sha256-t1 e12 e11 e10 e9 m13 2162078206 in
-      let second13 = sha256-t2 a12 a11 a10 in
-      let a13 = wrapping-add-u32 first13 second13 in
-      let e13 = wrapping-add-u32 a9 first13 in
-      let first14 = sha256-t1 e13 e12 e11 e10 m14 2614888103 in
-      let second14 = sha256-t2 a13 a12 a11 in
-      let a14 = wrapping-add-u32 first14 second14 in
-      let e14 = wrapping-add-u32 a10 first14 in
-      let first15 = sha256-t1 e14 e13 e12 e11 m15 3248222580 in
-      let second15 = sha256-t2 a14 a13 a12 in
-      let a15 = wrapping-add-u32 first15 second15 in
-      let e15 = wrapping-add-u32 a11 first15 in
-      ShaWords (sha256-pair a15 a14) (sha256-pair a13 a12) (sha256-pair e15 e14) (sha256-pair e13 e12)
+  -- | Extract the high U32 lane from a packed pair of chaining words.
+  word-high :: U64 -> U32
+  word-high pair = wrapping-u64-to-u32 (wrapping-shr-u64 pair 32)
 
-  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior chaining value.
-  sha256-rounds-b :: Sha256Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha256Words
-  sha256-rounds-b prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
-    ShaWords ab cd ef gh ->
-      let initial0 = sha256-word-low ab in
-      let initial1 = sha256-word-high ab in
-      let initial2 = sha256-word-low cd in
-      let initial3 = sha256-word-high cd in
-      let initial4 = sha256-word-low ef in
-      let initial5 = sha256-word-high ef in
-      let initial6 = sha256-word-low gh in
-      let initial7 = sha256-word-high gh in
-      let first0 = sha256-t1 initial4 initial5 initial6 initial7 m0 3835390401 in
-      let second0 = sha256-t2 initial0 initial1 initial2 in
-      let a0 = wrapping-add-u32 first0 second0 in
-      let e0 = wrapping-add-u32 initial3 first0 in
-      let first1 = sha256-t1 e0 initial4 initial5 initial6 m1 4022224774 in
-      let second1 = sha256-t2 a0 initial0 initial1 in
-      let a1 = wrapping-add-u32 first1 second1 in
-      let e1 = wrapping-add-u32 initial2 first1 in
-      let first2 = sha256-t1 e1 e0 initial4 initial5 m2 264347078 in
-      let second2 = sha256-t2 a1 a0 initial0 in
-      let a2 = wrapping-add-u32 first2 second2 in
-      let e2 = wrapping-add-u32 initial1 first2 in
-      let first3 = sha256-t1 e2 e1 e0 initial4 m3 604807628 in
-      let second3 = sha256-t2 a2 a1 a0 in
-      let a3 = wrapping-add-u32 first3 second3 in
-      let e3 = wrapping-add-u32 initial0 first3 in
-      let first4 = sha256-t1 e3 e2 e1 e0 m4 770255983 in
-      let second4 = sha256-t2 a3 a2 a1 in
-      let a4 = wrapping-add-u32 first4 second4 in
-      let e4 = wrapping-add-u32 a0 first4 in
-      let first5 = sha256-t1 e4 e3 e2 e1 m5 1249150122 in
-      let second5 = sha256-t2 a4 a3 a2 in
-      let a5 = wrapping-add-u32 first5 second5 in
-      let e5 = wrapping-add-u32 a1 first5 in
-      let first6 = sha256-t1 e5 e4 e3 e2 m6 1555081692 in
-      let second6 = sha256-t2 a5 a4 a3 in
-      let a6 = wrapping-add-u32 first6 second6 in
-      let e6 = wrapping-add-u32 a2 first6 in
-      let first7 = sha256-t1 e6 e5 e4 e3 m7 1996064986 in
-      let second7 = sha256-t2 a6 a5 a4 in
-      let a7 = wrapping-add-u32 first7 second7 in
-      let e7 = wrapping-add-u32 a3 first7 in
-      let first8 = sha256-t1 e7 e6 e5 e4 m8 2554220882 in
-      let second8 = sha256-t2 a7 a6 a5 in
-      let a8 = wrapping-add-u32 first8 second8 in
-      let e8 = wrapping-add-u32 a4 first8 in
-      let first9 = sha256-t1 e8 e7 e6 e5 m9 2821834349 in
-      let second9 = sha256-t2 a8 a7 a6 in
-      let a9 = wrapping-add-u32 first9 second9 in
-      let e9 = wrapping-add-u32 a5 first9 in
-      let first10 = sha256-t1 e9 e8 e7 e6 m10 2952996808 in
-      let second10 = sha256-t2 a9 a8 a7 in
-      let a10 = wrapping-add-u32 first10 second10 in
-      let e10 = wrapping-add-u32 a6 first10 in
-      let first11 = sha256-t1 e10 e9 e8 e7 m11 3210313671 in
-      let second11 = sha256-t2 a10 a9 a8 in
-      let a11 = wrapping-add-u32 first11 second11 in
-      let e11 = wrapping-add-u32 a7 first11 in
-      let first12 = sha256-t1 e11 e10 e9 e8 m12 3336571891 in
-      let second12 = sha256-t2 a11 a10 a9 in
-      let a12 = wrapping-add-u32 first12 second12 in
-      let e12 = wrapping-add-u32 a8 first12 in
-      let first13 = sha256-t1 e12 e11 e10 e9 m13 3584528711 in
-      let second13 = sha256-t2 a12 a11 a10 in
-      let a13 = wrapping-add-u32 first13 second13 in
-      let e13 = wrapping-add-u32 a9 first13 in
-      let first14 = sha256-t1 e13 e12 e11 e10 m14 113926993 in
-      let second14 = sha256-t2 a13 a12 a11 in
-      let a14 = wrapping-add-u32 first14 second14 in
-      let e14 = wrapping-add-u32 a10 first14 in
-      let first15 = sha256-t1 e14 e13 e12 e11 m15 338241895 in
-      let second15 = sha256-t2 a14 a13 a12 in
-      let a15 = wrapping-add-u32 first15 second15 in
-      let e15 = wrapping-add-u32 a11 first15 in
-      ShaWords (sha256-pair a15 a14) (sha256-pair a13 a12) (sha256-pair e15 e14) (sha256-pair e13 e12)
+  -- | Pack two chaining words with the first word in the low 32 bits.
+  pack-pair :: U32 -> U32 -> U64
+  pack-pair lo hi = bit-or-u64 (u32-to-u64 lo) (wrapping-shl-u64 (u32-to-u64 hi) 32)
 
-  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior chaining value.
-  sha256-rounds-c :: Sha256Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha256Words
-  sha256-rounds-c prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
-    ShaWords ab cd ef gh ->
-      let initial0 = sha256-word-low ab in
-      let initial1 = sha256-word-high ab in
-      let initial2 = sha256-word-low cd in
-      let initial3 = sha256-word-high cd in
-      let initial4 = sha256-word-low ef in
-      let initial5 = sha256-word-high ef in
-      let initial6 = sha256-word-low gh in
-      let initial7 = sha256-word-high gh in
-      let first0 = sha256-t1 initial4 initial5 initial6 initial7 m0 666307205 in
-      let second0 = sha256-t2 initial0 initial1 initial2 in
-      let a0 = wrapping-add-u32 first0 second0 in
-      let e0 = wrapping-add-u32 initial3 first0 in
-      let first1 = sha256-t1 e0 initial4 initial5 initial6 m1 773529912 in
-      let second1 = sha256-t2 a0 initial0 initial1 in
-      let a1 = wrapping-add-u32 first1 second1 in
-      let e1 = wrapping-add-u32 initial2 first1 in
-      let first2 = sha256-t1 e1 e0 initial4 initial5 m2 1294757372 in
-      let second2 = sha256-t2 a1 a0 initial0 in
-      let a2 = wrapping-add-u32 first2 second2 in
-      let e2 = wrapping-add-u32 initial1 first2 in
-      let first3 = sha256-t1 e2 e1 e0 initial4 m3 1396182291 in
-      let second3 = sha256-t2 a2 a1 a0 in
-      let a3 = wrapping-add-u32 first3 second3 in
-      let e3 = wrapping-add-u32 initial0 first3 in
-      let first4 = sha256-t1 e3 e2 e1 e0 m4 1695183700 in
-      let second4 = sha256-t2 a3 a2 a1 in
-      let a4 = wrapping-add-u32 first4 second4 in
-      let e4 = wrapping-add-u32 a0 first4 in
-      let first5 = sha256-t1 e4 e3 e2 e1 m5 1986661051 in
-      let second5 = sha256-t2 a4 a3 a2 in
-      let a5 = wrapping-add-u32 first5 second5 in
-      let e5 = wrapping-add-u32 a1 first5 in
-      let first6 = sha256-t1 e5 e4 e3 e2 m6 2177026350 in
-      let second6 = sha256-t2 a5 a4 a3 in
-      let a6 = wrapping-add-u32 first6 second6 in
-      let e6 = wrapping-add-u32 a2 first6 in
-      let first7 = sha256-t1 e6 e5 e4 e3 m7 2456956037 in
-      let second7 = sha256-t2 a6 a5 a4 in
-      let a7 = wrapping-add-u32 first7 second7 in
-      let e7 = wrapping-add-u32 a3 first7 in
-      let first8 = sha256-t1 e7 e6 e5 e4 m8 2730485921 in
-      let second8 = sha256-t2 a7 a6 a5 in
-      let a8 = wrapping-add-u32 first8 second8 in
-      let e8 = wrapping-add-u32 a4 first8 in
-      let first9 = sha256-t1 e8 e7 e6 e5 m9 2820302411 in
-      let second9 = sha256-t2 a8 a7 a6 in
-      let a9 = wrapping-add-u32 first9 second9 in
-      let e9 = wrapping-add-u32 a5 first9 in
-      let first10 = sha256-t1 e9 e8 e7 e6 m10 3259730800 in
-      let second10 = sha256-t2 a9 a8 a7 in
-      let a10 = wrapping-add-u32 first10 second10 in
-      let e10 = wrapping-add-u32 a6 first10 in
-      let first11 = sha256-t1 e10 e9 e8 e7 m11 3345764771 in
-      let second11 = sha256-t2 a10 a9 a8 in
-      let a11 = wrapping-add-u32 first11 second11 in
-      let e11 = wrapping-add-u32 a7 first11 in
-      let first12 = sha256-t1 e11 e10 e9 e8 m12 3516065817 in
-      let second12 = sha256-t2 a11 a10 a9 in
-      let a12 = wrapping-add-u32 first12 second12 in
-      let e12 = wrapping-add-u32 a8 first12 in
-      let first13 = sha256-t1 e12 e11 e10 e9 m13 3600352804 in
-      let second13 = sha256-t2 a12 a11 a10 in
-      let a13 = wrapping-add-u32 first13 second13 in
-      let e13 = wrapping-add-u32 a9 first13 in
-      let first14 = sha256-t1 e13 e12 e11 e10 m14 4094571909 in
-      let second14 = sha256-t2 a13 a12 a11 in
-      let a14 = wrapping-add-u32 first14 second14 in
-      let e14 = wrapping-add-u32 a10 first14 in
-      let first15 = sha256-t1 e14 e13 e12 e11 m15 275423344 in
-      let second15 = sha256-t2 a14 a13 a12 in
-      let a15 = wrapping-add-u32 first15 second15 in
-      let e15 = wrapping-add-u32 a11 first15 in
-      ShaWords (sha256-pair a15 a14) (sha256-pair a13 a12) (sha256-pair e15 e14) (sha256-pair e13 e12)
+  -- | Select schedule lane 0 from a packed four-word SIMD group.
+  lane0 :: U128 -> U32
+  lane0 group = wrapping-u128-to-u32 group
 
-  -- | Advance sixteen ordered rounds over scalar message words, preserving the prior chaining value.
-  sha256-rounds-d :: Sha256Words -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha256Words
-  sha256-rounds-d prior m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 = case prior of
-    ShaWords ab cd ef gh ->
-      let initial0 = sha256-word-low ab in
-      let initial1 = sha256-word-high ab in
-      let initial2 = sha256-word-low cd in
-      let initial3 = sha256-word-high cd in
-      let initial4 = sha256-word-low ef in
-      let initial5 = sha256-word-high ef in
-      let initial6 = sha256-word-low gh in
-      let initial7 = sha256-word-high gh in
-      let first0 = sha256-t1 initial4 initial5 initial6 initial7 m0 430227734 in
-      let second0 = sha256-t2 initial0 initial1 initial2 in
-      let a0 = wrapping-add-u32 first0 second0 in
-      let e0 = wrapping-add-u32 initial3 first0 in
-      let first1 = sha256-t1 e0 initial4 initial5 initial6 m1 506948616 in
-      let second1 = sha256-t2 a0 initial0 initial1 in
-      let a1 = wrapping-add-u32 first1 second1 in
-      let e1 = wrapping-add-u32 initial2 first1 in
-      let first2 = sha256-t1 e1 e0 initial4 initial5 m2 659060556 in
-      let second2 = sha256-t2 a1 a0 initial0 in
-      let a2 = wrapping-add-u32 first2 second2 in
-      let e2 = wrapping-add-u32 initial1 first2 in
-      let first3 = sha256-t1 e2 e1 e0 initial4 m3 883997877 in
-      let second3 = sha256-t2 a2 a1 a0 in
-      let a3 = wrapping-add-u32 first3 second3 in
-      let e3 = wrapping-add-u32 initial0 first3 in
-      let first4 = sha256-t1 e3 e2 e1 e0 m4 958139571 in
-      let second4 = sha256-t2 a3 a2 a1 in
-      let a4 = wrapping-add-u32 first4 second4 in
-      let e4 = wrapping-add-u32 a0 first4 in
-      let first5 = sha256-t1 e4 e3 e2 e1 m5 1322822218 in
-      let second5 = sha256-t2 a4 a3 a2 in
-      let a5 = wrapping-add-u32 first5 second5 in
-      let e5 = wrapping-add-u32 a1 first5 in
-      let first6 = sha256-t1 e5 e4 e3 e2 m6 1537002063 in
-      let second6 = sha256-t2 a5 a4 a3 in
-      let a6 = wrapping-add-u32 first6 second6 in
-      let e6 = wrapping-add-u32 a2 first6 in
-      let first7 = sha256-t1 e6 e5 e4 e3 m7 1747873779 in
-      let second7 = sha256-t2 a6 a5 a4 in
-      let a7 = wrapping-add-u32 first7 second7 in
-      let e7 = wrapping-add-u32 a3 first7 in
-      let first8 = sha256-t1 e7 e6 e5 e4 m8 1955562222 in
-      let second8 = sha256-t2 a7 a6 a5 in
-      let a8 = wrapping-add-u32 first8 second8 in
-      let e8 = wrapping-add-u32 a4 first8 in
-      let first9 = sha256-t1 e8 e7 e6 e5 m9 2024104815 in
-      let second9 = sha256-t2 a8 a7 a6 in
-      let a9 = wrapping-add-u32 first9 second9 in
-      let e9 = wrapping-add-u32 a5 first9 in
-      let first10 = sha256-t1 e9 e8 e7 e6 m10 2227730452 in
-      let second10 = sha256-t2 a9 a8 a7 in
-      let a10 = wrapping-add-u32 first10 second10 in
-      let e10 = wrapping-add-u32 a6 first10 in
-      let first11 = sha256-t1 e10 e9 e8 e7 m11 2361852424 in
-      let second11 = sha256-t2 a10 a9 a8 in
-      let a11 = wrapping-add-u32 first11 second11 in
-      let e11 = wrapping-add-u32 a7 first11 in
-      let first12 = sha256-t1 e11 e10 e9 e8 m12 2428436474 in
-      let second12 = sha256-t2 a11 a10 a9 in
-      let a12 = wrapping-add-u32 first12 second12 in
-      let e12 = wrapping-add-u32 a8 first12 in
-      let first13 = sha256-t1 e12 e11 e10 e9 m13 2756734187 in
-      let second13 = sha256-t2 a12 a11 a10 in
-      let a13 = wrapping-add-u32 first13 second13 in
-      let e13 = wrapping-add-u32 a9 first13 in
-      let first14 = sha256-t1 e13 e12 e11 e10 m14 3204031479 in
-      let second14 = sha256-t2 a13 a12 a11 in
-      let a14 = wrapping-add-u32 first14 second14 in
-      let e14 = wrapping-add-u32 a10 first14 in
-      let first15 = sha256-t1 e14 e13 e12 e11 m15 3329325298 in
-      let second15 = sha256-t2 a14 a13 a12 in
-      let a15 = wrapping-add-u32 first15 second15 in
-      let e15 = wrapping-add-u32 a11 first15 in
-      ShaWords (sha256-pair a15 a14) (sha256-pair a13 a12) (sha256-pair e15 e14) (sha256-pair e13 e12)
+  -- | Select schedule lane 1 from a packed four-word SIMD group.
+  lane1 :: U128 -> U32
+  lane1 group = wrapping-u128-to-u32 (wrapping-shr-u128 group 32)
 
-  -- | Initial chaining words derived from the exact FIPS prime-root definitions.
+  -- | Select schedule lane 2 from a packed four-word SIMD group.
+  lane2 :: U128 -> U32
+  lane2 group = wrapping-u128-to-u32 (wrapping-shr-u128 group 64)
+
+  -- | Select schedule lane 3 from a packed four-word SIMD group.
+  lane3 :: U128 -> U32
+  lane3 group = wrapping-u128-to-u32 (wrapping-shr-u128 group 96)
+
+  -- | Load sixteen input bytes as four network-order U32 lanes packed into one U128.
+  load-group :: Bytes -> I64 -> U128
+  load-group input offset =
+    let n = bytes-len-i64 input in
+    if 0 <= offset && 16 <= n then
+      if nat-from-i64 offset <= nat-from-i64 n - 16 then
+        let raw = bytes-load-u128-at input offset in
+        let lo = wire-pair (wrapping-u128-to-u64 raw) in
+        let hi = wire-pair (wrapping-u128-to-u64 (wrapping-shr-u128 raw 64)) in
+        simd-u64x2-pack lo hi
+      else u64-to-u128 0
+    else u64-to-u128 0
+
+  -- | Expand four SHA-256 schedule words in portable 128-bit SIMD lanes.
+  sha256-schedule :: U128 -> U128 -> U128 -> U128 -> U128
+  sha256-schedule g0 g1 g2 g3 =
+    let a = bit-or-u128 (wrapping-shr-u128 g0 32) (wrapping-shl-u128 g1 96) in
+    let b = bit-or-u128 (wrapping-shr-u128 g2 32) (wrapping-shl-u128 g3 96) in
+    let c = wrapping-shr-u128 g3 64 in
+    let s0 = bit-xor-u128 (bit-xor-u128 (simd-u32x4-rotr a 7) (simd-u32x4-rotr a 18)) (simd-u32x4-shr a 3) in
+    let s1 = bit-xor-u128 (bit-xor-u128 (simd-u32x4-rotr c 17) (simd-u32x4-rotr c 19)) (simd-u32x4-shr c 10) in
+    let first = simd-u32x4-add (simd-u32x4-add (simd-u32x4-add g0 b) s0) s1 in
+    let upper = wrapping-shl-u128 first 64 in
+    let s2 = bit-xor-u128 (bit-xor-u128 (simd-u32x4-rotr upper 17) (simd-u32x4-rotr upper 19)) (simd-u32x4-shr upper 10) in
+    simd-u32x4-add first s2
+
+  -- | Compute the choice, upper sigma and message contribution to one SHA-256 round.
+  sha256-t1 :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32
+  sha256-t1 e f g h w k =
+    let s1 = bit-xor-u32 (bit-xor-u32 (rotate-right-u32 e 6) (rotate-right-u32 e 11)) (rotate-right-u32 e 25) in
+    let ch = bit-xor-u32 (bit-and-u32 e f) (bit-and-u32 (bit-not-u32 e) g) in
+    wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 h s1) ch) k) w
+
+  -- | Compute the majority and lower sigma contribution to one SHA-256 round.
+  sha256-t2 :: U32 -> U32 -> U32 -> U32
+  sha256-t2 a b c =
+    let s0 = bit-xor-u32 (bit-xor-u32 (rotate-right-u32 a 2) (rotate-right-u32 a 13)) (rotate-right-u32 a 22) in
+    let maj = bit-xor-u32 (bit-xor-u32 (bit-and-u32 a b) (bit-and-u32 a c)) (bit-and-u32 b c) in
+    wrapping-add-u32 s0 maj
+
+  -- | FIPS 180-4 SHA-256 round constants K[0..63], lowered to a constant lookup table.
+  sha256-k :: U32 -> U32
+  sha256-k r = case r of
+    0 -> 1116352408
+    1 -> 1899447441
+    2 -> 3049323471
+    3 -> 3921009573
+    4 -> 961987163
+    5 -> 1508970993
+    6 -> 2453635748
+    7 -> 2870763221
+    8 -> 3624381080
+    9 -> 310598401
+    10 -> 607225278
+    11 -> 1426881987
+    12 -> 1925078388
+    13 -> 2162078206
+    14 -> 2614888103
+    15 -> 3248222580
+    16 -> 3835390401
+    17 -> 4022224774
+    18 -> 264347078
+    19 -> 604807628
+    20 -> 770255983
+    21 -> 1249150122
+    22 -> 1555081692
+    23 -> 1996064986
+    24 -> 2554220882
+    25 -> 2821834349
+    26 -> 2952996808
+    27 -> 3210313671
+    28 -> 3336571891
+    29 -> 3584528711
+    30 -> 113926993
+    31 -> 338241895
+    32 -> 666307205
+    33 -> 773529912
+    34 -> 1294757372
+    35 -> 1396182291
+    36 -> 1695183700
+    37 -> 1986661051
+    38 -> 2177026350
+    39 -> 2456956037
+    40 -> 2730485921
+    41 -> 2820302411
+    42 -> 3259730800
+    43 -> 3345764771
+    44 -> 3516065817
+    45 -> 3600352804
+    46 -> 4094571909
+    47 -> 275423344
+    48 -> 430227734
+    49 -> 506948616
+    50 -> 659060556
+    51 -> 883997877
+    52 -> 958139571
+    53 -> 1322822218
+    54 -> 1537002063
+    55 -> 1747873779
+    56 -> 1955562222
+    57 -> 2024104815
+    58 -> 2227730452
+    59 -> 2361852424
+    60 -> 2428436474
+    61 -> 2756734187
+    62 -> 3204031479
+    63 -> 3329325298
+    _ -> 0
+
+  -- | Compress every complete 64-byte block starting at offset without allocating per block.
+  blocks-from :: Sha256Words -> Bytes -> I64 -> Sha256Words
+  blocks-from words input offset = case words of
+    ShaWords ab cd ef gh ->
+      blocks-loop input offset (bytes-len-i64 input)
+        (word-low ab) (word-high ab) (word-low cd) (word-high cd)
+        (word-low ef) (word-high ef) (word-low gh) (word-high gh)
+
+  -- | Outer multi-block compression loop holding all eight chaining words unboxed in registers.
+  blocks-loop :: Bytes -> I64 -> I64 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> Sha256Words
+  blocks-loop input offset len h0 h1 h2 h3 h4 h5 h6 h7 =
+    if 0 <= offset && 64 <= len && offset <= wrapping-sub-i64 len 64 then
+      let g0 = load-group input offset in
+      let g1 = load-group input (wrapping-add-i64 offset 16) in
+      let g2 = load-group input (wrapping-add-i64 offset 32) in
+      let g3 = load-group input (wrapping-add-i64 offset 48) in
+      sha256-rounds input (wrapping-add-i64 offset 64) len 0
+        h0 h1 h2 h3 h4 h5 h6 h7
+        h0 h1 h2 h3 h4 h5 h6 h7
+        g0 g1 g2 g3
+    else ShaWords (pack-pair h0 h1) (pack-pair h2 h3) (pack-pair h4 h5) (pack-pair h6 h7)
+
+  -- | Inner four-round compression loop over the sliding SIMD schedule window, returning to blocks-loop.
+  sha256-rounds :: Bytes -> I64 -> I64 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U128 -> U128 -> U128 -> U128 -> Sha256Words
+  sha256-rounds input next-off len r h0 h1 h2 h3 h4 h5 h6 h7 a b c d e f g h g0 g1 g2 g3 =
+    if ge-u32 r 64 then
+      blocks-loop input next-off len
+        (wrapping-add-u32 h0 a) (wrapping-add-u32 h1 b) (wrapping-add-u32 h2 c) (wrapping-add-u32 h3 d)
+        (wrapping-add-u32 h4 e) (wrapping-add-u32 h5 f) (wrapping-add-u32 h6 g) (wrapping-add-u32 h7 h)
+    else
+      let w0 = lane0 g0 in
+      let w1 = lane1 g0 in
+      let w2 = lane2 g0 in
+      let w3 = lane3 g0 in
+      let t10 = sha256-t1 e f g h w0 (sha256-k r) in
+      let t20 = sha256-t2 a b c in
+      let a0 = wrapping-add-u32 t10 t20 in
+      let e0 = wrapping-add-u32 d t10 in
+      let t11 = sha256-t1 e0 e f g w1 (sha256-k (wrapping-add-u32 r 1)) in
+      let t21 = sha256-t2 a0 a b in
+      let a1 = wrapping-add-u32 t11 t21 in
+      let e1 = wrapping-add-u32 c t11 in
+      let t12 = sha256-t1 e1 e0 e f w2 (sha256-k (wrapping-add-u32 r 2)) in
+      let t22 = sha256-t2 a1 a0 a in
+      let a2 = wrapping-add-u32 t12 t22 in
+      let e2 = wrapping-add-u32 b t12 in
+      let t13 = sha256-t1 e2 e1 e0 e w3 (sha256-k (wrapping-add-u32 r 3)) in
+      let t23 = sha256-t2 a2 a1 a0 in
+      let a3 = wrapping-add-u32 t13 t23 in
+      let e3 = wrapping-add-u32 a t13 in
+      let g4 = if lt-u32 r 48 then sha256-schedule g0 g1 g2 g3 else g0 in
+      sha256-rounds input next-off len (wrapping-add-u32 r 4)
+        h0 h1 h2 h3 h4 h5 h6 h7
+        a3 a2 a1 a0 e3 e2 e1 e0
+        g1 g2 g3 g4
+
+  -- | Initial chaining words derived from the exact FIPS 180-4 prime-root definitions.
   sha256-initial-words :: Bool -> Sha256Words
   sha256-initial-words short =
     if short then ShaWords 3926247204440088280 17802264479202860311 7518782744944446257 13761399178871279527
     else ShaWords 13503953895726638695 11912009169889063794 11170449402626986623 6620516960021240235
-
-  -- | Extract one complete U32 lane from a stored pair of chaining words.
-  prim sha256-word-low :: U64 -> U32 where
-    llvm {
-      %value = trunc i64 %0 to i32
-      ret i32 %value
-    }
-
-  -- | Extract one complete U32 lane from a stored pair of chaining words.
-  prim sha256-word-high :: U64 -> U32 where
-    llvm {
-      %shift = lshr i64 %0, 32
-      %value = trunc i64 %shift to i32
-      ret i32 %value
-    }
-
-  -- | Select schedule lane 0 without narrowing any other lane's stored bits.
-  prim sha256-lane0 :: U128 -> U32 where
-    llvm {
-      %value = trunc i128 %0 to i32
-      ret i32 %value
-    }
-
-  -- | Select schedule lane 1 without narrowing any other lane's stored bits.
-  prim sha256-lane1 :: U128 -> U32 where
-    llvm {
-      %shift = lshr i128 %0, 32
-      %value = trunc i128 %shift to i32
-      ret i32 %value
-    }
-
-  -- | Select schedule lane 2 without narrowing any other lane's stored bits.
-  prim sha256-lane2 :: U128 -> U32 where
-    llvm {
-      %shift = lshr i128 %0, 64
-      %value = trunc i128 %shift to i32
-      ret i32 %value
-    }
-
-  -- | Select schedule lane 3 without narrowing any other lane's stored bits.
-  prim sha256-lane3 :: U128 -> U32 where
-    llvm {
-      %shift = lshr i128 %0, 96
-      %value = trunc i128 %shift to i32
-      ret i32 %value
-    }
-
-  -- | Pack two chaining words with the first word in the low 32 bits.
-  prim sha256-pair :: U32 -> U32 -> U64 where
-    llvm {
-      %low = zext i32 %0 to i64
-      %high = zext i32 %1 to i64
-      %upper = shl i64 %high, 32
-      %value = or i64 %low, %upper
-      ret i64 %value
-    }
-
-  -- | Decode four network-order words from two packed little-endian input byte words.
-  prim sha256-input-group :: U64 -> U64 -> U128 where
-    llvm {
-      %swap0 = call i64 @llvm.bswap.i64(i64 %0)
-      %left0 = shl i64 %swap0, 32
-      %right0 = lshr i64 %swap0, 32
-      %half0 = or i64 %left0, %right0
-      %wide0 = zext i64 %half0 to i128
-      %swap1 = call i64 @llvm.bswap.i64(i64 %1)
-      %left1 = shl i64 %swap1, 32
-      %right1 = lshr i64 %swap1, 32
-      %half1 = or i64 %left1, %right1
-      %wide1 = zext i64 %half1 to i128
-      %upper = shl i128 %wide1, 64
-      %value = or i128 %wide0, %upper
-      ret i128 %value
-    }
-
-  -- | Feed forward two chaining words with independent U32 wrapping rather than a cross-lane carry.
-  prim sha256-feed-pair :: U64 -> U64 -> U64 where
-    llvm {
-      %a0 = trunc i64 %0 to i32
-      %as = lshr i64 %0, 32
-      %a1 = trunc i64 %as to i32
-      %b0 = trunc i64 %1 to i32
-      %bs = lshr i64 %1, 32
-      %b1 = trunc i64 %bs to i32
-      %lo = add i32 %a0, %b0
-      %hi = add i32 %a1, %b1
-      %low = zext i32 %lo to i64
-      %high = zext i32 %hi to i64
-      %upper = shl i64 %high, 32
-      %value = or i64 %low, %upper
-      ret i64 %value
-    }
-
-  -- | Compute the choice, upper sigma and message contribution to one ordered round.
-  prim sha256-t1 :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 where
-    llvm {
-      %s1ar = lshr i32 %0, 6
-      %s1al = shl i32 %0, 26
-      %s1a = or i32 %s1ar, %s1al
-      %s1br = lshr i32 %0, 11
-      %s1bl = shl i32 %0, 21
-      %s1b = or i32 %s1br, %s1bl
-      %s1cr = lshr i32 %0, 25
-      %s1cl = shl i32 %0, 7
-      %s1c = or i32 %s1cr, %s1cl
-      %s1ab = xor i32 %s1a, %s1b
-      %s1 = xor i32 %s1ab, %s1c
-      %ef = and i32 %0, %1
-      %not = xor i32 %0, -1
-      %ng = and i32 %not, %2
-      %ch = xor i32 %ef, %ng
-      %t1a = add i32 %3, %s1
-      %t1b = add i32 %t1a, %ch
-      %t1c = add i32 %t1b, %4
-      %value = add i32 %t1c, %5
-      ret i32 %value
-    }
-
-  -- | Compute the majority and lower sigma contribution to one ordered round.
-  prim sha256-t2 :: U32 -> U32 -> U32 -> U32 where
-    llvm {
-      %s0ar = lshr i32 %0, 2
-      %s0al = shl i32 %0, 30
-      %s0a = or i32 %s0ar, %s0al
-      %s0br = lshr i32 %0, 13
-      %s0bl = shl i32 %0, 19
-      %s0b = or i32 %s0br, %s0bl
-      %s0cr = lshr i32 %0, 22
-      %s0cl = shl i32 %0, 10
-      %s0c = or i32 %s0cr, %s0cl
-      %s0ab = xor i32 %s0a, %s0b
-      %s0 = xor i32 %s0ab, %s0c
-      %ab = and i32 %0, %1
-      %ac = and i32 %0, %2
-      %bc = and i32 %1, %2
-      %pair = xor i32 %ab, %ac
-      %maj = xor i32 %pair, %bc
-      %value = add i32 %s0, %maj
-      ret i32 %value
-    }
-
-  -- | Expand four schedule lanes in SIMD, completing dependent lanes after the first two are available.
-  prim sha256-schedule :: U128 -> U128 -> U128 -> U128 -> U128 where
-    llvm {
-      %v0 = bitcast i128 %0 to <4 x i32>
-      %v1 = bitcast i128 %1 to <4 x i32>
-      %v2 = bitcast i128 %2 to <4 x i32>
-      %v3 = bitcast i128 %3 to <4 x i32>
-      %a = shufflevector <4 x i32> %v0, <4 x i32> %v1, <4 x i32> <i32 1, i32 2, i32 3, i32 4>
-      %b = shufflevector <4 x i32> %v2, <4 x i32> %v3, <4 x i32> <i32 1, i32 2, i32 3, i32 4>
-      %c = shufflevector <4 x i32> %v3, <4 x i32> zeroinitializer, <4 x i32> <i32 2, i32 3, i32 4, i32 4>
-      %s0ar = lshr <4 x i32> %a, <i32 7, i32 7, i32 7, i32 7>
-      %s0al = shl <4 x i32> %a, <i32 25, i32 25, i32 25, i32 25>
-      %s0a = or <4 x i32> %s0ar, %s0al
-      %s0br = lshr <4 x i32> %a, <i32 18, i32 18, i32 18, i32 18>
-      %s0bl = shl <4 x i32> %a, <i32 14, i32 14, i32 14, i32 14>
-      %s0b = or <4 x i32> %s0br, %s0bl
-      %s0c = lshr <4 x i32> %a, <i32 3, i32 3, i32 3, i32 3>
-      %s0ab = xor <4 x i32> %s0a, %s0b
-      %s0 = xor <4 x i32> %s0ab, %s0c
-      %s1ar = lshr <4 x i32> %c, <i32 17, i32 17, i32 17, i32 17>
-      %s1al = shl <4 x i32> %c, <i32 15, i32 15, i32 15, i32 15>
-      %s1a = or <4 x i32> %s1ar, %s1al
-      %s1br = lshr <4 x i32> %c, <i32 19, i32 19, i32 19, i32 19>
-      %s1bl = shl <4 x i32> %c, <i32 13, i32 13, i32 13, i32 13>
-      %s1b = or <4 x i32> %s1br, %s1bl
-      %s1c = lshr <4 x i32> %c, <i32 10, i32 10, i32 10, i32 10>
-      %s1ab = xor <4 x i32> %s1a, %s1b
-      %s1 = xor <4 x i32> %s1ab, %s1c
-      %base0 = add <4 x i32> %v0, %b
-      %base1 = add <4 x i32> %base0, %s0
-      %first = add <4 x i32> %base1, %s1
-      %next = shufflevector <4 x i32> %first, <4 x i32> zeroinitializer, <4 x i32> <i32 4, i32 4, i32 0, i32 1>
-      %s2ar = lshr <4 x i32> %next, <i32 17, i32 17, i32 17, i32 17>
-      %s2al = shl <4 x i32> %next, <i32 15, i32 15, i32 15, i32 15>
-      %s2a = or <4 x i32> %s2ar, %s2al
-      %s2br = lshr <4 x i32> %next, <i32 19, i32 19, i32 19, i32 19>
-      %s2bl = shl <4 x i32> %next, <i32 13, i32 13, i32 13, i32 13>
-      %s2b = or <4 x i32> %s2br, %s2bl
-      %s2c = lshr <4 x i32> %next, <i32 10, i32 10, i32 10, i32 10>
-      %s2ab = xor <4 x i32> %s2a, %s2b
-      %s2 = xor <4 x i32> %s2ab, %s2c
-      %complete = add <4 x i32> %first, %s2
-      %value = bitcast <4 x i32> %complete to i128
-      ret i128 %value
-    } when endian little
-    llvm {
-      %v0 = bitcast i128 %0 to <4 x i32>
-      %g0 = shufflevector <4 x i32> %v0, <4 x i32> zeroinitializer, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
-      %v1 = bitcast i128 %1 to <4 x i32>
-      %g1 = shufflevector <4 x i32> %v1, <4 x i32> zeroinitializer, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
-      %v2 = bitcast i128 %2 to <4 x i32>
-      %g2 = shufflevector <4 x i32> %v2, <4 x i32> zeroinitializer, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
-      %v3 = bitcast i128 %3 to <4 x i32>
-      %g3 = shufflevector <4 x i32> %v3, <4 x i32> zeroinitializer, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
-      %a = shufflevector <4 x i32> %g0, <4 x i32> %g1, <4 x i32> <i32 1, i32 2, i32 3, i32 4>
-      %b = shufflevector <4 x i32> %g2, <4 x i32> %g3, <4 x i32> <i32 1, i32 2, i32 3, i32 4>
-      %c = shufflevector <4 x i32> %g3, <4 x i32> zeroinitializer, <4 x i32> <i32 2, i32 3, i32 4, i32 4>
-      %s0ar = lshr <4 x i32> %a, <i32 7, i32 7, i32 7, i32 7>
-      %s0al = shl <4 x i32> %a, <i32 25, i32 25, i32 25, i32 25>
-      %s0a = or <4 x i32> %s0ar, %s0al
-      %s0br = lshr <4 x i32> %a, <i32 18, i32 18, i32 18, i32 18>
-      %s0bl = shl <4 x i32> %a, <i32 14, i32 14, i32 14, i32 14>
-      %s0b = or <4 x i32> %s0br, %s0bl
-      %s0c = lshr <4 x i32> %a, <i32 3, i32 3, i32 3, i32 3>
-      %s0ab = xor <4 x i32> %s0a, %s0b
-      %s0 = xor <4 x i32> %s0ab, %s0c
-      %s1ar = lshr <4 x i32> %c, <i32 17, i32 17, i32 17, i32 17>
-      %s1al = shl <4 x i32> %c, <i32 15, i32 15, i32 15, i32 15>
-      %s1a = or <4 x i32> %s1ar, %s1al
-      %s1br = lshr <4 x i32> %c, <i32 19, i32 19, i32 19, i32 19>
-      %s1bl = shl <4 x i32> %c, <i32 13, i32 13, i32 13, i32 13>
-      %s1b = or <4 x i32> %s1br, %s1bl
-      %s1c = lshr <4 x i32> %c, <i32 10, i32 10, i32 10, i32 10>
-      %s1ab = xor <4 x i32> %s1a, %s1b
-      %s1 = xor <4 x i32> %s1ab, %s1c
-      %base0 = add <4 x i32> %g0, %b
-      %base1 = add <4 x i32> %base0, %s0
-      %first = add <4 x i32> %base1, %s1
-      %next = shufflevector <4 x i32> %first, <4 x i32> zeroinitializer, <4 x i32> <i32 4, i32 4, i32 0, i32 1>
-      %s2ar = lshr <4 x i32> %next, <i32 17, i32 17, i32 17, i32 17>
-      %s2al = shl <4 x i32> %next, <i32 15, i32 15, i32 15, i32 15>
-      %s2a = or <4 x i32> %s2ar, %s2al
-      %s2br = lshr <4 x i32> %next, <i32 19, i32 19, i32 19, i32 19>
-      %s2bl = shl <4 x i32> %next, <i32 13, i32 13, i32 13, i32 13>
-      %s2b = or <4 x i32> %s2br, %s2bl
-      %s2c = lshr <4 x i32> %next, <i32 10, i32 10, i32 10, i32 10>
-      %s2ab = xor <4 x i32> %s2a, %s2b
-      %s2 = xor <4 x i32> %s2ab, %s2c
-      %complete = add <4 x i32> %first, %s2
-      %host = shufflevector <4 x i32> %complete, <4 x i32> zeroinitializer, <4 x i32> <i32 3, i32 2, i32 1, i32 0>
-      %value = bitcast <4 x i32> %host to i128
-      ret i128 %value
-    } when endian big

@@ -21,7 +21,7 @@ def source() -> str:
             high = (right + offset) % (1 << 64)
             checks.append(f'(eq-u128 (offset-pair {left} {right} {offset}) {low + (high << 64)})')
     return ('-- | Verify independent packed lane offsets at every scalar boundary.\nmodule Main where\n'
-            '  import Data.Wide (eq-u128)\n' + ring[start:end]
+            '  import Data.Wide\n' + ring[start:end]
             + '\n  -- | Require every independently computed full-width lane result.\n'
             + '  main :: Int\n  main = if ' + ' && '.join(checks) + ' then 0 else 1\n')
 

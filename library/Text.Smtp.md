@@ -12,7 +12,7 @@ Import with `import Text.Smtp`. Selected exports may already be in Prelude.
 
 [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Base64](Text.Base64.md), [Text.Hex](Text.Hex.md), [Text.Md5](Text.Md5.md), [Text.Show](Text.Show.md).
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Base64](Text.Base64.md), [Text.Binary](Text.Binary.md), [Text.Hex](Text.Hex.md), [Text.Md5](Text.Md5.md), [Text.Smtp](Text.Smtp.md).
+Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Base64](Text.Base64.md), [Text.Binary](Text.Binary.md), [Text.Hex](Text.Hex.md), [Text.Md5](Text.Md5.md), [Text.Smtp](Text.Smtp.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

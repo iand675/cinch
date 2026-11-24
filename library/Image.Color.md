@@ -633,4 +633,4 @@ Convert to the ycbcra representation; already matching values retain their field
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Color.cinch`. Source SHA-256: `151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Image/Color.cinch`. Source SHA-256: `c5fb57d446ef5e35f7fbd02404069b2f2b82b0f9c4563f894fc2e21f06da1932`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

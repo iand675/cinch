@@ -10,7 +10,7 @@ Import with `import Text.Crc64`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Binary](Text.Binary.md).
 
 Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Crc64](Text.Crc64.md).
 
@@ -18,9 +18,9 @@ Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary
 
 CRC-64 polynomial tables, persistent accumulators and binary checkpoints.
 Tables own immutable slicing-by-eight storage; construction generates pairs
-of entries with SIMD. Updates combine eight packed input bytes per step and
-handle exact tails. Digest and checkpoint words use network order. Retaining
-a state branches the computation. This checksum does not authenticate data.
+of entries with 128-bit SIMD lanes. Updates combine eight packed input bytes per
+step and handle exact tails. Digest and checkpoint words use network order.
+Retaining a state branches the computation. This checksum does not authenticate data.
 
 </details>
 
@@ -34,7 +34,7 @@ a state branches the computation. This checksum does not authenticate data.
 
 An immutable checksum accumulator retaining its immutable prepared table.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 156
+[Source](/reference-sources/Text.Crc64.cinch) · line 136
 
 <a id="type-437263363453746174654572726f72"></a>
 
@@ -44,7 +44,7 @@ An immutable checksum accumulator retaining its immutable prepared table.
 
 A checkpoint's identifier, exact byte size or prepared table does not match.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 211
+[Source](/reference-sources/Text.Crc64.cinch) · line 191
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidCrc64StateIdentifier</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Crc64</span>.<span class="tok-constructor">Crc64StateError</span></code></pre>
 
@@ -61,7 +61,7 @@ A checkpoint's identifier, exact byte size or prepared table does not match.
 An immutable polynomial table with eight derived slices and a checkpoint fingerprint.
 Retain and reuse a prepared table across updates to amortize its construction.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 31
+[Source](/reference-sources/Text.Crc64.cinch) · line 32
 
 # Values
 
@@ -73,7 +73,7 @@ Retain and reuse a prepared table across updates to amortize its construction.
 
 The reflected ECMA CRC-64 polynomial, 0xC96C5795D7870F42.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 249
+[Source](/reference-sources/Text.Crc64.cinch) · line 229
 
 <a id="value-63726336342d69736f"></a>
 
@@ -83,7 +83,7 @@ The reflected ECMA CRC-64 polynomial, 0xC96C5795D7870F42.
 
 The reflected ISO CRC-64 polynomial, 0xD800000000000000.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 245
+[Source](/reference-sources/Text.Crc64.cinch) · line 225
 
 <a id="value-63726336342d73697a65"></a>
 
@@ -93,7 +93,7 @@ The reflected ISO CRC-64 polynomial, 0xD800000000000000.
 
 Digest size in bytes, always eight.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 26
+[Source](/reference-sources/Text.Crc64.cinch) · line 27
 
 <a id="value-63726336342d7374617465"></a>
 
@@ -103,7 +103,7 @@ Digest size in bytes, always eight.
 
 Start an accumulator at zero with the supplied prepared table.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 161
+[Source](/reference-sources/Text.Crc64.cinch) · line 141
 
 <a id="value-63726336342d73746174652d617070656e64"></a>
 
@@ -113,7 +113,7 @@ Start an accumulator at zero with the supplied prepared table.
 
 Append the network-order digest to a copied prefix without changing either argument.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 196
+[Source](/reference-sources/Text.Crc64.cinch) · line 176
 
 <a id="value-63726336342d73746174652d617070656e642d73617665"></a>
 
@@ -123,7 +123,7 @@ Append the network-order digest to a copied prefix without changing either argum
 
 Append a complete checkpoint to a copied prefix, preserving the state.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 207
+[Source](/reference-sources/Text.Crc64.cinch) · line 187
 
 <a id="value-63726336342d73746174652d626c6f636b2d73697a65"></a>
 
@@ -133,7 +133,7 @@ Append a complete checkpoint to a copied prefix, preserving the state.
 
 Input block size in bytes, always one; updates accept any chunk length.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 177
+[Source](/reference-sources/Text.Crc64.cinch) · line 157
 
 <a id="value-63726336342d73746174652d6572726f722d6d657373616765"></a>
 
@@ -143,7 +143,7 @@ Input block size in bytes, always one; updates accept any chunk length.
 
 Render a checkpoint diagnostic, including complete expected and actual byte lengths.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 220
+[Source](/reference-sources/Text.Crc64.cinch) · line 200
 
 <a id="value-63726336342d73746174652d6c6f6164"></a>
 
@@ -154,7 +154,7 @@ Render a checkpoint diagnostic, including complete expected and actual byte leng
 Restore a checkpoint against the supplied immutable table without retaining input bytes.
 Identifier checks precede exact-size checks, which precede table matching. Every checksum word is accepted.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 228
+[Source](/reference-sources/Text.Crc64.cinch) · line 208
 
 <a id="value-63726336342d73746174652d7265736574"></a>
 
@@ -164,7 +164,7 @@ Identifier checks precede exact-size checks, which precede table matching. Every
 
 Return a zero accumulator retaining the same prepared polynomial table.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 169
+[Source](/reference-sources/Text.Crc64.cinch) · line 149
 
 <a id="value-63726336342d73746174652d73617665"></a>
 
@@ -175,7 +175,7 @@ Return a zero accumulator retaining the same prepared polynomial table.
 Return a twenty-byte checkpoint: ASCII crc, version 2, table fingerprint and checksum.
 Both words use network order. The fingerprint identifies the complete base table.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 201
+[Source](/reference-sources/Text.Crc64.cinch) · line 181
 
 <a id="value-63726336342d73746174652d73697a65"></a>
 
@@ -185,7 +185,7 @@ Both words use network order. The fingerprint identifies the complete base table
 
 Digest size in bytes, always eight.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 173
+[Source](/reference-sources/Text.Crc64.cinch) · line 153
 
 <a id="value-63726336342d73746174652d73756d"></a>
 
@@ -195,7 +195,7 @@ Digest size in bytes, always eight.
 
 Return eight fresh digest bytes in network order without changing the state.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 185
+[Source](/reference-sources/Text.Crc64.cinch) · line 165
 
 <a id="value-63726336342d73746174652d757064617465"></a>
 
@@ -205,7 +205,7 @@ Return eight fresh digest bytes in network order without changing the state.
 
 Consume a chunk without changing any earlier state, input buffer or table.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 165
+[Source](/reference-sources/Text.Crc64.cinch) · line 145
 
 <a id="value-63726336342d73746174652d776f7264"></a>
 
@@ -215,7 +215,7 @@ Consume a chunk without changing any earlier state, input buffer or table.
 
 Observe the complete numeric checksum without advancing or resetting.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 181
+[Source](/reference-sources/Text.Crc64.cinch) · line 161
 
 <a id="value-63726336342d73756d"></a>
 
@@ -225,7 +225,7 @@ Observe the complete numeric checksum without advancing or resetting.
 
 Compute CRC-64 with the supplied reflected polynomial. The empty checksum is zero.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 253
+[Source](/reference-sources/Text.Crc64.cinch) · line 233
 
 <a id="value-63726336342d7461626c65"></a>
 
@@ -236,7 +236,7 @@ Compute CRC-64 with the supplied reflected polynomial. The empty checksum is zer
 Prepare all 256 polynomial entries and seven derived slices in fresh owned storage.
 The argument is a reflected polynomial; every U64 value is supported.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 37
+[Source](/reference-sources/Text.Crc64.cinch) · line 38
 
 <a id="value-63726336342d7461626c652d656e7472696573"></a>
 
@@ -246,7 +246,7 @@ The argument is a reflected polynomial; every U64 value is supported.
 
 Return all 256 base entries in index order without exposing the owned backing bytes.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 90
+[Source](/reference-sources/Text.Crc64.cinch) · line 88
 
 <a id="value-63726336342d7461626c652d656e747279"></a>
 
@@ -256,7 +256,7 @@ Return all 256 base entries in index order without exposing the owned backing by
 
 Observe a base entry at an index in 0..255; other indices return None.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 83
+[Source](/reference-sources/Text.Crc64.cinch) · line 81
 
 <a id="value-63726336342d7461626c652d73756d"></a>
 
@@ -266,7 +266,7 @@ Observe a base entry at an index in 0..255; other indices return None.
 
 Checksum all bytes from the initial zero state with a reusable prepared table.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 102
+[Source](/reference-sources/Text.Crc64.cinch) · line 100
 
 <a id="value-63726336342d7461626c652d757064617465"></a>
 
@@ -277,7 +277,7 @@ Checksum all bytes from the initial zero state with a reusable prepared table.
 Continue any finished checksum using a prepared polynomial table.
 Empty input preserves every supplied bit; inputs and table storage are never modified.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 107
+[Source](/reference-sources/Text.Crc64.cinch) · line 105
 
 <a id="value-63726336342d757064617465"></a>
 
@@ -289,8 +289,8 @@ Continue a finished CRC-64 with a reflected polynomial, preserving empty updates
 Chunks of at least 16384 bytes prepare a slicing table; shorter chunks use
 the direct shift register. Reuse crc64-table-update to amortize table setup.
 
-[Source](/reference-sources/Text.Crc64.cinch) · line 259
+[Source](/reference-sources/Text.Crc64.cinch) · line 239
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Crc64.cinch`. Source SHA-256: `a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Crc64.cinch`. Source SHA-256: `ac34354165d37a111c795371ad88980c200e4c658ae19678c8d3cf1615ad3234`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -36,7 +36,7 @@ This module exports no type declarations.
 
 Round a validated nonempty JSON decimal exactly to binary32, including signed underflow and overflow.
 
-[Source](/reference-sources/Text.Json.Binary32.cinch) · line 118
+[Source](/reference-sources/Text.Json.Binary32.cinch) · line 112
 
 <a id="value-62696e61727933322d746f2d646563696d616c"></a>
 
@@ -46,8 +46,8 @@ Round a validated nonempty JSON decimal exactly to binary32, including signed un
 
 Format a finite binary32 as its shortest exact JSON decimal, preserving negative zero.
 
-[Source](/reference-sources/Text.Json.Binary32.cinch) · line 189
+[Source](/reference-sources/Text.Json.Binary32.cinch) · line 183
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Binary32.cinch`. Source SHA-256: `ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json/Binary32.cinch`. Source SHA-256: `1ca2d3cb024bba0132912cb311f7d86143af85c9ad4e89d8cdadc3ccf87d314f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

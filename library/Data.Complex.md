@@ -1,6 +1,6 @@
 # Data.Complex
 
-Complex values and numeric operations using the module's current floating representation.
+Binary64 complex arithmetic, overflow-safe division, polar conversions, and full elementary, trigonometric, hyperbolic, and inverse functions over Data.Float.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -10,82 +10,30 @@ Import with `import Data.Complex`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Float](Data.Float.md), [Data.Machine](Data.Machine.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md).
 
-Non-embedded source closure: [Data.Complex](Data.Complex.md).
+Non-embedded source closure: [Data.Complex](Data.Complex.md), [Data.Float](Data.Float.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
-Data.Complex: complex numbers over the binary64 scalar.
+Complex numbers over the binary64 scalar (`F64`) with full elementary,
+trigonometric, hyperbolic, inverse, polar and classification operations.
 
-Ruby's `Complex` (design/stdlib-parity-ruby.md, the P38 numeric family:
-PORT as a concrete type with explicit operations, the P2 discipline of
-types and operations rather than a numeric tower). The carrier is fixed
-to `F64` (Data.Machine's binary64 scalar): both parts are machine floats,
-so the operations below are the field operations named explicitly rather
-than a promotion system. `complex` is the smart constructor (the
-representation stays private, like `Data.String`'s `StrBuf`), and
-`real-part`/`imag-part` are the observations that cross back to `F64`.
+The carrier is fixed to `F64` (`Data.Machine`'s binary64 scalar): both parts
+are machine floats, so mixed real/complex arithmetic is refused (`from-real`,
+`real-part` and `imag-part` are the crossings). The `MkComplex` constructor
+stays module-private; `complex` is the smart constructor.
 
-Design law shape (design/base-library.md: `Data.*` is concrete types, and
-the type's home carries its instance family): the defining identities the
-tests assert are
-  the imaginary unit:   mul (complex 0 1) (complex 0 1) == complex -1 0
-  the sample product:   mul (complex 1 2) (complex 3 4) == complex -5 10
-  distributivity:       mul x (add y z) == add (mul x y) (mul x z)
-  conjugation:          conjugate (conjugate z) == z
-  the field inverse:    div (mul x y) y == x within the tolerance, where
-                        y is not zero (division by zero is IEEE, not a
-                        fault: the parts go through `div-f64`)
-and the instance family (`Eq`, `Add`, `Sub`, `Mul`, `Neg`) is the
-class surface over those named functions. The arithmetic-operation
-classes DO admit this carrier: the class method is over `Complex`, not
-over `F64`, so `Add Complex` adds both parts with `add-f64` (the refusal
-of arithmetic instances on the machine scalars themselves, primitive
-types specification section 8, is not touched).
+Special-value handling conforms to C99 Annex G (IEC 60559 complex arithmetic):
+signed zeros are preserved, branch cuts match standard principal values,
+division uses Smith's scaling algorithm with infinity/zero recovery, `abs`
+delegates to `hypot-f64`, `sqrt` rescales to avoid intermediate overflow or
+underflow, and `tan`/`cot` use Cody-Waite and Payne-Hanek range reduction
+with Taylor series evaluation near poles.
 
-Named refusals:
-  * No `Complex` over `Int` (nor any carrier but `F64`): the type is
-    fixed here. Ruby's `Complex` promotes across `Numeric`; this slice
-    deliberately does not, and mixed real/complex arithmetic is refused
-    too (`from-real`, `real-part` and `imag-part` are the crossings).
-  * No ordering: comparison is absent on purpose. The parts are `F64`,
-    which has no `Ord` instance (primitive types specification section
-    8), and there is no total order on the complex field compatible with
-    its arithmetic. The bit-pattern order `total-order-f64` orders NaN
-    and signed zeros, not values, so it is not an ordering either.
-  * `Eq` is structural on the parts through `feq-f64`, so a value with a
-    NaN part is unequal to itself (IEEE equality, matching Ruby's
-    componentwise `==`).
-  * No `Div` instance: `Algebra.Arithmetic`'s `(/)` divides by a
-    `NonZero` divisor (division is total by construction), and the
-    predicate `NonZero` decides numbers, not `Complex`. Complex
-    division is total in its own way (IEEE parts, never a fault), so
-    it stays the named function `div`.
-  * No `Semiring`/`Group` instances: this module provides exactly the
-    arithmetic-operation classes (`Algebra.Arithmetic`) and leaves the
-    algebraic-structure classes to a later curation (a class constraint
-    entails nothing, so nothing is lost).
-  * `to-string` renders each part through the P31 round-trip decimal
-    (Data.Machine's `f64-to-decimal`: the shortest round-trip spelling)
-    with a trailing `e0` elided, so whole and simple fractional values
-    read as plain decimals. A part whose decimal needs a nonzero
-    exponent keeps its scientific spelling; no fixed-notation expansion
-    is attempted in this slice.
-  * `arg`/`atan-approx` are a named APPROXIMATION. The binary64 scalar
-    carries no arctangent primitive (Data.Machine has no `atan`), so
-    `atan-approx` reduces the argument four times through
-    `t/(1+sqrt(1+t^2))` (each reduction halves the angle) and sums the
-    first eight odd terms of the arctangent series. The absolute error
-    is below 1e-12 over the whole real line: the reduced truncation (the
-    reduced argument is at most 2^-4) is below 2^-60 and the four
-    doublings scale it by 2^4, with the `pi/2` constant adding binary64
-    rounding noise. `arg` is the four-quadrant `atan2` built on it.
-
-Instance homes. Instances live with their type (design/base-library.md);
-the class names come through the implicit prelude facade, the same shape
-Data.Int's instances use. Names are dash style (D106); operators are
-class methods with the base fixity table (D2).
+Class instances (`Eq`, `Add`, `Sub`, `Mul`, `Neg`) live with the type; `Eq`
+is componentwise IEEE equality via `feq-f64` and `Complex` deliberately has
+no `Ord` or `Div` instance.
 
 </details>
 
@@ -97,10 +45,9 @@ class methods with the base fixity table (D2).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Complex</span></code></pre>
 
-The pair of binary64 parts. The constructor is module-private (the
-observations below are the only way out); `complex` is the surface.
+A complex number with binary64 real and imaginary parts.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 83
+[Source](/reference-sources/Data.Complex.cinch) · line 37
 
 # Values
 
@@ -110,11 +57,29 @@ observations below are the only way out); `complex` is the surface.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-The magnitude |a + bi| = sqrt(a^2 + b^2). Naive formula (no scaling):
-a part large enough to overflow the squares yields an infinite
-magnitude, which is the honest IEEE result for this spelling.
+The modulus `|a + bi|`, computed overflow- and underflow-safely via `hypot-f64`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 148
+[Source](/reference-sources/Data.Complex.cinch) · line 203
+
+<a id="value-61636f73"></a>
+
+## `acos`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">acos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex inverse circular cosine.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 627
+
+<a id="value-61636f7368"></a>
+
+## `acosh`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">acosh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex inverse hyperbolic cosine.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 633
 
 <a id="value-616464"></a>
 
@@ -122,9 +87,9 @@ magnitude, which is the honest IEEE result for this spelling.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
-(a + bi) + (c + di): componentwise (the field's addition).
+Componentwise addition `(a + bi) + (c + di)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 103
+[Source](/reference-sources/Data.Complex.cinch) · line 124
 
 <a id="value-617267"></a>
 
@@ -132,11 +97,39 @@ magnitude, which is the honest IEEE result for this spelling.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-The four-quadrant argument: the angle of `a + bi` in (-pi, pi], zero
-for the origin. The axis cases are exact; the other quadrants defer to
-`atan-approx` (the approximation's bound is the error bound here).
+The four-quadrant argument of a complex number in `[-pi, pi]`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 228
+[Source](/reference-sources/Data.Complex.cinch) · line 215
+
+<a id="value-6173696e"></a>
+
+## `asin`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">asin</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex inverse circular sine.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 576
+
+<a id="value-6173696e68"></a>
+
+## `asinh`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">asinh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex inverse hyperbolic sine.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 603
+
+<a id="value-6174616e"></a>
+
+## `atan`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atan</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex inverse circular tangent.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 645
 
 <a id="value-6174616e2d617070726f78"></a>
 
@@ -144,10 +137,19 @@ for the origin. The axis cases are exact; the other quadrants defer to
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atan-approx</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-The named arctangent approximation (the header's refusal entry):
-`atan-approx x` is the principal value in (-pi/2, pi/2).
+Named arctangent approximation over `(-pi/2, pi/2)` retained for compatibility.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 160
+[Source](/reference-sources/Data.Complex.cinch) · line 680
+
+<a id="value-6174616e68"></a>
+
+## `atanh`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">atanh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex inverse hyperbolic tangent.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 674
 
 <a id="value-636f6d706c6578"></a>
 
@@ -155,9 +157,39 @@ The named arctangent approximation (the header's refusal entry):
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
-The smart constructor (Ruby's `Complex(a, b)`).
+Construct a complex number from its real and imaginary parts.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 87
+[Source](/reference-sources/Data.Complex.cinch) · line 42
+
+<a id="value-636f6d706c65782d696e66"></a>
+
+## `complex-inf`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex-inf</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span></code></pre>
+
+Complex infinity `(+Inf, +Inf)`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 104
+
+<a id="value-636f6d706c65782d6e616e"></a>
+
+## `complex-nan`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">complex-nan</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span></code></pre>
+
+Complex not-a-number `(NaN, NaN)`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 108
+
+<a id="value-636f6e6a"></a>
+
+## `conj`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">conj</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+The complex conjugate `a - bi` (alias of `conjugate`).
+
+[Source](/reference-sources/Data.Complex.cinch) · line 199
 
 <a id="value-636f6e6a7567617465"></a>
 
@@ -165,10 +197,39 @@ The smart constructor (Ruby's `Complex(a, b)`).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">conjugate</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
 
-The conjugate: the reflection across the real axis. An involution
-(`conjugate (conjugate z) == z`).
+The complex conjugate `a - bi` (reflection across the real axis).
 
-[Source](/reference-sources/Data.Complex.cinch) · line 142
+[Source](/reference-sources/Data.Complex.cinch) · line 195
+
+<a id="value-636f73"></a>
+
+## `cos`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex circular cosine.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 392
+
+<a id="value-636f7368"></a>
+
+## `cosh`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cosh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex hyperbolic cosine.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 416
+
+<a id="value-636f74"></a>
+
+## `cot`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cot</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex circular cotangent.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 566
 
 <a id="value-646976"></a>
 
@@ -176,10 +237,10 @@ The conjugate: the reflection across the real axis. An involution
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
-(a + bi)/(c + di) = ((ac + bd) + (bc - ad)i) / (c^2 + d^2). A zero
-divisor yields IEEE NaN parts through `div-f64`, never a fault.
+Overflow-safe complex division using Smith's scaling algorithm with C99
+Annex G.5.1 infinity and zero recovery.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 125
+[Source](/reference-sources/Data.Complex.cinch) · line 160
 
 <a id="value-6571"></a>
 
@@ -187,9 +248,19 @@ divisor yields IEEE NaN parts through `div-f64`, never a fault.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-Structural equality: IEEE on each part.
+Structural equality: componentwise IEEE equality via `feq-f64`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 155
+[Source](/reference-sources/Data.Complex.cinch) · line 207
+
+<a id="value-657870"></a>
+
+## `exp`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">exp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex base-e exponential `e^z`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 235
 
 <a id="value-66726f6d2d7265616c"></a>
 
@@ -197,9 +268,9 @@ Structural equality: IEEE on each part.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-real</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
 
-A complex number with zero imaginary part.
+Lift a real `F64` into `Complex` with zero imaginary part.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 99
+[Source](/reference-sources/Data.Complex.cinch) · line 56
 
 <a id="value-696d61672d70617274"></a>
 
@@ -207,7 +278,49 @@ A complex number with zero imaginary part.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">imag-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Complex.cinch)
+The imaginary part of a complex number.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 51
+
+<a id="value-69732d696e66"></a>
+
+## `is-inf`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-inf</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+
+Report whether either part is an infinity.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 112
+
+<a id="value-69732d6e616e"></a>
+
+## `is-nan`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-nan</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+
+Report whether either part is NaN and neither part is an infinity.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 116
+
+<a id="value-6c6f67"></a>
+
+## `log`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Principal natural logarithm `log(|z|) + i * phase(z)`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 251
+
+<a id="value-6c6f673130"></a>
+
+## `log10`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log10</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Principal base-10 logarithm `log(z) / ln(10)`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 255
 
 <a id="value-6d756c"></a>
 
@@ -215,11 +328,9 @@ A complex number with zero imaginary part.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
-(a + bi)(c + di) = (ac - bd) + (ad + bc)i (the imaginary unit squares
-to -1, which is the `mul (complex 0 1) (complex 0 1) == complex -1 0`
-identity above).
+Complex multiplication `(a + bi)(c + di) = (ac - bd) + (ad + bc)i`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 115
+[Source](/reference-sources/Data.Complex.cinch) · line 134
 
 <a id="value-6e6567"></a>
 
@@ -227,9 +338,39 @@ identity above).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
 
-The additive inverse, componentwise.
+Componentwise additive inverse `-(a + bi) = -a - bi`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 137
+[Source](/reference-sources/Data.Complex.cinch) · line 191
+
+<a id="value-7068617365"></a>
+
+## `phase`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">phase</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+The phase (argument) of a complex number in `[-pi, pi]`, computed via `atan2-f64`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 211
+
+<a id="value-706f6c6172"></a>
+
+## `polar`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">polar</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">F64</span>, <span class="tok-constructor">F64</span>))</code></pre>
+
+Polar representation `(r, theta)` such that `z = r * e^(i * theta)` with `theta` in `[-pi, pi]`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 219
+
+<a id="value-706f77"></a>
+
+## `pow`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pow</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+
+Complex exponentiation `x^y`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 261
 
 <a id="value-7265616c2d70617274"></a>
 
@@ -237,7 +378,49 @@ The additive inverse, componentwise.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">real-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Complex.cinch)
+The real part of a complex number.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 46
+
+<a id="value-72656374"></a>
+
+## `rect`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rect</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
+
+Construct a complex number from polar coordinates `(r, theta)`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 223
+
+<a id="value-73696e"></a>
+
+## `sin`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sin</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex circular sine.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 344
+
+<a id="value-73696e68"></a>
+
+## `sinh`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sinh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex hyperbolic sine.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 368
+
+<a id="value-73717274"></a>
+
+## `sqrt`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sqrt</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Principal square root of `z`, with `real-part r >= 0` and `imag-part r` matching the sign of `imag-part z`.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 288
 
 <a id="value-737562"></a>
 
@@ -245,9 +428,29 @@ The additive inverse, componentwise.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>))</code></pre>
 
-(a + bi) - (c + di): componentwise.
+Componentwise subtraction `(a + bi) - (c + di)`.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 108
+[Source](/reference-sources/Data.Complex.cinch) · line 129
+
+<a id="value-74616e"></a>
+
+## `tan`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tan</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex circular tangent.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 531
+
+<a id="value-74616e68"></a>
+
+## `tanh`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tanh</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span>)</code></pre>
+
+Complex hyperbolic tangent.
+
+[Source](/reference-sources/Data.Complex.cinch) · line 549
 
 <a id="value-746f2d737472696e67"></a>
 
@@ -255,10 +458,9 @@ The additive inverse, componentwise.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Complex</span>.<span class="tok-constructor">Complex</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
 
-The `a+bi` form: a negative imaginary part renders with `-` and its
-magnitude (so `complex 1 -1` is `1-1i`), a non-negative one with `+`.
+Format a complex number in `a+bi` or `a-bi` form.
 
-[Source](/reference-sources/Data.Complex.cinch) · line 257
+[Source](/reference-sources/Data.Complex.cinch) · line 738
 
 # Instances
 
@@ -272,6 +474,12 @@ These are checked exported instance entries. Law/sample-check status is separate
 | `Data.Complex.Neg_Complex` | `Algebra.Arithmetic.Neg Data.Complex.Complex` | Implicit |
 | `Data.Complex.Sub_Complex` | `Algebra.Arithmetic.Sub Data.Complex.Complex` | Implicit |
 
+**`Data.Complex.Add_Complex`**: Componentwise addition for `Complex`.
+**`Data.Complex.Eq_Complex`**: Componentwise IEEE equality for `Complex`.
+**`Data.Complex.Mul_Complex`**: Complex multiplication for `Complex`.
+**`Data.Complex.Neg_Complex`**: Componentwise negation for `Complex`.
+**`Data.Complex.Sub_Complex`**: Componentwise subtraction for `Complex`.
+
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Complex.cinch`. Source SHA-256: `16b1436d6025030f3ab3dbfd6955fb926883ead5dc83af6a373ac42919918a51`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Complex.cinch`. Source SHA-256: `a64d315deeb17f8b87b763ce97c337d6514f0826562151432828057fce558f4c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

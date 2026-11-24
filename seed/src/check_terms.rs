@@ -3893,7 +3893,7 @@ impl Checker {
                 if !args.iter().all(|a| self.fact_term_ok(env, a)) {
                     return false;
                 }
-                if matches!(v.kind, ValueKind::Prim(PrimOp::Bytes(BytesOp::Len))) {
+                if matches!(v.kind, ValueKind::Prim(PrimOp::Bytes(BytesOp::Len | BytesOp::LenI64))) {
                     return args.len() == 1;
                 }
                 // A pure arithmetic intrinsic applied to all of its

@@ -85,10 +85,15 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Crypto.Hmac](Crypto.Hmac.md) | Ship source | Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification. |
 | [Crypto.Hpke](Crypto.Hpke.md) | Ship source | Hybrid public key encryption (RFC 9180) over DHKEM X25519 and P-256, HKDF and AES-GCM or ChaCha20-Poly1305, in all four modes. |
 | [Crypto.Kdf](Crypto.Kdf.md) | Ship source | HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256. |
+| [Crypto.MlDsa](Crypto.MlDsa.md) | Ship source | FIPS 204 ML-DSA-44, ML-DSA-65, and ML-DSA-87 post-quantum digital signatures: deterministic and hedged signing, verification, and key/signature codecs. |
 | [Crypto.MlKem](Crypto.MlKem.md) | Ship source | ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels. |
 | [Crypto.P256](Crypto.P256.md) | Ship source | Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels. |
+| [Crypto.Pkix](Crypto.Pkix.md) | Ship source | PKIX distinguished names, OIDs, RFC 4514 formatting, algorithm identifiers, X.509 extensions, times and certificate revocation lists (CRLs). |
 | [Crypto.Rc4](Crypto.Rc4.md) | Ship source | The RC4 stream cipher as a persistent keystream state, for legacy data only. |
+| [Crypto.Rsa](Crypto.Rsa.md) | Ship source | RSA PKCS#1 v1.5 and PSS signing/verification, OAEP and PKCS#1 v1.5 encryption/decryption, PKCS#1 DER key codecs and seeded key generation. |
+| [Crypto.Tls](Crypto.Tls.md) | Ship source | Pure sans-I/O RFC 8446 TLS 1.3 client and server handshake state machine, key schedule, record AEAD framing, ALPN/SNI and X.509 verification. |
 | [Crypto.X25519](Crypto.X25519.md) | Ship source | Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection. |
+| [Crypto.X509](Crypto.X509.md) | Ship source | X.509 v3 certificate parsing, creation and chain verification, RFC 6125 hostname and IP SAN checks, CSRs, and PKIX/PKCS#8/SEC1/PKCS#1 key codecs. |
 
 ## Data
 
@@ -113,12 +118,13 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Char](Data.Char.md) | Embedded | Unicode scalar values and checked character/code conversions, with range information for safe use. |
 | [Data.Columnar](Data.Columnar.md) | Ship source | Columnar leaves over typed arrays, zipped into nested pairs that share their buffers. A length mismatch is None. |
 | [Data.Compare](Data.Compare.md) | Ship source | Explicit scalar comparison policies, NaN-aware floating orders, and first non-default selection. |
-| [Data.Complex](Data.Complex.md) | Ship source | Complex values and numeric operations using the module's current floating representation. |
+| [Data.Complex](Data.Complex.md) | Ship source | Binary64 complex arithmetic, overflow-safe division, polar conversions, and full elementary, trigonometric, hyperbolic, and inverse functions over Data.Float. |
 | [Data.Compose](Data.Compose.md) | Embedded | Composition of higher-kinded containers with the admitted generic instances. |
 | [Data.Const](Data.Const.md) | Embedded | A constant container that retains its first parameter while ignoring the mapped value parameter. |
 | [Data.CookieJar](Data.CookieJar.md) | Ship source | An RFC 6265 cookie jar as an immutable value: store the cookies responses set and choose the cookies a request sends. |
 | [Data.Core](Data.Core.md) | Embedded | Shared declarations for List, Option, and Result. Their public homes add operations and instances; this module breaks declaration-order cycles. |
 | [Data.Date](Data.Date.md) | Ship source | Civil date values, validation, parsing/formatting, and calendar calculations. |
+| [Data.Elf](Data.Elf.md) | Ship source | Bounds-checked ELF32 and ELF64 (little/big-endian) parser for headers, segments, sections, symbols, relocations, dynamic tables and zlib-compressed sections. |
 | [Data.Enum](Data.Enum.md) | Embedded | Finite enumeration and the class behind inclusive range literals, including an explicit next element for a step. |
 | [Data.Float](Data.Float.md) | Ship source | Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target. |
 | [Data.FromList](Data.FromList.md) | Embedded | The opt-in collection-literal vocabulary used to interpret [elements] at the expected container type. |
@@ -130,8 +136,10 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.IpAddr](Data.IpAddr.md) | Ship source | Validated IP addresses, parsing/rendering, and address-family vocabulary. |
 | [Data.Json](Data.Json.md) | Embedded | The JSON value representation shared by parsers, renderers, codecs, and structured observability. |
 | [Data.List](Data.List.md) | Embedded | Finite strict lists: construction, transformation, filtering, splitting, searching, folds, and collection instances. |
+| [Data.MachO](Data.MachO.md) | Ship source | Bounds-checked Mach-O 32/64 (little/big-endian) and Universal/Fat binary parser for load commands, segments, sections, symbols and dylibs. |
 | [Data.Machine](Data.Machine.md) | Embedded | Fixed-width and target-sized scalar operations. Names make checked, wrapping, or saturating overflow policy explicit. |
 | [Data.Map](Data.Map.md) | Embedded | Ordered maps with comparison constraints, lookup, insertion, removal, traversal, and collection-literal support. |
+| [Data.MapHash](Data.MapHash.md) | Ship source | Fast keyed 64-bit non-cryptographic hash with persistent streaming state, one-shot byte/string fast paths and MapHashable typed comparable hashing. |
 | [Data.Matrix](Data.Matrix.md) | Ship source | Matrix construction, shape checks, indexing, transformation, and arithmetic operations. |
 | [Data.Mutable.Array](Data.Mutable.Array.md) | Ship source | A fixed-length mutable array whose slots always hold values, with copying freeze and thaw against the immutable Array. |
 | [Data.Mutable.BTree](Data.Mutable.BTree.md) | Ship source | An ordered mutable map: a degree-8 B-tree whose nodes are indices into one pooled set of slot arrays, with floor, ceiling, range folds, pop-min/max and a structural verifier. |
@@ -154,11 +162,13 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Mutable.Vec](Data.Mutable.Vec.md) | Ship source | A growable vector: amortised O(1) push and pop, O(1) indexing, middle insertion and removal, in-place introsort, and copying freeze/thaw against Array. |
 | [Data.Mutable](Data.Mutable.md) | Ship source | A curated mutable-container facade. Region-indexed operations carry Mut r; callback-backed heaps and stable linked-list elements have their own module imports. |
 | [Data.Nat](Data.Nat.md) | Embedded | Mathematical nonnegative integers, exact arithmetic, checked preconditions, and admitted machine conversions. |
+| [Data.NetIp](Data.NetIp.md) | Ship source | Immutable IPv4, IPv6, 4-in-6 and zoned addresses, AddrPort pairs and CIDR prefixes with RFC 5952 formatting, containment, overlap and binary codecs. |
 | [Data.NonEmpty](Data.NonEmpty.md) | Embedded | Lists refined by nonemptiness. The total constructor returns Option; transferred operations must preserve the predicate. |
 | [Data.NonZero](Data.NonZero.md) | Embedded | Total nonzero-number constructors. The NonZero type is also available through the arithmetic vocabulary for safe divisors. |
 | [Data.Option](Data.Option.md) | Embedded | Optional values with None and Some, plus combinators for propagating or consuming absence. |
 | [Data.Ordering](Data.Ordering.md) | Embedded | The LT, EQ, and GT comparison result vocabulary and its instances. |
 | [Data.Path](Data.Path.md) | Embedded | Platform path values and composition/conversion operations used by filesystem and process APIs. |
+| [Data.Pe](Data.Pe.md) | Ship source | Bounds-checked PE32, PE32+ and COFF binary parser for headers, data directories, sections, COFF symbols, imports and exports. |
 | [Data.Producer](Data.Producer.md) | Embedded | Partial producer vocabulary, distinct from codata whose next observation is guaranteed productive. |
 | [Data.Rand](Data.Rand.md) | Ship source | Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf. |
 | [Data.Rational](Data.Rational.md) | Ship source | Rational numbers with explicit denominator/error policy and arithmetic operations. |
@@ -166,8 +176,10 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Data.Search](Data.Search.md) | Ship source | Indexed binary search with monotone predicates, insertion positions and effectful three-way comparisons. |
 | [Data.Set](Data.Set.md) | Embedded | Ordered sets and their membership, combination, difference, and conversion operations. |
 | [Data.Sorted](Data.Sorted.md) | Embedded | Lists refined by sortedness, with construction and combination that preserve ordering. |
+| [Data.Sql](Data.Sql.md) | Ship source | Pure typed SQL values, NULLs, named parameters, isolation levels, column metadata, errors and checked row scanners. |
 | [Data.String](Data.String.md) | Embedded | Immutable UTF-8 text with bounded-stack construction and joining, scalar/span decoding, SIMD scalar counting, slicing and comparison. Byte conversions preserve immutability. |
 | [Data.StringIo](Data.StringIo.md) | Ship source | In-memory string-oriented I/O utilities with explicit state and error results. |
+| [Data.SuffixArray](Data.SuffixArray.md) | Ship source | Immutable O(n log n) suffix arrays over raw bytes with binary-search lookup, regex search and checked versioned binary serialization. |
 | [Data.Sym](Data.Sym.md) | Embedded | Interned symbols with identity equality, deterministic spelling order, and String conversions. |
 | [Data.Target](Data.Target.md) | Embedded | Target/platform and worker vocabulary used by the compiler-supported runtime and target examples. |
 | [Data.Tensor](Data.Tensor.md) | Ship source | Immutable row-major tensors with checked runtime shapes of any rank. |
@@ -222,11 +234,15 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Csv](Text.Csv.md) | Ship source | CSV parsing/rendering with explicit field, record, and malformed-input handling. |
 | [Text.Digest](Text.Digest.md) | Ship source | Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol. |
 | [Text.FilePath](Text.FilePath.md) | Ship source | POSIX lexical relative paths, locality tests, filesystem-name conversion and search-list splitting. |
+| [Text.Flate](Text.Flate.md) | Ship source | RFC 1951 raw DEFLATE compression (hash-chain LZ77 and Package-Merge dynamic/fixed Huffman) and bounded decompression with preset dictionaries. |
 | [Text.Fnv.State](Text.Fnv.State.md) | Ship source | Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints. |
 | [Text.Fnv](Text.Fnv.md) | Ship source | Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic. |
+| [Text.Gob](Text.Gob.md) | Ship source | Wire-compatible Go gob binary encoder and decoder for primitives, slices, arrays, maps and structs with stateful type-descriptor reuse. |
 | [Text.Gzip](Text.Gzip.md) | Ship source | Whole-buffer gzip member encoding, checked decompression and concatenated members. |
 | [Text.Hex](Text.Hex.md) | Ship source | SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps. |
 | [Text.Html](Text.Html.md) | Ship source | HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning. |
+| [Text.HtmlTemplate](Text.HtmlTemplate.md) | Ship source | Context-aware auto-escaping HTML template engine over Text.Template and Text.Html with typed safe content wrappers for HTML, attributes, URLs, JS, CSS and srcset. |
+| [Text.Http](Text.Http.md) | Ship source | Pure HTTP/1.1 wire parsing/rendering, chunked transfer coding, status texts, canonical headers, forms and Go 1.22 ServeMux pattern routing. |
 | [Text.Json.Binary32](Text.Json.Binary32.md) | Ship source | Exact decimal rounding and shortest finite binary32 JSON coefficients, with preserved signed zero and midpoint comparisons. |
 | [Text.Json.Codec](Text.Json.Codec.md) | Ship source | Typed JSON codecs for records, persistent maps, explicit key capabilities, machine integers, binary buffers and exact binary32/binary64 values. |
 | [Text.Json.Dynamic](Text.Json.Dynamic.md) | Ship source | Owned dynamic JSON trees, separate encoding and decoding descriptors, typed payloads and bounded construction. |
@@ -247,6 +263,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Punycode](Text.Punycode.md) | Ship source | Punycode (RFC 3492) encoding and decoding, and ASCII-compatible host names with xn-- labels. |
 | [Text.QuotedPrintable](Text.QuotedPrintable.md) | Ship source | Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies. |
 | [Text.Regex](Text.Regex.md) | Ship source | Regular-expression parsing/matching and replacement under the module's admitted regex language. |
+| [Text.Rpc](Text.Rpc.md) | Ship source | Pure JSON-RPC 1.0/2.0 (single, notification, batch) and length-prefixed gob-RPC wire codecs, envelopes, and standard error codes. |
 | [Text.Scan](Text.Scan.md) | Ship source | Scanning primitives over input text and the shared position/error vocabulary. |
 | [Text.Sha1](Text.Sha1.md) | Ship source | SHA-1 for legacy interoperability, with a four-lane SIMD schedule, persistent states and checked binary checkpoints. |
 | [Text.Sha256](Text.Sha256.md) | Ship source | Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints. |
@@ -255,6 +272,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Shellwords](Text.Shellwords.md) | Ship source | Shell-style word splitting/joining; this is data parsing, not execution of a shell command. |
 | [Text.Show](Text.Show.md) | Embedded | Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself. |
 | [Text.Smtp](Text.Smtp.md) | Ship source | SMTP without a connection: reply state machine, command validation, extensions, dot-stuffing and PLAIN/CRAM-MD5 exchanges. |
+| [Text.Strconv](Text.Strconv.md) | Ship source | Explicit-base and width-aware integer codecs, exact decimal and hexadecimal float parsing and formatting, complex parsing/formatting and Go string/rune quoting. |
 | [Text.TabWriter](Text.TabWriter.md) | Ship source | Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing. |
 | [Text.Tar](Text.Tar.md) | Ship source | Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums. |
 | [Text.Template](Text.Template.md) | Ship source | Data-driven text templates: pipelines, control actions, definitions, builtins and printf over dynamic values. |
@@ -278,12 +296,13 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Text.Url.Scan](Text.Url.Scan.md) | Ship source | Private portable SIMD byte scanning shared by URL parsing, queries and path traversal. |
 | [Text.Url.Userinfo](Text.Url.Userinfo.md) | Ship source | Immutable copied URL user information with explicit password presence and checked percent encoding. |
 | [Text.Url](Text.Url.md) | Ship source | Immutable byte-preserving URLs, percent escaping, query multimaps, parsing and reference resolution. |
+| [Text.User](Text.User.md) | Ship source | Pure Unix /etc/passwd and /etc/group parsers, user/group lookup tables, and supplementary group resolution. |
 | [Text.Utf16](Text.Utf16.md) | Ship source | UTF-16 scalar and surrogate operations, code-unit sequences and explicit-order byte codecs with SWAR ASCII blocks. |
 | [Text.Utf8](Text.Utf8.md) | Ship source | Raw UTF-8 and immutable-text decoding, validation, scalar counts, replacement encoding and checked atomic buffer writes. |
 | [Text.Xml](Text.Xml.md) | Ship source | Decode XML into namespace-aware tokens or element trees and encode tokens with escaping and indentation. |
 | [Text.Yaml](Text.Yaml.md) | Ship source | The module's supported YAML subset, structured values, and named parse errors; not an assertion of every YAML feature. |
-| [Text.Zip](Text.Zip.md) | Ship source | Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or deflated archives. |
-| [Text.Zlib](Text.Zlib.md) | Ship source | Compression/decompression operations and named malformed/unsupported-stream results. |
+| [Text.Zip](Text.Zip.md) | Ship source | Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or Text.Flate-compressed deflated archives. |
+| [Text.Zlib](Text.Zlib.md) | Ship source | RFC 1950 zlib and raw DEFLATE compression (backed by Text.Flate LZ77 + dynamic Huffman) and decompression with named error results. |
 
 ## Effect
 
@@ -309,18 +328,25 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Crc64](Effect.Crc64.md) | Ship source | Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations. |
 | [Effect.Crypto](Effect.Crypto.md) | Ship source | Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source. |
 | [Effect.Csv](Effect.Csv.md) | Ship source | Bounded CSV readers and writers with explicit continuation, record counts, position tracking and advanced handles after failures. |
+| [Effect.Expvar](Effect.Expvar.md) | Ship source | Region-scoped live metrics registry (Int, Float, String, Map, Func) with deterministic sorted JSON snapshots and /debug/vars HTTP response adapter. |
 | [Effect.FileUtils](Effect.FileUtils.md) | Ship source | Convenience filesystem operations built on the lower-level filesystem API. |
 | [Effect.Find](Effect.Find.md) | Ship source | Filesystem walking/search utilities with the module's traversal and error policy. |
+| [Effect.Flate](Effect.Flate.md) | Ship source | Incremental raw DEFLATE streaming readers and writers over Effect.Stream with sync flush and preset dictionaries. |
 | [Effect.Fnv](Effect.Fnv.md) | Ship source | Inspectable FNV hashing sinks, generic byte-writer composition and bounded reader-to-hash copying with advanced continuations. |
 | [Effect.Fs](Effect.Fs.md) | Embedded | Filesystem reads/writes, directory and metadata operations, with Path values and named Result errors. |
+| [Effect.Gob](Effect.Gob.md) | Ship source | Streaming Go gob encoders and decoders over Effect.Stream preserving type IDs across multi-message streams. |
 | [Effect.Hex](Effect.Hex.md) | Ship source | Hexadecimal encoding writers, decoding readers and formatted dump sinks with explicit continuations and sticky errors. |
-| [Effect.Http](Effect.Http.md) | Ship source | A bounded plaintext HTTP client with response framing and named errors. HTTPS is explicitly refused; this module has no TLS implementation. |
+| [Effect.Http.Server](Effect.Http.Server.md) | Ship source | HTTP/1.1 and TLS 1.3 HTTPS listener/socket servers with keep-alive, size limits and ServeMux dispatch, plus a TLS/CookieJar/redirect-aware HTTP client. |
+| [Effect.Http.Util](Effect.Http.Util.md) | Ship source | HTTP/1.1 wire request/response dumping, strict chunked codecs, hop-by-hop header stripping, and HTTP/HTTPS ReverseProxy forwarding. |
+| [Effect.Http](Effect.Http.md) | Ship source | Bounded HTTP/1.1 and TLS 1.3 HTTPS client operations with response framing, header helpers, and named errors. |
+| [Effect.HttpTest](Effect.HttpTest.md) | Ship source | In-memory HTTP ResponseRecorder, request builder and loopback wire/socket testing helpers. |
 | [Effect.Io](Effect.Io.md) | Embedded | A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration. |
 | [Effect.Log](Effect.Log.md) | Ship source | Structured log operations and records with runtime capability/effect accounting. |
+| [Effect.MapHash](Effect.MapHash.md) | Ship source | Operating-system entropy seed generation for Data.MapHash. |
 | [Effect.Md5](Effect.Md5.md) | Ship source | Inspectable MD5 states, generic digest sinks and bounded reader-to-hash copying for legacy formats. |
 | [Effect.Mime](Effect.Mime.md) | Ship source | Encoded-word and header decoding with explicit charset reader capabilities, typed errors and advanced writer continuations. |
 | [Effect.Multipart](Effect.Multipart.md) | Ship source | Explicit shared multipart sessions with borrowed byte I/O capabilities. |
-| [Effect.Net](Effect.Net.md) | Ship source | Socket operations with explicit handles, address values, errors, and runtime effects. |
+| [Effect.Net](Effect.Net.md) | Ship source | TCP client sockets, TCP listeners (listen/accept), UDP send, address values, named errors, and runtime effects. |
 | [Effect.Pem](Effect.Pem.md) | Ship source | Validated envelope output through explicit advanced writer continuations, bounded chunks and linear short-write draining. |
 | [Effect.Process](Effect.Process.md) | Embedded | One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments. |
 | [Effect.Pty](Effect.Pty.md) | Ship source | Pseudo-terminal-backed child processes, terminal I/O, and lifecycle operations. |
@@ -328,6 +354,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Rand](Effect.Rand.md) | Ship source | Pseudorandom sources seeded from operating-system entropy. |
 | [Effect.Random](Effect.Random.md) | Ship source | Runtime entropy/random utilities with explicit effectful access. |
 | [Effect.Resolv](Effect.Resolv.md) | Ship source | Hostname/address resolution through the runtime, with named failure results. |
+| [Effect.Rpc](Effect.Rpc.md) | Ship source | Effectful JSON-RPC and gob-RPC TCP listener servers, clients, and HTTP POST JSON-RPC handler over Effect.Net and Effect.Http.Server. |
 | [Effect.Scanner.Split](Effect.Scanner.Split.md) | Ship source | Byte-preserving token splitters with explicit absent, empty and final token states. |
 | [Effect.Scanner](Effect.Scanner.md) | Ship source | Advanced byte-stream tokenization with bounded buffers, fresh tokens and explicit checked protocol failures. |
 | [Effect.Sequencing](Effect.Sequencing.md) | Embedded | The direct, Result, and Option do providers. One lexical provider/container is selected per definition. |
@@ -336,7 +363,8 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Sha3](Effect.Sha3.md) | Ship source | Inspectable SHA-3/SHAKE states, generic digest sinks, bounded reader-to-hash copying and SHAKE output as a generic reader. |
 | [Effect.Sha512](Effect.Sha512.md) | Ship source | Inspectable SHA-384/SHA-512/SHA-512/t states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations. |
 | [Effect.Signal](Effect.Signal.md) | Ship source | Operating-system signal vocabulary and runtime operations with explicit error/effect handling. |
-| [Effect.Smtp](Effect.Smtp.md) | Ship source | An SMTP client over sockets with explicit client state: greeting with HELO fallback, authentication, envelope, data, quit and send-mail. |
+| [Effect.Smtp](Effect.Smtp.md) | Ship source | An SMTP client over sockets and TLS 1.3 (implicit SMTPS and RFC 3207 STARTTLS) with explicit client state, HELO fallback, PLAIN/CRAM-MD5 authentication, envelope, data, quit and send-mail. |
+| [Effect.Sql](Effect.Sql.md) | Ship source | Capability-explicit SQL driver protocol, STM-backed connection pooling, prepared statements, transactions, retries and an in-memory transactional driver. |
 | [Effect.Stm.TBQueue](Effect.Stm.TBQueue.md) | Embedded | A bounded first-in first-out queue for transactions: a write waits while the queue is at capacity, a read waits while it is empty. |
 | [Effect.Stm.TMVar](Effect.Stm.TMVar.md) | Embedded | A transactional variable that is either empty or full: take waits while empty, put waits while full. The building block for handoff and mutual exclusion inside transactions. |
 | [Effect.Stm.TQueue](Effect.Stm.TQueue.md) | Embedded | An unbounded first-in first-out queue for transactions, as two lists so that writers and readers touch different variables. |
@@ -345,10 +373,16 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 | [Effect.Stream.Offset](Effect.Stream.Offset.md) | Ship source | Positional byte writers, signed cursor movement and streaming at a base offset. |
 | [Effect.Stream.Section](Effect.Stream.Section.md) | Ship source | Positional byte sources, immutable bounded sections, signed seeks and sequential reader adapters. |
 | [Effect.Stream](Effect.Stream.md) | Ship source | Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers. |
+| [Effect.Syslog](Effect.Syslog.md) | Ship source | RFC 3164 and RFC 5424 syslog message formatting, facility/severity priorities, Effect.Log sink bridge, and UDP/TCP network writers. |
+| [Effect.Test.Fs](Effect.Test.Fs.md) | Ship source | Immutable in-memory MapFs with synthesized directories, path validation, globbing, subtrees and filesystem conformance checks. |
+| [Effect.Test.Io](Effect.Test.Io.md) | Ship source | Stream fault-injection, logging and conformance-testing adapters over Effect.Stream. |
+| [Effect.Test.Quick](Effect.Test.Quick.md) | Ship source | Deterministic property-based testing engine with Arbitrary instances over Data.Rand. |
 | [Effect.Test](Effect.Test.md) | Ship source | A subprocess-based test runner and named test-result/report vocabulary. |
 | [Effect.Time.Zone](Effect.Time.Zone.md) | Ship source | The system time zone database and the current system zone. |
 | [Effect.Time](Effect.Time.md) | Ship source | Typed readers for the system and monotonic clocks. |
+| [Effect.Tls](Effect.Tls.md) | Ship source | Effectful TLS 1.3 client and server connections over Effect.Net sockets with OS entropy and clock-checked certificate verification. |
 | [Effect.Trace](Effect.Trace.md) | Ship source | Scoped tracing/span vocabulary and context propagation tied to the runtime identity. |
+| [Effect.User](Effect.User.md) | Ship source | Operating-system user and group lookups (current user, by name/UID/GID, supplementary group IDs) over Prim.Sys and Effect.Process. |
 | [Effect.Uuid](Effect.Uuid.md) | Ship source | Secure UUID generation with explicit serialized version 7 ownership. |
 
 ## Image
@@ -365,7 +399,7 @@ Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its
 
 # Scope and verification
 
-This generation covers **288 source modules**: **66 embedded** and **222 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
+This generation covers **322 source modules**: **66 embedded** and **256 source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.
 
 Signatures preserve the compiler's rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language's similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).
 

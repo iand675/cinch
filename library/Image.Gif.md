@@ -10,7 +10,7 @@ Import with `import Image.Gif`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Image.Raster](Image.Raster.md), [Text.Lzw](Text.Lzw.md), [Text.Show](Text.Show.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md), [Text.Lzw](Text.Lzw.md), [Text.Show](Text.Show.md).
 
 Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Gif](Image.Gif.md), [Image.Raster](Image.Raster.md), [Text.Lzw](Text.Lzw.md).
 
@@ -41,7 +41,7 @@ it for frames whose palettes match it apart from the transparent entry.
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 69
+[Source](/reference-sources/Image.Gif.cinch) · line 70
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Gif</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Image</span>.<span class="tok-constructor">Gif</span>.<span class="tok-constructor">GifFrame</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Gif</span>.<span class="tok-constructor">GifLoop</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Gif</span>.<span class="tok-constructor">Gif</span>))))))</code></pre>
 
@@ -53,7 +53,7 @@ Fields in the order listed above.
 
 What happens to a frame's area before the next frame is drawn.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 49
+[Source](/reference-sources/Image.Gif.cinch) · line 50
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GifDisposalUnspecified</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Gif</span>.<span class="tok-constructor">GifDisposal</span></code></pre>
 
@@ -73,7 +73,7 @@ What happens to a frame's area before the next frame is drawn.
 
 Why decoding or encoding failed.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 124
+[Source](/reference-sources/Image.Gif.cinch) · line 125
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GifBadHeader</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Gif</span>.<span class="tok-constructor">GifError</span></code></pre>
 
@@ -121,7 +121,7 @@ Why decoding or encoding failed.
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 64
+[Source](/reference-sources/Image.Gif.cinch) · line 65
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GifFrame</span> :: (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Raster</span>.<span class="tok-constructor">Raster</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Image</span>.<span class="tok-constructor">Gif</span>.<span class="tok-constructor">GifDisposal</span> -&gt; <span class="tok-constructor">Image</span>.<span class="tok-constructor">Gif</span>.<span class="tok-constructor">GifFrame</span>)))))</code></pre>
 
@@ -133,7 +133,7 @@ Fields in the order listed above.
 
 How many times an animation plays.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 40
+[Source](/reference-sources/Image.Gif.cinch) · line 41
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GifLoopForever</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Gif</span>.<span class="tok-constructor">GifLoop</span></code></pre>
 
@@ -151,7 +151,7 @@ How many times an animation plays.
 
 Make a GIF from its parts.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 72
+[Source](/reference-sources/Image.Gif.cinch) · line 73
 
 <a id="value-6769662d6261636b67726f756e642d696e646578"></a>
 
@@ -161,7 +161,7 @@ Make a GIF from its parts.
 
 Background palette index.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 96
+[Source](/reference-sources/Image.Gif.cinch) · line 97
 
 <a id="value-6769662d636f6e666967"></a>
 
@@ -171,7 +171,7 @@ Background palette index.
 
 The screen width, height and global palette, from the header alone.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 213
+[Source](/reference-sources/Image.Gif.cinch) · line 214
 
 <a id="value-6769662d6465636f6465"></a>
 
@@ -181,7 +181,7 @@ The screen width, height and global palette, from the header alone.
 
 Decode the first frame's raster, ignoring the rest of the file.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 207
+[Source](/reference-sources/Image.Gif.cinch) · line 208
 
 <a id="value-6769662d6465636f64652d616c6c"></a>
 
@@ -191,7 +191,7 @@ Decode the first frame's raster, ignoring the rest of the file.
 
 Decode every frame of a file.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 203
+[Source](/reference-sources/Image.Gif.cinch) · line 204
 
 <a id="value-6769662d656e636f6465"></a>
 
@@ -201,7 +201,7 @@ Decode every frame of a file.
 
 Encode one indexed raster as a single-frame GIF whose global palette is the raster's.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 465
+[Source](/reference-sources/Image.Gif.cinch) · line 485
 
 <a id="value-6769662d656e636f64652d616c6c"></a>
 
@@ -211,7 +211,7 @@ Encode one indexed raster as a single-frame GIF whose global palette is the rast
 
 Encode an animation.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 469
+[Source](/reference-sources/Image.Gif.cinch) · line 489
 
 <a id="value-6769662d6572726f722d6d657373616765"></a>
 
@@ -221,7 +221,7 @@ Encode an animation.
 
 Render an error.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 165
+[Source](/reference-sources/Image.Gif.cinch) · line 166
 
 <a id="value-6769662d6672616d65"></a>
 
@@ -231,7 +231,7 @@ Render an error.
 
 Make a frame from an indexed raster, its offsets, delay (hundredths of a second) and disposal.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 76
+[Source](/reference-sources/Image.Gif.cinch) · line 77
 
 <a id="value-6769662d6672616d652d64656c6179"></a>
 
@@ -241,7 +241,7 @@ Make a frame from an indexed raster, its offsets, delay (hundredths of a second)
 
 A frame's delay in hundredths of a second.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 116
+[Source](/reference-sources/Image.Gif.cinch) · line 117
 
 <a id="value-6769662d6672616d652d646973706f73616c"></a>
 
@@ -251,7 +251,7 @@ A frame's delay in hundredths of a second.
 
 A frame's disposal method.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 120
+[Source](/reference-sources/Image.Gif.cinch) · line 121
 
 <a id="value-6769662d6672616d652d6c656674"></a>
 
@@ -261,7 +261,7 @@ A frame's disposal method.
 
 A frame's left offset.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 108
+[Source](/reference-sources/Image.Gif.cinch) · line 109
 
 <a id="value-6769662d6672616d652d726173746572"></a>
 
@@ -271,7 +271,7 @@ A frame's left offset.
 
 A frame's indexed raster (its palette is the frame's effective palette).
 
-[Source](/reference-sources/Image.Gif.cinch) · line 104
+[Source](/reference-sources/Image.Gif.cinch) · line 105
 
 <a id="value-6769662d6672616d652d746f70"></a>
 
@@ -281,7 +281,7 @@ A frame's indexed raster (its palette is the frame's effective palette).
 
 A frame's top offset.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 112
+[Source](/reference-sources/Image.Gif.cinch) · line 113
 
 <a id="value-6769662d6672616d6573"></a>
 
@@ -291,7 +291,7 @@ A frame's top offset.
 
 Frames in order.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 88
+[Source](/reference-sources/Image.Gif.cinch) · line 89
 
 <a id="value-6769662d686569676874"></a>
 
@@ -301,7 +301,7 @@ Frames in order.
 
 Screen height.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 84
+[Source](/reference-sources/Image.Gif.cinch) · line 85
 
 <a id="value-6769662d6c6f6f70"></a>
 
@@ -311,7 +311,7 @@ Screen height.
 
 Looping.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 92
+[Source](/reference-sources/Image.Gif.cinch) · line 93
 
 <a id="value-6769662d70616c65747465"></a>
 
@@ -321,7 +321,7 @@ Looping.
 
 Global palette as RGBA quadruples, empty when there is none.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 100
+[Source](/reference-sources/Image.Gif.cinch) · line 101
 
 <a id="value-6769662d7769647468"></a>
 
@@ -331,8 +331,8 @@ Global palette as RGBA quadruples, empty when there is none.
 
 Screen width.
 
-[Source](/reference-sources/Image.Gif.cinch) · line 80
+[Source](/reference-sources/Image.Gif.cinch) · line 81
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Gif.cinch`. Source SHA-256: `ff3c8851f3f303ba6dd255d062414ba3fb90b555e403a852f245d25589aeaeeb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Image/Gif.cinch`. Source SHA-256: `5e12dd3501c4492b077dfade090b3e6cf9af32f970ad7f99d0a58c7cb8dbfabd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

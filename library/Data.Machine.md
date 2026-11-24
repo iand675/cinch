@@ -72,7 +72,7 @@ This module exports no type declarations.
 
 F32.
 
-[Source](/reference-sources/Data.Machine.cinch) · line 445
+[Source](/reference-sources/Data.Machine.cinch) · line 448
 
 <a id="value-6164642d663634"></a>
 
@@ -82,7 +82,7 @@ F32.
 
 F64.
 
-[Source](/reference-sources/Data.Machine.cinch) · line 468
+[Source](/reference-sources/Data.Machine.cinch) · line 471
 
 <a id="value-6269742d616e642d693136"></a>
 
@@ -401,6 +401,22 @@ F64.
 ## `bit-xor-usize`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bit-xor-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">Usize</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-6365696c2d663332"></a>
+
+## `ceil-f32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ceil-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-6365696c2d663634"></a>
+
+## `ceil-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ceil-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -997,7 +1013,7 @@ F64.
 Checked, saturating and wrapping integer conversions; float to
 integer is checked or saturating (it is never total).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 572
+[Source](/reference-sources/Data.Machine.cinch) · line 605
 
 <a id="value-636865636b65642d69382d746f2d6973697a65"></a>
 
@@ -2007,6 +2023,22 @@ integer is checked or saturating (it is never total).
 
 [Source](/reference-sources/Data.Machine.cinch)
 
+<a id="value-636f70797369676e2d663332"></a>
+
+## `copysign-f32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">copysign-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-636f70797369676e2d663634"></a>
+
+## `copysign-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">copysign-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
 <a id="value-636f756e742d6f6e65732d693136"></a>
 
 ## `count-ones-i16`
@@ -2103,6 +2135,48 @@ integer is checked or saturating (it is never total).
 
 [Source](/reference-sources/Data.Machine.cinch)
 
+<a id="value-6469762d753136"></a>
+
+## `div-u16`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-u16</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">U16</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-constructor">U16</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-6469762d753332"></a>
+
+## `div-u32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-u32</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">U32</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">U32</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-6469762d753634"></a>
+
+## `div-u64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-u64</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">U64</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">U64</span>) -&gt; <span class="tok-constructor">U64</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-6469762d7538"></a>
+
+## `div-u8`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-u8</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">U8</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-constructor">U8</span>))</code></pre>
+
+Proof-bearing unsigned division and remainder (zero divisor excluded by the type).
+
+[Source](/reference-sources/Data.Machine.cinch) · line 494
+
+<a id="value-6469762d7573697a65"></a>
+
+## `div-usize`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div-usize</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Usize</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Usize</span>) -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
 <a id="value-65712d693136"></a>
 
 ## `eq-i16`
@@ -2183,6 +2257,24 @@ integer is checked or saturating (it is never total).
 
 [Source](/reference-sources/Data.Machine.cinch)
 
+<a id="value-6633322d62697473"></a>
+
+## `f32-bits`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f32-bits</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+
+IEEE 754 bit reinterpretation, copysign, and exact rounding intrinsics.
+
+[Source](/reference-sources/Data.Machine.cinch) · line 506
+
+<a id="value-6633322d66726f6d2d62697473"></a>
+
+## `f32-from-bits`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f32-from-bits</span> :: (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
 <a id="value-6633322d746f2d663332"></a>
 
 ## `f32-to-f32`
@@ -2196,6 +2288,22 @@ integer is checked or saturating (it is never total).
 ## `f32-to-f64`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f32-to-f64</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-6636342d62697473"></a>
+
+## `f64-bits`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f64-bits</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-6636342d66726f6d2d62697473"></a>
+
+## `f64-from-bits`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f64-from-bits</span> :: (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2220,7 +2328,7 @@ and the float one decimal spelling stands for (correctly
 rounded). A spelling that is not a decimal number takes the
 defined `MalformedDecimal` fault (exit 71).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 1219
+[Source](/reference-sources/Data.Machine.cinch) · line 1252
 
 <a id="value-6636342d746f2d663332"></a>
 
@@ -2299,6 +2407,22 @@ defined `MalformedDecimal` fault (exit 71).
 ## `fle-f64`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fle-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-666c6f6f722d663332"></a>
+
+## `floor-f32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">floor-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-666c6f6f722d663634"></a>
+
+## `floor-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">floor-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -2591,7 +2715,7 @@ defined `MalformedDecimal` fault (exit 71).
 One little-endian byte of an `I64` at shift `k` bits (the A6
 INTEGER column format, modules specification section 11).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 1210
+[Source](/reference-sources/Data.Machine.cinch) · line 1243
 
 <a id="value-6936342d746f2d663332"></a>
 
@@ -2685,7 +2809,7 @@ which holds even where it has none), so a converted byte is a
 non-negative `I64` for `nat-from-i64` and below 256 wherever that
 matters.
 
-[Source](/reference-sources/Data.Machine.cinch) · line 504
+[Source](/reference-sources/Data.Machine.cinch) · line 537
 
 <a id="value-69382d746f2d6973697a65"></a>
 
@@ -3044,7 +3168,7 @@ intrinsic as `bit-and-i64`; only the declared range differs, which
 `bit-and-i64` itself cannot state because a negative mask (`-1`,
 the high bit) is an ordinary use of it.
 
-[Source](/reference-sources/Data.Machine.cinch) · line 1194
+[Source](/reference-sources/Data.Machine.cinch) · line 1227
 
 <a id="value-6d61782d626f756e642d693136"></a>
 
@@ -3150,7 +3274,7 @@ the high bit) is an ordinary use of it.
 
 I16 (16 bits).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 89
+[Source](/reference-sources/Data.Machine.cinch) · line 92
 
 <a id="value-6d696e2d626f756e642d693332"></a>
 
@@ -3160,7 +3284,7 @@ I16 (16 bits).
 
 I32 (32 bits).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 128
+[Source](/reference-sources/Data.Machine.cinch) · line 131
 
 <a id="value-6d696e2d626f756e642d693634"></a>
 
@@ -3170,7 +3294,7 @@ I32 (32 bits).
 
 I64 (64 bits).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 167
+[Source](/reference-sources/Data.Machine.cinch) · line 170
 
 <a id="value-6d696e2d626f756e642d6938"></a>
 
@@ -3182,7 +3306,7 @@ I8 (8 bits).
 A bound states its value, so `nat-from-i64 max-bound-i64` and the
 like discharge their range with nothing written.
 
-[Source](/reference-sources/Data.Machine.cinch) · line 50
+[Source](/reference-sources/Data.Machine.cinch) · line 53
 
 <a id="value-6d696e2d626f756e642d6973697a65"></a>
 
@@ -3192,7 +3316,7 @@ like discharge their range with nothing written.
 
 Isize (64 bits, target word).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 401
+[Source](/reference-sources/Data.Machine.cinch) · line 404
 
 <a id="value-6d696e2d626f756e642d753136"></a>
 
@@ -3202,7 +3326,7 @@ Isize (64 bits, target word).
 
 U16 (16 bits).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 245
+[Source](/reference-sources/Data.Machine.cinch) · line 248
 
 <a id="value-6d696e2d626f756e642d753332"></a>
 
@@ -3212,7 +3336,7 @@ U16 (16 bits).
 
 U32 (32 bits).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 284
+[Source](/reference-sources/Data.Machine.cinch) · line 287
 
 <a id="value-6d696e2d626f756e642d753634"></a>
 
@@ -3222,7 +3346,7 @@ U32 (32 bits).
 
 U64 (64 bits).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 323
+[Source](/reference-sources/Data.Machine.cinch) · line 326
 
 <a id="value-6d696e2d626f756e642d7538"></a>
 
@@ -3232,7 +3356,7 @@ U64 (64 bits).
 
 U8 (8 bits).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 206
+[Source](/reference-sources/Data.Machine.cinch) · line 209
 
 <a id="value-6d696e2d626f756e642d7573697a65"></a>
 
@@ -3242,7 +3366,7 @@ U8 (8 bits).
 
 Usize (64 bits, target word).
 
-[Source](/reference-sources/Data.Machine.cinch) · line 362
+[Source](/reference-sources/Data.Machine.cinch) · line 365
 
 <a id="value-6d696e696d756d2d663332"></a>
 
@@ -3369,6 +3493,46 @@ Usize (64 bits, target word).
 ## `neg-f64`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-72656d2d753136"></a>
+
+## `rem-u16`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rem-u16</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">U16</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">U16</span>) -&gt; <span class="tok-constructor">U16</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-72656d2d753332"></a>
+
+## `rem-u32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rem-u32</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">U32</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">U32</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-72656d2d753634"></a>
+
+## `rem-u64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rem-u64</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">U64</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">U64</span>) -&gt; <span class="tok-constructor">U64</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-72656d2d7538"></a>
+
+## `rem-u8`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rem-u8</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">U8</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-constructor">U8</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-72656d2d7573697a65"></a>
+
+## `rem-usize`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rem-usize</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">/=</span> <span class="tok-number">0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Usize</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Usize</span>) -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -3609,6 +3773,38 @@ Usize (64 bits, target word).
 ## `rotate-right-usize`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rotate-right-usize</span> :: (<span class="tok-constructor">Usize</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Usize</span>))</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-726f756e642d663332"></a>
+
+## `round-f32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-726f756e642d663634"></a>
+
+## `round-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-726f756e642d746f2d6576656e2d663332"></a>
+
+## `round-to-even-f32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-to-even-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-726f756e642d746f2d6576656e2d663634"></a>
+
+## `round-to-even-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-to-even-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
 
 [Source](/reference-sources/Data.Machine.cinch)
 
@@ -5116,6 +5312,22 @@ Usize (64 bits, target word).
 
 [Source](/reference-sources/Data.Machine.cinch)
 
+<a id="value-7472756e632d663332"></a>
+
+## `trunc-f32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trunc-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">F32</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
+<a id="value-7472756e632d663634"></a>
+
+## `trunc-f64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">trunc-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+
+[Source](/reference-sources/Data.Machine.cinch)
+
 <a id="value-7531362d746f2d663332"></a>
 
 ## `u16-to-f32`
@@ -5350,7 +5562,7 @@ The unsigned machine integers as the `Nat` of the same value: the
 widening conversion's range is the evidence `nat-from-i64` needs,
 and the result keeps it.
 
-[Source](/reference-sources/Data.Machine.cinch) · line 1199
+[Source](/reference-sources/Data.Machine.cinch) · line 1232
 
 <a id="value-75382d746f2d753136"></a>
 
@@ -6713,7 +6925,7 @@ and the result keeps it.
 The scalar model (platform section 5): the sum modulo 2^32 over the
 borrowed vector.
 
-[Source](/reference-sources/Data.Machine.cinch) · line 1015
+[Source](/reference-sources/Data.Machine.cinch) · line 1048
 
 # Instances
 
@@ -6762,4 +6974,4 @@ is `Ok x`), with the named range error.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Machine.cinch`. Source SHA-256: `e33b8e44a106c71e9b3a5c4d49f8b37704b273aeaa958999f5e9455cb97d1ec6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Machine.cinch`. Source SHA-256: `97dd9d9a69e7d80badf9d9cacea7d5590392ed4cccfb1d6a61a24496b6b9b5b5`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

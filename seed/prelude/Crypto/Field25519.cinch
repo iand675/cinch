@@ -1,16 +1,15 @@
 -- | Constant-time arithmetic in the field of integers modulo 2^255 - 19, shared by X25519 and Ed25519.
 -- An element is five 51-bit limbs (little-endian radix 2^51). Each product
--- column is one primitive that accumulates its five 64x64-bit products in a
--- 128-bit register, so a multiplication is five independent wide columns and
--- one carry chain; additions and subtractions carry immediately, keeping every
--- limb below 2^52 so the next product cannot overflow. Every operation is free
--- of data-dependent branches and memory access: conditional swaps and
--- selections use masks, inversion is a fixed addition chain, and comparisons
--- reduce to the canonical encoding first.
+-- column accumulates its five 64x64-bit products in a 128-bit `U128` register,
+-- so a multiplication is five independent wide columns and one carry chain;
+-- additions and subtractions carry immediately, keeping every limb below 2^52
+-- so the next product cannot overflow. Every operation is free of
+-- data-dependent branches and memory access: conditional swaps and selections
+-- use masks, inversion is a fixed addition chain, and comparisons reduce to
+-- the canonical encoding first.
 module Crypto.Field25519 where
 
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Machine
   import Data.Wide
 
@@ -84,9 +83,16 @@ module Crypto.Field25519 where
         let t4 = column4 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 in
         settle t0 t1 t2 t3 t4
 
-  -- | Square (the general product with both operands equal; LLVM merges the symmetric terms).
+  -- | Square using symmetric cross-product doubling (15 wide multiplies instead of 25).
   fe-square :: Fe -> Fe
-  fe-square a = fe-mul a a
+  fe-square a = case a of
+    Fe a0 a1 a2 a3 a4 ->
+      let t0 = wrapping-add-u128 (wide-mul a0 a0) (wrapping-mul-u128 (wrapping-add-u128 (wide-mul a1 a4) (wide-mul a2 a3)) 38) in
+      let t1 = wrapping-add-u128 (wrapping-shl-u128 (wide-mul a0 a1) 1) (wrapping-mul-u128 (wrapping-add-u128 (wrapping-shl-u128 (wide-mul a2 a4) 1) (wide-mul a3 a3)) 19) in
+      let t2 = wrapping-add-u128 (wrapping-add-u128 (wrapping-shl-u128 (wide-mul a0 a2) 1) (wide-mul a1 a1)) (wrapping-mul-u128 (wide-mul a3 a4) 38) in
+      let t3 = wrapping-add-u128 (wrapping-shl-u128 (wrapping-add-u128 (wide-mul a0 a3) (wide-mul a1 a2)) 1) (wrapping-mul-u128 (wide-mul a4 a4) 19) in
+      let t4 = wrapping-add-u128 (wrapping-shl-u128 (wrapping-add-u128 (wide-mul a0 a4) (wide-mul a1 a3)) 1) (wide-mul a2 a2) in
+      settle t0 t1 t2 t3 t4
 
   -- | Carry five 128-bit columns into reduced limbs.
   settle :: U128 -> U128 -> U128 -> U128 -> U128 -> Fe
@@ -96,157 +102,51 @@ module Crypto.Field25519 where
     Fe (low51 r0) (wrapping-add-u64 (low-limb u1) (wrapping-shr-u64 r0 51)) (low-limb u2) (low-limb u3) (low-limb u4)
 
   -- | Add the carry out of the previous column to the next column.
-  prim carry-into :: U128 -> U128 -> U128 where
-    llvm {
-      %c = lshr i128 %0, 51
-      %value = add i128 %1, %c
-      ret i128 %value
-    }
+  carry-into :: U128 -> U128 -> U128
+  carry-into prev next = wrapping-add-u128 next (wrapping-shr-u128 prev 51)
 
   -- | The low 51 bits of a column.
-  prim low-limb :: U128 -> U64 where
-    llvm {
-      %t = trunc i128 %0 to i64
-      %value = and i64 %t, 2251799813685247
-      ret i64 %value
-    }
+  low-limb :: U128 -> U64
+  low-limb value = low51 (wrapping-u128-to-u64 value)
 
   -- | The carry out of a column.
-  prim high-limb :: U128 -> U64 where
-    llvm {
-      %s = lshr i128 %0, 51
-      %value = trunc i128 %s to i64
-      ret i64 %value
-    }
+  high-limb :: U128 -> U64
+  high-limb value = wrapping-u128-to-u64 (wrapping-shr-u128 value 51)
 
   -- | Column 0: a0 b0 + 19 (a1 b4 + a2 b3 + a3 b2 + a4 b1).
-  prim column0 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
-    llvm {
-      %a0 = zext i64 %0 to i128
-      %a1 = zext i64 %1 to i128
-      %a2 = zext i64 %2 to i128
-      %a3 = zext i64 %3 to i128
-      %a4 = zext i64 %4 to i128
-      %b0 = zext i64 %5 to i128
-      %b1 = zext i64 %6 to i128
-      %b2 = zext i64 %7 to i128
-      %b3 = zext i64 %8 to i128
-      %b4 = zext i64 %9 to i128
-      %p0 = mul i128 %a0, %b0
-      %p1 = mul i128 %a1, %b4
-      %p2 = mul i128 %a2, %b3
-      %p3 = mul i128 %a3, %b2
-      %p4 = mul i128 %a4, %b1
-      %s1 = add i128 %p1, %p2
-      %s2 = add i128 %s1, %p3
-      %s3 = add i128 %s2, %p4
-      %w = mul i128 %s3, 19
-      %value = add i128 %p0, %w
-      ret i128 %value
-    }
+  column0 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128
+  column0 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 =
+    let s1 = wrapping-add-u128 (wide-mul a1 b4) (wide-mul a2 b3) in
+    let s2 = wrapping-add-u128 (wide-mul a3 b2) (wide-mul a4 b1) in
+    wrapping-add-u128 (wide-mul a0 b0) (wrapping-mul-u128 (wrapping-add-u128 s1 s2) 19)
 
   -- | Column 1: a0 b1 + a1 b0 + 19 (a2 b4 + a3 b3 + a4 b2).
-  prim column1 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
-    llvm {
-      %a0 = zext i64 %0 to i128
-      %a1 = zext i64 %1 to i128
-      %a2 = zext i64 %2 to i128
-      %a3 = zext i64 %3 to i128
-      %a4 = zext i64 %4 to i128
-      %b0 = zext i64 %5 to i128
-      %b1 = zext i64 %6 to i128
-      %b2 = zext i64 %7 to i128
-      %b3 = zext i64 %8 to i128
-      %b4 = zext i64 %9 to i128
-      %p0 = mul i128 %a0, %b1
-      %p1 = mul i128 %a1, %b0
-      %p2 = mul i128 %a2, %b4
-      %p3 = mul i128 %a3, %b3
-      %p4 = mul i128 %a4, %b2
-      %d = add i128 %p0, %p1
-      %s1 = add i128 %p2, %p3
-      %s2 = add i128 %s1, %p4
-      %w = mul i128 %s2, 19
-      %value = add i128 %d, %w
-      ret i128 %value
-    }
+  column1 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128
+  column1 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 =
+    let d = wrapping-add-u128 (wide-mul a0 b1) (wide-mul a1 b0) in
+    let s = wrapping-add-u128 (wrapping-add-u128 (wide-mul a2 b4) (wide-mul a3 b3)) (wide-mul a4 b2) in
+    wrapping-add-u128 d (wrapping-mul-u128 s 19)
 
   -- | Column 2: a0 b2 + a1 b1 + a2 b0 + 19 (a3 b4 + a4 b3).
-  prim column2 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
-    llvm {
-      %a0 = zext i64 %0 to i128
-      %a1 = zext i64 %1 to i128
-      %a2 = zext i64 %2 to i128
-      %a3 = zext i64 %3 to i128
-      %a4 = zext i64 %4 to i128
-      %b0 = zext i64 %5 to i128
-      %b1 = zext i64 %6 to i128
-      %b2 = zext i64 %7 to i128
-      %b3 = zext i64 %8 to i128
-      %b4 = zext i64 %9 to i128
-      %p0 = mul i128 %a0, %b2
-      %p1 = mul i128 %a1, %b1
-      %p2 = mul i128 %a2, %b0
-      %p3 = mul i128 %a3, %b4
-      %p4 = mul i128 %a4, %b3
-      %d1 = add i128 %p0, %p1
-      %d = add i128 %d1, %p2
-      %s1 = add i128 %p3, %p4
-      %w = mul i128 %s1, 19
-      %value = add i128 %d, %w
-      ret i128 %value
-    }
+  column2 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128
+  column2 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 =
+    let d = wrapping-add-u128 (wrapping-add-u128 (wide-mul a0 b2) (wide-mul a1 b1)) (wide-mul a2 b0) in
+    let s = wrapping-add-u128 (wide-mul a3 b4) (wide-mul a4 b3) in
+    wrapping-add-u128 d (wrapping-mul-u128 s 19)
 
   -- | Column 3: a0 b3 + a1 b2 + a2 b1 + a3 b0 + 19 a4 b4.
-  prim column3 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
-    llvm {
-      %a0 = zext i64 %0 to i128
-      %a1 = zext i64 %1 to i128
-      %a2 = zext i64 %2 to i128
-      %a3 = zext i64 %3 to i128
-      %a4 = zext i64 %4 to i128
-      %b0 = zext i64 %5 to i128
-      %b1 = zext i64 %6 to i128
-      %b2 = zext i64 %7 to i128
-      %b3 = zext i64 %8 to i128
-      %b4 = zext i64 %9 to i128
-      %p0 = mul i128 %a0, %b3
-      %p1 = mul i128 %a1, %b2
-      %p2 = mul i128 %a2, %b1
-      %p3 = mul i128 %a3, %b0
-      %p4 = mul i128 %a4, %b4
-      %d1 = add i128 %p0, %p1
-      %d2 = add i128 %d1, %p2
-      %d = add i128 %d2, %p3
-      %w = mul i128 %p4, 19
-      %value = add i128 %d, %w
-      ret i128 %value
-    }
+  column3 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128
+  column3 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 =
+    let d1 = wrapping-add-u128 (wide-mul a0 b3) (wide-mul a1 b2) in
+    let d2 = wrapping-add-u128 (wide-mul a2 b1) (wide-mul a3 b0) in
+    wrapping-add-u128 (wrapping-add-u128 d1 d2) (wrapping-mul-u128 (wide-mul a4 b4) 19)
 
   -- | Column 4: a0 b4 + a1 b3 + a2 b2 + a3 b1 + a4 b0.
-  prim column4 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128 where
-    llvm {
-      %a0 = zext i64 %0 to i128
-      %a1 = zext i64 %1 to i128
-      %a2 = zext i64 %2 to i128
-      %a3 = zext i64 %3 to i128
-      %a4 = zext i64 %4 to i128
-      %b0 = zext i64 %5 to i128
-      %b1 = zext i64 %6 to i128
-      %b2 = zext i64 %7 to i128
-      %b3 = zext i64 %8 to i128
-      %b4 = zext i64 %9 to i128
-      %p0 = mul i128 %a0, %b4
-      %p1 = mul i128 %a1, %b3
-      %p2 = mul i128 %a2, %b2
-      %p3 = mul i128 %a3, %b1
-      %p4 = mul i128 %a4, %b0
-      %d1 = add i128 %p0, %p1
-      %d2 = add i128 %d1, %p2
-      %d3 = add i128 %d2, %p3
-      %value = add i128 %d3, %p4
-      ret i128 %value
-    }
+  column4 :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U128
+  column4 a0 a1 a2 a3 a4 b0 b1 b2 b3 b4 =
+    let d1 = wrapping-add-u128 (wide-mul a0 b4) (wide-mul a1 b3) in
+    let d2 = wrapping-add-u128 (wide-mul a2 b2) (wide-mul a3 b1) in
+    wrapping-add-u128 (wrapping-add-u128 d1 d2) (wide-mul a4 b0)
 
   -- | Multiply by a constant below 2^13 (such as 121665): one carry chain over 128-bit limbs.
   fe-mul-small :: Fe -> U64 -> Fe
@@ -254,13 +154,8 @@ module Crypto.Field25519 where
     Fe a0 a1 a2 a3 a4 -> settle (wide-mul a0 k) (wide-mul a1 k) (wide-mul a2 k) (wide-mul a3 k) (wide-mul a4 k)
 
   -- | Full 128-bit product of two words.
-  prim wide-mul :: U64 -> U64 -> U128 where
-    llvm {
-      %a = zext i64 %0 to i128
-      %b = zext i64 %1 to i128
-      %value = mul i128 %a, %b
-      ret i128 %value
-    }
+  wide-mul :: U64 -> U64 -> U128
+  wide-mul a b = wrapping-mul-u128 (u64-to-u128 a) (u64-to-u128 b)
 
   -- | Square n times.
   square-times :: Fe -> Nat -> Fe
@@ -314,8 +209,8 @@ module Crypto.Field25519 where
   fe-from-bytes :: Bytes -> Nat -> Fe
   fe-from-bytes input at =
     if at + 32 <= bytes-len input then
-      let w0 = bytes-read-le64 input at in let w1 = bytes-read-le64 input (at + 8) in
-      let w2 = bytes-read-le64 input (at + 16) in let w3 = bytes-read-le64 input (at + 24) in
+      let w0 = bytes-load-le64 input at in let w1 = bytes-load-le64 input (at + 8) in
+      let w2 = bytes-load-le64 input (at + 16) in let w3 = bytes-load-le64 input (at + 24) in
       Fe (low51 w0) (low51 (bit-or-u64 (wrapping-shr-u64 w0 51) (wrapping-shl-u64 w1 13)))
         (low51 (bit-or-u64 (wrapping-shr-u64 w1 38) (wrapping-shl-u64 w2 26)))
         (low51 (bit-or-u64 (wrapping-shr-u64 w2 25) (wrapping-shl-u64 w3 39)))
@@ -356,10 +251,10 @@ module Crypto.Field25519 where
   fe-to-bytes a = case canonical a of
     Fe a0 a1 a2 a3 a4 ->
       let out = bytes-new 32 in
-      let w0 = bytes-write-le64 out 0 (bit-or-u64 a0 (wrapping-shl-u64 a1 51)) in
-      let w1 = bytes-write-le64 out 8 (bit-or-u64 (wrapping-shr-u64 a1 13) (wrapping-shl-u64 a2 38)) in
-      let w2 = bytes-write-le64 out 16 (bit-or-u64 (wrapping-shr-u64 a2 26) (wrapping-shl-u64 a3 25)) in
-      let w3 = bytes-write-le64 out 24 (bit-or-u64 (wrapping-shr-u64 a3 39) (wrapping-shl-u64 a4 12)) in
+      let w0 = bytes-store-le64 out 0 (bit-or-u64 a0 (wrapping-shl-u64 a1 51)) in
+      let w1 = bytes-store-le64 out 8 (bit-or-u64 (wrapping-shr-u64 a1 13) (wrapping-shl-u64 a2 38)) in
+      let w2 = bytes-store-le64 out 16 (bit-or-u64 (wrapping-shr-u64 a2 26) (wrapping-shl-u64 a3 25)) in
+      let w3 = bytes-store-le64 out 24 (bit-or-u64 (wrapping-shr-u64 a3 39) (wrapping-shl-u64 a4 12)) in
       out
 
   -- | Whether the canonical value is odd (the sign used by point encodings).

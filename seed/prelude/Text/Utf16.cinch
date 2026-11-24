@@ -1,8 +1,8 @@
 -- | UTF-16 code units, surrogate pairs and explicit-byte-order text conversion.
 -- Invalid scalar inputs and unpaired surrogates become U+FFFD. Byte decoders
 -- reject an odd final byte; a byte-order mark is ordinary text, never inferred
--- or removed. Buffer codecs process four ASCII units at once using inline
--- LLVM SWAR widening and narrowing, with bounded loads and exact scalar tails.
+-- or removed. Buffer codecs process four ASCII units at once using portable
+-- SWAR widening and narrowing, with bounded loads and exact scalar tails.
 module Text.Utf16 where
 
   import Data.Bytes
@@ -95,40 +95,24 @@ module Text.Utf16 where
     else bytes-new 0
 
   -- | Swap the two bytes within each packed code unit; applying this twice is the identity.
-  prim swap-units :: U64 -> U64 where
-    llvm {
-      %lo = and i64 %0, 71777214294589695
-      %hi = and i64 %0, -71777214294589696
-      %left = shl i64 %lo, 8
-      %right = lshr i64 %hi, 8
-      %result = or i64 %left, %right
-      ret i64 %result
-    }
+  swap-units :: U64 -> U64
+  swap-units word =
+    let lo = bit-and-u64 word 71777214294589695 in
+    let hi = bit-and-u64 word (bit-not-u64 71777214294589695) in
+    bit-or-u64 (wrapping-shl-u64 lo 8) (wrapping-shr-u64 hi 8)
 
   -- | Widen four low-to-high ASCII bytes to four low-to-high UTF-16 units using SWAR.
-  prim widen-ascii :: U32 -> U64 where
-    llvm {
-      %wide = zext i32 %0 to i64
-      %shift16 = shl i64 %wide, 16
-      %spread16 = or i64 %wide, %shift16
-      %pairs = and i64 %spread16, 281470681808895
-      %shift8 = shl i64 %pairs, 8
-      %spread8 = or i64 %pairs, %shift8
-      %result = and i64 %spread8, 71777214294589695
-      ret i64 %result
-    }
+  widen-ascii :: U32 -> U64
+  widen-ascii word =
+    let wide = u32-to-u64 word in
+    let pairs = bit-and-u64 (bit-or-u64 wide (wrapping-shl-u64 wide 16)) 281470681808895 in
+    bit-and-u64 (bit-or-u64 pairs (wrapping-shl-u64 pairs 8)) 71777214294589695
 
   -- | Compact four ASCII code units to four low-to-high bytes using SWAR.
-  prim narrow-ascii :: U64 -> U32 where
-    llvm {
-      %shift8 = lshr i64 %0, 8
-      %merge8 = or i64 %0, %shift8
-      %pairs = and i64 %merge8, 281470681808895
-      %shift16 = lshr i64 %pairs, 16
-      %merge16 = or i64 %pairs, %shift16
-      %result = trunc i64 %merge16 to i32
-      ret i32 %result
-    }
+  narrow-ascii :: U64 -> U32
+  narrow-ascii word =
+    let pairs = bit-and-u64 (bit-or-u64 word (wrapping-shr-u64 word 8)) 281470681808895 in
+    wrapping-u64-to-u32 (bit-or-u64 pairs (wrapping-shr-u64 pairs 16))
 
   -- | Resolve the public byte-order constructor once, before entering a buffer loop.
   is-big-endian :: ByteOrder -> Bool

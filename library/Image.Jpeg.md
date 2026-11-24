@@ -26,17 +26,17 @@ supported; arithmetic coding, the lossless and hierarchical processes and 12-bit
 jpeg-decode-config reads the size and colour model without decoding pixels.
 
 Entropy-coded segments are destuffed sixteen bytes at a time and then read by bit offset. Huffman
-codes resolve through an eight-bit lookup table, with a branch-free search over all sixteen code
-lengths for longer codes, in one kernel call that also extends the magnitude bits. Dequantization and
-the two-pass integer inverse DCT (after the MPEG Software Simulation Group's) run in 32-bit vector
-lanes with the scalar definition's wrapping arithmetic, so any input decodes to the same samples on
-every target; colour conversion runs four pixels per step.
+codes resolve through an eight-bit lookup table, with a portable SIMD search over all sixteen code
+lengths for longer codes, extending the magnitude bits in the same pass. Dequantization and the
+two-pass integer inverse DCT (after the MPEG Software Simulation Group's) run in portable 32-bit
+vector lanes with the scalar definition's wrapping arithmetic, so any input decodes to the same
+samples on every target; colour conversion runs four pixels per step.
 
 The encoder writes baseline streams with the standard Annex K tables scaled by a quality from 1 to
 100 (75 by default): Gray8 rasters as one component and everything else as YCbCr 4:2:0, replicating
 edge pixels into partial blocks. Pixels with alpha are premultiplied first, as sixteen-bit colour
 readers do. The forward DCT follows the Independent JPEG Group's integer jfdctint; its row pass, its
-column pass with rounding quantization, colour conversion and chroma averaging run in vector lanes.
+column pass with rounding quantization, colour conversion and chroma averaging run in portable SIMD lanes.
 
 </details>
 
@@ -264,7 +264,7 @@ The width in pixels.
 
 Decode a whole image.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 470
+[Source](/reference-sources/Image.Jpeg.cinch) · line 462
 
 <a id="value-6a7065672d6465636f64652d636f6e666967"></a>
 
@@ -274,7 +274,7 @@ Decode a whole image.
 
 Read the colour model and size: stops at the frame header after a JFIF marker, otherwise at the first scan.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 481
+[Source](/reference-sources/Image.Jpeg.cinch) · line 473
 
 <a id="value-6a7065672d64656661756c742d7175616c697479"></a>
 
@@ -284,7 +284,7 @@ Read the colour model and size: stops at the frame header after a JFIF marker, o
 
 The quality used when none is chosen.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1718
+[Source](/reference-sources/Image.Jpeg.cinch) · line 1694
 
 <a id="value-6a7065672d656e636f6465"></a>
 
@@ -295,7 +295,7 @@ The quality used when none is chosen.
 Encode a raster at a quality (clamped to 1..100): Gray8 as one component, every other format as YCbCr
 4:2:0 after premultiplying alpha.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1723
+[Source](/reference-sources/Image.Jpeg.cinch) · line 1699
 
 <a id="value-6a7065672d656e636f64652d7963626372"></a>
 
@@ -306,7 +306,7 @@ Encode a raster at a quality (clamped to 1..100): Gray8 as one component, every 
 Encode YCbCr planes at a quality as YCbCr 4:2:0; each pixel takes the chroma sample covering it, and
 each 2x2 neighbourhood is averaged.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1734
+[Source](/reference-sources/Image.Jpeg.cinch) · line 1710
 
 <a id="value-6a7065672d6572726f722d6d657373616765"></a>
 
@@ -461,4 +461,4 @@ Bytes between vertically adjacent luma samples.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Jpeg.cinch`. Source SHA-256: `05234349121fb760e8b50180e88cd63b1eef003c59587d83f6d5c0d170ffc790`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Image/Jpeg.cinch`. Source SHA-256: `3efe49f20c865c41d0cbc594e87b539ec57013c246a8332332e21a4b57996d2b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

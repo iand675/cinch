@@ -10,7 +10,7 @@ Import with `import Text.Multipart`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Mime](Text.Mime.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Mime](Text.Mime.md).
 
 Non-embedded source closure: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Mime](Text.Mime.md), [Text.Multipart](Text.Multipart.md).
 
@@ -32,7 +32,7 @@ independently owned snapshots. Boundary scans never read outside a checked span.
 
 A body scan separates confirmed payload from incomplete delimiters and end.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 377
+[Source](/reference-sources/Text.Multipart.cinch) · line 405
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartBodyPrefix</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartBodyScan</span>)</code></pre>
 
@@ -48,7 +48,7 @@ A body scan separates confirmed payload from incomplete delimiters and end.
 
 Delimiter recognition retains the first ordinary line's newline policy.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 508
+[Source](/reference-sources/Text.Multipart.cinch) · line 536
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartNoDelimiter</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartDelimiter</span></code></pre>
 
@@ -64,7 +64,7 @@ Delimiter recognition retains the first ordinary line's newline policy.
 
 Privately retained exact keys and ordered values.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 113
+[Source](/reference-sources/Text.Multipart.cinch) · line 114
 
 <a id="type-4d756c74697061727453796e746178"></a>
 
@@ -74,7 +74,7 @@ Privately retained exact keys and ordered values.
 
 Named protocol refusals retain the original offending wire bytes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 32
+[Source](/reference-sources/Text.Multipart.cinch) · line 33
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MultipartBoundaryLength</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Multipart</span>.<span class="tok-constructor">MultipartSyntax</span></code></pre>
 
@@ -112,7 +112,7 @@ Named protocol refusals retain the original offending wire bytes.
 
 Observe one bounded raw-body span; terminal status decides ambiguous suffixes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 435
+[Source](/reference-sources/Text.Multipart.cinch) · line 463
 
 <a id="value-6d756c7469706172742d636865636b2d626f756e64617279"></a>
 
@@ -122,7 +122,7 @@ Observe one bounded raw-body span; terminal status decides ambiguous suffixes.
 
 Validate a writer boundary without imposing this restriction on readers.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 267
+[Source](/reference-sources/Text.Multipart.cinch) · line 268
 
 <a id="value-6d756c7469706172742d64656c696d697465722d6c696e65"></a>
 
@@ -132,7 +132,7 @@ Validate a writer boundary without imposing this restriction on readers.
 
 Classify a complete line without validating a reader's arbitrary boundary.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 526
+[Source](/reference-sources/Text.Multipart.cinch) · line 554
 
 <a id="value-6d756c7469706172742d6669656c642d646973706f736974696f6e"></a>
 
@@ -142,7 +142,7 @@ Classify a complete line without validating a reader's arbitrary boundary.
 
 Render the exact disposition for a named value field.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 314
+[Source](/reference-sources/Text.Multipart.cinch) · line 311
 
 <a id="value-6d756c7469706172742d66696c652d646973706f736974696f6e"></a>
 
@@ -152,7 +152,7 @@ Render the exact disposition for a named value field.
 
 Render the exact disposition for a named file field.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 318
+[Source](/reference-sources/Text.Multipart.cinch) · line 315
 
 <a id="value-6d756c7469706172742d66696e642d62797465"></a>
 
@@ -162,7 +162,7 @@ Render the exact disposition for a named file field.
 
 Return the first target byte at or after start, or the input length.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 360
+[Source](/reference-sources/Text.Multipart.cinch) · line 388
 
 <a id="value-6d756c7469706172742d666f726d2d636f6e74656e742d74797065"></a>
 
@@ -172,7 +172,7 @@ Return the first target byte at or after start, or the input length.
 
 Render a form content type with exactly the required boundary quoting.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 281
+[Source](/reference-sources/Text.Multipart.cinch) · line 282
 
 <a id="value-6d756c7469706172742d6865616465722d617070656e64"></a>
 
@@ -182,7 +182,7 @@ Render a form content type with exactly the required boundary quoting.
 
 Append a value under a canonicalized lookup key.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 217
+[Source](/reference-sources/Text.Multipart.cinch) · line 218
 
 <a id="value-6d756c7469706172742d6865616465722d617070656e642d726177"></a>
 
@@ -192,7 +192,7 @@ Append a value under a canonicalized lookup key.
 
 Append an independently retained raw-key value without changing key spelling.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 205
+[Source](/reference-sources/Text.Multipart.cinch) · line 206
 
 <a id="value-6d756c7469706172742d6865616465722d64726f70"></a>
 
@@ -202,7 +202,7 @@ Append an independently retained raw-key value without changing key spelling.
 
 Delete a canonicalized lookup key without touching differently spelled raw keys.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 221
+[Source](/reference-sources/Text.Multipart.cinch) · line 222
 
 <a id="value-6d756c7469706172742d6865616465722d64726f702d726177"></a>
 
@@ -212,7 +212,7 @@ Delete a canonicalized lookup key without touching differently spelled raw keys.
 
 Delete only the exact raw-key entry.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 209
+[Source](/reference-sources/Text.Multipart.cinch) · line 210
 
 <a id="value-6d756c7469706172742d6865616465722d676574"></a>
 
@@ -222,7 +222,7 @@ Delete only the exact raw-key entry.
 
 Read the first canonical-key value, using an empty buffer for absent/empty lists.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 197
+[Source](/reference-sources/Text.Multipart.cinch) · line 198
 
 <a id="value-6d756c7469706172742d6865616465722d6b6579"></a>
 
@@ -232,7 +232,7 @@ Read the first canonical-key value, using an empty buffer for absent/empty lists
 
 Canonicalize token keys; invalid and space-containing raw keys stay exact.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 187
+[Source](/reference-sources/Text.Multipart.cinch) · line 188
 
 <a id="value-6d756c7469706172742d6865616465722d7061697273"></a>
 
@@ -242,7 +242,7 @@ Canonicalize token keys; invalid and space-containing raw keys stay exact.
 
 Observe sorted raw keys and original per-key value order in fresh storage.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 160
+[Source](/reference-sources/Text.Multipart.cinch) · line 161
 
 <a id="value-6d756c7469706172742d6865616465722d736574"></a>
 
@@ -252,7 +252,7 @@ Observe sorted raw keys and original per-key value order in fresh storage.
 
 Replace the values under a canonicalized lookup key.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 213
+[Source](/reference-sources/Text.Multipart.cinch) · line 214
 
 <a id="value-6d756c7469706172742d6865616465722d7365742d726177"></a>
 
@@ -262,7 +262,7 @@ Replace the values under a canonicalized lookup key.
 
 Replace an exact raw key with privately owned values.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 201
+[Source](/reference-sources/Text.Multipart.cinch) · line 202
 
 <a id="value-6d756c7469706172742d6865616465722d73697a65"></a>
 
@@ -272,7 +272,7 @@ Replace an exact raw key with privately owned values.
 
 Exact form-budget charge: four hundred plus per-key and value overhead.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 233
+[Source](/reference-sources/Text.Multipart.cinch) · line 234
 
 <a id="value-6d756c7469706172742d6865616465722d76616c756573"></a>
 
@@ -282,7 +282,7 @@ Exact form-budget charge: four hundred plus per-key and value overhead.
 
 Read every value for a canonicalized lookup key into fresh snapshots.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 193
+[Source](/reference-sources/Text.Multipart.cinch) · line 194
 
 <a id="value-6d756c7469706172742d6865616465722d77697265"></a>
 
@@ -292,7 +292,7 @@ Read every value for a canonicalized lookup key into fresh snapshots.
 
 Serialize a complete header block with sorted raw keys and a final blank line.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 251
+[Source](/reference-sources/Text.Multipart.cinch) · line 252
 
 <a id="value-6d756c7469706172742d68656164657273"></a>
 
@@ -302,7 +302,7 @@ Serialize a complete header block with sorted raw keys and a final blank line.
 
 Construct exact-key headers, including empty lists and arbitrary raw keys.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 147
+[Source](/reference-sources/Text.Multipart.cinch) · line 148
 
 <a id="value-6d756c7469706172742d70617273652d6865616465722d6c696e65"></a>
 
@@ -312,7 +312,7 @@ Construct exact-key headers, including empty lists and arbitrary raw keys.
 
 Parse one unfolded logical header line, preserving exact refused bytes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 477
+[Source](/reference-sources/Text.Multipart.cinch) · line 505
 
 <a id="value-6d756c7469706172742d706f7369782d66696c656e616d65"></a>
 
@@ -322,7 +322,7 @@ Parse one unfolded logical header line, preserving exact refused bytes.
 
 Apply the POSIX basename byte policy, including empty and all-separator cases.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 500
+[Source](/reference-sources/Text.Multipart.cinch) · line 528
 
 <a id="value-6d756c7469706172742d707265666978"></a>
 
@@ -332,7 +332,7 @@ Apply the POSIX basename byte policy, including empty and all-separator cases.
 
 Test a complete raw prefix without exposing retained bytes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 373
+[Source](/reference-sources/Text.Multipart.cinch) · line 401
 
 <a id="value-6d756c7469706172742d73796e7461782d6d657373616765"></a>
 
@@ -342,7 +342,7 @@ Test a complete raw prefix without exposing retained bytes.
 
 Render exact wire diagnostics while retaining the typed refusal.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 61
+[Source](/reference-sources/Text.Multipart.cinch) · line 62
 
 <a id="value-6d756c7469706172742d7472696d2d6865616465722d6c696e65"></a>
 
@@ -352,8 +352,8 @@ Render exact wire diagnostics while retaining the typed refusal.
 
 Trim only header space and tab, never Unicode whitespace or body bytes.
 
-[Source](/reference-sources/Text.Multipart.cinch) · line 458
+[Source](/reference-sources/Text.Multipart.cinch) · line 486
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Multipart.cinch`. Source SHA-256: `743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Multipart.cinch`. Source SHA-256: `bbbdb0e48e1c8a907097624dd570a5394fe8866f97603d43a49400da85283d75`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

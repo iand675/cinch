@@ -36,7 +36,7 @@ This module exports no type declarations.
 
 Select binary32 IEEE equality explicitly, including non-reflexive NaN keys.
 
-[Source](/reference-sources/Data.Mutable.Map.Float.cinch) · line 42
+[Source](/reference-sources/Data.Mutable.Map.Float.cinch) · line 28
 
 <a id="value-6d61702d6636342d696565652d706f6c696379"></a>
 
@@ -46,8 +46,8 @@ Select binary32 IEEE equality explicitly, including non-reflexive NaN keys.
 
 Select binary64 IEEE equality explicitly, including equivalent signed zeros.
 
-[Source](/reference-sources/Data.Mutable.Map.Float.cinch) · line 46
+[Source](/reference-sources/Data.Mutable.Map.Float.cinch) · line 32
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Map/Float.cinch`. Source SHA-256: `ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Map/Float.cinch`. Source SHA-256: `ef2a5ed6403a80361b37c2c293841190cef73a597b02b173d440ec3101edee6e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

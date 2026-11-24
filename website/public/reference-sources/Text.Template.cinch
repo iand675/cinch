@@ -24,6 +24,7 @@ module Text.Template where
   import Data.Result
   import Data.String
   import Data.Unicode.Kernel
+  import Data.Wide
   import Text.Show (nat-to-string, int-to-string)
 
   export TemplateValue, TvNil, TvBool, TvInt, TvFloat, TvString, TvList, TvListEnd, TvMap, TvMapEnd
@@ -494,9 +495,9 @@ module Text.Template where
   find-delim s left i =
     if i >= bytes-len s then bytes-len s
     else
-      let k = if i + 16 <= bytes-len s then i + i64-to-nat (hold s (find16 (bytes-data s) (nat-to-i64 i) (small (at left 0)))) else scalar-find s (at left 0) i in
+      let needle = if bytes-len left > 0 then bytes-get-u8 left 0 else (0 :: U8) in
+      let k = i64-to-nat (find-byte-simd s (nat-to-i64 i) needle) in
       if k >= bytes-len s then bytes-len s
-      else if k >= i + 16 then find-delim s left (i + 16)
       else if starts-with s k left then k
       else find-delim s left (k + 1)
 
@@ -1924,20 +1925,12 @@ module Text.Template where
   html-from b i acc =
     if i >= bytes-len b then acc
     else
-      let k = if i + 16 <= bytes-len b then i64-to-nat (hold b (html-span (bytes-data b) (nat-to-i64 i) 34)) else html-plain b i 0 in
-      if k > 0 then html-from b (i + k) (Cons (slice b i (i + k)) acc)
+      let j = i64-to-nat (html-span-end b (nat-to-i64 i)) in
+      if j > i then html-from b j (Cons (slice b i j) acc)
       else
         let c = at b i in
         let replacement = if c == 0 then encode-rune 65533 else string-to-bytes (if c == 34 then "&#34;" else if c == 39 then "&#39;" else if c == 38 then "&amp;" else if c == 60 then "&lt;" else "&gt;") in
         html-from b (i + 1) (Cons replacement acc)
-
-  -- | Plain bytes from i, one at a time.
-  html-plain :: Bytes -> Nat -> Nat -> Nat
-  html-plain b i n = if i < bytes-len b && not (html-special (at b i)) then html-plain b (i + 1) (n + 1) else n
-
-  -- | Bytes HTML escaping replaces.
-  html-special :: Nat -> Bool
-  html-special c = c == 34 || c == 39 || c == 38 || c == 60 || c == 62 || c == 0
 
   -- | Escape for JavaScript strings: backslash and quotes get backslashes; "<", ">", "&", "=" and ASCII controls
   -- become \u00XX; non-printable code points become \uXXXX.
@@ -2102,66 +2095,68 @@ module Text.Template where
     else if c < 65536 then from-list [224 + nat-div c 4096, 128 + nat-rem (nat-div c 64) 64, 128 + nat-rem c 64]
     else from-list [240 + nat-div c 262144, 128 + nat-rem (nat-div c 4096) 64, 128 + nat-rem (nat-div c 64) 64, 128 + nat-rem c 64]
 
-  -- | Keep a buffer alive until a raw load has completed.
-  hold :: forall a. Bytes -> a -> a
-  hold b value = case bytes-len b of
-    _ -> value
-
   -- | A non-negative machine count as a natural number.
   i64-to-nat :: I64 -> Nat
   i64-to-nat k = if 0 <= k then nat-from-i64 k else 0
 
-  -- | A small value as a machine integer.
-  small :: Nat -> I64
-  small n = if n < 4294967296 then nat-to-i64 n else 0
+  -- | Scan sixteen bytes at a time for the first byte equal to needle at or after i, or the buffer length.
+  find-byte-simd :: Bytes -> I64 -> U8 -> I64
+  find-byte-simd s i needle =
+    let n = bytes-len-i64 s in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let v = bytes-load-u128-at s i in
+          let mask = simd-u8x16-movemask (simd-u8x16-cmpeq v (simd-u8x16-splat needle)) in
+          if eq-u32 mask 0 then find-byte-simd s (wrapping-add-i64 i 16) needle
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else find-byte-tail s i needle
+      else find-byte-tail s i needle
+    else find-byte-tail s i needle
 
-  -- | The index of the first byte equal to the third argument among the sixteen at base + offset, or 16. Lane order is memory order on every target; the first match is an unsigned minimum over lane indices.
-  prim find16 :: I64 -> I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %v = load <16 x i8>, ptr %at, align 1
-      %e8 = trunc i64 %2 to i8
-      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
-      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
-      %s0 = icmp eq <16 x i8> %v, %extra
-      %pick = select <16 x i1> %s0, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
-      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
-      %r = zext i8 %first to i64
-      ret i64 %r
-    }
+  -- | Scalar tail for finding a byte at or after i, returning the buffer length when absent.
+  find-byte-tail :: Bytes -> I64 -> U8 -> I64
+  find-byte-tail s i needle =
+    if 0 <= i && i < bytes-len-i64 s then
+      if eq-u8 (bytes-get-u8-at s i) needle then i
+      else find-byte-tail s (wrapping-add-i64 i 1) needle
+    else bytes-len-i64 s
 
-  -- | Leading bytes among the sixteen at base + offset that HTML escaping leaves unchanged (16 when all are): stops at quotes, '&', '<', '>', NUL and one extra byte.
-  prim html-span :: I64 -> I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %v = load <16 x i8>, ptr %at, align 1
-      %e8 = trunc i64 %2 to i8
-      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
-      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
-      %s0 = icmp eq <16 x i8> %v, %extra
-      %t0 = icmp eq <16 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %u0 = or <16 x i1> %s0, %t0
-      %t1 = icmp eq <16 x i8> %v, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
-      %u1 = or <16 x i1> %u0, %t1
-      %t2 = icmp eq <16 x i8> %v, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
-      %u2 = or <16 x i1> %u1, %t2
-      %t3 = icmp eq <16 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %u3 = or <16 x i1> %u2, %t3
-      %t4 = icmp eq <16 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %u4 = or <16 x i1> %u3, %t4
-      %t5 = icmp eq <16 x i8> %v, <i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0, i8 0>
-      %u5 = or <16 x i1> %u4, %t5
-      %pick = select <16 x i1> %u5, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
-      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
-      %r = zext i8 %first to i64
-      ret i64 %r
-    }
+  -- | Advance past bytes that HTML escaping leaves unchanged, sixteen bytes at a time with a scalar tail.
+  -- Stops at quotes, '&', '<', '>' and NUL.
+  html-span-end :: Bytes -> I64 -> I64
+  html-span-end b i =
+    let n = bytes-len-i64 b in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let v = bytes-load-u128-at b i in
+          let is-dq = simd-u8x16-cmpeq v (simd-u8x16-splat 34) in
+          let is-sq = simd-u8x16-cmpeq v (simd-u8x16-splat 39) in
+          let is-amp = simd-u8x16-cmpeq v (simd-u8x16-splat 38) in
+          let is-lt = simd-u8x16-cmpeq v (simd-u8x16-splat 60) in
+          let is-gt = simd-u8x16-cmpeq v (simd-u8x16-splat 62) in
+          let is-nul = simd-u8x16-cmpeq v (simd-u8x16-splat 0) in
+          let stop = bit-or-u128 (bit-or-u128 (bit-or-u128 is-dq is-sq) (bit-or-u128 is-amp is-lt)) (bit-or-u128 is-gt is-nul) in
+          let mask = simd-u8x16-movemask stop in
+          if eq-u32 mask 0 then html-span-end b (wrapping-add-i64 i 16)
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else html-span-tail b i
+      else html-span-tail b i
+    else html-span-tail b i
 
-  -- | The bits of a binary64 float.
-  prim f64-bits :: F64 -> U64 where
-    llvm {
-      %b = bitcast double %0 to i64
-      ret i64 %b
-    }
+  -- | Scalar tail for bytes that HTML escaping leaves unchanged.
+  html-span-tail :: Bytes -> I64 -> I64
+  html-span-tail b i =
+    if 0 <= i && i < bytes-len-i64 b then
+      let c = bytes-get-u8-at b i in
+      if ne-u8 c 34 && ne-u8 c 39 && ne-u8 c 38 && ne-u8 c 60 && ne-u8 c 62 && ne-u8 c 0 then
+        html-span-tail b (wrapping-add-i64 i 1)
+      else i
+    else i

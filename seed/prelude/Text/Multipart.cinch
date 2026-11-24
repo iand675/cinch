@@ -12,6 +12,7 @@ module Text.Multipart where
   import Data.Ordering
   import Data.Result
   import Data.String (String, string-to-bytes, string-concat)
+  import Data.Wide
   import Text.Mime (mime-quote-bytes)
 
   export MultipartHeaders, multipart-headers, multipart-header-pairs
@@ -282,18 +283,14 @@ module Text.Multipart where
   multipart-form-content-type boundary = join (Cons (string-to-bytes "multipart/form-data; boundary=")
     (if has-special boundary 0 then Cons (string-to-bytes "\"") (Cons boundary (Cons (string-to-bytes "\"") Nil)) else Cons boundary Nil))
 
-  -- | Find the next escaping byte through complete SIMD windows and scalar fringes.
+  -- | Find the next escaping byte through complete portable 128-bit SIMD windows and scalar fringes.
   escape-end :: using (at <= bytes-len input) => (input :: Bytes) -> (at :: Nat) -> refined (at <= r && r <= bytes-len input) Nat
-  escape-end input at = if at + 16 <= bytes-len input then
-    let low = bytes-read-le64 input at in
-    let high = bytes-read-le64 input (at + 8) in
-    let mask = bit-or-u32 (bit-or-u32 (equal-sixteen low high 13) (equal-sixteen low high 10)) (bit-or-u32 (equal-sixteen low high 34) (equal-sixteen low high 92)) in
-    let count = if eq-u32 mask 0 then (16 :: Nat) else u32-to-nat (trailing-zeros-u32 mask) in
-    if count < 16 then at + count else escape-end input (at + 16)
-    else if at < bytes-len input then
-      let byte = bytes-get input at in
-      if byte == 13 || byte == 10 || byte == 34 || byte == 92 then at else escape-end input (at + 1)
-      else at
+  escape-end input at =
+    let found = escape-end-at input (nat-to-i64 at) in
+    if 0 <= found then
+      let pos = nat-from-i64 found in
+      if at <= pos && pos <= bytes-len input then pos else at
+    else at
 
   -- | Copy ordinary disposition runs in bulk and escape only exceptional bytes.
   escaped-pieces :: Bytes -> Nat -> List Bytes -> List Bytes
@@ -318,43 +315,74 @@ module Text.Multipart where
   multipart-file-disposition :: Bytes -> Bytes -> Bytes
   multipart-file-disposition name filename = join (Cons (multipart-field-disposition name) (Cons (string-to-bytes "; filename=\"") (Cons (escaped filename) (Cons (string-to-bytes "\"") Nil))))
 
-  -- | Find exact target-byte lanes; mask bit zero always denotes the first wire byte.
-  prim equal-sixteen :: U64 -> U64 -> U8 -> U32 where
-    llvm {
-      %lo = bitcast i64 %0 to <8 x i8>
-      %hi = bitcast i64 %1 to <8 x i8>
-      %bytes = shufflevector <8 x i8> %lo, <8 x i8> %hi, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %one = insertelement <16 x i8> poison, i8 %2, i64 0
-      %needle = shufflevector <16 x i8> %one, <16 x i8> poison, <16 x i32> zeroinitializer
-      %same = icmp eq <16 x i8> %bytes, %needle
-      %mask = bitcast <16 x i1> %same to i16
-      %wide = zext i16 %mask to i32
-      ret i32 %wide
-    } when endian little
-    llvm {
-      %swapped0 = call i64 @llvm.bswap.i64(i64 %0)
-      %swapped1 = call i64 @llvm.bswap.i64(i64 %1)
-      %lo = bitcast i64 %swapped0 to <8 x i8>
-      %hi = bitcast i64 %swapped1 to <8 x i8>
-      %bytes = shufflevector <8 x i8> %lo, <8 x i8> %hi, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %one = insertelement <16 x i8> poison, i8 %2, i64 0
-      %needle = shufflevector <16 x i8> %one, <16 x i8> poison, <16 x i32> zeroinitializer
-      %same = icmp eq <16 x i8> %bytes, %needle
-      %reversed = shufflevector <16 x i1> %same, <16 x i1> %same, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
-      %mask = bitcast <16 x i1> %reversed to i16
-      %wide = zext i16 %mask to i32
-      ret i32 %wide
-    } when endian big
+  -- | Advance past unescaped disposition bytes sixteen bytes at a time, stopping at CR, LF, quote or backslash.
+  escape-end-at :: Bytes -> I64 -> I64
+  escape-end-at input i =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let v = bytes-load-u128-at input i in
+          let cr = simd-u8x16-cmpeq v (simd-u8x16-splat 13) in
+          let lf = simd-u8x16-cmpeq v (simd-u8x16-splat 10) in
+          let dq = simd-u8x16-cmpeq v (simd-u8x16-splat 34) in
+          let bs = simd-u8x16-cmpeq v (simd-u8x16-splat 92) in
+          let mask = simd-u8x16-movemask (bit-or-u128 (bit-or-u128 cr lf) (bit-or-u128 dq bs)) in
+          if eq-u32 mask 0 then escape-end-at input (wrapping-add-i64 i 16)
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else escape-end-tail input i
+      else escape-end-tail input i
+    else escape-end-tail input i
+
+  -- | Scalar tail for disposition bytes that need no escaping.
+  escape-end-tail :: Bytes -> I64 -> I64
+  escape-end-tail input i =
+    if 0 <= i && i < bytes-len-i64 input then
+      let b = bytes-get-u8-at input i in
+      if eq-u8 b 13 || eq-u8 b 10 || eq-u8 b 34 || eq-u8 b 92 then i
+      else escape-end-tail input (wrapping-add-i64 i 1)
+    else i
+
+  -- | Compute the sixteen-bit match mask for one needle byte across sixteen packed lanes.
+  equal-sixteen-mask :: U128 -> U8 -> U32
+  equal-sixteen-mask v needle = simd-u8x16-movemask (simd-u8x16-cmpeq v (simd-u8x16-splat needle))
+
+  -- | Scan sixteen bytes at a time for the first matching byte at or after i, or the buffer length.
+  find-byte-at :: Bytes -> I64 -> U8 -> I64
+  find-byte-at input i needle =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let mask = equal-sixteen-mask (bytes-load-u128-at input i) needle in
+          if eq-u32 mask 0 then find-byte-at input (wrapping-add-i64 i 16) needle
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else find-byte-tail input i needle
+      else find-byte-tail input i needle
+    else find-byte-tail input i needle
+
+  -- | Scalar tail for finding one exact byte at or after i, returning the buffer length when absent.
+  find-byte-tail :: Bytes -> I64 -> U8 -> I64
+  find-byte-tail input i needle =
+    if 0 <= i && i < bytes-len-i64 input then
+      if eq-u8 (bytes-get-u8-at input i) needle then i
+      else find-byte-tail input (wrapping-add-i64 i 1) needle
+    else bytes-len-i64 input
 
   -- | Scan complete proved windows and then the exact scalar fringe.
   find-byte :: using (at <= bytes-len input) => (input :: Bytes) -> (at :: Nat) -> U8 -> refined (at <= r && r <= bytes-len input) Nat
-  find-byte input at needle = if at + 16 <= bytes-len input then
-    let mask = equal-sixteen (bytes-read-le64 input at) (bytes-read-le64 input (at + 8)) needle in
-    let count = if eq-u32 mask 0 then (16 :: Nat) else u32-to-nat (trailing-zeros-u32 mask) in
-    if count < 16 then at + count else find-byte input (at + 16) needle
-    else if at < bytes-len input then
-      if bytes-get input at == u8-to-nat needle then at else find-byte input (at + 1) needle
-      else at
+  find-byte input at needle =
+    let found = find-byte-at input (nat-to-i64 at) needle in
+    if 0 <= found then
+      let pos = nat-from-i64 found in
+      if at <= pos && pos <= bytes-len input then pos else at
+    else at
 
   -- | Return the first target byte at or after start, or the input length.
   multipart-find-byte :: Bytes -> Nat -> U8 -> Nat

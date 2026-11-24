@@ -10,9 +10,9 @@ Import with `import Crypto.Ed25519`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Sha512](Text.Sha512.md).
+[Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Sha512](Text.Sha512.md).
 
-Non-embedded source closure: [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha512](Text.Sha512.md).
+Non-embedded source closure: [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Binary](Text.Binary.md), [Text.Sha512](Text.Sha512.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -39,7 +39,7 @@ signatures whose S is not below L, and compares the encoding of
 
 A rejected seed.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 40
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 39
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidEd25519SeedSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ed25519</span>.<span class="tok-constructor">Ed25519Error</span>)</code></pre>
 
@@ -51,7 +51,7 @@ A rejected seed.
 
 An expanded private key: the seed, the clamped secret scalar bytes, the nonce prefix and the public key.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 50
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 49
 
 # Values
 
@@ -63,7 +63,7 @@ An expanded private key: the seed, the clamped secret scalar bytes, the nonce pr
 
 Render an Ed25519 error.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 45
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 44
 
 <a id="value-656432353531392d707269766174652d6b6579"></a>
 
@@ -73,7 +73,7 @@ Render an Ed25519 error.
 
 Expand a 32-byte seed into a private key and derive its public key.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 55
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 54
 
 <a id="value-656432353531392d7075626c69632d6b6579"></a>
 
@@ -83,7 +83,7 @@ Expand a 32-byte seed into a private key and derive its public key.
 
 The 32-byte public key, in fresh storage.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 68
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 67
 
 <a id="value-656432353531392d7075626c69632d6b65792d73697a65"></a>
 
@@ -93,7 +93,7 @@ The 32-byte public key, in fresh storage.
 
 Public key size in bytes, 32.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 32
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 31
 
 <a id="value-656432353531392d73656564"></a>
 
@@ -103,7 +103,7 @@ Public key size in bytes, 32.
 
 The seed, in fresh storage.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 64
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 63
 
 <a id="value-656432353531392d736565642d73697a65"></a>
 
@@ -113,7 +113,7 @@ The seed, in fresh storage.
 
 Seed size in bytes, 32.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 28
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 27
 
 <a id="value-656432353531392d7369672d73697a65"></a>
 
@@ -123,7 +123,7 @@ Seed size in bytes, 32.
 
 Signature size in bytes, 64.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 36
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 35
 
 <a id="value-656432353531392d7369676e"></a>
 
@@ -134,7 +134,7 @@ Signature size in bytes, 64.
 Sign a message: R = [r]B for r = SHA-512(prefix || message) mod L, and S = r + k s mod L
 for k = SHA-512(R || public key || message) mod L. Returns the 64-byte signature R || S.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 73
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 72
 
 <a id="value-656432353531392d766572696679"></a>
 
@@ -144,8 +144,8 @@ for k = SHA-512(R || public key || message) mod L. Returns the 64-byte signature
 
 Verify a 64-byte signature of a message under a 32-byte public key.
 
-[Source](/reference-sources/Crypto.Ed25519.cinch) · line 83
+[Source](/reference-sources/Crypto.Ed25519.cinch) · line 82
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Ed25519.cinch`. Source SHA-256: `c9653a1c9514393759e3c07a4a826ff1fdf856d9dcedd5eb4ac509130350c707`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Ed25519.cinch`. Source SHA-256: `56b494fbf2f0d64c7caa0d9b550c39f38829f88fdc6bd154a44e2ba353a836b4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

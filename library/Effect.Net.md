@@ -1,6 +1,6 @@
 # Effect.Net
 
-Socket operations with explicit handles, address values, errors, and runtime effects.
+TCP client sockets, TCP listeners (listen/accept), UDP send, address values, named errors, and runtime effects.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -79,6 +79,18 @@ Named refusals (boundaries this module deliberately does not cross):
 
 # Types and constructors
 
+<a id="type-4c697374656e6572"></a>
+
+## `Listener`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Listener</span></code></pre>
+
+Wrap the runtime listener handle word.
+
+[Source](/reference-sources/Effect.Net.cinch) · line 94
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Listener</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span>)</code></pre>
+
 <a id="type-4e65744572726f72"></a>
 
 ## `NetError`
@@ -88,7 +100,7 @@ Named refusals (boundaries this module deliberately does not cross):
 What went wrong, named. The constructors correspond one for one to
 the platform layer's shared codes.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 73
+[Source](/reference-sources/Effect.Net.cinch) · line 75
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NetNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span></code></pre>
 
@@ -107,11 +119,31 @@ the platform layer's shared codes.
 An open TCP connection, as the runtime's socket handle word (kept
 as the runtime's `I64`: it only ever goes back to the runtime).
 
-[Source](/reference-sources/Effect.Net.cinch) · line 81
+[Source](/reference-sources/Effect.Net.cinch) · line 83
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Socket</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span>)</code></pre>
 
 # Values
+
+<a id="value-6c697374656e65722d68616e646c65"></a>
+
+## `listener-handle`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">listener-handle</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+
+Return the underlying runtime handle word of a TCP listener.
+
+[Source](/reference-sources/Effect.Net.cinch) · line 97
+
+<a id="value-6e65742d616363657074"></a>
+
+## `net-accept`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-accept</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Socket</span>))</code></pre>
+
+Accept one incoming TCP connection on `listener`, returning a connected `Socket`.
+
+[Source](/reference-sources/Effect.Net.cinch) · line 144
 
 <a id="value-6e65742d636c6f7365"></a>
 
@@ -122,7 +154,7 @@ as the runtime's `I64`: it only ever goes back to the runtime).
 Close the socket: the handle is gone afterwards, so every later
 operation on it is `Err NetInvalidArgument`.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 135
+[Source](/reference-sources/Effect.Net.cinch) · line 192
 
 <a id="value-6e65742d636f6e6e656374"></a>
 
@@ -135,7 +167,38 @@ the open socket, or the named error. The name is resolved by the
 platform resolver. A port past the `I64` range is invalid like any
 other port past 65535.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 110
+[Source](/reference-sources/Effect.Net.cinch) · line 127
+
+<a id="value-6e65742d6c697374656e"></a>
+
+## `net-listen`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-listen</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span>)))</code></pre>
+
+Bind a TCP listener on `host` (UTF-8 host text) and `port` (`0` for an
+OS-assigned ephemeral port). Returns the bound `Listener` or a named error.
+
+[Source](/reference-sources/Effect.Net.cinch) · line 136
+
+<a id="value-6e65742d6c697374656e65722d61646472"></a>
+
+## `net-listener-addr`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-listener-addr</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+
+Return the bound local address (`<ip>:<port>`) of `listener` as UTF-8 text.
+
+[Source](/reference-sources/Effect.Net.cinch) · line 151
+
+<a id="value-6e65742d6c697374656e65722d636c6f7365"></a>
+
+## `net-listener-close`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-listener-close</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">Listener</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+
+Close a TCP listener; subsequent operations on it return `Err NetInvalidArgument`.
+
+[Source](/reference-sources/Effect.Net.cinch) · line 160
 
 <a id="value-6e65742d72656164"></a>
 
@@ -146,7 +209,7 @@ other port past 65535.
 Read up to `max` bytes of the socket: `Ok` of what one platform
 call produced (empty at the end of the stream), or the named error.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 119
+[Source](/reference-sources/Effect.Net.cinch) · line 176
 
 <a id="value-6e65742d7265736f6c7665"></a>
 
@@ -159,7 +222,17 @@ Resolve `host` (UTF-8 host text) at `port`: `Ok` of one
 an IPv6 address bracketed), or the named error. The empty result is
 an empty buffer: the resolver answered with no address.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 145
+[Source](/reference-sources/Effect.Net.cinch) · line 202
+
+<a id="value-6e65742d7564702d73656e64"></a>
+
+## `net-udp-send`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">net-udp-send</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+
+Send one UDP datagram containing `payload` to `(host, port)`.
+
+[Source](/reference-sources/Effect.Net.cinch) · line 167
 
 <a id="value-6e65742d7772697465"></a>
 
@@ -170,7 +243,7 @@ an empty buffer: the resolver answered with no address.
 Write `bs` to the socket: the byte count (the whole buffer goes),
 or the named error.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 127
+[Source](/reference-sources/Effect.Net.cinch) · line 184
 
 <a id="value-736f636b65742d68616e646c65"></a>
 
@@ -180,8 +253,8 @@ or the named error.
 
 The handle word of a socket, for the layers above this one.
 
-[Source](/reference-sources/Effect.Net.cinch) · line 85
+[Source](/reference-sources/Effect.Net.cinch) · line 87
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Net.cinch`. Source SHA-256: `9bac11640aa56817a5722b1336568f7d1ad80e034c105313934b44c8a7e9cc30`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Net.cinch`. Source SHA-256: `126fd1f6a1b7172b7cbac70dbb04431c1a43d2f12ff1dd6ddd2c75c9b0637bf4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

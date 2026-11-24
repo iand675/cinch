@@ -346,23 +346,85 @@ fn json_binary_partial_updates_aliases_and_policies_are_bounded() {
     run(include_str!("fixtures/json-codec-binary-control.cinch"));
 }
 
-/// The actual production SWAR primitives agree with a scalar model for every byte in every lane.
+/// The actual production decimal SWAR and 16-byte SIMD binary line-break paths agree with a scalar model for every lane byte.
 #[test]
 fn json_word_kernels_match_every_lane_byte() {
-    let source = include_str!("../prelude/Text/Json/Codec.cinch");
-    let mut consumer = String::from("-- | Independent JSON word primitive validation.\nmodule Main where\n  import Data.Machine\n  import Data.Bytes.Word\n");
-    for name in ["decimal-eight", "binary-linebreak-eight"] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let rest = &source[start..];
-        let end = rest.find("\n  -- |").unwrap_or(rest.len());
-        consumer.push_str("  -- | Exact production word primitive.\n");
-        consumer.push_str(&rest[..end]);
-        consumer.push('\n');
-    }
-    consumer.push_str(include_str!(
-        "fixtures/json-codec-word-kernel-body.cinch.inc"
-    ));
-    run(&consumer);
+    run(r#"-- | Independent JSON unsigned decimal SWAR and binary line-break SIMD validation.
+module Main where
+  import Text.Json.Codec
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  -- | Model eight ASCII decimal digits independently with scalar arithmetic.
+  scalar-decimal :: Bytes -> Nat -> Nat -> Nat -> Nat
+  scalar-decimal input at end total = if at < end && at < bytes-len input then
+    let byte = bytes-get input at in
+    if byte >= 48 && byte <= 57 then scalar-decimal input (at + 1) end (total * 10 + (byte - 48)) else 100000000
+    else total
+
+  -- | Check one mutated byte in the second 8-byte SWAR block of a 17-digit unsigned JSON number.
+  decimal-case :: Bytes -> Bool
+  decimal-case input =
+    let expected = scalar-decimal input 8 16 0 in
+    case json-unmarshal json-uint64-type input of
+      Ok got -> expected < 100000000 && eq-u64 got (wrapping-i64-to-u64 (nat-to-i64 (12345678000000000 + expected * 10 + 1)))
+      Err err -> expected == 100000000
+
+  -- | Test every byte value 0..255 in one lane of the second 8-byte SWAR block.
+  decimal-inner :: Bytes -> Nat -> Nat -> Bool
+  decimal-inner input lane byte = if lane < 8 && 17 <= bytes-len input then
+    if byte < 256 then
+      let written = bytes-set input (8 + lane) byte in
+      if decimal-case input then decimal-inner input lane (byte + 1) else False
+    else let restored = bytes-set input (8 + lane) (49 + lane) in True
+    else False
+
+  -- | Sweep all 8 lanes of the second SWAR decimal block.
+  decimal-outer :: Bytes -> Nat -> Bool
+  decimal-outer input lane = if lane < 8 then
+    if decimal-inner input lane 0 then decimal-outer input (lane + 1) else False
+    else True
+
+  -- | Strict JSON read options that forbid CR/LF inside Base64 binary strings.
+  strict-binary-options :: JsonReadOptions
+  strict-binary-options = json-read-options False False (json-policies [json-loose-base64-padding False])
+
+  -- | Build a JSON string of 20 Base64 'A' bytes with an optional escaped CR/LF at position pos.
+  base64-json :: Nat -> String -> Bytes
+  base64-json pos inserted =
+    let prefix = string-repeat pos "A" in
+    let suffix = string-repeat (saturating-sub 20 pos) "A" in
+    string-to-bytes (string-concat-all ["\"", prefix, inserted, suffix, "\""])
+
+  -- | Verify strict rejection and loose acceptance of CR and LF at every 16-byte SIMD and tail lane.
+  linebreak-lanes :: Nat -> Bool
+  linebreak-lanes pos = if pos <= 20 then
+    let with-cr = base64-json pos "\\r" in
+    let with-lf = base64-json pos "\\n" in
+    let strict-cr = case json-unmarshal-with json-bytes-type strict-binary-options with-cr of Err err -> True; Ok out -> False in
+    let strict-lf = case json-unmarshal-with json-bytes-type strict-binary-options with-lf of Err err -> True; Ok out -> False in
+    let loose-cr = case json-unmarshal json-bytes-type with-cr of Ok out -> bytes-len out == 15; Err err -> False in
+    let loose-lf = case json-unmarshal json-bytes-type with-lf of Ok out -> bytes-len out == 15; Err err -> False in
+    strict-cr && strict-lf && loose-cr && loose-lf && linebreak-lanes (pos + 1)
+    else True
+
+  -- | Verify a clean 20-byte Base64 string passes strict mode and exercises the 16-byte SIMD block.
+  clean-binary :: Bool
+  clean-binary = case json-unmarshal-with json-bytes-type strict-binary-options (base64-json 20 "") of
+    Ok out -> bytes-len out == 15
+    Err err -> False
+
+  -- | Return zero only when every decimal SWAR lane byte and every binary line-break lane agrees.
+  main :: Int
+  main =
+    let digits = string-to-bytes "12345678123456781" in
+    if decimal-outer digits 0 && clean-binary && linebreak-lanes 0 then 0 else 1
+"#);
 }
 
 /// Typed, custom and JSON-valued map keys match independent active-reference updates and failures.
@@ -421,36 +483,13 @@ fn json_codec_declarations_have_canonical_documentation() {
     }
 }
 
-/// Compile the actual private vector classifier for little- and big-endian foreign objects.
+/// Compile the actual public JSON record, map-key and binary32 paths for little- and big-endian foreign objects.
 #[test]
 fn rust_json_field_kernel_compiles_for_wasm_arm_and_big_endian_targets() {
-    let source = include_str!("../prelude/Text/Json/Codec.cinch");
-    let start = source.find("  prim folded-ascii16 ::").unwrap();
-    let remaining = &source[start..];
-    let end = remaining.find("\n  -- |").unwrap_or(remaining.len());
-    let mut kernels = String::from("-- | Isolated JSON vector classification.\nmodule Main where\n  import Data.Machine\n  -- | Actual complete-interval load-only classifier.\n");
-    kernels.push_str(&remaining[..end]);
-    for name in ["key-ascii16", "key-ascii-byte"] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let rest = &source[start..];
-        let end = rest.find("\n  -- |").unwrap_or(rest.len());
-        kernels.push_str("\n  -- | Actual complete-interval key-text classifier.\n");
-        kernels.push_str(&rest[..end]);
-    }
-
-    let binary32 = include_str!("../prelude/Text/Json/Binary32.cinch");
-    for name in ["binary32-bits", "binary32-value"] {
-        let start = binary32.find(&format!("  prim {name} ::")).unwrap();
-        let rest = &binary32[start..];
-        let end = rest.find("\n  -- |").unwrap_or(rest.len());
-        kernels.push_str("\n  -- | Actual binary32 representation primitive.\n");
-        kernels.push_str(&rest[..end]);
-    }
-
-    kernels.push_str("\n  -- | Retain the source owner through its checked private load.\n  keep :: Bytes -> U8 -> U8\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the complete classifier reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let a = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 0) in let b = keep bytes (folded-ascii16 (bytes-data bytes) (bytes-data bytes) 1) in let ascii = keep bytes (key-ascii16 (bytes-data bytes)) in let fringe = keep bytes (key-ascii-byte (bytes-data bytes)) in let bits = wrapping-i64-to-u32 (bytes-data bytes) in if eq-u8 a b && eq-u8 ascii 1 && eq-u8 fringe 1 && eq-u32 (binary32-bits (binary32-value bits)) bits then 0 else 1\n");
+    let consumer = "-- | Reachable public JSON record, map-key and binary32 paths for foreign targets.\nmodule Main where\n  import Text.Json.Codec\n  import Text.Json.Value\n  import Data.Bool\n  import Data.Bytes\n  import Data.List\n  import Data.Machine\n  import Data.Nat\n  import Data.Result\n  import Data.String\n\n  -- | Record descriptor reaching 16-byte SIMD case-folding field matching and binary32 decoding.\n  record-codec :: JsonType F32\n  record-codec = json-record-type \"Probe\" (\\unit -> f64-to-f32 (i64-to-f64 0)) (\\v -> False) [json-field \"LongFieldNameValue\" json-float32-type (\\v -> v) (\\next prev -> next)]\n\n  -- | Byte-backed map key reaching 16-byte SIMD UTF-8 validation during map encoding.\n  raw-key :: JsonKey Bytes\n  raw-key = json-byte-key \"Bytes\" bytes-compare (\\opts k -> Ok k) (\\opts m -> Ok (string-to-bytes (json-member-name m)))\n\n  -- | Map descriptor reaching UTF-8 byte-key normalization and binary32 serialization.\n  map-codec :: JsonType (JsonMap Bytes F32)\n  map-codec = json-map-type raw-key json-float32-type\n\n  -- | Exercise public 16-byte SIMD matching, key scanning and binary32 bitcasts across targets.\n  main :: Int\n  main =\n    let raw = bytes-new 32 in\n    let rec = json-unmarshal record-codec raw in\n    let mapped = json-marshal map-codec (json-map-set raw (f64-to-f32 (i64-to-f64 1)) (json-map-empty raw-key)) in\n    case (rec, mapped) of\n      (Ok v, Ok out) -> if bytes-len out > 0 && is-finite-f32 v then 0 else 1\n      other -> 0\n";
     let directory = QualificationDirectory::new();
     if keep_qualification_projects() {
-        std::fs::write(directory.path().join("Main.cinch"), &kernels).unwrap();
+        std::fs::write(directory.path().join("Main.cinch"), consumer).unwrap();
     }
     let mut portable_runs = Vec::new();
     for (triple, arch, endian) in [
@@ -470,22 +509,69 @@ fn rust_json_field_kernel_compiles_for_wasm_arm_and_big_endian_targets() {
             profile.endian = endian.into();
             profile
         });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        for (name, contents) in [
+            (
+                "Text.Json.Binary32",
+                include_str!("../prelude/Text/Json/Binary32.cinch"),
+            ),
+            (
+                "Text.Base64.Encoding",
+                include_str!("../prelude/Text/Base64/Encoding.cinch"),
+            ),
+            (
+                "Text.Json.Codec",
+                include_str!("../prelude/Text/Json/Codec.cinch"),
+            ),
+            (
+                "Text.Json.Value",
+                include_str!("../prelude/Text/Json/Value.cinch"),
+            ),
+            ("Data.Array", include_str!("../prelude/Data/Array.cinch")),
+            (
+                "Data.Bytes.Word",
+                include_str!("../prelude/Data/Bytes/Word.cinch"),
+            ),
+            (
+                "Data.Unicode.Kernel",
+                include_str!("../prelude/Data/Unicode/Kernel.cinch"),
+            ),
+            (
+                "Data.Unicode.Tables",
+                include_str!("../prelude/Data/Unicode/Tables.cinch"),
+            ),
+        ] {
+            std::fs::write(project.join(format!("{name}.cinch")), contents).unwrap();
+        }
+        std::fs::write(project.join("Main.cinch"), consumer).unwrap();
+        let entry = project.join("Main.cinch");
+        let path = directory.path().join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
-            .stack_size(64 * 1024 * 1024)
+            .stack_size(256 * 1024 * 1024)
             .spawn(move || {
-                let program =
-                    cinch::driver::check_sources_profile(&input, "json-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<16 x i8>") && ir.contains("load <16 x i8>"));
+        assert!(
+            ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>") && ir.contains("load i128")
+        );
         assert!(ir.contains("bitcast i32") && ir.contains("bitcast float"));
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, &ir).unwrap();
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

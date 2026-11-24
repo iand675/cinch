@@ -10,7 +10,7 @@ Import with `import Text.Mail`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Text.Mime](Text.Mime.md), [Text.Show](Text.Show.md), [Text.TextProto](Text.TextProto.md), [Text.Time.Rfc2822](Text.Time.Rfc2822.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Wide](Data.Wide.md), [Text.Mime](Text.Mime.md), [Text.Show](Text.Show.md), [Text.TextProto](Text.TextProto.md), [Text.Time.Rfc2822](Text.Time.Rfc2822.md).
 
 Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.IpAddr](Data.IpAddr.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Data.Time.Zoned](Data.Time.Zoned.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Mail](Text.Mail.md), [Text.Mime](Text.Mime.md), [Text.TextProto](Text.TextProto.md), [Text.Time.Rfc2822](Text.Time.Rfc2822.md), [Text.Time.Scan](Text.Time.Scan.md).
 
@@ -41,7 +41,7 @@ of HTTP, and dates accept the obsolete forms of RFC 5322.
 
 The display name, then the addr-spec.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 153
+[Source](/reference-sources/Text.Mail.cinch) · line 154
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MailAddress</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Mail</span>.<span class="tok-constructor">MailAddress</span>))</code></pre>
 
@@ -53,7 +53,7 @@ The display name, then the addr-spec.
 
 Why an address, header block or date was rejected.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 47
+[Source](/reference-sources/Text.Mail.cinch) · line 48
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MailNoAddress</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Mail</span>.<span class="tok-constructor">MailError</span></code></pre>
 
@@ -125,7 +125,7 @@ Why an address, header block or date was rejected.
 
 The header, then the body.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 602
+[Source](/reference-sources/Text.Mail.cinch) · line 601
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MailMessage</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">TextProto</span>.<span class="tok-constructor">MimeHeader</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Mail</span>.<span class="tok-constructor">MailMessage</span>))</code></pre>
 
@@ -139,7 +139,7 @@ The header, then the body.
 
 Make an address from a display name and an addr-spec.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 156
+[Source](/reference-sources/Text.Mail.cinch) · line 157
 
 <a id="value-6d61696c2d616464726573732d6e616d65"></a>
 
@@ -149,7 +149,7 @@ Make an address from a display name and an addr-spec.
 
 The display name, empty when there is none.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 160
+[Source](/reference-sources/Text.Mail.cinch) · line 161
 
 <a id="value-6d61696c2d616464726573732d73706563"></a>
 
@@ -159,7 +159,7 @@ The display name, empty when there is none.
 
 The addr-spec.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 164
+[Source](/reference-sources/Text.Mail.cinch) · line 165
 
 <a id="value-6d61696c2d616464726573732d746f2d737472696e67"></a>
 
@@ -171,7 +171,7 @@ Format an address as "<local@domain>" or "name <local@domain>". The local part i
 a valid dot-atom; a printable ASCII name is quoted, and any other name becomes UTF-8 encoded words
 (Base64 when the name holds characters an encoded word in a phrase may not, Q encoding otherwise).
 
-[Source](/reference-sources/Text.Mail.cinch) · line 509
+[Source](/reference-sources/Text.Mail.cinch) · line 508
 
 <a id="value-6d61696c2d6572726f722d6d657373616765"></a>
 
@@ -181,7 +181,7 @@ a valid dot-atom; a printable ASCII name is quoted, and any other name becomes U
 
 Render an error.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 112
+[Source](/reference-sources/Text.Mail.cinch) · line 113
 
 <a id="value-6d61696c2d6865616465722d616464726573732d6c697374"></a>
 
@@ -191,7 +191,7 @@ Render an error.
 
 A field's value parsed as an address list.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 691
+[Source](/reference-sources/Text.Mail.cinch) · line 690
 
 <a id="value-6d61696c2d6865616465722d64617465"></a>
 
@@ -201,7 +201,7 @@ A field's value parsed as an address list.
 
 The message's Date field, parsed.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 685
+[Source](/reference-sources/Text.Mail.cinch) · line 684
 
 <a id="value-6d61696c2d6865616465722d676574"></a>
 
@@ -211,7 +211,7 @@ The message's Date field, parsed.
 
 The first value of a header field, empty when absent.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 679
+[Source](/reference-sources/Text.Mail.cinch) · line 678
 
 <a id="value-6d61696c2d6d6573736167652d626f6479"></a>
 
@@ -221,7 +221,7 @@ The first value of a header field, empty when absent.
 
 The body bytes.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 609
+[Source](/reference-sources/Text.Mail.cinch) · line 608
 
 <a id="value-6d61696c2d6d6573736167652d686561646572"></a>
 
@@ -231,7 +231,7 @@ The body bytes.
 
 The header fields.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 605
+[Source](/reference-sources/Text.Mail.cinch) · line 604
 
 <a id="value-6d61696c2d70617273652d61646472657373"></a>
 
@@ -241,7 +241,7 @@ The header fields.
 
 Parse exactly one address (a group is accepted when it holds exactly one).
 
-[Source](/reference-sources/Text.Mail.cinch) · line 168
+[Source](/reference-sources/Text.Mail.cinch) · line 169
 
 <a id="value-6d61696c2d70617273652d616464726573732d6279746573"></a>
 
@@ -251,7 +251,7 @@ Parse exactly one address (a group is accepted when it holds exactly one).
 
 Parse exactly one address from raw header bytes, which need not be valid UTF-8 (invalid sequences are errors).
 
-[Source](/reference-sources/Text.Mail.cinch) · line 172
+[Source](/reference-sources/Text.Mail.cinch) · line 173
 
 <a id="value-6d61696c2d70617273652d616464726573732d6c697374"></a>
 
@@ -261,7 +261,7 @@ Parse exactly one address from raw header bytes, which need not be valid UTF-8 (
 
 Parse a comma-separated address list; groups contribute their members.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 184
+[Source](/reference-sources/Text.Mail.cinch) · line 185
 
 <a id="value-6d61696c2d70617273652d616464726573732d6c6973742d6279746573"></a>
 
@@ -271,7 +271,7 @@ Parse a comma-separated address list; groups contribute their members.
 
 Parse an address list from raw header bytes, which need not be valid UTF-8 (invalid sequences are errors).
 
-[Source](/reference-sources/Text.Mail.cinch) · line 188
+[Source](/reference-sources/Text.Mail.cinch) · line 189
 
 <a id="value-6d61696c2d70617273652d64617465"></a>
 
@@ -282,7 +282,7 @@ Parse an address list from raw header bytes, which need not be valid UTF-8 (inva
 Parse a header date: line breaks (CR LF) are removed first, a lone CR is rejected, and the date may use
 the obsolete forms (comments, two- and three-digit years, North American zone names).
 
-[Source](/reference-sources/Text.Mail.cinch) · line 579
+[Source](/reference-sources/Text.Mail.cinch) · line 578
 
 <a id="value-6d61696c2d726561642d6d657373616765"></a>
 
@@ -294,8 +294,8 @@ Read a message: header lines (folded continuation lines joined by one space) up 
 end of the input, then the body. Input that ends before any field or blank line is an empty message. Field names are canonicalized but not otherwise restricted; a field with
 an empty name is skipped, and leading blanks are removed from values.
 
-[Source](/reference-sources/Text.Mail.cinch) · line 615
+[Source](/reference-sources/Text.Mail.cinch) · line 614
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Mail.cinch`. Source SHA-256: `1885b646b2bcd7e39ad20326334b337c32e134496b8b0dc0cac4e14bea486090`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Mail.cinch`. Source SHA-256: `791992f32cbf219989711e534bdf5d0d10ee6a42abcc73c0dfb4593f23048a65`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

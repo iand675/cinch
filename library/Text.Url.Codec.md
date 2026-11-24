@@ -10,7 +10,7 @@ Import with `import Text.Url.Codec`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Url.Error](Text.Url.Error.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Url.Error](Text.Url.Error.md).
 
 Non-embedded source closure: [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md).
 
@@ -20,9 +20,9 @@ Byte-preserving percent escaping for URL components.
 Query components map spaces to plus and decode plus as space. Other contexts
 preserve plus. Percent decoding validates the complete input before returning
 fresh bytes; arbitrary decoded bytes never pass through a text conversion.
-Host and zone policies enforce their additional escape restrictions. SIMD
-classifiers skip complete ordinary spans; private exact-load loops retain
-backing owners. Checked bulk copies write percent triplets and ordinary runs.
+Host and zone policies enforce their additional escape restrictions. Portable
+16-byte SIMD classifiers skip complete ordinary spans over checked byte buffers.
+Checked bulk copies write percent triplets and ordinary runs.
 
 </details>
 
@@ -36,7 +36,7 @@ backing owners. Checked bulk copies write percent triplets and ordinary runs.
 
 The independent byte grammar of one URL component.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 24
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 25
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UrlPath</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">UrlEncoding</span></code></pre>
 
@@ -62,7 +62,7 @@ The independent byte grammar of one URL component.
 
 Encode one complete component into fresh bytes, preserving no caller aliases.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 241
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 276
 
 <a id="value-75726c2d657363617065642d6c656e677468"></a>
 
@@ -72,7 +72,7 @@ Encode one complete component into fresh bytes, preserving no caller aliases.
 
 Exact percent-encoded byte count; query-space substitution does not change length.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 178
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 187
 
 <a id="value-75726c2d706174682d657363617065"></a>
 
@@ -82,7 +82,7 @@ Exact percent-encoded byte count; query-space substitution does not change lengt
 
 Escape one arbitrary-byte path segment, including every slash inside the segment.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 423
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 476
 
 <a id="value-75726c2d706174682d6573636170652d74657874"></a>
 
@@ -92,7 +92,7 @@ Escape one arbitrary-byte path segment, including every slash inside the segment
 
 Escape UTF-8 text as an ASCII path segment; decoding remains byte based.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 439
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 492
 
 <a id="value-75726c2d706174682d756e657363617065"></a>
 
@@ -102,7 +102,7 @@ Escape UTF-8 text as an ASCII path segment; decoding remains byte based.
 
 Percent-decode a path component without treating plus as a space.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 427
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 480
 
 <a id="value-75726c2d71756572792d657363617065"></a>
 
@@ -112,7 +112,7 @@ Percent-decode a path component without treating plus as a space.
 
 Escape one arbitrary-byte query key or value, using plus for space.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 431
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 484
 
 <a id="value-75726c2d71756572792d6573636170652d74657874"></a>
 
@@ -122,7 +122,7 @@ Escape one arbitrary-byte query key or value, using plus for space.
 
 Escape UTF-8 text as an ASCII query component; decoding remains byte based.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 443
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 496
 
 <a id="value-75726c2d71756572792d756e657363617065"></a>
 
@@ -132,7 +132,7 @@ Escape UTF-8 text as an ASCII query component; decoding remains byte based.
 
 Decode a query key or value, mapping plus to space and retaining arbitrary decoded bytes.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 435
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 488
 
 <a id="value-75726c2d756e657363617065"></a>
 
@@ -142,7 +142,7 @@ Decode a query key or value, mapping plus to space and retaining arbitrary decod
 
 Decode a complete component to fresh arbitrary bytes, or return a precise failure without partial output.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 376
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 411
 
 <a id="value-75726c2d756e6573636170652d667261676d656e742d68696e74"></a>
 
@@ -152,7 +152,7 @@ Decode a complete component to fresh arbitrary bytes, or return a precise failur
 
 Decode a raw fragment hint only when its pchar spellings and percent triplets are valid.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 419
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 472
 
 <a id="value-75726c2d756e6573636170652d706174682d68696e74"></a>
 
@@ -162,8 +162,8 @@ Decode a raw fragment hint only when its pchar spellings and percent triplets ar
 
 Decode a raw path hint only when its pchar spellings and percent triplets are valid.
 
-[Source](/reference-sources/Text.Url.Codec.cinch) · line 415
+[Source](/reference-sources/Text.Url.Codec.cinch) · line 468
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Codec.cinch`. Source SHA-256: `17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Codec.cinch`. Source SHA-256: `2cb5c643e7890411875c3b745c05eb519be9484bd315bac841a108cf5a8dd5fc`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

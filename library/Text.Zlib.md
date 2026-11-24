@@ -1,6 +1,6 @@
 # Text.Zlib
 
-Compression/decompression operations and named malformed/unsupported-stream results.
+RFC 1950 zlib and raw DEFLATE compression (backed by Text.Flate LZ77 + dynamic Huffman) and decompression with named error results.
 
 <span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
 
@@ -10,9 +10,9 @@ Import with `import Text.Zlib`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md).
+[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Text.Flate](Text.Flate.md).
 
-Non-embedded source closure: [Text.Zlib](Text.Zlib.md).
+Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Flate](Text.Flate.md), [Text.Zlib](Text.Zlib.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -22,14 +22,14 @@ Text.Zlib: DEFLATE and its zlib wrapper (RFC 1951 under RFC 1950).
 blocks and dynamic Huffman blocks (the code-length alphabet's
 16/17/18 repeat codes included), LZ77 back-references over the full
 length and distance tables, the header's CM/CINFO/FDICT/FCHECK
-fields, and the trailing Adler-32. `deflate` is the other direction
-only, and deliberately asymmetric: it is a STORED-BLOCK encoder
-(RFC 1951 3.2.4), so what it writes is a legal zlib stream that
-every decoder accepts, never a compressed one. Bit-exactness with
-any particular encoder was never the shape; `inflate (deflate x) ==
-x` is, and the other direction is pinned by handing the encoder's
-output to a real decoder (python's `zlib`, in
-seed/tests/lib_zlib.rs).
+fields, and the trailing Adler-32. `deflate` and `deflate-raw`
+perform real RFC 1951 DEFLATE compression via `Text.Flate` (LZ77
+matching with fixed/dynamic/stored block selection), with explicit
+`deflate-level` / `deflate-raw-level` variants for choosing a
+`FlateCompression` level and `deflate-stored` / `deflate-raw-stored`
+preserved for uncompressed stored-block output. `inflate (deflate x)
+== x` holds for every input, and interoperability is verified against
+independent decoders in seed/tests/lib_zlib.rs.
 
 THE DESIGN LAW SHAPE: decoding never guesses. Nothing here produces
 bytes it cannot justify, and every refusal names itself:
@@ -53,13 +53,14 @@ bytes it cannot justify, and every refusal names itself:
 
 NAMED REFUSALS at the boundary (what this module deliberately does
 not do): gzip framing lives with the gzip codec; raw blocks are available
-through inflate-raw-at and deflate-raw. There is no
-preset dictionary (an FDICT stream refuses as `BadHeader`), no
-streaming or incremental API (inflate takes the whole stream and
-returns the whole result, and so does the encoder). The optional
-deflate-raw-rle encoder compresses repeated bytes with fixed Huffman
-codes. The zlib wrapper has no trailing-data check (bytes
-after the Adler-32 belong to no stream this module reads).
+through inflate-raw-at, deflate-raw, deflate-raw-level, and
+deflate-raw-stored. There is no preset dictionary (an FDICT stream
+refuses as `BadHeader`), no streaming or incremental API (inflate takes
+the whole stream and returns the whole result, and so does the encoder).
+The optional deflate-raw-rle encoder compresses repeated bytes with
+fixed Huffman codes and falls back to stored blocks. The zlib wrapper
+has no trailing-data check (bytes after the Adler-32 belong to no
+stream this module reads).
 
 The window claimed is CINFO 7 in both directions: the decoder
 accepts the 32K maximum and the encoder declares exactly what it
@@ -107,7 +108,7 @@ one is a value, never a fault: a malformed stream is an outcome
 the caller reads, and the whole result is discarded (no partial
 bytes cross the boundary).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 101
+[Source](/reference-sources/Text.Zlib.cinch) · line 103
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
 
@@ -128,7 +129,7 @@ bytes cross the boundary).
 The checksum's low 32 bits (both halves are below 65521, so the
 residue is the value itself; it is the conversion's evidence).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 155
+[Source](/reference-sources/Text.Zlib.cinch) · line 157
 
 <a id="value-6372633332"></a>
 
@@ -139,7 +140,7 @@ residue is the value itself; it is the conversion's evidence).
 CRC-32: the IEEE 802.3 polynomial reflected (0xEDB88320), seeded
 all ones and finished inverted (the checksum gzip and PNG carry).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 169
+[Source](/reference-sources/Text.Zlib.cinch) · line 171
 
 <a id="value-6465666c617465"></a>
 
@@ -147,14 +148,21 @@ all ones and finished inverted (the checksum gzip and PNG carry).
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-The zlib stream for `src`: header 0x78 0x01 (CM 8, CINFO 7,
-FLEVEL 0, FDICT clear, FCHECK 1, the pair a multiple of 31), one
-stored block per 65535-byte chunk with the last one final (one
-empty final block for no bytes: a stream still needs one), and the
-Adler-32 of `src` big-endian. The buffer is sized exactly, so
-nothing is copied twice.
+Encode a zlib stream (RFC 1950) using default DEFLATE compression.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 743
+[Source](/reference-sources/Text.Zlib.cinch) · line 767
+
+<a id="value-6465666c6174652d6c6576656c"></a>
+
+## `deflate-level`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-level</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+
+Encode a zlib stream (RFC 1950) at the given DEFLATE compression level,
+setting the header FLEVEL bits accordingly and falling back to stored
+blocks if the level is invalid.
+
+[Source](/reference-sources/Text.Zlib.cinch) · line 773
 
 <a id="value-6465666c6174652d726177"></a>
 
@@ -162,9 +170,20 @@ nothing is copied twice.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-raw</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
 
-Encode raw DEFLATE using stored blocks of up to 65535 bytes each.
+Encode a raw DEFLATE stream (RFC 1951) using default compression.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 751
+[Source](/reference-sources/Text.Zlib.cinch) · line 790
+
+<a id="value-6465666c6174652d7261772d6c6576656c"></a>
+
+## `deflate-raw-level`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-raw-level</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Flate</span>.<span class="tok-constructor">FlateCompression</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+
+Encode a raw DEFLATE stream (RFC 1951) at the given compression level,
+falling back to stored blocks if the level is invalid.
+
+[Source](/reference-sources/Text.Zlib.cinch) · line 795
 
 <a id="value-6465666c6174652d7261772d726c65"></a>
 
@@ -175,7 +194,29 @@ Encode raw DEFLATE using stored blocks of up to 65535 bytes each.
 Encode a raw DEFLATE stream using fixed Huffman codes and distance-one
 runs of up to 258 bytes. Choose stored blocks when they would be smaller.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 756
+[Source](/reference-sources/Text.Zlib.cinch) · line 809
+
+<a id="value-6465666c6174652d7261772d73746f726564"></a>
+
+## `deflate-raw-stored`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-raw-stored</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Encode a raw DEFLATE stream (RFC 1951) using stored blocks of up to
+65535 bytes each.
+
+[Source](/reference-sources/Text.Zlib.cinch) · line 804
+
+<a id="value-6465666c6174652d73746f726564"></a>
+
+## `deflate-stored`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-stored</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+
+Encode a zlib stream (RFC 1950) using uncompressed stored blocks
+(header 0x78 0x01, one stored block per 65535-byte chunk, trailing Adler-32).
+
+[Source](/reference-sources/Text.Zlib.cinch) · line 782
 
 <a id="value-696e666c617465"></a>
 
@@ -185,7 +226,7 @@ runs of up to 258 bytes. Choose stored blocks when they would be smaller.
 
 The whole stream: header, blocks, trailing Adler-32.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 457
+[Source](/reference-sources/Text.Zlib.cinch) · line 459
 
 <a id="value-696e666c6174652d7261772d6174"></a>
 
@@ -196,8 +237,8 @@ The whole stream: header, blocks, trailing Adler-32.
 Decode one raw DEFLATE stream at a byte offset. Return its bytes and the
 absolute offset following the final padded block. Leave trailing bytes unread.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 466
+[Source](/reference-sources/Text.Zlib.cinch) · line 468
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zlib.cinch`. Source SHA-256: `c39f929789f55ade95b2557d1311b7adf0fa2990be85cce753021af98bcdbeb4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zlib.cinch`. Source SHA-256: `e1f1d44960a4ab98906525dea42b6fd086b091f827b23b4b5792343cc94c7ff9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

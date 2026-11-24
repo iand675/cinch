@@ -1,0 +1,1691 @@
+-- | Raw DEFLATE (RFC 1951) compression and decompression with preset dictionaries.
+-- Compression supports stored blocks, fixed Huffman blocks, and dynamic Huffman
+-- blocks with length-limited canonical codes generated via package-merge, a
+-- 3-byte hash-chain LZ77 match finder over a 32 KiB sliding window, lazy
+-- matching at higher levels, and Huffman-only mode. Decompression supports
+-- stored, fixed, and dynamic blocks with 9-bit direct table lookup, canonical
+-- overflow decoding, preset dictionaries, exact consumed-byte reporting, and
+-- optional output bounds.
+module Text.Flate where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show (nat-to-string)
+
+  export FlateCompression, FlateNoCompression, FlateBestSpeed, FlateLevel
+  export FlateDefaultCompression, FlateBestCompression, FlateHuffmanOnly
+  export FlateError, FlateCorruptInput, FlateUnexpectedEof, FlateBadLevel
+  export FlateOutputLimitExceeded, FlateUnsupportedBlock
+  export flate-error-message, flate-level-from-int
+  export flate-compress, flate-compress-dict
+  export flate-decompress, flate-decompress-at, flate-decompress-limit
+  export flate-decompress-dict, flate-decompress-dict-limit, flate-decompress-at-dict-limit
+  export flate-compress-chunk, flate-sync-flush, flate-decompress-block
+
+  -- ---------------------------------------------------------------------
+  -- Public types and error vocabulary.
+  -- ---------------------------------------------------------------------
+
+  -- | Compression level controlling LZ77 search depth and Huffman coding.
+  data FlateCompression where
+    -- | Store input uncompressed in type-0 stored blocks (level 0).
+    FlateNoCompression :: FlateCompression
+    -- | Fastest LZ77 compression (level 1).
+    FlateBestSpeed :: FlateCompression
+    -- | Explicit compression level between 1 and 9 inclusive.
+    FlateLevel :: Nat -> FlateCompression
+    -- | Balanced default compression (equivalent to level 6).
+    FlateDefaultCompression :: FlateCompression
+    -- | Maximum compression search effort (equivalent to level 9).
+    FlateBestCompression :: FlateCompression
+    -- | Skip LZ77 string matching and apply Huffman coding only (level -2).
+    FlateHuffmanOnly :: FlateCompression
+
+  -- | Named failures for raw DEFLATE encoding and decoding.
+  data FlateError where
+    -- | Malformed DEFLATE bitstream encountered near this byte offset.
+    FlateCorruptInput :: Nat -> FlateError
+    -- | Input ended before the final DEFLATE block completed.
+    FlateUnexpectedEof :: FlateError
+    -- | Requested compression level is outside the supported range.
+    FlateBadLevel :: FlateError
+    -- | Decompressed output exceeded the caller's configured byte limit.
+    FlateOutputLimitExceeded :: FlateError
+    -- | Reserved block type 3 was encountered in the bitstream.
+    FlateUnsupportedBlock :: FlateError
+
+  -- | Render a human-readable diagnostic for a raw DEFLATE failure.
+  flate-error-message :: FlateError -> String
+  flate-error-message err = case err of
+    FlateCorruptInput offset -> string-concat "flate: corrupt input before offset " (nat-to-string offset)
+    FlateUnexpectedEof -> "flate: unexpected end of input"
+    FlateBadLevel -> "flate: invalid compression level"
+    FlateOutputLimitExceeded -> "flate: decompressed output exceeds limit"
+    FlateUnsupportedBlock -> "flate: unsupported reserved block type"
+
+  -- | Convert an integer compression level (-2 for Huffman-only, -1 for default,
+  -- 0 for no compression, 1..9 for explicit levels) into a FlateCompression value.
+  flate-level-from-int :: Int -> Result FlateError FlateCompression
+  flate-level-from-int lv =
+    if lv == -2 then Ok FlateHuffmanOnly
+    else if lv == -1 then Ok FlateDefaultCompression
+    else if lv == 0 then Ok FlateNoCompression
+    else if lv == 1 then Ok FlateBestSpeed
+    else if lv == 9 then Ok FlateBestCompression
+    else if lv >= 2 && lv <= 8 then Ok (FlateLevel (nat-from-int lv))
+    else Err FlateBadLevel
+
+  -- ---------------------------------------------------------------------
+  -- Checked scalar, byte, and 32-bit word table helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Read one byte or return 0 when out of bounds.
+  byte-at :: Bytes -> Nat -> Nat
+  byte-at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Store one byte when index and value are in range.
+  byte-put :: Bytes -> Nat -> Nat -> Unit
+  byte-put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | Saturating natural subtraction.
+  sub-sat :: Nat -> Nat -> Nat
+  sub-sat a b = if b <= a then a - b else 0
+
+  -- | Minimum of two natural numbers.
+  min-nat :: Nat -> Nat -> Nat
+  min-nat a b = if a < b then a else b
+
+  -- | Maximum of two natural numbers.
+  max-nat :: Nat -> Nat -> Nat
+  max-nat a b = if a > b then a else b
+
+  -- | Convert a natural number below 2^32 to U32.
+  nat-u32 :: Nat -> U32
+  nat-u32 n = if n < 4294967296 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
+
+  -- | Convert a natural number below 2^32 to U64.
+  nat-u64 :: Nat -> U64
+  nat-u64 n = u32-to-u64 (nat-u32 n)
+
+  -- | Compute 2^n for small n (< 32) using a machine shift.
+  pow2 :: Nat -> Nat
+  pow2 n = u32-to-nat (wrapping-shl-u32 1 (nat-u32 n))
+
+  -- | Read a little-endian 32-bit word at slot index i (byte offset i * 4).
+  get-u32 :: Bytes -> Nat -> U32
+  get-u32 buf idx =
+    let off = idx * 4 in
+    if off + 4 <= bytes-len buf then bytes-read-le32 buf off else 0
+
+  -- | Write a little-endian 32-bit word at slot index i (byte offset i * 4).
+  set-u32 :: Bytes -> Nat -> U32 -> Unit
+  set-u32 buf idx v =
+    let off = idx * 4 in
+    if off + 4 <= bytes-len buf then bytes-write-le32 buf off v else ()
+
+  -- | Read a natural number stored in 32-bit slot index i.
+  get-w :: Bytes -> Nat -> Nat
+  get-w buf idx = u32-to-nat (get-u32 buf idx)
+
+  -- | Write a natural number (< 2^32) into 32-bit slot index i.
+  set-w :: Bytes -> Nat -> Nat -> Unit
+  set-w buf idx v = set-u32 buf idx (nat-u32 v)
+
+  -- | Increment the 32-bit counter at slot index i by 1.
+  inc-w :: Bytes -> Nat -> Unit
+  inc-w buf idx = set-u32 buf idx (wrapping-add-u32 (get-u32 buf idx) 1)
+
+  -- | Checked bulk range copy between byte buffers.
+  copy-range :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  copy-range dst src di si n =
+    if di + n <= bytes-len dst && si + n <= bytes-len src then bytes-copy-range dst src di si n
+    else ()
+
+  -- | Extract an owned slice [start .. start + len) from a buffer.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes src start len =
+    let out = bytes-new len in
+    let copied = copy-range out src 0 start len in
+    out
+
+  -- | Read a little-endian 16-bit integer at byte offset p.
+  le16-at :: Bytes -> Nat -> Nat
+  le16-at src p = byte-at src p + byte-at src (p + 1) * 256
+
+  -- | Reverse the lowest width bits (1..15) of a canonical Huffman code for LSB-first output.
+  reverse-code :: Nat -> Nat -> Nat
+  reverse-code code width =
+    if width == 0 || width > 32 then 0
+    else u32-to-nat (wrapping-shr-u32 (reverse-bits-u32 (nat-u32 code)) (nat-u32 (32 - width)))
+
+  -- ---------------------------------------------------------------------
+  -- RFC 1951 static length, distance, and code-length tables.
+  -- ---------------------------------------------------------------------
+
+  -- | Maximum 32 KiB DEFLATE sliding window size.
+  window-size :: Nat
+  window-size = 32768
+
+  -- | Default upper limit for unbounded decompression (1 GiB).
+  default-limit :: Nat
+  default-limit = 1073741824
+
+  -- | Base length for length symbol 257..285 (indexed by sym - 257).
+  len-base-of :: Nat -> Nat
+  len-base-of k =
+    if k < 8 then 3 + k
+    else if k == 8 then 11
+    else if k == 9 then 13
+    else if k == 10 then 15
+    else if k == 11 then 17
+    else if k == 12 then 19
+    else if k == 13 then 23
+    else if k == 14 then 27
+    else if k == 15 then 31
+    else if k == 16 then 35
+    else if k == 17 then 43
+    else if k == 18 then 51
+    else if k == 19 then 59
+    else if k == 20 then 67
+    else if k == 21 then 83
+    else if k == 22 then 99
+    else if k == 23 then 115
+    else if k == 24 then 131
+    else if k == 25 then 163
+    else if k == 26 then 195
+    else if k == 27 then 227
+    else 258
+
+  -- | Extra bit count for length symbol 257..285 (indexed by sym - 257).
+  len-extra-of :: Nat -> Nat
+  len-extra-of k =
+    if k < 8 || k == 28 then 0
+    else if k < 12 then 1
+    else if k < 16 then 2
+    else if k < 20 then 3
+    else if k < 24 then 4
+    else 5
+
+  -- | Base distance for distance symbol 0..29.
+  dist-base-of :: Nat -> Nat
+  dist-base-of k =
+    if k < 4 then k + 1
+    else if k == 4 then 5
+    else if k == 5 then 7
+    else if k == 6 then 9
+    else if k == 7 then 13
+    else if k == 8 then 17
+    else if k == 9 then 25
+    else if k == 10 then 33
+    else if k == 11 then 49
+    else if k == 12 then 65
+    else if k == 13 then 97
+    else if k == 14 then 129
+    else if k == 15 then 193
+    else if k == 16 then 257
+    else if k == 17 then 385
+    else if k == 18 then 513
+    else if k == 19 then 769
+    else if k == 20 then 1025
+    else if k == 21 then 1537
+    else if k == 22 then 2049
+    else if k == 23 then 3073
+    else if k == 24 then 4097
+    else if k == 25 then 6145
+    else if k == 26 then 8193
+    else if k == 27 then 12289
+    else if k == 28 then 16385
+    else 24577
+
+  -- | Extra bit count for distance symbol 0..29.
+  dist-extra-of :: Nat -> Nat
+  dist-extra-of k = if k < 4 then 0 else nat-div (k - 2) 2
+
+  -- | Code-length alphabet symbol transmitted at header position k (0..18).
+  cl-order-of :: Nat -> Nat
+  cl-order-of k =
+    if k == 0 then 16
+    else if k == 1 then 17
+    else if k == 2 then 18
+    else if k == 3 then 0
+    else if k == 4 then 8
+    else if k == 5 then 7
+    else if k == 6 then 9
+    else if k == 7 then 6
+    else if k == 8 then 10
+    else if k == 9 then 5
+    else if k == 10 then 11
+    else if k == 11 then 4
+    else if k == 12 then 12
+    else if k == 13 then 3
+    else if k == 14 then 13
+    else if k == 15 then 2
+    else if k == 16 then 14
+    else if k == 17 then 1
+    else 15
+
+  -- | Extra bits carried by code-length symbol c (0..18).
+  cl-extra-of :: Nat -> Nat
+  cl-extra-of c =
+    if c == 16 then 2
+    else if c == 17 then 3
+    else if c == 18 then 7
+    else 0
+
+  -- | Fixed Huffman code length for literal/length symbol 0..287.
+  fixed-lit-len-of :: Nat -> Nat
+  fixed-lit-len-of s =
+    if s < 144 then 8
+    else if s < 256 then 9
+    else if s < 280 then 7
+    else 8
+
+  -- | Map a match length (3..258) to its RFC 1951 length symbol (257..285).
+  encode-len-sym :: Nat -> Nat
+  encode-len-sym mlen =
+    if mlen < 11 then 254 + mlen
+    else if mlen < 19 then 265 + nat-div (mlen - 11) 2
+    else if mlen < 35 then 269 + nat-div (mlen - 19) 4
+    else if mlen < 67 then 273 + nat-div (mlen - 35) 8
+    else if mlen < 131 then 277 + nat-div (mlen - 67) 16
+    else if mlen < 258 then 281 + nat-div (mlen - 131) 32
+    else 285
+
+  -- | Map a match distance (1..32768) to its RFC 1951 distance symbol (0..29).
+  encode-dist-sym :: Nat -> Nat
+  encode-dist-sym dist =
+    let d = sub-sat dist 1 in
+    if d < 4 then d
+    else
+      let dw = nat-u32 d in
+      let lz = u32-to-nat (leading-zeros-u32 dw) in
+      let msb = sub-sat 31 lz in
+      let shift = sub-sat msb 1 in
+      let half = u32-to-nat (bit-and-u32 (wrapping-shr-u32 dw (nat-u32 shift)) 1) in
+      msb * 2 + half
+
+  -- ---------------------------------------------------------------------
+  -- Fast 64-bit LSB-first bit reader for decoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Buffered bit reader over an input buffer: source, next unread byte index,
+  -- pending low-first bits, and count of valid bits in the accumulator.
+  data BitReader where
+    -- | Private fields: source buffer, byte cursor, bit buffer, valid bit count.
+    BitReader :: Bytes -> Nat -> U64 -> Nat -> BitReader
+
+  -- | Construct a bit reader starting at an absolute byte offset.
+  br-at :: Bytes -> Nat -> BitReader
+  br-at src pos = BitReader src pos 0 0
+
+  -- | Construct a bit reader starting at an absolute bit offset.
+  br-at-bit :: Bytes -> Nat -> BitReader
+  br-at-bit src bitpos =
+    let byte-i = nat-div bitpos 8 in
+    let skip = nat-rem bitpos 8 in
+    if skip == 0 then BitReader src byte-i 0 0
+    else if byte-i < bytes-len src then
+      let b = nat-u64 (bytes-get src byte-i) in
+      BitReader src (byte-i + 1) (wrapping-shr-u64 b (nat-u32 skip)) (8 - skip)
+    else BitReader src (bytes-len src) 0 0
+
+  -- | Exact byte index of the next byte containing unread bits (aligned up).
+  br-aligned-byte :: BitReader -> Nat
+  br-aligned-byte br = case br of
+    BitReader src pos buf nbits -> sub-sat pos (nat-div nbits 8)
+
+  -- | Exact current bit position in the input buffer.
+  br-bitpos :: BitReader -> Nat
+  br-bitpos br = case br of
+    BitReader src pos buf nbits -> sub-sat (pos * 8) nbits
+
+  -- | Discard padding bits up to the next whole byte boundary.
+  br-align :: BitReader -> BitReader
+  br-align br = case br of
+    BitReader src pos buf nbits ->
+      let aligned = sub-sat pos (nat-div nbits 8) in
+      BitReader src aligned 0 0
+
+  -- | Refill the bit accumulator so at least 32 bits are buffered when available.
+  br-refill :: BitReader -> BitReader
+  br-refill br = case br of
+    BitReader src pos buf nbits ->
+      if nbits >= 32 then br
+      else if pos + 4 <= bytes-len src then
+        let w = u32-to-u64 (bytes-read-le32 src pos) in
+        BitReader src (pos + 4) (bit-or-u64 buf (wrapping-shl-u64 w (nat-u32 nbits))) (nbits + 32)
+      else br-refill-bytes src pos buf nbits
+
+  -- | Load remaining tail bytes one by one up to 56 bits.
+  br-refill-bytes :: Bytes -> Nat -> U64 -> Nat -> BitReader
+  br-refill-bytes src pos buf nbits =
+    if pos < bytes-len src && nbits <= 56 then
+      let b = nat-u64 (bytes-get src pos) in
+      br-refill-bytes src (pos + 1) (bit-or-u64 buf (wrapping-shl-u64 b (nat-u32 nbits))) (nbits + 8)
+    else BitReader src pos buf nbits
+
+  -- | Consume k bits already confirmed to reside in the accumulator.
+  br-drop :: BitReader -> Nat -> BitReader
+  br-drop br k = case br of
+    BitReader src pos buf nbits ->
+      BitReader src pos (wrapping-shr-u64 buf (nat-u32 k)) (sub-sat nbits k)
+
+  -- | Read n (0..16) LSB-first bits as a natural number.
+  br-read :: BitReader -> Nat -> Result FlateError (BitReader, Nat)
+  br-read br n =
+    if n == 0 then Ok (br, 0)
+    else
+      let br1 = br-refill br in
+      case br1 of
+        BitReader src pos buf nbits ->
+          if nbits < n then Err FlateUnexpectedEof
+          else
+            let mask = wrapping-sub-u64 (wrapping-shl-u64 1 (nat-u32 n)) 1 in
+            let val = u32-to-nat (wrapping-u64-to-u32 (bit-and-u64 buf mask)) in
+            Ok (BitReader src pos (wrapping-shr-u64 buf (nat-u32 n)) (nbits - n), val)
+
+  -- ---------------------------------------------------------------------
+  -- Canonical Huffman decoding table (9-bit direct + canonical overflow).
+  -- ---------------------------------------------------------------------
+
+  -- | Canonical Huffman decoding table with a 512-entry 9-bit direct lookup
+  -- table and canonical per-length arrays for 10..15-bit codes.
+  data HuffTable where
+    -- | Private fields: max length, direct table, per-length counts, first codes, first offsets, sorted symbols.
+    HuffTable :: Nat -> Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> HuffTable
+
+  -- | Build a validated canonical Huffman table from symbol code lengths.
+  -- Rejects oversubscribed trees and incomplete multi-symbol trees.
+  build-huff-table :: Bytes -> Nat -> Nat -> Result FlateError HuffTable
+  build-huff-table lens count err-off =
+    let counts = bytes-new 64 in
+    case count-lengths lens count 0 counts 0 0 err-off of
+      Err e -> Err e
+      Ok (max-len, num-syms) ->
+        if num-syms == 0 then
+          Ok (HuffTable 0 (bytes-new 2048) counts (bytes-new 64) (bytes-new 64) (bytes-new 4))
+        else if check-kraft counts 1 1 num-syms then
+          let first-code = bytes-new 64 in
+          let first-off = bytes-new 64 in
+          let next-code = bytes-new 64 in
+          let next-off = bytes-new 64 in
+          let u1 = compute-canonical-starts (CanonTables counts first-code first-off next-code next-off) 1 0 0 in
+          let syms = bytes-new (num-syms * 4) in
+          let fast = bytes-new 2048 in
+          let u2 = populate-huff-table lens count 0 next-code next-off syms fast in
+          Ok (HuffTable max-len fast counts first-code first-off syms)
+        else Err (FlateCorruptInput err-off)
+
+  -- | Per-length canonical Huffman table buffers for start/next code and offset calculation.
+  data CanonTables where
+    -- | Private fields: per-length counts, first codes, first offsets, next codes, next offsets.
+    CanonTables :: Bytes -> Bytes -> Bytes -> Bytes -> Bytes -> CanonTables
+
+  -- | Count code-length occurrences and verify all lengths are <= 15.
+  count-lengths :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat -> Nat -> Result FlateError (Nat, Nat)
+  count-lengths lens count i counts max-len num-syms err-off =
+    if i >= count then Ok (max-len, num-syms)
+    else
+      let l = byte-at lens i in
+      if l > 15 then Err (FlateCorruptInput err-off)
+      else if l == 0 then count-lengths lens count (i + 1) counts max-len num-syms err-off
+      else
+        let u = inc-w counts l in
+        count-lengths lens count (i + 1) counts (max-nat max-len l) (num-syms + 1) err-off
+
+  -- | Validate Kraft's inequality: reject oversubscribed codes and incomplete
+  -- multi-symbol trees (permitting a single symbol of length 1).
+  check-kraft :: Bytes -> Nat -> Nat -> Nat -> Bool
+  check-kraft counts bits left num-syms =
+    if bits > 15 then
+      left == 0 || (num-syms == 1 && get-w counts 1 == 1)
+    else
+      let avail = left * 2 in
+      let cnt = get-w counts bits in
+      if cnt > avail then False
+      else check-kraft counts (bits + 1) (avail - cnt) num-syms
+
+  -- | Compute canonical first code and first symbol-array offset for each length 1..15.
+  compute-canonical-starts :: CanonTables -> Nat -> Nat -> Nat -> Unit
+  compute-canonical-starts tables bits code off =
+    if bits > 15 then ()
+    else case tables of
+      CanonTables counts first-code first-off next-code next-off ->
+        let u1 = set-w first-code bits code in
+        let u2 = set-w next-code bits code in
+        let u3 = set-w first-off bits off in
+        let u4 = set-w next-off bits off in
+        let cnt = get-w counts bits in
+        compute-canonical-starts tables (bits + 1) ((code + cnt) * 2) (off + cnt)
+
+  -- | Populate the sorted symbol array and the 9-bit direct lookup table.
+  populate-huff-table :: Bytes -> Nat -> Nat -> Bytes -> Bytes -> Bytes -> Bytes -> Unit
+  populate-huff-table lens count sym next-code next-off syms fast =
+    if sym >= count then ()
+    else
+      let l = byte-at lens sym in
+      if l == 0 then populate-huff-table lens count (sym + 1) next-code next-off syms fast
+      else
+        let code = get-w next-code l in
+        let off = get-w next-off l in
+        let u1 = set-w next-code l (code + 1) in
+        let u2 = set-w next-off l (off + 1) in
+        let u3 = set-w syms off sym in
+        let u4 = (if l <= 9 then
+          let rev = reverse-code code l in
+          let step = pow2 l in
+          let entry = sym * 256 + l in
+          fill-fast-slots fast rev step entry
+        else ()) in
+        populate-huff-table lens count (sym + 1) next-code next-off syms fast
+
+  -- | Fill all 9-bit table slots matching a reversed prefix of length <= 9.
+  fill-fast-slots :: Bytes -> Nat -> Nat -> Nat -> Unit
+  fill-fast-slots fast idx step entry =
+    if idx >= 512 then ()
+    else
+      let u = set-w fast idx entry in
+      fill-fast-slots fast (idx + step) step entry
+
+  -- | Decode one canonical Huffman symbol from the bit reader.
+  decode-huff :: BitReader -> HuffTable -> Result FlateError (BitReader, Nat)
+  decode-huff br tab = case tab of
+    HuffTable max-len fast counts first-code first-off syms ->
+      if max-len == 0 then Err (FlateCorruptInput (br-aligned-byte br))
+      else
+        let br1 = br-refill br in
+        case br1 of
+          BitReader src pos buf nbits ->
+            if nbits == 0 then Err FlateUnexpectedEof
+            else
+              let idx = u32-to-nat (bit-and-u32 (wrapping-u64-to-u32 buf) 511) in
+              let entry = get-w fast idx in
+              let l = nat-rem entry 256 in
+              if l > 0 then
+                if l <= nbits then Ok (br-drop br1 l, nat-div entry 256)
+                else Err FlateUnexpectedEof
+              else decode-huff-slow br1 tab 1 0
+
+  -- | Bit-by-bit canonical fallback for codes longer than 9 bits or invalid prefixes.
+  decode-huff-slow :: BitReader -> HuffTable -> Nat -> Nat -> Result FlateError (BitReader, Nat)
+  decode-huff-slow br tab l code =
+    case br of
+      BitReader src pos buf nbits ->
+        if l > nbits then Err FlateUnexpectedEof
+        else case tab of
+          HuffTable max-len fast counts first-code first-off syms ->
+            let bit = u32-to-nat (bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 buf (nat-u32 (sub-sat l 1)))) 1) in
+            let next-c = code * 2 + bit in
+            let cnt = get-w counts l in
+            let fc = get-w first-code l in
+            if cnt > 0 && fc <= next-c && next-c < fc + cnt then
+              let sym = get-w syms (get-w first-off l + (next-c - fc)) in
+              Ok (br-drop br l, sym)
+            else if l >= max-len then Err (FlateCorruptInput (br-aligned-byte br))
+            else decode-huff-slow br tab (l + 1) next-c
+
+  -- | Build the RFC 1951 fixed literal/length Huffman table.
+  make-fixed-lit-table :: Unit -> HuffTable
+  make-fixed-lit-table u =
+    let lens = bytes-new 288 in
+    let filled = fill-fixed-lit-lens lens 0 in
+    case build-huff-table lens 288 0 of
+      Ok t -> t
+      Err e -> HuffTable 0 (bytes-new 2048) (bytes-new 64) (bytes-new 64) (bytes-new 64) (bytes-new 4)
+
+  -- | Populate the 288 fixed literal/length code lengths.
+  fill-fixed-lit-lens :: Bytes -> Nat -> Unit
+  fill-fixed-lit-lens lens i =
+    if i >= 288 then ()
+    else
+      let u = byte-put lens i (fixed-lit-len-of i) in
+      fill-fixed-lit-lens lens (i + 1)
+
+  -- | Build the RFC 1951 fixed distance Huffman table (32 five-bit codes).
+  make-fixed-dist-table :: Unit -> HuffTable
+  make-fixed-dist-table u =
+    let lens = bytes-new 32 in
+    let filled = fill-const-bytes lens 0 32 5 in
+    case build-huff-table lens 32 0 of
+      Ok t -> t
+      Err e -> HuffTable 0 (bytes-new 2048) (bytes-new 64) (bytes-new 64) (bytes-new 64) (bytes-new 4)
+
+  -- | Fill count consecutive bytes with a constant value.
+  fill-const-bytes :: Bytes -> Nat -> Nat -> Nat -> Unit
+  fill-const-bytes b i count val =
+    if i >= count then ()
+    else
+      let u = byte-put b i val in
+      fill-const-bytes b (i + 1) count val
+
+  -- ---------------------------------------------------------------------
+  -- Growing output buffer with preset dictionary prefix.
+  -- ---------------------------------------------------------------------
+
+  -- | Output accumulator: backing buffer, total written bytes (including
+  -- dictionary prefix), dictionary prefix length, and maximum allowed output bytes.
+  data OutBuf where
+    -- | Private fields: buffer, total cursor, dictionary prefix length, output limit.
+    OutBuf :: Bytes -> Nat -> Nat -> Nat -> OutBuf
+
+  -- | Initialize an output buffer pre-populated with up to 32 KiB of the tail of dict.
+  out-init :: Bytes -> Nat -> Nat -> OutBuf
+  out-init dict initial-cap limit =
+    let dlen = min-nat (bytes-len dict) window-size in
+    let dstart = sub-sat (bytes-len dict) dlen in
+    let cap = max-nat (dlen + initial-cap) (dlen + 256) in
+    let buf = bytes-new cap in
+    let u = copy-range buf dict 0 dstart dlen in
+    OutBuf buf dlen dlen limit
+
+  -- | Ensure at least need additional bytes fit in the output buffer, enforcing limit.
+  out-ensure :: OutBuf -> Nat -> Result FlateError OutBuf
+  out-ensure ob need = case ob of
+    OutBuf buf len dlen limit ->
+      let produced = sub-sat len dlen in
+      if produced + need > limit then Err FlateOutputLimitExceeded
+      else if len + need <= bytes-len buf then Ok ob
+      else
+        let cap2 = max-nat (bytes-len buf * 2) (len + need) in
+        let buf2 = bytes-new cap2 in
+        let u = copy-range buf2 buf 0 0 len in
+        Ok (OutBuf buf2 len dlen limit)
+
+  -- | Append one literal byte to the output buffer.
+  out-push-byte :: OutBuf -> Nat -> Result FlateError OutBuf
+  out-push-byte ob v = case ob of
+    OutBuf buf len dlen limit ->
+      if sub-sat len dlen >= limit then Err FlateOutputLimitExceeded
+      else if len < bytes-len buf then
+        let u = byte-put buf len v in
+        Ok (OutBuf buf (len + 1) dlen limit)
+      else case out-ensure ob 1 of
+        Err e -> Err e
+        Ok ob2 -> case ob2 of
+          OutBuf buf2 len2 dlen2 limit2 ->
+            let u = byte-put buf2 len2 v in
+            Ok (OutBuf buf2 (len2 + 1) dlen2 limit2)
+
+  -- | Copy a back-reference of length mlen from distance dist behind the write head.
+  -- Uses bulk copy when non-overlapping and doubling/byte copy when overlapping.
+  out-copy-match :: OutBuf -> Nat -> Nat -> Nat -> Result FlateError OutBuf
+  out-copy-match ob mlen dist err-off = case ob of
+    OutBuf buf len dlen limit ->
+      if dist == 0 || dist > len then Err (FlateCorruptInput err-off)
+      else case out-ensure ob mlen of
+        Err e -> Err e
+        Ok ob2 -> case ob2 of
+          OutBuf buf2 len2 dlen2 limit2 ->
+            let src-pos = sub-sat len2 dist in
+            let u = (if dist >= mlen then copy-range buf2 buf2 len2 src-pos mlen
+              else copy-overlap buf2 len2 dist mlen) in
+            Ok (OutBuf buf2 (len2 + mlen) dlen2 limit2)
+
+  -- | Copy an overlapping back-reference using doubling range copies.
+  copy-overlap :: Bytes -> Nat -> Nat -> Nat -> Unit
+  copy-overlap buf dst dist rem =
+    if rem == 0 then ()
+    else
+      let chunk = min-nat dist rem in
+      let u = copy-range buf buf dst (sub-sat dst dist) chunk in
+      copy-overlap buf (dst + chunk) (dist + chunk) (sub-sat rem chunk)
+
+  -- | Extract the decoded output bytes (excluding the dictionary prefix).
+  out-extract :: OutBuf -> Bytes
+  out-extract ob = case ob of
+    OutBuf buf len dlen limit -> slice-bytes buf dlen (sub-sat len dlen)
+
+  -- ---------------------------------------------------------------------
+  -- Core RFC 1951 DEFLATE decoder.
+  -- ---------------------------------------------------------------------
+
+  -- | Decompress a raw DEFLATE stream starting at offset 0.
+  -- Returns the decompressed bytes and the exact count of input bytes consumed.
+  flate-decompress :: Bytes -> Result FlateError (Bytes, Nat)
+  flate-decompress src = flate-decompress-at-dict-limit default-limit (bytes-new 0) src 0
+
+  -- | Decompress a raw DEFLATE stream starting at byte offset start.
+  -- Returns the decompressed bytes and the byte offset immediately after the stream.
+  flate-decompress-at :: Bytes -> Nat -> Result FlateError (Bytes, Nat)
+  flate-decompress-at src start = flate-decompress-at-dict-limit default-limit (bytes-new 0) src start
+
+  -- | Decompress a raw DEFLATE stream with an explicit maximum output size in bytes.
+  flate-decompress-limit :: Nat -> Bytes -> Result FlateError (Bytes, Nat)
+  flate-decompress-limit limit src = flate-decompress-at-dict-limit limit (bytes-new 0) src 0
+
+  -- | Decompress a raw DEFLATE stream using a preset dictionary (up to its last 32 KiB).
+  flate-decompress-dict :: Bytes -> Bytes -> Result FlateError (Bytes, Nat)
+  flate-decompress-dict dict src = flate-decompress-at-dict-limit default-limit dict src 0
+
+  -- | Decompress a raw DEFLATE stream using a preset dictionary and explicit output limit.
+  flate-decompress-dict-limit :: Nat -> Bytes -> Bytes -> Result FlateError (Bytes, Nat)
+  flate-decompress-dict-limit limit dict src = flate-decompress-at-dict-limit limit dict src 0
+
+  -- | Decompress a raw DEFLATE stream at byte offset start with a preset dictionary
+  -- and output byte limit. Returns decoded bytes and the next byte offset.
+  flate-decompress-at-dict-limit :: Nat -> Bytes -> Bytes -> Nat -> Result FlateError (Bytes, Nat)
+  flate-decompress-at-dict-limit limit dict src start =
+    if start > bytes-len src then Err FlateUnexpectedEof
+    else
+      let est = min-nat (max-nat (bytes-len src * 3) 256) (max-nat limit 256) in
+      let ob = out-init dict est limit in
+      let fixed-lit = make-fixed-lit-table () in
+      let fixed-dist = make-fixed-dist-table () in
+      decode-blocks (br-at src start) ob fixed-lit fixed-dist
+
+  -- | Decode a single DEFLATE block starting at an absolute bit position with a
+  -- sliding-window history buffer. Returns block output, next bit position, and BFINAL.
+  flate-decompress-block :: Nat -> Bytes -> Bytes -> Nat -> Result FlateError (Bytes, Nat, Bool)
+  flate-decompress-block limit window src start-bit =
+    if nat-div start-bit 8 > bytes-len src then Err FlateUnexpectedEof
+    else
+      let ob = out-init window 1024 limit in
+      let fixed-lit = make-fixed-lit-table () in
+      let fixed-dist = make-fixed-dist-table () in
+      case decode-one-block (br-at-bit src start-bit) ob fixed-lit fixed-dist of
+        Err e -> Err e
+        Ok (br2, ob2, is-final) ->
+          let next-bit = if is-final then br-aligned-byte br2 * 8 else br-bitpos br2 in
+          Ok (out-extract ob2, next-bit, is-final)
+
+  -- | Decode blocks until a block with BFINAL=1 completes.
+  decode-blocks :: BitReader -> OutBuf -> HuffTable -> HuffTable -> Result FlateError (Bytes, Nat)
+  decode-blocks br ob fixed-lit fixed-dist =
+    case decode-one-block br ob fixed-lit fixed-dist of
+      Err e -> Err e
+      Ok (br2, ob2, is-final) ->
+        if is-final then Ok (out-extract ob2, br-aligned-byte br2)
+        else decode-blocks br2 ob2 fixed-lit fixed-dist
+
+  -- | Decode one RFC 1951 block (stored, fixed Huffman, or dynamic Huffman).
+  decode-one-block :: BitReader -> OutBuf -> HuffTable -> HuffTable -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-one-block br ob fixed-lit fixed-dist =
+    case br-read br 3 of
+      Err e -> Err e
+      Ok (br1, hdr) ->
+        let is-final = nat-rem hdr 2 == 1 in
+        let btype = nat-div hdr 2 in
+        if btype == 0 then decode-stored-block br1 ob is-final
+        else if btype == 1 then decode-huff-block br1 ob fixed-lit fixed-dist is-final
+        else if btype == 2 then decode-dynamic-block br1 ob is-final
+        else Err FlateUnsupportedBlock
+
+  -- | Decode a type-0 stored block: align to byte boundary, verify LEN/NLEN, copy payload.
+  decode-stored-block :: BitReader -> OutBuf -> Bool -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-stored-block br ob is-final =
+    let aligned = br-align br in
+    case aligned of
+      BitReader src pos buf nbits ->
+        if pos + 4 > bytes-len src then Err FlateUnexpectedEof
+        else
+          let blen = le16-at src pos in
+          let nlen = le16-at src (pos + 2) in
+          if blen + nlen /= 65535 then Err (FlateCorruptInput pos)
+          else if pos + 4 + blen > bytes-len src then Err FlateUnexpectedEof
+          else case out-ensure ob blen of
+            Err e -> Err e
+            Ok ob2 -> case ob2 of
+              OutBuf out-b out-len dlen limit ->
+                let u = copy-range out-b src out-len (pos + 4) blen in
+                Ok (BitReader src (pos + 4 + blen) 0 0, OutBuf out-b (out-len + blen) dlen limit, is-final)
+
+  -- | Decode a type-2 dynamic Huffman block header and then its symbol stream.
+  decode-dynamic-block :: BitReader -> OutBuf -> Bool -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-dynamic-block br ob is-final =
+    let hdr-off = br-aligned-byte br in
+    case br-read br 5 of
+      Err e -> Err e
+      Ok (br1, hlit0) ->
+        let hlit = hlit0 + 257 in
+        if hlit > 286 then Err (FlateCorruptInput hdr-off)
+        else case br-read br1 5 of
+          Err e -> Err e
+          Ok (br2, hdist0) ->
+            let hdist = hdist0 + 1 in
+            if hdist > 30 then Err (FlateCorruptInput hdr-off)
+            else case br-read br2 4 of
+              Err e -> Err e
+              Ok (br3, hclen0) ->
+                let hclen = hclen0 + 4 in
+                let cl-lens = bytes-new 19 in
+                case read-cl-lens br3 cl-lens 0 hclen of
+                  Err e -> Err e
+                  Ok br4 -> case build-huff-table cl-lens 19 hdr-off of
+                    Err e -> Err e
+                    Ok cl-tab ->
+                      let total = hlit + hdist in
+                      let all-lens = bytes-new total in
+                      case read-dyn-lens br4 cl-tab all-lens 0 total hdr-off of
+                        Err e -> Err e
+                        Ok br5 ->
+                          if byte-at all-lens 256 == 0 then Err (FlateCorruptInput hdr-off)
+                          else
+                            let lit-lens = slice-bytes all-lens 0 hlit in
+                            let dist-lens = slice-bytes all-lens hlit hdist in
+                            case build-huff-table lit-lens hlit hdr-off of
+                              Err e -> Err e
+                              Ok ltab -> case build-huff-table dist-lens hdist hdr-off of
+                                Err e -> Err e
+                                Ok dtab -> decode-huff-block br5 ob ltab dtab is-final
+
+  -- | Read HCLEN 3-bit code-length alphabet lengths in RFC 1951 transmission order.
+  read-cl-lens :: BitReader -> Bytes -> Nat -> Nat -> Result FlateError BitReader
+  read-cl-lens br cl-lens i hclen =
+    if i >= hclen then Ok br
+    else case br-read br 3 of
+      Err e -> Err e
+      Ok (br1, v) ->
+        let u = byte-put cl-lens (cl-order-of i) v in
+        read-cl-lens br1 cl-lens (i + 1) hclen
+
+  -- | Decode the HLIT + HDIST code lengths using the code-length Huffman table.
+  read-dyn-lens :: BitReader -> HuffTable -> Bytes -> Nat -> Nat -> Nat -> Result FlateError BitReader
+  read-dyn-lens br cl-tab all-lens i total err-off =
+    if i >= total then Ok br
+    else case decode-huff br cl-tab of
+      Err e -> Err e
+      Ok (br1, sym) ->
+        if sym < 16 then
+          let u = byte-put all-lens i sym in
+          read-dyn-lens br1 cl-tab all-lens (i + 1) total err-off
+        else if sym == 16 then
+          if i == 0 then Err (FlateCorruptInput err-off)
+          else case br-read br1 2 of
+            Err e -> Err e
+            Ok (br2, extra) ->
+              let rep = 3 + extra in
+              if i + rep > total then Err (FlateCorruptInput err-off)
+              else
+                let prev = byte-at all-lens (i - 1) in
+                let u = fill-const-bytes all-lens i (i + rep) prev in
+                read-dyn-lens br2 cl-tab all-lens (i + rep) total err-off
+        else if sym == 17 then
+          case br-read br1 3 of
+            Err e -> Err e
+            Ok (br2, extra) ->
+              let rep = 3 + extra in
+              if i + rep > total then Err (FlateCorruptInput err-off)
+              else read-dyn-lens br2 cl-tab all-lens (i + rep) total err-off
+        else if sym == 18 then
+          case br-read br1 7 of
+            Err e -> Err e
+            Ok (br2, extra) ->
+              let rep = 11 + extra in
+              if i + rep > total then Err (FlateCorruptInput err-off)
+              else read-dyn-lens br2 cl-tab all-lens (i + rep) total err-off
+        else Err (FlateCorruptInput err-off)
+
+  -- | Decode literals and LZ77 matches in a Huffman block until EOB (256).
+  decode-huff-block :: BitReader -> OutBuf -> HuffTable -> HuffTable -> Bool -> Result FlateError (BitReader, OutBuf, Bool)
+  decode-huff-block br ob ltab dtab is-final =
+    case decode-huff br ltab of
+      Err e -> Err e
+      Ok (br1, sym) ->
+        if sym < 256 then
+          case out-push-byte ob sym of
+            Err e -> Err e
+            Ok ob1 -> decode-huff-block br1 ob1 ltab dtab is-final
+        else if sym == 256 then Ok (br1, ob, is-final)
+        else if sym > 285 then Err (FlateCorruptInput (br-aligned-byte br1))
+        else
+          let lk = sym - 257 in
+          let lbase = len-base-of lk in
+          let lextra = len-extra-of lk in
+          case br-read br1 lextra of
+            Err e -> Err e
+            Ok (br2, lx) ->
+              let mlen = lbase + lx in
+              case decode-huff br2 dtab of
+                Err e -> Err e
+                Ok (br3, dsym) ->
+                  if dsym > 29 then Err (FlateCorruptInput (br-aligned-byte br3))
+                  else
+                    let dbase = dist-base-of dsym in
+                    let dextra = dist-extra-of dsym in
+                    case br-read br3 dextra of
+                      Err e -> Err e
+                      Ok (br4, dx) ->
+                        let dist = dbase + dx in
+                        case out-copy-match ob mlen dist (br-aligned-byte br4) of
+                          Err e -> Err e
+                          Ok ob1 -> decode-huff-block br4 ob1 ltab dtab is-final
+
+  -- ---------------------------------------------------------------------
+  -- Fast 64-bit LSB-first bit writer for encoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Growable LSB-first bit writer: output buffer, byte cursor, pending low bits, bit count.
+  data BitWriter where
+    -- | Private fields: backing buffer, written byte length, pending bits, pending bit count.
+    BitWriter :: Bytes -> Nat -> U64 -> Nat -> BitWriter
+
+  -- | Initialize a bit writer with initial capacity and carried-over low bits (0..7).
+  bw-init :: Nat -> U64 -> Nat -> BitWriter
+  bw-init cap bitbuf nbits = BitWriter (bytes-new (max-nat cap 64)) 0 bitbuf nbits
+
+  -- | Ensure at least need additional bytes fit in the bit writer's output buffer.
+  bw-ensure :: BitWriter -> Nat -> BitWriter
+  bw-ensure bw need = case bw of
+    BitWriter buf len bits nbits ->
+      if len + need <= bytes-len buf then bw
+      else
+        let cap2 = max-nat (bytes-len buf * 2) (len + need) in
+        let buf2 = bytes-new cap2 in
+        let u = copy-range buf2 buf 0 0 len in
+        BitWriter buf2 len bits nbits
+
+  -- | Append width LSB-first bits (0..32) to the bit writer, flushing 32-bit words.
+  bw-put-bits :: BitWriter -> Nat -> Nat -> BitWriter
+  bw-put-bits bw val width =
+    if width == 0 then bw
+    else case bw of
+      BitWriter buf len bits nbits ->
+        let bits2 = bit-or-u64 bits (wrapping-shl-u64 (nat-u64 val) (nat-u32 nbits)) in
+        let nbits2 = nbits + width in
+        if nbits2 >= 32 then
+          case bw-ensure (BitWriter buf len bits2 nbits2) 4 of
+            BitWriter buf3 len3 bits3 nbits3 ->
+              let u = (if len3 + 4 <= bytes-len buf3 then bytes-write-le32 buf3 len3 (wrapping-u64-to-u32 bits3) else ()) in
+              BitWriter buf3 (len3 + 4) (wrapping-shr-u64 bits3 32) (sub-sat nbits3 32)
+        else BitWriter buf len bits2 nbits2
+
+  -- | Flush all complete bytes currently in the accumulator, leaving 0..7 bits pending.
+  bw-flush-bytes :: BitWriter -> BitWriter
+  bw-flush-bytes bw = case bw of
+    BitWriter buf len bits nbits ->
+      if nbits < 8 then bw
+      else case bw-ensure bw 1 of
+        BitWriter buf2 len2 bits2 nbits2 ->
+          let b = u32-to-nat (bit-and-u32 (wrapping-u64-to-u32 bits2) 255) in
+          let u = byte-put buf2 len2 b in
+          bw-flush-bytes (BitWriter buf2 (len2 + 1) (wrapping-shr-u64 bits2 8) (sub-sat nbits2 8))
+
+  -- | Flush all complete bytes and pad any remaining 1..7 bits with zeros to a byte boundary.
+  bw-align-byte :: BitWriter -> BitWriter
+  bw-align-byte bw =
+    let bw1 = bw-flush-bytes bw in
+    case bw1 of
+      BitWriter buf len bits nbits ->
+        if nbits == 0 then bw1
+        else case bw-ensure bw1 1 of
+          BitWriter buf2 len2 bits2 nbits2 ->
+            let b = u32-to-nat (bit-and-u32 (wrapping-u64-to-u32 bits2) 255) in
+            let u = byte-put buf2 len2 b in
+            BitWriter buf2 (len2 + 1) 0 0
+
+  -- | Append a raw byte range directly after aligning to a byte boundary.
+  bw-put-raw :: BitWriter -> Bytes -> Nat -> Nat -> BitWriter
+  bw-put-raw bw src start count =
+    let bw1 = bw-align-byte bw in
+    case bw-ensure bw1 count of
+      BitWriter buf len bits nbits ->
+        let u = copy-range buf src len start count in
+        BitWriter buf (len + count) 0 0
+
+  -- | Current total bit position (for comparing stored block padding cost).
+  bw-bit-offset :: BitWriter -> Nat
+  bw-bit-offset bw = case bw of
+    BitWriter buf len bits nbits -> len * 8 + nbits
+
+  -- | Finish the bit writer, padding to a byte boundary and slicing the exact output.
+  bw-finish :: BitWriter -> Bytes
+  bw-finish bw = case bw-align-byte bw of
+    BitWriter buf len bits nbits -> slice-bytes buf 0 len
+
+  -- | Extract flushed whole bytes and retain leftover 0..7 bits for streaming continuation.
+  bw-extract-partial :: BitWriter -> (Bytes, U64, Nat)
+  bw-extract-partial bw = case bw-flush-bytes bw of
+    BitWriter buf len bits nbits -> (slice-bytes buf 0 len, bits, nbits)
+
+  -- ---------------------------------------------------------------------
+  -- Package-Merge length-limited canonical Huffman code generator.
+  -- ---------------------------------------------------------------------
+
+  -- | Compute optimal length-limited canonical Huffman code lengths (each <= max-bits)
+  -- for count symbols using the package-merge algorithm.
+  package-merge :: Bytes -> Nat -> Nat -> Bytes
+  package-merge freqs count max-bits =
+    let lens = bytes-new count in
+    let sym-arr = bytes-new (count * 4) in
+    let wt-arr = bytes-new (count * 4) in
+    let m = collect-active-syms freqs count 0 sym-arr wt-arr 0 in
+    if m == 0 then lens
+    else if m == 1 then
+      let u = byte-put lens (get-w sym-arr 0) 1 in
+      lens
+    else if m == 2 then
+      let u1 = byte-put lens (get-w sym-arr 0) 1 in
+      let u2 = byte-put lens (get-w sym-arr 1) 1 in
+      lens
+    else
+      let sorted = sort-leaves sym-arr wt-arr 1 m in
+      let need = m * 2 - 2 in
+      let stride = need + 1 in
+      let leaf-prefix = bytes-new (max-bits * stride * 4) in
+      let prev-w = bytes-new (need * 4) in
+      let cur-w = bytes-new (need * 4) in
+      let u0 = init-pm-level0 wt-arr prev-w leaf-prefix 0 m in
+      let pm-ctx = PmCtx wt-arr m need stride max-bits leaf-prefix in
+      let u1 = run-pm-levels pm-ctx 1 prev-w m cur-w in
+      let depths = bytes-new m in
+      let u2 = backtrack-pm leaf-prefix stride depths (sub-sat max-bits 1) need in
+      let u3 = assign-leaf-lens sym-arr depths lens 0 m in
+      lens
+
+  -- | Invariant buffers and dimensions for package-merge level sweeps.
+  data PmCtx where
+    -- | Private fields: sorted leaf weights, leaf count, target item count, level stride, max bits, leaf prefix table.
+    PmCtx :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> PmCtx
+
+  -- | Per-level scratch state for merging leaves with packaged pairs.
+  data PmLevel where
+    -- | Private fields: previous-level weights, package count, current-level weights, leaf-prefix row base.
+    PmLevel :: Bytes -> Nat -> Bytes -> Nat -> PmLevel
+
+  -- | Collect all symbols with non-zero frequency into parallel symbol and weight arrays.
+  collect-active-syms :: Bytes -> Nat -> Nat -> Bytes -> Bytes -> Nat -> Nat
+  collect-active-syms freqs count i sym-arr wt-arr m =
+    if i >= count then m
+    else
+      let f = get-w freqs i in
+      if f == 0 then collect-active-syms freqs count (i + 1) sym-arr wt-arr m
+      else
+        let u1 = set-w sym-arr m i in
+        let u2 = set-w wt-arr m f in
+        collect-active-syms freqs count (i + 1) sym-arr wt-arr (m + 1)
+
+  -- | Sort active symbols by (weight ascending, symbol ascending) via insertion sort.
+  sort-leaves :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  sort-leaves sym-arr wt-arr i m =
+    if i >= m then ()
+    else
+      let kw = get-w wt-arr i in
+      let ks = get-w sym-arr i in
+      let u = insert-leaf sym-arr wt-arr i kw ks in
+      sort-leaves sym-arr wt-arr (i + 1) m
+
+  -- | Insert one leaf into the sorted prefix [0 .. j - 1].
+  insert-leaf :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  insert-leaf sym-arr wt-arr j kw ks =
+    if j == 0 then
+      let u1 = set-w wt-arr 0 kw in
+      set-w sym-arr 0 ks
+    else
+      let pw = get-w wt-arr (j - 1) in
+      let ps = get-w sym-arr (j - 1) in
+      if pw > kw || (pw == kw && ps > ks) then
+        let u1 = set-w wt-arr j pw in
+        let u2 = set-w sym-arr j ps in
+        insert-leaf sym-arr wt-arr (j - 1) kw ks
+      else
+        let u1 = set-w wt-arr j kw in
+        set-w sym-arr j ks
+
+  -- | Seed level 0 of package-merge with the sorted leaf weights and identity leaf counts.
+  init-pm-level0 :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Unit
+  init-pm-level0 wt-arr prev-w leaf-prefix i m =
+    if i >= m then set-w leaf-prefix m m
+    else
+      let u1 = set-w prev-w i (get-w wt-arr i) in
+      let u2 = set-w leaf-prefix i i in
+      init-pm-level0 wt-arr prev-w leaf-prefix (i + 1) m
+
+  -- | Run package-merge levels 1 .. max-bits - 1, recording leaf prefix counts per level.
+  run-pm-levels :: PmCtx -> Nat -> Bytes -> Nat -> Bytes -> Unit
+  run-pm-levels ctx k prev-w prev-len cur-w = case ctx of
+    PmCtx wt-arr m need stride max-bits leaf-prefix ->
+      if k >= max-bits then ()
+      else
+        let num-pkgs = nat-div prev-len 2 in
+        let base = k * stride in
+        let u0 = set-w leaf-prefix base 0 in
+        let lvl = PmLevel prev-w num-pkgs cur-w base in
+        let out-len = merge-pm-level ctx lvl 0 0 0 in
+        run-pm-levels ctx (k + 1) cur-w out-len prev-w
+
+  -- | Merge sorted leaves and packaged pairs from level k - 1 into level k up to need items.
+  merge-pm-level :: PmCtx -> PmLevel -> Nat -> Nat -> Nat -> Nat
+  merge-pm-level ctx lvl i j out = case ctx of
+    PmCtx wt-arr m need stride max-bits leaf-prefix ->
+      case lvl of
+        PmLevel prev-w num-pkgs cur-w base ->
+          if out >= need || (i >= m && j >= num-pkgs) then out
+          else
+            let take-leaf = (if j >= num-pkgs then True
+              else if i >= m then False
+              else get-w wt-arr i <= get-w prev-w (j * 2) + get-w prev-w (j * 2 + 1)) in
+            if take-leaf then
+              let u1 = set-w cur-w out (get-w wt-arr i) in
+              let u2 = set-w leaf-prefix (base + out + 1) (i + 1) in
+              merge-pm-level ctx lvl (i + 1) j (out + 1)
+            else
+              let pw = get-w prev-w (j * 2) + get-w prev-w (j * 2 + 1) in
+              let u1 = set-w cur-w out pw in
+              let u2 = set-w leaf-prefix (base + out + 1) i in
+              merge-pm-level ctx lvl i (j + 1) (out + 1)
+
+  -- | Backtrack from the top level to accumulate each leaf's optimal bit length.
+  backtrack-pm :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Unit
+  backtrack-pm leaf-prefix stride depths k c =
+    if c == 0 then ()
+    else
+      let lc = if k == 0 then c else get-w leaf-prefix (k * stride + c) in
+      let u = bump-depths depths 0 lc in
+      if k == 0 then ()
+      else backtrack-pm leaf-prefix stride depths (k - 1) (sub-sat c lc * 2)
+
+  -- | Increment bit length for the first lc sorted leaves.
+  bump-depths :: Bytes -> Nat -> Nat -> Unit
+  bump-depths depths i lc =
+    if i >= lc then ()
+    else
+      let u = byte-put depths i (byte-at depths i + 1) in
+      bump-depths depths (i + 1) lc
+
+  -- | Scatter computed bit lengths from sorted leaf order back to symbol indices.
+  assign-leaf-lens :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Unit
+  assign-leaf-lens sym-arr depths lens i m =
+    if i >= m then ()
+    else
+      let u = byte-put lens (get-w sym-arr i) (byte-at depths i) in
+      assign-leaf-lens sym-arr depths lens (i + 1) m
+
+  -- | Build pre-reversed canonical codewords for encoding from symbol code lengths.
+  build-enc-codes :: Bytes -> Nat -> Bytes
+  build-enc-codes lens count =
+    let counts = bytes-new 64 in
+    let u0 = count-enc-lens lens count 0 counts in
+    let next-code = bytes-new 64 in
+    let u1 = compute-enc-starts counts next-code 1 0 in
+    let codes = bytes-new (count * 4) in
+    let u2 = assign-enc-codes lens count 0 next-code codes in
+    codes
+
+  -- | Count code lengths 1..15 for encoder codeword assignment.
+  count-enc-lens :: Bytes -> Nat -> Nat -> Bytes -> Unit
+  count-enc-lens lens count i counts =
+    if i >= count then ()
+    else
+      let l = byte-at lens i in
+      let u = if l > 0 && l <= 15 then inc-w counts l else () in
+      count-enc-lens lens count (i + 1) counts
+
+  -- | Compute canonical starting codes per length 1..15 for encoding.
+  compute-enc-starts :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  compute-enc-starts counts next-code bits code =
+    if bits > 15 then ()
+    else
+      let u = set-w next-code bits code in
+      compute-enc-starts counts next-code (bits + 1) ((code + get-w counts bits) * 2)
+
+  -- | Assign bit-reversed canonical codewords ready for direct LSB-first emission.
+  assign-enc-codes :: Bytes -> Nat -> Nat -> Bytes -> Bytes -> Unit
+  assign-enc-codes lens count sym next-code codes =
+    if sym >= count then ()
+    else
+      let l = byte-at lens sym in
+      if l == 0 then assign-enc-codes lens count (sym + 1) next-code codes
+      else
+        let c = get-w next-code l in
+        let u1 = set-w next-code l (c + 1) in
+        let u2 = set-w codes sym (reverse-code c l) in
+        assign-enc-codes lens count (sym + 1) next-code codes
+
+  -- ---------------------------------------------------------------------
+  -- Dynamic Huffman header RLE encoding and block cost comparison.
+  -- ---------------------------------------------------------------------
+
+  -- | RLE-encode combined literal/length + distance code lengths into code-length
+  -- symbols (0..18) with their extra values, counting symbol frequencies.
+  -- Each entry in rle-buf packs (sym | (extra << 8)).
+  encode-cl-rle :: Bytes -> Nat -> Bytes -> Bytes -> Nat -> Nat -> Nat
+  encode-cl-rle all-lens total rle-buf cl-freq i out =
+    if i >= total then out
+    else
+      let v = byte-at all-lens i in
+      let run = count-same-byte all-lens i total v 0 in
+      if v == 0 then
+        if run >= 11 then
+          let take = min-nat run 138 in
+          let u1 = set-w rle-buf out (18 + sub-sat take 11 * 256) in
+          let u2 = inc-w cl-freq 18 in
+          encode-cl-rle all-lens total rle-buf cl-freq (i + take) (out + 1)
+        else if run >= 3 then
+          let u1 = set-w rle-buf out (17 + (run - 3) * 256) in
+          let u2 = inc-w cl-freq 17 in
+          encode-cl-rle all-lens total rle-buf cl-freq (i + run) (out + 1)
+        else
+          let u1 = set-w rle-buf out 0 in
+          let u2 = inc-w cl-freq 0 in
+          encode-cl-rle all-lens total rle-buf cl-freq (i + 1) (out + 1)
+      else
+        let u1 = set-w rle-buf out v in
+        let u2 = inc-w cl-freq v in
+        let (next-i, next-out) = emit-nonzero-repeats v (sub-sat run 1) (i + 1) (out + 1) rle-buf cl-freq in
+        encode-cl-rle all-lens total rle-buf cl-freq next-i next-out
+
+  -- | Count consecutive bytes equal to val starting at i (up to total).
+  count-same-byte :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat
+  count-same-byte b i total val acc =
+    if i + acc >= total then acc
+    else if byte-at b (i + acc) == val then count-same-byte b i total val (acc + 1)
+    else acc
+
+  -- | Emit symbol-16 repeats (3..6 copies) and any 1..2 trailing literal lengths.
+  emit-nonzero-repeats :: Nat -> Nat -> Nat -> Nat -> Bytes -> Bytes -> (Nat, Nat)
+  emit-nonzero-repeats v rem i out rle-buf cl-freq =
+    if rem == 0 then (i, out)
+    else if rem >= 3 then
+      let take = min-nat rem 6 in
+      let u1 = set-w rle-buf out (16 + sub-sat take 3 * 256) in
+      let u2 = inc-w cl-freq 16 in
+      emit-nonzero-repeats v (sub-sat rem take) (i + take) (out + 1) rle-buf cl-freq
+    else
+      let u1 = set-w rle-buf out v in
+      let u2 = inc-w cl-freq v in
+      emit-nonzero-repeats v (rem - 1) (i + 1) (out + 1) rle-buf cl-freq
+
+  -- | Find the trimmed symbol count (at least min-count) dropping trailing zero lengths.
+  trim-lens-count :: Bytes -> Nat -> Nat -> Nat
+  trim-lens-count lens n min-count =
+    if n <= min-count then min-count
+    else if byte-at lens (n - 1) > 0 then n
+    else trim-lens-count lens (n - 1) min-count
+
+  -- | Find HCLEN (4..19) by trimming trailing zero lengths in transmission order.
+  trim-hclen :: Bytes -> Nat -> Nat
+  trim-hclen cl-lens k =
+    if k <= 4 then 4
+    else if byte-at cl-lens (cl-order-of (k - 1)) > 0 then k
+    else trim-hclen cl-lens (k - 1)
+
+  -- | Compute total Huffman bit cost of symbols given frequencies and code lengths.
+  huff-bit-cost :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat
+  huff-bit-cost freqs lens count i acc =
+    if i >= count then acc
+    else
+      let f = get-w freqs i in
+      let l = byte-at lens i in
+      huff-bit-cost freqs lens count (i + 1) (acc + f * l)
+
+  -- | Compute fixed Huffman bit cost for literal/length frequencies.
+  fixed-lit-cost :: Bytes -> Nat -> Nat -> Nat
+  fixed-lit-cost freqs i acc =
+    if i >= 286 then acc
+    else
+      let f = get-w freqs i in
+      fixed-lit-cost freqs (i + 1) (acc + f * fixed-lit-len-of i)
+
+  -- | Compute fixed Huffman bit cost for distance frequencies (5 bits each).
+  fixed-dist-cost :: Bytes -> Nat -> Nat -> Nat
+  fixed-dist-cost freqs i acc =
+    if i >= 30 then acc
+    else fixed-dist-cost freqs (i + 1) (acc + get-w freqs i * 5)
+
+  -- | Compute total extra bits across all length and distance codes in the block.
+  extra-bits-cost :: Bytes -> Bytes -> Nat -> Nat -> Nat
+  extra-bits-cost lit-freq dist-freq i acc =
+    if i < 29 then
+      let lf = get-w lit-freq (257 + i) in
+      let df = get-w dist-freq i in
+      extra-bits-cost lit-freq dist-freq (i + 1) (acc + lf * len-extra-of i + df * dist-extra-of i)
+    else acc + get-w dist-freq 29 * dist-extra-of 29
+
+  -- | Compute code-length tree RLE stream bit cost (Huffman bits + extra bits).
+  cl-stream-cost :: Bytes -> Bytes -> Nat -> Nat -> Nat
+  cl-stream-cost cl-freq cl-lens i acc =
+    if i >= 19 then acc
+    else
+      let f = get-w cl-freq i in
+      let bits = byte-at cl-lens i + cl-extra-of i in
+      cl-stream-cost cl-freq cl-lens (i + 1) (acc + f * bits)
+
+  -- | Emit the buffered block using whichever of Stored, Fixed, or Dynamic is smallest.
+  emit-optimal-block :: BitWriter -> Bytes -> Nat -> Nat -> Bytes -> Nat -> Bytes -> Bytes -> Bool -> BitWriter
+  emit-optimal-block bw win raw-start raw-len tokens tok-count lit-freq dist-freq is-final =
+    let u-eob = set-w lit-freq 256 1 in
+    let extra = extra-bits-cost lit-freq dist-freq 0 0 in
+    let pad-bits = nat-rem (8 - nat-rem (bw-bit-offset bw + 3) 8) 8 in
+    let stored-bits = 3 + pad-bits + 32 + raw-len * 8 in
+    let fixed-bits = 3 + fixed-lit-cost lit-freq 0 0 + fixed-dist-cost dist-freq 0 0 + extra in
+    let lit-lens = package-merge lit-freq 286 15 in
+    let dist-lens = package-merge dist-freq 30 15 in
+    let hlit = trim-lens-count lit-lens 286 257 in
+    let hdist = trim-lens-count dist-lens 30 1 in
+    let all-lens = bytes-new (hlit + hdist) in
+    let uc1 = copy-range all-lens lit-lens 0 0 hlit in
+    let uc2 = copy-range all-lens dist-lens hlit 0 hdist in
+    let rle-buf = bytes-new ((hlit + hdist) * 4) in
+    let cl-freq = bytes-new (19 * 4) in
+    let rle-len = encode-cl-rle all-lens (hlit + hdist) rle-buf cl-freq 0 0 in
+    let cl-lens = package-merge cl-freq 19 7 in
+    let hclen = trim-hclen cl-lens 19 in
+    let dyn-bits = 3 + 14 + hclen * 3 + cl-stream-cost cl-freq cl-lens 0 0 + huff-bit-cost lit-freq lit-lens hlit 0 0 + huff-bit-cost dist-freq dist-lens hdist 0 0 + extra in
+    let final-bit = if is-final then (1 :: Nat) else 0 in
+    if stored-bits <= fixed-bits && stored-bits <= dyn-bits && raw-len <= 65535 then
+      emit-stored-block bw win raw-start raw-len is-final
+    else if fixed-bits <= dyn-bits then
+      emit-fixed-block bw tokens tok-count final-bit
+    else
+      emit-dynamic-block bw tokens tok-count final-bit hlit hdist hclen lit-lens dist-lens cl-lens rle-buf rle-len
+
+  -- | Emit a single type-0 stored block (raw-len <= 65535).
+  emit-stored-block :: BitWriter -> Bytes -> Nat -> Nat -> Bool -> BitWriter
+  emit-stored-block bw win start raw-len is-final =
+    let bw1 = bw-put-bits bw (if is-final then 1 else 0) 3 in
+    let bw2 = bw-align-byte bw1 in
+    let nlen = sub-sat 65535 raw-len in
+    let bw3 = bw-put-bits bw2 raw-len 16 in
+    let bw4 = bw-put-bits bw3 nlen 16 in
+    bw-put-raw bw4 win start raw-len
+
+  -- | Emit a type-1 fixed Huffman block from the token buffer.
+  emit-fixed-block :: BitWriter -> Bytes -> Nat -> Nat -> BitWriter
+  emit-fixed-block bw tokens tok-count final-bit =
+    let bw1 = bw-put-bits bw (final-bit + 2) 3 in
+    let bw2 = emit-fixed-tokens bw1 tokens 0 tok-count in
+    bw-put-bits bw2 0 7
+
+  -- | Emit fixed Huffman codewords for every buffered literal and match token.
+  emit-fixed-tokens :: BitWriter -> Bytes -> Nat -> Nat -> BitWriter
+  emit-fixed-tokens bw tokens i tok-count =
+    if i >= tok-count then bw
+    else
+      let tok = get-u32 tokens i in
+      if eq-u32 (bit-and-u32 tok 2147483648) 0 then
+        let sym = u32-to-nat tok in
+        let bw1 = emit-fixed-lit bw sym in
+        emit-fixed-tokens bw1 tokens (i + 1) tok-count
+      else
+        let mlen = u32-to-nat (bit-and-u32 (wrapping-shr-u32 tok 16) 255) + 3 in
+        let dist = u32-to-nat (bit-and-u32 tok 32767) + 1 in
+        let lsym = encode-len-sym mlen in
+        let lk = sub-sat lsym 257 in
+        let lextra = len-extra-of lk in
+        let lval = sub-sat mlen (len-base-of lk) in
+        let dsym = encode-dist-sym dist in
+        let dextra = dist-extra-of dsym in
+        let dval = sub-sat dist (dist-base-of dsym) in
+        let bw1 = emit-fixed-lit bw lsym in
+        let bw2 = bw-put-bits bw1 lval lextra in
+        let bw3 = bw-put-bits bw2 (reverse-code dsym 5) 5 in
+        let bw4 = bw-put-bits bw3 dval dextra in
+        emit-fixed-tokens bw4 tokens (i + 1) tok-count
+
+  -- | Emit one fixed Huffman literal/length symbol (0..285).
+  emit-fixed-lit :: BitWriter -> Nat -> BitWriter
+  emit-fixed-lit bw sym =
+    if sym < 144 then bw-put-bits bw (reverse-code (48 + sym) 8) 8
+    else if sym < 256 then bw-put-bits bw (reverse-code (400 + (sym - 144)) 9) 9
+    else if sym < 280 then bw-put-bits bw (reverse-code (sym - 256) 7) 7
+    else bw-put-bits bw (reverse-code (192 + (sym - 280)) 8) 8
+
+  -- | Emit a type-2 dynamic Huffman block header and encoded token stream.
+  emit-dynamic-block :: BitWriter -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Bytes -> Bytes -> Nat -> BitWriter
+  emit-dynamic-block bw tokens tok-count final-bit hlit hdist hclen lit-lens dist-lens cl-lens rle-buf rle-len =
+    let bw1 = bw-put-bits bw (final-bit + 4) 3 in
+    let bw2 = bw-put-bits bw1 (sub-sat hlit 257) 5 in
+    let bw3 = bw-put-bits bw2 (sub-sat hdist 1) 5 in
+    let bw4 = bw-put-bits bw3 (sub-sat hclen 4) 4 in
+    let bw5 = emit-cl-header-lens bw4 cl-lens 0 hclen in
+    let cl-codes = build-enc-codes cl-lens 19 in
+    let bw6 = emit-cl-rle-stream bw5 rle-buf 0 rle-len cl-codes cl-lens in
+    let lit-codes = build-enc-codes lit-lens hlit in
+    let dist-codes = build-enc-codes dist-lens hdist in
+    let dyn-tabs = DynTables lit-codes lit-lens dist-codes dist-lens in
+    let bw7 = emit-dyn-tokens bw6 tokens 0 tok-count dyn-tabs in
+    bw-put-bits bw7 (get-w lit-codes 256) (byte-at lit-lens 256)
+
+  -- | Dynamic Huffman codeword and code-length tables for token emission.
+  data DynTables where
+    -- | Private fields: literal/length codes, literal/length lengths, distance codes, distance lengths.
+    DynTables :: Bytes -> Bytes -> Bytes -> Bytes -> DynTables
+
+  -- | Write HCLEN 3-bit code-length alphabet lengths in RFC 1951 transmission order.
+  emit-cl-header-lens :: BitWriter -> Bytes -> Nat -> Nat -> BitWriter
+  emit-cl-header-lens bw cl-lens i hclen =
+    if i >= hclen then bw
+    else
+      let bw1 = bw-put-bits bw (byte-at cl-lens (cl-order-of i)) 3 in
+      emit-cl-header-lens bw1 cl-lens (i + 1) hclen
+
+  -- | Write the Huffman-coded RLE sequence of literal/length and distance code lengths.
+  emit-cl-rle-stream :: BitWriter -> Bytes -> Nat -> Nat -> Bytes -> Bytes -> BitWriter
+  emit-cl-rle-stream bw rle-buf i rle-len cl-codes cl-lens =
+    if i >= rle-len then bw
+    else
+      let entry = get-w rle-buf i in
+      let sym = nat-rem entry 256 in
+      let extra-val = nat-div entry 256 in
+      let bw1 = bw-put-bits bw (get-w cl-codes sym) (byte-at cl-lens sym) in
+      let bw2 = bw-put-bits bw1 extra-val (cl-extra-of sym) in
+      emit-cl-rle-stream bw2 rle-buf (i + 1) rle-len cl-codes cl-lens
+
+  -- | Emit dynamic Huffman codewords for one match token.
+  emit-dyn-match :: BitWriter -> U32 -> DynTables -> BitWriter
+  emit-dyn-match bw tok tabs = case tabs of
+    DynTables lit-codes lit-lens dist-codes dist-lens ->
+      let mlen = u32-to-nat (bit-and-u32 (wrapping-shr-u32 tok 16) 255) + 3 in
+      let dist = u32-to-nat (bit-and-u32 tok 32767) + 1 in
+      let lsym = encode-len-sym mlen in
+      let lk = sub-sat lsym 257 in
+      let lextra = len-extra-of lk in
+      let lval = sub-sat mlen (len-base-of lk) in
+      let dsym = encode-dist-sym dist in
+      let dextra = dist-extra-of dsym in
+      let dval = sub-sat dist (dist-base-of dsym) in
+      let bw1 = bw-put-bits bw (get-w lit-codes lsym) (byte-at lit-lens lsym) in
+      let bw2 = bw-put-bits bw1 lval lextra in
+      let bw3 = bw-put-bits bw2 (get-w dist-codes dsym) (byte-at dist-lens dsym) in
+      bw-put-bits bw3 dval dextra
+
+  -- | Emit dynamic Huffman codewords for every buffered literal and match token.
+  emit-dyn-tokens :: BitWriter -> Bytes -> Nat -> Nat -> DynTables -> BitWriter
+  emit-dyn-tokens bw tokens i tok-count tabs =
+    if i >= tok-count then bw
+    else
+      let tok = get-u32 tokens i in
+      let bw1 = (if eq-u32 (bit-and-u32 tok 2147483648) 0 then
+        case tabs of
+          DynTables lit-codes lit-lens dist-codes dist-lens ->
+            let sym = u32-to-nat tok in
+            bw-put-bits bw (get-w lit-codes sym) (byte-at lit-lens sym)
+      else emit-dyn-match bw tok tabs) in
+      emit-dyn-tokens bw1 tokens (i + 1) tok-count tabs
+
+  -- ---------------------------------------------------------------------
+  -- Hash-chain LZ77 match finder and block compressor.
+  -- ---------------------------------------------------------------------
+
+  -- | Level configuration: mode (0=stored, 1=huffman-only, 2=lz77), max hash chain
+  -- length, lazy-match threshold (0 disables lazy matching), and nice match cutoff.
+  data LevelConfig where
+    -- | Private fields: mode, max-chain, lazy-len, nice-len.
+    LevelConfig :: Nat -> Nat -> Nat -> Nat -> LevelConfig
+
+  -- | Validate and resolve a FlateCompression value to tuning parameters.
+  resolve-level :: FlateCompression -> Result FlateError LevelConfig
+  resolve-level level = case level of
+    FlateNoCompression -> Ok (LevelConfig 0 0 0 0)
+    FlateHuffmanOnly -> Ok (LevelConfig 1 0 0 0)
+    FlateBestSpeed -> Ok (LevelConfig 2 4 0 8)
+    FlateDefaultCompression -> Ok (LevelConfig 2 64 32 128)
+    FlateBestCompression -> Ok (LevelConfig 2 512 258 258)
+    FlateLevel n ->
+      if n == 1 then Ok (LevelConfig 2 4 0 8)
+      else if n == 2 then Ok (LevelConfig 2 8 0 16)
+      else if n == 3 then Ok (LevelConfig 2 16 0 32)
+      else if n == 4 then Ok (LevelConfig 2 16 8 32)
+      else if n == 5 then Ok (LevelConfig 2 32 16 64)
+      else if n == 6 then Ok (LevelConfig 2 64 32 128)
+      else if n == 7 then Ok (LevelConfig 2 128 64 128)
+      else if n == 8 then Ok (LevelConfig 2 256 128 258)
+      else if n == 9 then Ok (LevelConfig 2 512 258 258)
+      else Err FlateBadLevel
+
+  -- | 15-bit multiplicative 3-byte hash at position pos in the sliding window.
+  hash3 :: Bytes -> Nat -> Nat
+  hash3 win pos =
+    let b0 = nat-u32 (byte-at win pos) in
+    let b1 = nat-u32 (byte-at win (pos + 1)) in
+    let b2 = nat-u32 (byte-at win (pos + 2)) in
+    let v = bit-or-u32 b0 (bit-or-u32 (wrapping-shl-u32 b1 8) (wrapping-shl-u32 b2 16)) in
+    u32-to-nat (bit-and-u32 (wrapping-shr-u32 (wrapping-mul-u32 v 506832829) 17) 32767)
+
+  -- | Insert position pos into the 3-byte hash table and return the previous head (pos + 1).
+  insert-hash :: Bytes -> Bytes -> Bytes -> Nat -> Nat
+  insert-hash win head prev pos =
+    let h = hash3 win pos in
+    let old = get-w head h in
+    let u1 = set-w prev (nat-rem pos 32768) old in
+    let u2 = set-w head h (pos + 1) in
+    old
+
+  -- | Pre-populate the hash table with positions from the preset dictionary prefix.
+  seed-dict-hash :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Unit
+  seed-dict-hash win head prev i dlen =
+    if i + 3 > dlen then ()
+    else
+      let old = insert-hash win head prev i in
+      seed-dict-hash win head prev (i + 1) dlen
+
+  -- | Insert intermediate positions of a chosen match into the hash table.
+  insert-match-positions :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  insert-match-positions win head prev pos end win-len =
+    if pos >= end || pos + 3 > win-len then ()
+    else
+      let old = insert-hash win head prev pos in
+      insert-match-positions win head prev (pos + 1) end win-len
+
+  -- | Invariant buffers and configuration for Huffman-only block emission.
+  data HuffOnlyCtx where
+    -- | Private fields: input bytes, input length, token buffer, literal frequencies, distance frequencies, final flag.
+    HuffOnlyCtx :: Bytes -> Nat -> Bytes -> Bytes -> Bytes -> Bool -> HuffOnlyCtx
+
+  -- | Invariant sliding window, hash tables, tuning parameters, and token buffers for LZ77 compression.
+  data LzCtx where
+    -- | Private fields: window, hash head, hash chain prev, max chain, lazy threshold, nice length, window length, tokens, literal frequencies, distance frequencies, final flag.
+    LzCtx :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Bytes -> Bytes -> Bytes -> Bool -> LzCtx
+
+  -- | Search the hash chain starting at cand1 (pos + 1) for the longest match at pos.
+  find-match :: LzCtx -> Nat -> Nat -> Nat -> Nat -> Nat -> (Nat, Nat)
+  find-match ctx pos cand1 best-len best-dist steps = case ctx of
+    LzCtx win head prev max-chain lazy-len nice-len win-len tokens lit-freq dist-freq is-final ->
+      if cand1 == 0 || steps >= max-chain then (best-len, best-dist)
+      else
+        let cand = cand1 - 1 in
+        if cand >= pos || pos - cand > window-size then (best-len, best-dist)
+        else
+          let max-len = min-nat 258 (sub-sat win-len pos) in
+          let (nl, nd) = (if byte-at win (cand + best-len) == byte-at win (pos + best-len) && byte-at win cand == byte-at win pos then
+            let mlen = match-len-from win cand pos 0 max-len in
+            if mlen > best-len then (mlen, pos - cand) else (best-len, best-dist)
+          else (best-len, best-dist)) in
+          if nl >= nice-len || nl >= max-len then (nl, nd)
+          else
+            let next-cand1 = get-w prev (nat-rem cand 32768) in
+            find-match ctx pos next-cand1 nl nd (steps + 1)
+
+  -- | Compare bytes at cand + k and pos + k up to max-len.
+  match-len-from :: Bytes -> Nat -> Nat -> Nat -> Nat -> Nat
+  match-len-from win cand pos k max-len =
+    if k >= max-len then k
+    else if byte-at win (cand + k) == byte-at win (pos + k) then match-len-from win cand pos (k + 1) max-len
+    else k
+
+  -- | Maximum buffered tokens per DEFLATE block.
+  block-max-tokens :: Nat
+  block-max-tokens = 32768
+
+  -- | Maximum uncompressed input bytes per DEFLATE block (matches stored block limit).
+  block-max-bytes :: Nat
+  block-max-bytes = 65535
+
+  -- | Record a literal byte token and increment its literal frequency.
+  push-lit-token :: Bytes -> Bytes -> Nat -> Nat -> Nat
+  push-lit-token tokens lit-freq tok-count b =
+    let u1 = set-w tokens tok-count b in
+    let u2 = inc-w lit-freq b in
+    tok-count + 1
+
+  -- | Record a match token (len, dist) and increment length/distance frequencies.
+  push-match-token :: Bytes -> Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat
+  push-match-token tokens lit-freq dist-freq tok-count mlen dist =
+    let packed = bit-or-u32 2147483648 (bit-or-u32 (wrapping-shl-u32 (nat-u32 (sub-sat mlen 3)) 16) (nat-u32 (sub-sat dist 1))) in
+    let u1 = set-u32 tokens tok-count packed in
+    let u2 = inc-w lit-freq (encode-len-sym mlen) in
+    let u3 = inc-w dist-freq (encode-dist-sym dist) in
+    tok-count + 1
+
+  -- | Zero a 32-bit word array of count entries.
+  zero-words :: Bytes -> Nat -> Nat -> Unit
+  zero-words buf i count =
+    if i >= count then ()
+    else
+      let u = set-u32 buf i 0 in
+      zero-words buf (i + 1) count
+
+  -- | Compress an input buffer at the given compression level (no preset dictionary).
+  flate-compress :: FlateCompression -> Bytes -> Result FlateError Bytes
+  flate-compress level input = flate-compress-dict level (bytes-new 0) input
+
+  -- | Compress an input buffer at the given level using a preset dictionary (last 32 KiB).
+  flate-compress-dict :: FlateCompression -> Bytes -> Bytes -> Result FlateError Bytes
+  flate-compress-dict level dict input =
+    case resolve-level level of
+      Err e -> Err e
+      Ok cfg ->
+        let bw0 = bw-init (max-nat (bytes-len input) 64) 0 0 in
+        let bw1 = compress-into bw0 cfg dict input True in
+        Ok (bw-finish bw1)
+
+  -- | Compress one streaming chunk using a prior sliding window and carried-over
+  -- 0..7 bit accumulator. Returns whole emitted bytes, new leftover bits, bit count,
+  -- and the updated 32 KiB sliding window.
+  flate-compress-chunk :: FlateCompression -> Bytes -> Bytes -> U64 -> Nat -> Bool -> Result FlateError (Bytes, U64, Nat, Bytes)
+  flate-compress-chunk level window chunk bitbuf nbits is-final =
+    case resolve-level level of
+      Err e -> Err e
+      Ok cfg ->
+        let bw0 = bw-init (max-nat (bytes-len chunk) 64) bitbuf nbits in
+        let bw1 = compress-into bw0 cfg window chunk is-final in
+        let next-win = append-window window chunk in
+        if is-final then Ok (bw-finish bw1, 0, 0, next-win)
+        else
+          let (out, rem-bits, rem-n) = bw-extract-partial bw1 in
+          Ok (out, rem-bits, rem-n, next-win)
+
+  -- | Emit an RFC 1951 sync flush (non-final empty stored block) aligning the bitstream
+  -- to a byte boundary so all prior compressed bytes are immediately decodable.
+  flate-sync-flush :: U64 -> Nat -> (Bytes, U64, Nat)
+  flate-sync-flush bitbuf nbits =
+    let bw0 = bw-init 16 bitbuf nbits in
+    let bw1 = emit-stored-block bw0 (bytes-new 0) 0 0 False in
+    (bw-finish bw1, 0, 0)
+
+  -- | Concatenate window and chunk and retain at most the trailing 32 KiB.
+  append-window :: Bytes -> Bytes -> Bytes
+  append-window window chunk =
+    let wlen = bytes-len window in
+    let clen = bytes-len chunk in
+    if clen >= window-size then slice-bytes chunk (clen - window-size) window-size
+    else
+      let keep-w = min-nat wlen (window-size - clen) in
+      let out = bytes-new (keep-w + clen) in
+      let u1 = copy-range out window 0 (sub-sat wlen keep-w) keep-w in
+      let u2 = copy-range out chunk keep-w 0 clen in
+      out
+
+  -- | Core compression dispatch into a BitWriter for stored, Huffman-only, or LZ77 modes.
+  compress-into :: BitWriter -> LevelConfig -> Bytes -> Bytes -> Bool -> BitWriter
+  compress-into bw cfg dict input is-final =
+    let in-len = bytes-len input in
+    case cfg of
+      LevelConfig mode max-chain lazy-len nice-len ->
+        if mode == 0 then compress-stored-loop bw input 0 in-len is-final
+        else if in-len == 0 then
+          if is-final then bw-put-bits (bw-put-bits bw 3 3) 0 7
+          else bw
+        else if mode == 1 then
+          let tokens = bytes-new (block-max-tokens * 4) in
+          let lit-freq = bytes-new (286 * 4) in
+          let dist-freq = bytes-new (30 * 4) in
+          let hctx = HuffOnlyCtx input in-len tokens lit-freq dist-freq is-final in
+          compress-huff-only-loop bw hctx 0
+        else
+          let dlen = min-nat (bytes-len dict) window-size in
+          let win = (if dlen == 0 then input
+            else
+              let w = bytes-new (dlen + in-len) in
+              let u1 = copy-range w dict 0 (sub-sat (bytes-len dict) dlen) dlen in
+              let u2 = copy-range w input dlen 0 in-len in
+              w) in
+          let win-len = dlen + in-len in
+          let head = bytes-new (32768 * 4) in
+          let prev = bytes-new (32768 * 4) in
+          let u-seed = seed-dict-hash win head prev 0 dlen in
+          let tokens = bytes-new (block-max-tokens * 4) in
+          let lit-freq = bytes-new (286 * 4) in
+          let dist-freq = bytes-new (30 * 4) in
+          let ctx = LzCtx win head prev max-chain lazy-len nice-len win-len tokens lit-freq dist-freq is-final in
+          compress-lz77-loop bw ctx dlen dlen 0
+
+  -- | Emit one or more type-0 stored blocks covering input[pos .. in-len).
+  compress-stored-loop :: BitWriter -> Bytes -> Nat -> Nat -> Bool -> BitWriter
+  compress-stored-loop bw input pos in-len is-final =
+    let rem = sub-sat in-len pos in
+    let chunk = min-nat rem 65535 in
+    let last = pos + chunk >= in-len in
+    let bw1 = emit-stored-block bw input pos chunk (is-final && last) in
+    if last then bw1
+    else compress-stored-loop bw1 input (pos + chunk) in-len is-final
+
+  -- | Compress in Huffman-only mode (no LZ77 matches) in blocks of up to 32768 bytes.
+  compress-huff-only-loop :: BitWriter -> HuffOnlyCtx -> Nat -> BitWriter
+  compress-huff-only-loop bw hctx pos = case hctx of
+    HuffOnlyCtx input in-len tokens lit-freq dist-freq is-final ->
+      let rem = sub-sat in-len pos in
+      let chunk = min-nat rem block-max-tokens in
+      let u0 = zero-words lit-freq 0 286 in
+      let u1 = fill-huff-only-tokens input pos chunk tokens lit-freq 0 in
+      let last = pos + chunk >= in-len in
+      let bw1 = emit-optimal-block bw input pos chunk tokens chunk lit-freq dist-freq (is-final && last) in
+      if last then bw1
+      else compress-huff-only-loop bw1 hctx (pos + chunk)
+
+  -- | Populate literal tokens and frequencies for one Huffman-only block.
+  fill-huff-only-tokens :: Bytes -> Nat -> Nat -> Bytes -> Bytes -> Nat -> Unit
+  fill-huff-only-tokens input base chunk tokens lit-freq i =
+    if i >= chunk then ()
+    else
+      let b = byte-at input (base + i) in
+      let u1 = set-w tokens i b in
+      let u2 = inc-w lit-freq b in
+      fill-huff-only-tokens input base chunk tokens lit-freq (i + 1)
+
+  -- | Main LZ77 + Huffman block compression loop with optional lazy matching.
+  compress-lz77-loop :: BitWriter -> LzCtx -> Nat -> Nat -> Nat -> BitWriter
+  compress-lz77-loop bw ctx pos block-start tok-count = case ctx of
+    LzCtx win head prev max-chain lazy-len nice-len win-len tokens lit-freq dist-freq is-final ->
+      if pos >= win-len then
+        emit-optimal-block bw win block-start (sub-sat pos block-start) tokens tok-count lit-freq dist-freq is-final
+      else if tok-count >= block-max-tokens || sub-sat pos block-start >= sub-sat block-max-bytes 258 then
+        let bw1 = emit-optimal-block bw win block-start (sub-sat pos block-start) tokens tok-count lit-freq dist-freq False in
+        let u1 = zero-words lit-freq 0 286 in
+        let u2 = zero-words dist-freq 0 30 in
+        compress-lz77-loop bw1 ctx pos pos 0
+      else if pos + 3 > win-len then
+        let tc1 = push-lit-token tokens lit-freq tok-count (byte-at win pos) in
+        compress-lz77-loop bw ctx (pos + 1) block-start tc1
+      else
+        let cand1 = insert-hash win head prev pos in
+        let (mlen, mdist) = find-match ctx pos cand1 2 0 0 in
+        let use-match = mlen >= 3 && (mlen > 3 || mdist <= 4096 || lazy-len == 0) in
+        if not use-match then
+          let tc1 = push-lit-token tokens lit-freq tok-count (byte-at win pos) in
+          compress-lz77-loop bw ctx (pos + 1) block-start tc1
+        else if lazy-len > 0 && mlen < lazy-len && pos + 4 <= win-len && tok-count + 1 < block-max-tokens then
+          -- Probe pos + 1 for a strictly longer match (lazy matching).
+          let cand2 = insert-hash win head prev (pos + 1) in
+          let (mlen2, mdist2) = find-match ctx (pos + 1) cand2 mlen 0 0 in
+          if mlen2 > mlen then
+            let tc1 = push-lit-token tokens lit-freq tok-count (byte-at win pos) in
+            let tc2 = push-match-token tokens lit-freq dist-freq tc1 mlen2 mdist2 in
+            let u-ins = insert-match-positions win head prev (pos + 2) (pos + 1 + mlen2) win-len in
+            compress-lz77-loop bw ctx (pos + 1 + mlen2) block-start tc2
+          else
+            let tc1 = push-match-token tokens lit-freq dist-freq tok-count mlen mdist in
+            let u-ins = insert-match-positions win head prev (pos + 2) (pos + mlen) win-len in
+            compress-lz77-loop bw ctx (pos + mlen) block-start tc1
+        else
+          let tc1 = push-match-token tokens lit-freq dist-freq tok-count mlen mdist in
+          let u-ins = insert-match-positions win head prev (pos + 1) (pos + mlen) win-len in
+          compress-lz77-loop bw ctx (pos + mlen) block-start tc1

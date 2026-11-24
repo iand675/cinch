@@ -16,6 +16,7 @@ module Text.Csv.Record where
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide
 
   export CsvFieldPolicy, CsvAnyFields, CsvInferFields, CsvExactFields
   export CsvOptions, csv-options, csv-default-options, csv-options-delimiter, csv-options-field-policy
@@ -318,93 +319,62 @@ module Text.Csv.Record where
     else bytes-new 0
 
   -- | Test eight bytes for a requested byte using portable SIMD lanes.
-  prim contains-byte8 :: U64 -> U8 -> U8 where
-    llvm {
-      %word = bitcast i64 %0 to <8 x i8>
-      %one = insertelement <8 x i8> zeroinitializer, i8 %1, i32 0
-      %wanted = shufflevector <8 x i8> %one, <8 x i8> zeroinitializer, <8 x i32> zeroinitializer
-      %same = icmp eq <8 x i8> %word, %wanted
-      %mask = bitcast <8 x i1> %same to i8
-      ret i8 %mask
-    }
+  contains-byte8 :: U64 -> U8 -> U8
+  contains-byte8 word wanted =
+    let mask = simd-u8x16-movemask (simd-u8x16-cmpeq (u64-to-u128 word) (simd-u8x16-splat wanted)) in
+    wrapping-u32-to-u8 (bit-and-u32 mask 255)
 
-  -- | Test exactly sixteen caller-proved bytes for a requested byte without exposing a raw pointer publicly.
-  prim scan-match16 :: I64 -> U8 -> U8 where
-    unsafe llvm {
-      %pointer = inttoptr i64 %0 to ptr
-      %word = load <16 x i8>, ptr %pointer, align 1
-      %one = insertelement <16 x i8> zeroinitializer, i8 %1, i32 0
-      %wanted = shufflevector <16 x i8> %one, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
-      %same = icmp eq <16 x i8> %word, %wanted
-      %bits = bitcast <16 x i1> %same to i16
-      %any = icmp ne i16 %bits, 0
-      %out = zext i1 %any to i8
-      ret i8 %out
-    }
+  -- | Skip match-free sixteen-byte SIMD blocks and advance directly to the first matching byte.
+  skip-match-blocks :: Bytes -> I64 -> I64 -> U8 -> I64
+  skip-match-blocks input start at wanted =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= at then
+      let nn = nat-from-i64 n in
+      let ni = nat-from-i64 at in
+      if 16 <= nn && ni <= nn - 16 then
+        let mask = simd-u8x16-movemask (simd-u8x16-cmpeq (bytes-load-u128 input ni) (simd-u8x16-splat wanted)) in
+        if eq-u32 mask 0 then skip-match-blocks input start (wrapping-add-i64 at 16) wanted
+        else wrapping-sub-i64 (wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))) start
+      else wrapping-sub-i64 at start
+    else wrapping-sub-i64 at start
 
-  -- | Test sixteen proved bytes for delimiter lead, quote, LF and a selected extra byte.
-  prim scan-special16 :: I64 -> U8 -> U8 -> U8 where
-    unsafe llvm {
-      %pointer = inttoptr i64 %0 to ptr
-      %word = load <16 x i8>, ptr %pointer, align 1
-      %one = insertelement <16 x i8> zeroinitializer, i8 %1, i32 0
-      %first = shufflevector <16 x i8> %one, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
-      %two = insertelement <16 x i8> zeroinitializer, i8 %2, i32 0
-      %extra = shufflevector <16 x i8> %two, <16 x i8> zeroinitializer, <16 x i32> zeroinitializer
-      %a = icmp eq <16 x i8> %word, %first
-      %b = icmp eq <16 x i8> %word, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %c = icmp eq <16 x i8> %word, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
-      %d = icmp eq <16 x i8> %word, %extra
-      %ab = or <16 x i1> %a, %b
-      %cd = or <16 x i1> %c, %d
-      %all = or <16 x i1> %ab, %cd
-      %bits = bitcast <16 x i1> %all to i16
-      %any = icmp ne i16 %bits, 0
-      %out = zext i1 %any to i8
-      ret i8 %out
-    }
+  -- | Skip special-byte-free sixteen-byte SIMD blocks and advance directly to the first special byte.
+  skip-special-blocks :: Bytes -> I64 -> I64 -> U8 -> U8 -> I64
+  skip-special-blocks input start at first extra =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= at then
+      let nn = nat-from-i64 n in
+      let ni = nat-from-i64 at in
+      if 16 <= nn && ni <= nn - 16 then
+        let chunk = bytes-load-u128 input ni in
+        let ab = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat first)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 34)) in
+        let cd = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 10)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat extra)) in
+        let mask = simd-u8x16-movemask (bit-or-u128 ab cd) in
+        if eq-u32 mask 0 then skip-special-blocks input start (wrapping-add-i64 at 16) first extra
+        else wrapping-sub-i64 (wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))) start
+      else wrapping-sub-i64 at start
+    else wrapping-sub-i64 at start
 
-  -- | Retain an input owner until a complete private machine-counter traversal returns.
-  hold-scan :: Bytes -> U64 -> U64
-  hold-scan input value = case bytes-len input of _ -> value
-
-  -- | Skip complete sixteen-byte match-free intervals using only machine counters inside the hot loop.
-  skip-match-blocks :: I64 -> U64 -> U8 -> U64 -> U64
-  skip-match-blocks address remaining wanted skipped =
-    if ge-u64 remaining 16 && eq-u8 (scan-match16 address wanted) 0 then
-      skip-match-blocks (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) wanted (wrapping-add-u64 skipped 16)
-    else skipped
-
-  -- | Skip complete special-byte-free intervals without natural-number or ownership work in each iteration.
-  skip-special-blocks :: I64 -> U64 -> U8 -> U8 -> U64 -> U64
-  skip-special-blocks address remaining first extra skipped =
-    if ge-u64 remaining 16 && eq-u8 (scan-special16 address first extra) 0 then
-      skip-special-blocks (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) first extra (wrapping-add-u64 skipped 16)
-    else skipped
-
-  -- | Convert a machine distance exactly through unsigned halves without a signed refinement contract.
-  scan-distance :: U64 -> Nat
-  scan-distance value =
-    let low = u32-to-nat (wrapping-u64-to-u32 value) in
-    let high = wrapping-u64-to-u32 (wrapping-shr-u64 value 32) in
-    if eq-u32 high 0 then low else u32-to-nat high * 4294967296 + low
-
-  -- | Establish a private match traversal's exact interval and retain its backing owner once around the loop.
+  -- | Establish a private match traversal's exact interval and return its checked byte distance.
   bulk-match :: Bytes -> Nat -> U8 -> Nat
   bulk-match input at wanted = if at <= bytes-len input then
-    let remaining = bytes-len input - at in
-    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
-    let skipped = hold-scan input (skip-match-blocks address (wrapping-i64-to-u64 (nat-to-i64 remaining)) wanted 0) in
-    let n = scan-distance skipped in if n <= remaining then n else 0
+    let start = nat-to-i64 at in
+    let skipped = skip-match-blocks input start start wanted in
+    if 0 <= skipped then
+      let n = nat-from-i64 skipped in
+      if n <= bytes-len input - at then n else 0
+    else 0
     else 0
 
   -- | Establish a private delimiter/quote traversal's interval and return its checked byte distance.
   bulk-special :: Bytes -> Nat -> U8 -> U8 -> Nat
   bulk-special input at first extra = if at <= bytes-len input then
-    let remaining = bytes-len input - at in
-    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
-    let skipped = hold-scan input (skip-special-blocks address (wrapping-i64-to-u64 (nat-to-i64 remaining)) first extra 0) in
-    let n = scan-distance skipped in if n <= remaining then n else 0
+    let start = nat-to-i64 at in
+    let skipped = skip-special-blocks input start start first extra in
+    if 0 <= skipped then
+      let n = nat-from-i64 skipped in
+      if n <= bytes-len input - at then n else 0
+    else 0
     else 0
 
   -- | Seek an exact byte, skipping eight-byte intervals proven to contain no match.
@@ -482,38 +452,22 @@ module Text.Csv.Record where
     u8-to-nat (scalar-first (wrapping-i64-to-u32 (nat-to-i64 code)))
 
   -- | Derive a scalar's leading UTF-8 byte without allocating a temporary string and byte buffer.
-  prim scalar-first :: U32 -> U8 where
-    llvm {
-      %small = icmp ult i32 %0, 128
-      %medium = icmp ult i32 %0, 2048
-      %large = icmp ult i32 %0, 65536
-      %s6 = lshr i32 %0, 6
-      %a = or i32 %s6, 192
-      %s12 = lshr i32 %0, 12
-      %b = or i32 %s12, 224
-      %s18 = lshr i32 %0, 18
-      %c = or i32 %s18, 240
-      %bc = select i1 %large, i32 %b, i32 %c
-      %abc = select i1 %medium, i32 %a, i32 %bc
-      %value = select i1 %small, i32 %0, i32 %abc
-      %out = trunc i32 %value to i8
-      ret i8 %out
-    }
+  scalar-first :: U32 -> U8
+  scalar-first cp =
+    if lt-u32 cp 128 then wrapping-u32-to-u8 cp
+    else if lt-u32 cp 2048 then wrapping-u32-to-u8 (bit-or-u32 (wrapping-shr-u32 cp 6) 192)
+    else if lt-u32 cp 65536 then wrapping-u32-to-u8 (bit-or-u32 (wrapping-shr-u32 cp 12) 224)
+    else wrapping-u32-to-u8 (bit-or-u32 (wrapping-shr-u32 cp 18) 240)
 
   -- | Test a full block for quote, LF or the delimiter's first UTF-8 byte before scalar inspection.
-  prim special8 :: U64 -> U8 -> U8 where
-    llvm {
-      %word = bitcast i64 %0 to <8 x i8>
-      %one = insertelement <8 x i8> zeroinitializer, i8 %1, i32 0
-      %delimiter = shufflevector <8 x i8> %one, <8 x i8> zeroinitializer, <8 x i32> zeroinitializer
-      %a = icmp eq <8 x i8> %word, %delimiter
-      %b = icmp eq <8 x i8> %word, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %c = icmp eq <8 x i8> %word, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
-      %ab = or <8 x i1> %a, %b
-      %all = or <8 x i1> %ab, %c
-      %mask = bitcast <8 x i1> %all to i8
-      ret i8 %mask
-    }
+  special8 :: U64 -> U8 -> U8
+  special8 word delimiter =
+    let lanes = u64-to-u128 word in
+    let a = simd-u8x16-cmpeq lanes (simd-u8x16-splat delimiter) in
+    let b = simd-u8x16-cmpeq lanes (simd-u8x16-splat 34) in
+    let c = simd-u8x16-cmpeq lanes (simd-u8x16-splat 10) in
+    let mask = simd-u8x16-movemask (bit-or-u128 (bit-or-u128 a b) c) in
+    wrapping-u32-to-u8 (bit-and-u32 mask 255)
 
   -- | Private end-of-field classification returned with its original byte position.
   data FieldEnd where

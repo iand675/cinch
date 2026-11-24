@@ -50,7 +50,7 @@ The lexicographic order of two buffers' contents as the raw -1/0/1
 immediate (the `nat-cmp` convention), read in place: no copy and
 no allocation.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 62
+[Source](/reference-sources/Data.Bytes.cinch) · line 83
 
 <a id="value-62797465732d636f70792d72616e6765"></a>
 
@@ -63,7 +63,7 @@ into `dst` at `di`, as one runtime `memmove` (the two may be the
 same buffer and overlap). A copy loop written here would box a `Nat`
 for every index step, so every bulk copy goes through this.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 57
+[Source](/reference-sources/Data.Bytes.cinch) · line 78
 
 <a id="value-62797465732d64617461"></a>
 
@@ -79,7 +79,7 @@ and the address is valid while the handle is live, so a caller that
 wants a C string NUL-terminates it itself (a fresh buffer one byte
 longer, the bytes copied in, the last byte zeroed).
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 51
+[Source](/reference-sources/Data.Bytes.cinch) · line 72
 
 <a id="value-62797465732d66726f6d2d6c697374"></a>
 
@@ -90,7 +90,7 @@ longer, the bytes copied in, the last byte zeroed).
 Copy typed byte values in list order into one fresh mutable buffer.
 A tail count pass and checked tail stores keep construction stack bounded.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 72
+[Source](/reference-sources/Data.Bytes.cinch) · line 93
 
 <a id="value-62797465732d66726f6d2d753873"></a>
 
@@ -100,13 +100,29 @@ A tail count pass and checked tail stores keep construction stack bounded.
 
 Copy machine byte values into one fresh buffer without recursive unwinding.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 104
+[Source](/reference-sources/Data.Bytes.cinch) · line 125
 
 <a id="value-62797465732d676574"></a>
 
 ## `bytes-get`
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-get</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d6765742d7538"></a>
+
+## `bytes-get-u8`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-get-u8</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">U8</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d6765742d75382d6174"></a>
+
+## `bytes-get-u8-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-get-u8-at</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg1</span>, <span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">I64</span>) -&gt; <span class="tok-constructor">U8</span>))</code></pre>
 
 [Source](/reference-sources/Data.Bytes.cinch)
 
@@ -125,7 +141,63 @@ bytes-len b)` supplies it. A string literal's read-only backing is
 never one of these buffers: it lives inside a `String`, and every
 conversion out of a `String` copies.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 39
+[Source](/reference-sources/Data.Bytes.cinch) · line 43
+
+<a id="value-62797465732d6c656e2d693634"></a>
+
+## `bytes-len-i64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-len-i64</span> :: ((<span class="tok-variable">b</span> :: <span class="tok-constructor">Bytes</span>) -&gt; (<span class="tok-variable">refined</span> ((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> (<span class="tok-variable">b</span>.<span class="tok-variable">bytesLen</span> <span class="tok-variable">b</span>))) <span class="tok-constructor">I64</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d6c6f61642d6c653332"></a>
+
+## `bytes-load-le32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-load-le32</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">U32</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d6c6f61642d6c6533322d6174"></a>
+
+## `bytes-load-le32-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-load-le32-at</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg1</span>, (<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">I64</span>) -&gt; <span class="tok-constructor">U32</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d6c6f61642d6c653634"></a>
+
+## `bytes-load-le64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-load-le64</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">8</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">U64</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d6c6f61642d6c6536342d6174"></a>
+
+## `bytes-load-le64-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-load-le64-at</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg1</span>, (<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">8</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">I64</span>) -&gt; <span class="tok-constructor">U64</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d6c6f61642d75313238"></a>
+
+## `bytes-load-u128`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-load-u128</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">16</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d6c6f61642d753132382d6174"></a>
+
+## `bytes-load-u128-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-load-u128-at</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg1</span>, (<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">16</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">I64</span>) -&gt; <span class="tok-constructor">U128</span>))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
 
 <a id="value-62797465732d6e6577"></a>
 
@@ -143,6 +215,70 @@ conversion out of a `String` copies.
 
 [Source](/reference-sources/Data.Bytes.cinch)
 
+<a id="value-62797465732d7365742d7538"></a>
+
+## `bytes-set-u8`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-set-u8</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d7365742d75382d6174"></a>
+
+## `bytes-set-u8-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-set-u8-at</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg1</span>, <span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">I64</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U8</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d73746f72652d6c653332"></a>
+
+## `bytes-store-le32`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-store-le32</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d73746f72652d6c6533322d6174"></a>
+
+## `bytes-store-le32-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-store-le32-at</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg1</span>, (<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">I64</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d73746f72652d6c653634"></a>
+
+## `bytes-store-le64`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-store-le64</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">8</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U64</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d73746f72652d6c6536342d6174"></a>
+
+## `bytes-store-le64-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-store-le64-at</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg1</span>, (<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">8</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">I64</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U64</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d73746f72652d75313238"></a>
+
+## `bytes-store-u128`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-store-u128</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">16</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U128</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
+<a id="value-62797465732d73746f72652d753132382d6174"></a>
+
+## `bytes-store-u128-at`
+
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-store-u128-at</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg1</span>, (<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">16</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">I64</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U128</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+
+[Source](/reference-sources/Data.Bytes.cinch)
+
 <a id="value-7368613235362d6279746573"></a>
 
 ## `sha256-bytes`
@@ -154,7 +290,7 @@ buffer (the P31 content identity; `seed/runtime/src/text.rs`,
 the `cinch.runtime.textSha256` intrinsic, nm-verified there): the
 digest as a fresh 32-byte buffer.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 68
+[Source](/reference-sources/Data.Bytes.cinch) · line 89
 
 # Instances
 
@@ -179,4 +315,4 @@ copies of one algorithm.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes.cinch`. Source SHA-256: `24bb9f3ca7c5420b3abde122e05762f25adaa72df41d27557d22fc69370585da`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes.cinch`. Source SHA-256: `9cca464dcf431c7df1c6540d8937ba9966eaa33b9e87b37b9018d44a58869e40`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

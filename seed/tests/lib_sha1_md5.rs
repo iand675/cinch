@@ -133,24 +133,11 @@ fn sha1_and_md5_streams_preserve_digests_counts_and_source_continuations() {
     }
 }
 
-/// The SIMD schedule and rotate fragments remain legal on 32-bit and non-x86 object targets.
+/// The SHA-1 SIMD schedule and SHA-1/MD5 rotate and byte-order kernels remain legal on 32-bit and non-x86 object targets.
 #[test]
 fn sha1_and_md5_kernels_compile_for_wasm_arm_and_big_endian_targets() {
     let directory = tempfile::tempdir().unwrap();
-    for (algorithm, marker, data, words) in [
-        (&SHA1, "  -- | Generated SHA-1 compression:", "  data Sha1Words where\n    -- | Working words.\n    Words160 :: U32 -> U32 -> U32 -> U32 -> U32 -> Sha1Words\n", "Words160 a b c d e"),
-        (&MD5, "  -- | Generated MD5 compression:", "  data Md5Words where\n    -- | Working words.\n    Words128 :: U32 -> U32 -> U32 -> U32 -> Md5Words\n", "Words128 a b c d"),
-    ] {
-        let source = algorithm.text;
-        let mut kernels = format!("-- | Isolated kernel compilation.\nmodule Main where\n  import Data.Machine\n  import Data.Wide\n  -- | Raw words.\n{data}");
-        kernels.push_str(&source[source.find(marker).unwrap()..]);
-        let start = source.find("  prim block-word ::").unwrap();
-        let rest = &source[start..];
-        kernels.push_str("\n  -- | Checked private raw load under target compilation.\n");
-        kernels.push_str(&rest[..rest.find("\n  -- |").unwrap()]);
-        let first = words.split(' ').nth(1).unwrap();
-        let initial = if algorithm.stem == "sha1" { "Words160 1 2 3 4 5" } else { "Words128 1 2 3 4" };
-        kernels.push_str(&format!("\n  -- | Retain the fixture buffer while its private load finishes.\n  keep :: Bytes -> U64 -> U64\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Keep compression units reachable.\n  main :: Int\n  main = let bytes = bytes-new 64 in let word = keep bytes (block-word (bytes-data bytes) 0) in case {}-compress ({initial}) word 0 0 0 0 0 0 0 of {words} -> if eq-u32 {first} 0 then 0 else 1\n", algorithm.stem));
+    for algorithm in [&SHA1, &MD5] {
         for (triple, arch, endian) in [
             ("wasm32-unknown-unknown", "wasm32", "little"),
             ("aarch64-unknown-linux-gnu", "aarch64", "little"),
@@ -164,27 +151,47 @@ fn sha1_and_md5_kernels_compile_for_wasm_arm_and_big_endian_targets() {
                     profile.endian = endian.into();
                     profile
                 });
-            let input = kernels.clone();
+            let project = directory.path().join(format!("{}-{arch}", algorithm.stem));
+            std::fs::create_dir_all(&project).unwrap();
+            for (name, text) in [
+                (format!("Text.{}", algorithm.module), algorithm.text),
+                ("Text.Binary".into(), include_str!("../prelude/Text/Binary.cinch")),
+            ] {
+                std::fs::write(project.join(format!("{name}.cinch")), text).unwrap();
+            }
+            std::fs::write(
+                project.join("Main.cinch"),
+                format!(
+                    "module Main where\n  import Text.{}\n  -- | Reach the kernels.\n  main :: Int\n  main = if bytes-len ({}-sum (bytes-new 64)) == {} then 0 else 1\n",
+                    algorithm.module, algorithm.stem, algorithm.size,
+                ),
+            )
+            .unwrap();
+            let ir_path = project.join("program.ll");
+            let entry = project.join("Main.cinch");
             let ir = std::thread::Builder::new()
-                .stack_size(64 * 1024 * 1024)
+                .stack_size(256 * 1024 * 1024)
                 .spawn(move || {
-                    let program = cinch::driver::check_sources_profile(&input, "kernels.cinch", &profile)?;
-                    cinch::codegen::emit_for(&profile, &program)
+                    cinch::driver::driver_with_profile_opts(Mode::EmitIr, cinch::check::StageMode::Refresh, &entry, Some(&ir_path), &profile, &cinch::driver::DriverOptions::default())
+                        .map(|_| std::fs::read_to_string(&ir_path).unwrap())
                 })
                 .unwrap()
                 .join()
                 .unwrap()
                 .unwrap();
             if algorithm.stem == "sha1" {
-                assert!(ir.contains("<4 x i32>") && ir.contains("@llvm.fshl.v4i32"));
+                assert!(ir.contains("<4 x i32>") && ir.contains("call <4 x i32> @llvm.fshl.v4i32"));
+            } else {
+                assert!(ir.contains("call i32 @llvm.fshl.i32"));
             }
-            let path = directory.path().join(format!("{}-{arch}.ll", algorithm.stem));
-            std::fs::write(&path, &ir).unwrap();
+            if endian == "big" {
+                assert!(ir.contains("call i128 @llvm.bswap.i128"));
+            }
             let output = std::process::Command::new(std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()))
                 .args(["-target", triple, "-O2", "-c", "-x", "ir"])
-                .arg(&path)
+                .arg(project.join("program.ll"))
                 .arg("-o")
-                .arg(path.with_extension("o"))
+                .arg(project.join("program.o"))
                 .output()
                 .unwrap();
             assert!(output.status.success(), "{triple}: {}", String::from_utf8_lossy(&output.stderr));

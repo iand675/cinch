@@ -10,9 +10,9 @@ Import with `import Text.Html`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Html](Text.Html.md).
+Non-embedded source closure: [Text.Html](Text.Html.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -23,8 +23,8 @@ semicolon-free names, decimal/hexadecimal numeric references and Windows-1252
 numeric replacements. Unknown references remain unchanged. Reference expansion
 is a single pass: newly decoded ampersands are not decoded again.
 Byte APIs preserve unrelated arbitrary bytes; text APIs preserve valid UTF-8.
-All returned byte buffers are fresh. Complete scanning blocks use LLVM SIMD;
-private machine-counter loops retain their source until exact loads finish.
+All returned byte buffers are fresh. Complete scanning blocks use portable
+16-byte SIMD classification over checked byte buffers.
 
 </details>
 
@@ -43,7 +43,7 @@ This module exports no type declarations.
 Escape ampersand, apostrophe, double quotation mark and angle brackets in UTF-8 text.
 Apostrophes use &#39; and double quotation marks use &#34;.
 
-[Source](/reference-sources/Text.Html.cinch) · line 226
+[Source](/reference-sources/Text.Html.cinch) · line 217
 
 <a id="value-68746d6c2d6573636170652d6279746573"></a>
 
@@ -53,7 +53,7 @@ Apostrophes use &#39; and double quotation marks use &#34;.
 
 Escape arbitrary input bytes into fresh storage. Unrelated non-UTF-8 bytes are preserved exactly.
 
-[Source](/reference-sources/Text.Html.cinch) · line 221
+[Source](/reference-sources/Text.Html.cinch) · line 212
 
 <a id="value-68746d6c2d657363617065642d6c656e677468"></a>
 
@@ -63,7 +63,7 @@ Escape arbitrary input bytes into fresh storage. Unrelated non-UTF-8 bytes are p
 
 Exact escaped byte count. Only five ASCII bytes expand; all other bytes retain their size.
 
-[Source](/reference-sources/Text.Html.cinch) · line 125
+[Source](/reference-sources/Text.Html.cinch) · line 83
 
 <a id="value-68746d6c2d756e657363617065"></a>
 
@@ -75,7 +75,7 @@ Decode named and numeric HTML references once, preserving unknown reference text
 Legacy names can omit a semicolon; invalid numeric scalars become U+FFFD.
 Numeric accumulation wraps at 32 bits before scalar replacement.
 
-[Source](/reference-sources/Text.Html.cinch) · line 452
+[Source](/reference-sources/Text.Html.cinch) · line 421
 
 <a id="value-68746d6c2d756e6573636170652d6279746573"></a>
 
@@ -86,8 +86,8 @@ Numeric accumulation wraps at 32 bits before scalar replacement.
 Decode HTML5 references into fresh arbitrary bytes, retaining unrelated bytes exactly.
 Complete named references may expand: for example, &nLt; produces two scalars and six UTF-8 bytes.
 
-[Source](/reference-sources/Text.Html.cinch) · line 446
+[Source](/reference-sources/Text.Html.cinch) · line 415
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Html.cinch`. Source SHA-256: `a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Html.cinch`. Source SHA-256: `c529e7460946beda95b4423e9f6772e8f73746532fa0a9d9986735b0a86eac88`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

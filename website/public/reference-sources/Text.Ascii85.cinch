@@ -3,18 +3,18 @@
 -- becomes z. No document delimiters are added or accepted. Decoding ignores
 -- bytes 0 through 32, counts errors in original input bytes, and accumulates
 -- complete groups modulo 2^32, including noncanonical overflowing groups.
--- Complete groups use inline LLVM SIMD digit arithmetic. Incremental calls
+-- Complete groups use portable machine and SIMD digit arithmetic. Incremental calls
 -- retain only an unfinished word; finishing emits the final short quantum.
 module Text.Ascii85 where
 
   import Data.Bool
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Machine
   import Data.Nat
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide
 
   export Ascii85Error, InvalidAscii85Byte, TruncatedAscii85Quantum
   export ascii85-error-offset, ascii85-error-message
@@ -74,39 +74,62 @@ module Text.Ascii85 where
       let copied = bytes-copy-range out b 0 0 n in out
     else bytes-new 0
 
-  -- | Normalize a little-endian input word to the encoding's big-endian order.
-  prim reverse-word :: U32 -> U32 where
-    llvm {
-      %word = call i32 @llvm.bswap.i32(i32 %0)
-      ret i32 %word
-    }
-
   -- | Store five packed symbols in their input order, with a complete range proof.
   store-five :: using (i + 5 <= bytes-len out) => (out :: Bytes) -> (i :: Nat) -> U64 -> Unit
   store-five out i word =
-    let first = bytes-write-le32 out i (wrapping-u64-to-u32 word) in
-    bytes-set out (i + 4) (u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word 32)))
+    let first = bytes-store-le32 out i (wrapping-u64-to-u32 word) in
+    bytes-set-u8 out (i + 4) (wrapping-u64-to-u8 (wrapping-shr-u64 word 32))
 
   -- | Emit one complete word, compressing only a full zero word to z.
   emit :: using (i + 5 <= bytes-len out) => (out :: Bytes) -> (i :: Nat) -> U32 -> Nat
   emit out i word =
-    if eq-u32 word 0 then let written = bytes-set out i 122 in i + 1
+    if eq-u32 word 0 then let written = bytes-set-u8 out i 122 in i + 1
     else let written = store-five out i (encode-word word) in i + 5
+
+  -- | Encode full words with unboxed machine indices before returning the final positions.
+  encode-blocks-i64 :: Bytes -> I64 -> Bytes -> I64 -> (I64, I64)
+  encode-blocks-i64 b i out oi =
+    let nb = bytes-len-i64 b in
+    let no = bytes-len-i64 out in
+    if 4 <= nb && 5 <= no && 0 <= i && 0 <= oi then
+      let nnb = nat-from-i64 nb in
+      let nno = nat-from-i64 no in
+      if 4 <= nnb && 5 <= nno then
+        let ni = nat-from-i64 i in
+        let noi = nat-from-i64 oi in
+        if ni <= nnb - 4 && noi <= nno - 5 then
+          let word = swap-bytes-u32 (bytes-load-le32-at b i) in
+          if eq-u32 word 0 then
+            let written = bytes-set-u8-at out oi 122 in
+            encode-blocks-i64 b (wrapping-add-i64 i 4) out (wrapping-add-i64 oi 1)
+          else
+            let packed = encode-word word in
+            let first = bytes-store-le32-at out oi (wrapping-u64-to-u32 packed) in
+            let oi4 = wrapping-add-i64 oi 4 in
+            if 0 <= oi4 && oi4 < bytes-len-i64 out then
+              let last = bytes-set-u8-at out oi4 (wrapping-u64-to-u8 (wrapping-shr-u64 packed 32)) in
+              encode-blocks-i64 b (wrapping-add-i64 i 4) out (wrapping-add-i64 oi 5)
+            else (i, oi)
+        else (i, oi)
+      else (i, oi)
+    else (i, oi)
 
   -- | Encode full words without carrying a symbol count through the hot loop.
   -- Only the final fringe needs the incremental accumulator and count.
   encode-blocks :: Bytes -> Nat -> Bytes -> Nat -> (Bytes, Ascii85Encoder)
   encode-blocks b i out oi =
-    if i + 4 <= bytes-len b && oi + 5 <= bytes-len out then
-      let next = emit out oi (reverse-word (bytes-read-le32 b i)) in
-      encode-blocks b (i + 4) out next
-    else encode-fringe b i out oi 0 0
+    if i <= bytes-len b && oi <= bytes-len out then
+      case encode-blocks-i64 b (nat-to-i64 i) out (nat-to-i64 oi) of
+        (fi, foi) ->
+          if 0 <= fi && 0 <= foi then encode-fringe b (nat-from-i64 fi) out (nat-from-i64 foi) 0 0
+          else (prefix out oi, EncodeState 0 0)
+    else (prefix out oi, EncodeState 0 0)
 
   -- | Complete a carried word or retain the final bytes, then resume the full-word loop.
   encode-fringe :: Bytes -> Nat -> Bytes -> Nat -> U32 -> Nat -> (Bytes, Ascii85Encoder)
   encode-fringe b i out oi acc count =
     if i < bytes-len b && oi + 5 <= bytes-len out then
-      let byte = wrapping-i64-to-u32 (nat-to-i64 (bytes-get b i)) in
+      let byte = u8-to-u32 (bytes-get-u8 b i) in
       let word = bit-or-u32 (wrapping-shl-u32 acc 8) byte in
       if count == 3 then
         let next = emit out oi word in encode-blocks b (i + 1) out next
@@ -142,18 +165,48 @@ module Text.Ascii85 where
   -- | Load five ASCII bytes without reading beyond the proved input range.
   read-five :: using (i + 5 <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> U64
   read-five b i =
-    bit-or-u64 (u32-to-u64 (bytes-read-le32 b i))
-      (wrapping-shl-u64 (wrapping-i64-to-u64 (nat-to-i64 (bytes-get b (i + 4)))) 32)
+    bit-or-u64 (u32-to-u64 (bytes-load-le32 b i))
+      (wrapping-shl-u64 (u8-to-u64 (bytes-get-u8 b (i + 4))) 32)
 
-  -- | Decode full groups using SIMD; whitespace, z and invalid bytes retain scalar rules.
+  -- | Decode full five-symbol groups in an unboxed machine loop before returning to scalar handling.
+  decode-fast-i64 :: Bytes -> I64 -> Bytes -> I64 -> (I64, I64)
+  decode-fast-i64 b i out oi =
+    let nb = bytes-len-i64 b in
+    if 5 <= nb then
+      let no = bytes-len-i64 out in
+      if 4 <= no then
+        if 0 <= i && 0 <= oi then
+          let nnb = nat-from-i64 nb in
+          let nno = nat-from-i64 no in
+          if 5 <= nnb then
+            if 4 <= nno then
+              let ni = nat-from-i64 i in
+              let noi = nat-from-i64 oi in
+              if ni <= nnb - 5 && noi <= nno - 4 then
+                let i4 = wrapping-add-i64 i 4 in
+                if 0 <= i4 && i4 < bytes-len-i64 b then
+                  let packed = bit-or-u64 (u32-to-u64 (bytes-load-le32-at b i)) (wrapping-shl-u64 (u8-to-u64 (bytes-get-u8-at b i4)) 32) in
+                  let decoded = decode-word packed in
+                  if eq-u64 (wrapping-shr-u64 decoded 32) 0 then
+                    let written = bytes-store-le32-at out oi (swap-bytes-u32 (wrapping-u64-to-u32 decoded)) in
+                    decode-fast-i64 b (wrapping-add-i64 i 5) out (wrapping-add-i64 oi 4)
+                  else (i, oi)
+                else (i, oi)
+              else (i, oi)
+            else (i, oi)
+          else (i, oi)
+        else (i, oi)
+      else (i, oi)
+    else (i, oi)
+
+  -- | Decode full groups with unboxed machine loops; whitespace, z and invalid bytes retain scalar rules.
   decode-from :: Bytes -> Nat -> Bytes -> Nat -> U32 -> Nat -> Nat -> Result Ascii85Error (Bytes, Ascii85Decoder)
   decode-from b i out oi acc count offset =
     if count == 0 && i + 5 <= bytes-len b && oi + 4 <= bytes-len out then
-      let decoded = decode-word (read-five b i) in
-      if eq-u64 (wrapping-shr-u64 decoded 32) 0 then
-        let written = bytes-write-le32 out oi (reverse-word (wrapping-u64-to-u32 decoded)) in
-        decode-from b (i + 5) out (oi + 4) 0 0 offset
-      else decode-byte b i out oi acc count offset
+      case decode-fast-i64 b (nat-to-i64 i) out (nat-to-i64 oi) of
+        (fi, foi) ->
+          if 0 <= fi && 0 <= foi then decode-byte b (nat-from-i64 fi) out (nat-from-i64 foi) 0 0 offset
+          else decode-byte b i out oi acc count offset
     else decode-byte b i out oi acc count offset
 
   -- | Process one original byte, preserving global offsets across feeds and ignored controls.
@@ -162,16 +215,17 @@ module Text.Ascii85 where
     if i < bytes-len b then
       let byte = bytes-get b i in
       if byte <= 32 then
-        if i + 8 <= bytes-len b && control-word (bytes-read-le64 b i) then decode-from b (i + 8) out oi acc count offset
+        if i + 16 <= bytes-len b && control-word16 (bytes-load-u128 b i) then decode-from b (i + 16) out oi acc count offset
+        else if i + 8 <= bytes-len b && control-word (bytes-load-le64 b i) then decode-from b (i + 8) out oi acc count offset
         else decode-from b (i + 1) out oi acc count offset
       else if byte == 122 && count == 0 && oi + 4 <= bytes-len out then
-        let written = bytes-write-le32 out oi 0 in
+        let written = bytes-store-le32 out oi 0 in
         decode-from b (i + 1) out (oi + 4) 0 0 offset
       else if byte >= 33 && byte <= 117 then
         let digit = wrapping-i64-to-u32 (nat-to-i64 (byte - 33)) in
         let word = wrapping-add-u32 (wrapping-mul-u32 acc 85) digit in
         if count == 4 && oi + 4 <= bytes-len out then
-          let written = bytes-write-le32 out oi (reverse-word word) in
+          let written = bytes-store-le32 out oi (swap-bytes-u32 word) in
           decode-from b (i + 1) out (oi + 4) 0 0 offset
         else decode-from b (i + 1) out oi word (count + 1) offset
       else Err (InvalidAscii85Byte (offset + i) byte)
@@ -198,7 +252,7 @@ module Text.Ascii85 where
       if count == 1 then Err (TruncatedAscii85Quantum offset)
       else if count > 1 && count < 5 then
         let out = bytes-new 4 in
-        let written = bytes-write-le32 out 0 (reverse-word (pad-word acc count)) in
+        let written = bytes-store-le32 out 0 (swap-bytes-u32 (pad-word acc count)) in
         Ok (prefix out (count - 1))
       else Ok (bytes-new 0)
 
@@ -255,18 +309,23 @@ module Text.Ascii85 where
       else Err (Ascii85ShortDestination required (bytes-len destination - start))
     else Err (Ascii85InvalidDestinationOffset start (bytes-len destination))
 
-  -- | Encode complete words directly into the checked output interval using SIMD digit arithmetic.
+  -- | Encode complete words directly into the checked output interval, then emit any short tail.
   encode-to :: Bytes -> Nat -> Bytes -> Nat -> Nat
   encode-to input i out oi =
-    if i + 4 <= bytes-len input && oi + 5 <= bytes-len out then
-      let next = emit out oi (reverse-word (bytes-read-le32 input i)) in
-      encode-to input (i + 4) out next
-    else if i < bytes-len input && oi + 5 <= bytes-len out then
-      case encode-tail-word input i 0 0 of
-        (acc, count) -> if count > 0 && count < 4 then
-          let shift = wrapping-i64-to-u32 (nat-to-i64 ((4 - count) * 8)) in
-          let word = encode-word (wrapping-shl-u32 acc shift) in
-          let copied = put-packed-prefix out oi word (count + 1) 0 in oi + count + 1
+    if i <= bytes-len input && oi <= bytes-len out then
+      case encode-blocks-i64 input (nat-to-i64 i) out (nat-to-i64 oi) of
+        (fi, foi) ->
+          if 0 <= fi && 0 <= foi then
+            let ni = nat-from-i64 fi in
+            let noi = nat-from-i64 foi in
+            if ni < bytes-len input && noi + 5 <= bytes-len out then
+              case encode-tail-word input ni 0 0 of
+                (acc, count) -> if count > 0 && count < 4 then
+                  let shift = wrapping-i64-to-u32 (nat-to-i64 ((4 - count) * 8)) in
+                  let word = encode-word (wrapping-shl-u32 acc shift) in
+                  let copied = put-packed-prefix out noi word (count + 1) 0 in noi + count + 1
+                  else noi
+            else noi
           else oi
     else oi
 
@@ -274,7 +333,7 @@ module Text.Ascii85 where
   encode-tail-word :: Bytes -> Nat -> U32 -> Nat -> (U32, Nat)
   encode-tail-word input i acc count =
     if i < bytes-len input && count < 3 then
-      let byte = wrapping-i64-to-u32 (nat-to-i64 (bytes-get input i)) in
+      let byte = u8-to-u32 (bytes-get-u8 input i) in
       encode-tail-word input (i + 1) (bit-or-u32 (wrapping-shl-u32 acc 8) byte) (count + 1)
     else (acc, count)
 
@@ -283,8 +342,8 @@ module Text.Ascii85 where
   put-packed-prefix out start word count i =
     if i < count && i < 5 && start + i < bytes-len out then
       let shift = wrapping-i64-to-u32 (nat-to-i64 (i * 8)) in
-      let byte = u8-to-nat (wrapping-u64-to-u8 (wrapping-shr-u64 word shift)) in
-      let stored = bytes-set out (start + i) byte in
+      let byte = wrapping-u64-to-u8 (wrapping-shr-u64 word shift) in
+      let stored = bytes-set-u8 out (start + i) byte in
       put-packed-prefix out start word count (i + 1)
     else ()
 
@@ -320,23 +379,28 @@ module Text.Ascii85 where
     case decode-to input 0 out 0 0 0 0 finish of
       (end, consumed, error) -> (prefix out end, consumed, error)
 
-  -- | Decode complete five-symbol groups in SIMD lanes before exact control, shorthand and error handling.
+  -- | Decode complete five-symbol groups before exact control, shorthand and error handling.
   decode-to :: Bytes -> Nat -> Bytes -> Nat -> Nat -> U32 -> Nat -> Bool -> (Nat, Nat, Option Ascii85Error)
   decode-to input i out oi boundary acc count finish =
     if i < bytes-len input then
       if oi + 4 <= bytes-len out then
         if count == 0 && i + 5 <= bytes-len input then
-          let decoded = decode-word (read-five input i) in
-          if eq-u64 (wrapping-shr-u64 decoded 32) 0 then
-            let written = bytes-write-le32 out oi (reverse-word (wrapping-u64-to-u32 decoded)) in
-            decode-to input (i + 5) out (oi + 4) (i + 5) 0 0 finish
-          else decode-to-byte input i out oi boundary acc count finish
+          case decode-fast-i64 input (nat-to-i64 i) out (nat-to-i64 oi) of
+            (fi, foi) ->
+              if 0 <= fi && 0 <= foi then
+                let ni = (nat-from-i64 fi :: Nat) in
+                let noi = (nat-from-i64 foi :: Nat) in
+                let nb = if ni > i then ni else boundary in
+                if ni < bytes-len input then decode-to-byte input ni out noi nb 0 0 finish
+                else if finish then (noi, bytes-len input, None)
+                else (noi, nb, None)
+              else decode-to-byte input i out oi boundary acc count finish
         else decode-to-byte input i out oi boundary acc count finish
       else (oi, boundary, None)
     else if finish then
       if count == 1 then (oi, boundary, Some (TruncatedAscii85Quantum (bytes-len input)))
       else if count > 1 && count < 5 && oi + 4 <= bytes-len out then
-        let word = u32-to-u64 (reverse-word (pad-word acc count)) in
+        let word = u32-to-u64 (swap-bytes-u32 (pad-word acc count)) in
         let written = put-packed-prefix out oi word (count - 1) 0 in
         (oi + count - 1, bytes-len input, None)
       else (oi, bytes-len input, None)
@@ -348,128 +412,73 @@ module Text.Ascii85 where
     if i < bytes-len input && oi + 4 <= bytes-len out then
       let byte = bytes-get input i in
       if byte <= 32 then
-        if i + 8 <= bytes-len input && control-word (bytes-read-le64 input i) then decode-to input (i + 8) out oi boundary acc count finish
+        if i + 16 <= bytes-len input && control-word16 (bytes-load-u128 input i) then decode-to input (i + 16) out oi boundary acc count finish
+        else if i + 8 <= bytes-len input && control-word (bytes-load-le64 input i) then decode-to input (i + 8) out oi boundary acc count finish
         else decode-to input (i + 1) out oi boundary acc count finish
       else if byte == 122 && count == 0 then
-        let written = bytes-write-le32 out oi 0 in
+        let written = bytes-store-le32 out oi 0 in
         decode-to input (i + 1) out (oi + 4) (i + 1) 0 0 finish
       else if byte >= 33 && byte <= 117 then
         let digit = wrapping-i64-to-u32 (nat-to-i64 (byte - 33)) in
         let word = wrapping-add-u32 (wrapping-mul-u32 acc 85) digit in
         if count == 4 then
-          let written = bytes-write-le32 out oi (reverse-word word) in
+          let written = bytes-store-le32 out oi (swap-bytes-u32 word) in
           decode-to input (i + 1) out (oi + 4) (i + 1) 0 0 finish
         else decode-to input (i + 1) out oi boundary word (count + 1) finish
       else (oi, boundary, Some (InvalidAscii85Byte i byte))
     else (oi, boundary, None)
 
-  -- | Compute four base-85 digits in SIMD lanes and pack all five ASCII bytes
-  -- in a target-independent little-endian machine word.
-  prim encode-word :: U32 -> U64 where
-    llvm {
-      %seed = insertelement <4 x i32> zeroinitializer, i32 %0, i32 0
-      %words = shufflevector <4 x i32> %seed, <4 x i32> zeroinitializer, <4 x i32> zeroinitializer
-      %quotients = udiv <4 x i32> %words, <i32 52200625, i32 614125, i32 7225, i32 85>
-      %digits = urem <4 x i32> %quotients, <i32 85, i32 85, i32 85, i32 85>
-      %ascii = add <4 x i32> %digits, <i32 33, i32 33, i32 33, i32 33>
-      %c0 = extractelement <4 x i32> %ascii, i32 0
-      %w0 = zext i32 %c0 to i64
-      %s0 = shl i64 %w0, 0
-      %c1 = extractelement <4 x i32> %ascii, i32 1
-      %w1 = zext i32 %c1 to i64
-      %s1 = shl i64 %w1, 8
-      %p1 = or i64 %s0, %s1
-      %c2 = extractelement <4 x i32> %ascii, i32 2
-      %w2 = zext i32 %c2 to i64
-      %s2 = shl i64 %w2, 16
-      %p2 = or i64 %p1, %s2
-      %c3 = extractelement <4 x i32> %ascii, i32 3
-      %w3 = zext i32 %c3 to i64
-      %s3 = shl i64 %w3, 24
-      %p3 = or i64 %p2, %s3
-      %last = urem i32 %0, 85
-      %last-ascii = add i32 %last, 33
-      %last-wide = zext i32 %last-ascii to i64
-      %last-packed = shl i64 %last-wide, 32
-      %result = or i64 %p3, %last-packed
-      ret i64 %result
-    }
+  -- | Compute five base-85 digits and pack all five ASCII bytes in a target-independent little-endian machine word.
+  encode-word :: U32 -> U64
+  encode-word word =
+    let q0 = div-u32 word 85 in
+    let d4 = wrapping-add-u32 (rem-u32 word 85) 33 in
+    let q1 = div-u32 q0 85 in
+    let d3 = wrapping-add-u32 (rem-u32 q0 85) 33 in
+    let q2 = div-u32 q1 85 in
+    let d2 = wrapping-add-u32 (rem-u32 q1 85) 33 in
+    let d0 = wrapping-add-u32 (div-u32 q2 85) 33 in
+    let d1 = wrapping-add-u32 (rem-u32 q2 85) 33 in
+    bit-or-u64 (u32-to-u64 d0)
+      (bit-or-u64 (wrapping-shl-u64 (u32-to-u64 d1) 8)
+        (bit-or-u64 (wrapping-shl-u64 (u32-to-u64 d2) 16)
+          (bit-or-u64 (wrapping-shl-u64 (u32-to-u64 d3) 24)
+            (wrapping-shl-u64 (u32-to-u64 d4) 32))))
 
-  -- | Validate four digit lanes in parallel and combine their weighted values.
-  -- The low word is decoded data; upper bits flag invalid bytes for scalar diagnosis.
-  prim decode-word :: U64 -> U64 where
-    llvm {
-      %s0 = lshr i64 %0, 0
-      %t0 = trunc i64 %s0 to i32
-      %b0 = and i32 %t0, 255
-      %v0 = insertelement <4 x i32> zeroinitializer, i32 %b0, i32 0
-      %s1 = lshr i64 %0, 8
-      %t1 = trunc i64 %s1 to i32
-      %b1 = and i32 %t1, 255
-      %v1 = insertelement <4 x i32> %v0, i32 %b1, i32 1
-      %s2 = lshr i64 %0, 16
-      %t2 = trunc i64 %s2 to i32
-      %b2 = and i32 %t2, 255
-      %v2 = insertelement <4 x i32> %v1, i32 %b2, i32 2
-      %s3 = lshr i64 %0, 24
-      %t3 = trunc i64 %s3 to i32
-      %b3 = and i32 %t3, 255
-      %v3 = insertelement <4 x i32> %v2, i32 %b3, i32 3
-      %digits = sub <4 x i32> %v3, <i32 33, i32 33, i32 33, i32 33>
-      %bad = icmp uge <4 x i32> %digits, <i32 85, i32 85, i32 85, i32 85>
-      %mask = bitcast <4 x i1> %bad to i4
-      %first-flags = zext i4 %mask to i64
-      %weighted = mul <4 x i32> %digits, <i32 52200625, i32 614125, i32 7225, i32 85>
-      %c0 = extractelement <4 x i32> %weighted, i32 0
-      %c1 = extractelement <4 x i32> %weighted, i32 1
-      %p1 = add i32 %c0, %c1
-      %c2 = extractelement <4 x i32> %weighted, i32 2
-      %p2 = add i32 %p1, %c2
-      %c3 = extractelement <4 x i32> %weighted, i32 3
-      %p3 = add i32 %p2, %c3
-      %last-shift = lshr i64 %0, 32
-      %last-word = trunc i64 %last-shift to i32
-      %last-byte = and i32 %last-word, 255
-      %last-digit = sub i32 %last-byte, 33
-      %last-bad = icmp uge i32 %last-digit, 85
-      %last-flag = zext i1 %last-bad to i64
-      %last-flag-bit = shl i64 %last-flag, 4
-      %flags = or i64 %first-flags, %last-flag-bit
-      %upper = shl i64 %flags, 32
-      %value = add i32 %p3, %last-digit
-      %lower = zext i32 %value to i64
-      %result = or i64 %upper, %lower
-      ret i64 %result
-    }
+  -- | Validate five digit bytes and combine their weighted values modulo 2^32.
+  -- The low word is decoded data; bit 32 flags invalid bytes for scalar diagnosis.
+  decode-word :: U64 -> U64
+  decode-word word =
+    let d0 = wrapping-sub-u32 (bit-and-u32 (wrapping-u64-to-u32 word) 255) 33 in
+    let d1 = wrapping-sub-u32 (bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 word 8)) 255) 33 in
+    let d2 = wrapping-sub-u32 (bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 word 16)) 255) 33 in
+    let d3 = wrapping-sub-u32 (bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 word 24)) 255) 33 in
+    let d4 = wrapping-sub-u32 (bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 word 32)) 255) 33 in
+    if ge-u32 d0 85 || ge-u32 d1 85 || ge-u32 d2 85 || ge-u32 d3 85 || ge-u32 d4 85 then
+      4294967296
+    else
+      let v1 = wrapping-add-u32 (wrapping-mul-u32 d0 85) d1 in
+      let v2 = wrapping-add-u32 (wrapping-mul-u32 v1 85) d2 in
+      let v3 = wrapping-add-u32 (wrapping-mul-u32 v2 85) d3 in
+      let v4 = wrapping-add-u32 (wrapping-mul-u32 v3 85) d4 in
+      u32-to-u64 v4
 
+  -- | Recognize sixteen ignored control bytes in parallel using 128-bit SIMD lanes.
+  control-word16 :: U128 -> Bool
+  control-word16 chunk = eq-u32 (simd-u8x16-movemask (simd-u8x16-cmpgt chunk (simd-u8x16-splat 32))) 0
 
   -- | Recognize eight ignored control bytes in parallel without changing their original source count.
-  -- The all-lanes predicate is independent of byte order; short or mixed runs retain scalar handling.
-  prim control-word :: U64 -> Bool where
-    llvm {
-      %word = or i64 %0, 0
-      %bytes = bitcast i64 %word to <8 x i8>
-      %control = icmp ule <8 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %mask = bitcast <8 x i1> %control to i8
-      %all = icmp eq i8 %mask, -1
-      %result = zext i1 %all to i8
-      ret i8 %result
-    }
-
+  control-word :: U64 -> Bool
+  control-word word = control-word16 (u64-to-u128 word)
 
   -- | Compare two live buffer intervals by unsigned distances, avoiding end-address overflow.
   -- Lengths come from bounded buffer lengths; empty intervals never overlap.
-  prim address-overlap :: I64 -> I64 -> I64 -> I64 -> Bool where
-    llvm {
-      %ab = sub i64 %0, %2
-      %a-in-b = icmp ult i64 %ab, %3
-      %ba = sub i64 %2, %0
-      %b-in-a = icmp ult i64 %ba, %1
-      %touch = or i1 %a-in-b, %b-in-a
-      %a-present = icmp ne i64 %1, 0
-      %b-present = icmp ne i64 %3, 0
-      %present = and i1 %a-present, %b-present
-      %overlap = and i1 %touch, %present
-      %result = zext i1 %overlap to i8
-      ret i8 %result
-    }
+  address-overlap :: I64 -> I64 -> I64 -> I64 -> Bool
+  address-overlap a alen b blen =
+    let ua = wrapping-i64-to-u64 a in
+    let ualen = wrapping-i64-to-u64 alen in
+    let ub = wrapping-i64-to-u64 b in
+    let ublen = wrapping-i64-to-u64 blen in
+    let a-in-b = lt-u64 (wrapping-sub-u64 ua ub) ublen in
+    let b-in-a = lt-u64 (wrapping-sub-u64 ub ua) ualen in
+    (a-in-b || b-in-a) && ne-u64 ualen 0 && ne-u64 ublen 0

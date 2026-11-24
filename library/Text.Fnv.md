@@ -10,18 +10,18 @@ Import with `import Text.Fnv`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Fnv](Text.Fnv.md).
+Non-embedded source closure: [Text.Fnv](Text.Fnv.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 Deterministic 32-, 64- and 128-bit FNV-1 and FNV-1a hashing over bytes.
 Overflow wraps explicitly. Update functions accept a finished hash, so chunked
 and concatenated input agree. Empty input yields the offset basis, and empty
-updates leave the state unchanged. Inline LLVM unrolls eight ordered steps at
-a time; the recurrence stays sequential. These non-cryptographic hashes are
-separate from the collection hashing vocabulary in Data.Hash.
+updates leave the state unchanged. Each loop scans unboxed byte indices in
+input order; the recurrence stays sequential. These non-cryptographic hashes
+are separate from the collection hashing vocabulary in Data.Hash.
 
 </details>
 
@@ -40,7 +40,7 @@ This module exports no type declarations.
 Compute 128-bit FNV-1 with the standard offset basis, returning high word then low word.
 Two U64 words preserve the full hash on every target without a wide-scalar ABI dependency.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 260
+[Source](/reference-sources/Text.Fnv.cinch) · line 95
 
 <a id="value-666e763132382d757064617465"></a>
 
@@ -50,7 +50,7 @@ Two U64 words preserve the full hash on every target without a wide-scalar ABI d
 
 Continue a 128-bit FNV-1 state given as high and low words. Empty input preserves both words.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 269
+[Source](/reference-sources/Text.Fnv.cinch) · line 104
 
 <a id="value-666e7631323861"></a>
 
@@ -61,7 +61,7 @@ Continue a 128-bit FNV-1 state given as high and low words. Empty input preserve
 Compute 128-bit FNV-1a, returning high word then low word.
 This deterministic hash is non-cryptographic; serialization byte order is chosen separately.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 265
+[Source](/reference-sources/Text.Fnv.cinch) · line 100
 
 <a id="value-666e76313238612d757064617465"></a>
 
@@ -71,7 +71,7 @@ This deterministic hash is non-cryptographic; serialization byte order is chosen
 
 Continue a high/low 128-bit FNV-1a state; arbitrary input chunking preserves the final result.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 273
+[Source](/reference-sources/Text.Fnv.cinch) · line 108
 
 <a id="value-666e763332"></a>
 
@@ -81,7 +81,7 @@ Continue a high/low 128-bit FNV-1a state; arbitrary input chunking preserves the
 
 Compute 32-bit FNV-1, multiplying before xor, with offset basis 0x811C9DC5.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 19
+[Source](/reference-sources/Text.Fnv.cinch) · line 18
 
 <a id="value-666e7633322d757064617465"></a>
 
@@ -91,7 +91,7 @@ Compute 32-bit FNV-1, multiplying before xor, with offset basis 0x811C9DC5.
 
 Continue a finished 32-bit FNV-1 hash with more bytes; an empty update preserves the hash.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 35
+[Source](/reference-sources/Text.Fnv.cinch) · line 34
 
 <a id="value-666e76333261"></a>
 
@@ -101,7 +101,7 @@ Continue a finished 32-bit FNV-1 hash with more bytes; an empty update preserves
 
 Compute 32-bit FNV-1a, xor before multiplying, with offset basis 0x811C9DC5.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 23
+[Source](/reference-sources/Text.Fnv.cinch) · line 22
 
 <a id="value-666e763332612d757064617465"></a>
 
@@ -111,7 +111,7 @@ Compute 32-bit FNV-1a, xor before multiplying, with offset basis 0x811C9DC5.
 
 Continue a finished 32-bit FNV-1a hash with more bytes; an empty update preserves the hash.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 39
+[Source](/reference-sources/Text.Fnv.cinch) · line 38
 
 <a id="value-666e763634"></a>
 
@@ -121,7 +121,7 @@ Continue a finished 32-bit FNV-1a hash with more bytes; an empty update preserve
 
 Compute 64-bit FNV-1, multiplying before xor, with offset basis 0xCBF29CE484222325.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 27
+[Source](/reference-sources/Text.Fnv.cinch) · line 26
 
 <a id="value-666e7636342d757064617465"></a>
 
@@ -131,7 +131,7 @@ Compute 64-bit FNV-1, multiplying before xor, with offset basis 0xCBF29CE4842223
 
 Continue a finished 64-bit FNV-1 hash with more bytes; an empty update preserves the hash.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 43
+[Source](/reference-sources/Text.Fnv.cinch) · line 42
 
 <a id="value-666e76363461"></a>
 
@@ -141,7 +141,7 @@ Continue a finished 64-bit FNV-1 hash with more bytes; an empty update preserves
 
 Compute 64-bit FNV-1a, xor before multiplying, with offset basis 0xCBF29CE484222325.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 31
+[Source](/reference-sources/Text.Fnv.cinch) · line 30
 
 <a id="value-666e763634612d757064617465"></a>
 
@@ -151,8 +151,8 @@ Compute 64-bit FNV-1a, xor before multiplying, with offset basis 0xCBF29CE484222
 
 Continue a finished 64-bit FNV-1a hash with more bytes; an empty update preserves the hash.
 
-[Source](/reference-sources/Text.Fnv.cinch) · line 47
+[Source](/reference-sources/Text.Fnv.cinch) · line 46
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Fnv.cinch`. Source SHA-256: `b09f33aa54974a8b67ccac104a8e08a3a2d6e2bfd0f8756e9ea0764aff93f529`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Fnv.cinch`. Source SHA-256: `4c64ca96fcf518d60162823112759c27b24f5cfe4471122957184f5fee698d70`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

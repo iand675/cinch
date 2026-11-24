@@ -11,6 +11,7 @@ fn run(checks: &[String]) {
     let dir = common::project("zip", &[
         ("Text.Zip.cinch", include_str!("../prelude/Text/Zip.cinch")),
         ("Text.Zlib.cinch", include_str!("../prelude/Text/Zlib.cinch")),
+        ("Text.Flate.cinch", include_str!("../prelude/Text/Flate.cinch")),
         ("Text.Checksum.cinch", include_str!("../prelude/Text/Checksum.cinch")),
         ("Text.Adler32.cinch", include_str!("../prelude/Text/Adler32.cinch")),
         ("Text.Crc64.cinch", include_str!("../prelude/Text/Crc64.cinch")),
@@ -45,8 +46,113 @@ fn zip_matches_reference_archives() {
         checks.push(format!("archive-case False {:?} {:?} [{}]", a["archive"].as_str().unwrap(), a["comment"].as_str().unwrap(), entries(a)));
     }
     checks.push("deflate-round-trip ()".into());
+    checks.push("deflate-levels-round-trip ()".into());
     checks.push(format!("errors {:?}", f["written"][0]["archive"].as_str().unwrap()));
     run(&checks);
+}
+
+/// Deflated zip entries compress varied text/JSON with real LZ77 + Huffman DEFLATE
+/// and interoperate with Python's `zipfile.ZipFile`.
+#[test]
+fn zip_deflate_compresses_prose_and_interoperates_with_python() {
+    let prose = "{\"event\":\"commit\",\"module\":\"Text.Zip\",\"codec\":\"deflate\",\"status\":\"ok\"}\n".repeat(120);
+    let mut main_src = String::from(r#"-- | Write a multi-entry zip archive for Python zipfile verification.
+module Main where
+  import Data.Bytes
+  import Data.Path
+  import Data.Result
+  import Effect.Fs
+  import Text.Flate
+  import Text.Zip
+
+  -- | Whether opening an entry produces the expected bytes.
+  open-matches :: Bytes -> ZipEntry -> Bytes -> Bool
+  open-matches raw entry want = case zip-open raw entry of
+    Ok b -> eq-i64 (bytes-compare b want) 0
+    Err _ -> False
+
+  -- | Entrypoint writing prose entries at default, best, no-compression, and stored settings.
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case fs-read (path-from-string "PROSE_PATH") of
+      Err _ -> 1
+      Ok prose ->
+        let files = [
+          zip-file (string-to-bytes "default.json") zip-deflate prose,
+          zip-file-with-level (string-to-bytes "best.json") FlateBestCompression prose,
+          zip-file-with-level (string-to-bytes "nocomp.json") FlateNoCompression prose,
+          zip-file (string-to-bytes "stored.json") zip-store prose
+        ] in
+        case zip-write files (string-to-bytes "cinch-flate") of
+          Err _ -> 2
+          Ok raw ->
+            case zip-read raw of
+              Err _ -> 3
+              Ok archive ->
+                case zip-entries archive of
+                  Cons e1 (Cons e2 (Cons e3 (Cons e4 Nil))) ->
+                    let ok-ratio = zip-entry-compressed-size e1 < bytes-len prose && zip-entry-compressed-size e2 < bytes-len prose && zip-entry-compressed-size e4 == bytes-len prose in
+                    let ok-open = open-matches raw e1 prose && open-matches raw e2 prose && open-matches raw e3 prose && open-matches raw e4 prose in
+                    if not (ok-ratio && ok-open) then 4
+                    else case fs-write (path-from-string "ARCHIVE_PATH") raw of
+                      Ok _ -> 0
+                      Err _ -> 5
+                  _ -> 6
+"#);
+    let dir = common::project("zip_flate", &[
+        ("Text.Zip.cinch", include_str!("../prelude/Text/Zip.cinch")),
+        ("Text.Zlib.cinch", include_str!("../prelude/Text/Zlib.cinch")),
+        ("Text.Flate.cinch", include_str!("../prelude/Text/Flate.cinch")),
+        ("Text.Checksum.cinch", include_str!("../prelude/Text/Checksum.cinch")),
+        ("Text.Adler32.cinch", include_str!("../prelude/Text/Adler32.cinch")),
+        ("Text.Crc64.cinch", include_str!("../prelude/Text/Crc64.cinch")),
+        ("Text.Binary.cinch", include_str!("../prelude/Text/Binary.cinch")),
+        ("Data.Bytes.Build.cinch", include_str!("../prelude/Data/Bytes/Build.cinch")),
+        ("Data.Bytes.Word.cinch", include_str!("../prelude/Data/Bytes/Word.cinch")),
+    ]);
+    let prose_path = dir.join("prose.json");
+    let archive_path = dir.join("out.zip");
+    std::fs::write(&prose_path, prose.as_bytes()).unwrap();
+    let esc = |p: &std::path::Path| p.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
+    main_src = main_src
+        .replace("PROSE_PATH", &esc(&prose_path))
+        .replace("ARCHIVE_PATH", &esc(&archive_path));
+    std::fs::write(dir.join("Main.cinch"), main_src).unwrap();
+    assert_eq!(common::run(&dir, "Main.cinch"), 0, "zip deflate compression + round-trip check failed");
+
+    let py = std::path::Path::new("/usr/bin/python3");
+    if py.exists() {
+        let out = std::process::Command::new(py)
+            .args([
+                "-c",
+                r#"
+import sys, zipfile
+want = open(sys.argv[2], 'rb').read()
+with zipfile.ZipFile(sys.argv[1], 'r') as zf:
+    assert zf.testzip() is None, 'CRC check failed'
+    assert zf.comment == b'cinch-flate'
+    for name in ('default.json', 'best.json', 'nocomp.json', 'stored.json'):
+        info = zf.getinfo(name)
+        assert zf.read(name) == want, f'mismatch for {name}'
+        if name in ('default.json', 'best.json'):
+            assert info.compress_type == zipfile.ZIP_DEFLATED
+            assert info.compress_size < len(want) // 10, f'poor compression for {name}: {info.compress_size}/{len(want)}'
+        elif name == 'stored.json':
+            assert info.compress_type == zipfile.ZIP_STORED
+            assert info.compress_size == len(want)
+"#,
+            ])
+            .arg(&archive_path)
+            .arg(&prose_path)
+            .output()
+            .expect("spawn python3");
+        assert!(
+            out.status.success(),
+            "python3 zipfile verification failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    common::cleanup(&dir);
 }
 
 /// Every public and private declaration has canonical module-owned documentation.
@@ -58,6 +164,8 @@ fn zip_declarations_have_canonical_documentation() {
 /// Checked consumer helpers.
 const HELPERS: &str = r#"-- | Reference zip vector consumers.
 module Main where
+  import Data.Bytes.Build
+  import Text.Flate
   import Text.Zip
   import Text.Hex
   -- | An expected entry: name, comment, method, flags, CRC-32, size, compressed size, modified time, mode, data (hex)
@@ -103,7 +211,7 @@ module Main where
   -- | Repetitive data.
   repeated :: Nat -> Bytes
   repeated n = let b = bytes-new n in let f = fill b 0 in b
-  -- | Fill a run of one byte, which run-length DEFLATE encoding shrinks.
+  -- | Fill a run of one byte, which DEFLATE encoding shrinks.
   fill :: Bytes -> Nat -> Unit
   fill b i = if i < bytes-len b then let w = bytes-set b i 97 in fill b (i + 1) else ()
   -- | Deflated writing reads back with matching data and shrinks repetitive input.
@@ -117,6 +225,23 @@ module Main where
           Cons e (Cons d Nil) -> (case zip-open raw e of Ok out -> hex out == hex sample; Err x -> False) && zip-entry-is-directory d && zip-entry-method d == zip-store
           other -> False)
         Err e -> False)
+  -- | Explicit compression levels compress non-RLE repeated patterns and round-trip.
+  deflate-levels-round-trip :: Unit -> Bool
+  deflate-levels-round-trip unit =
+    let chunk = string-to-bytes "alpha beta gamma delta epsilon zeta 0123456789\n" in
+    let sample = bytes-concat [chunk, chunk, chunk, chunk, chunk, chunk, chunk, chunk, chunk, chunk] in
+    case zip-write [zip-file-with-level (string-to-bytes "fast.txt") FlateBestSpeed sample, zip-file-with-level (string-to-bytes "best.txt") FlateBestCompression sample] (bytes-new 0) of
+      Err e -> False
+      Ok raw -> case zip-read raw of
+        Err e -> False
+        Ok a -> case zip-entries a of
+          Cons e1 (Cons e2 Nil) ->
+            zip-entry-method e1 == zip-deflate && zip-entry-method e2 == zip-deflate
+              && zip-entry-compressed-size e1 < bytes-len sample
+              && zip-entry-compressed-size e2 < bytes-len sample
+              && (case zip-open raw e1 of Ok out -> hex out == hex sample; Err x -> False)
+              && (case zip-open raw e2 of Ok out -> hex out == hex sample; Err x -> False)
+          other -> False
   -- | A copy with one byte incremented.
   flip :: Bytes -> Nat -> Bytes
   flip b i = let out = bytes-new (bytes-len b) in let c = bytes-copy-range out b 0 0 (bytes-len b) in

@@ -78,12 +78,8 @@ fn execute(name: &str, source: &str) {
     assert!(String::from_utf8_lossy(&result.stderr).contains("leaked=0"));
     let ir = std::fs::read_to_string(executable.with_extension("ll")).unwrap();
     assert!(
-        ir.contains("mul <4 x i32>"),
-        "decoder SIMD arithmetic missing"
-    );
-    assert!(
-        ir.contains("udiv <4 x i32>"),
-        "encoder SIMD arithmetic missing"
+        ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>"),
+        "control-byte 128-bit SIMD classification missing"
     );
 }
 
@@ -246,41 +242,63 @@ fn ascii85_declarations_have_canonical_documentation() {
     }
 }
 
-/// Actual SIMD kernels compile on both little-endian ARM and big-endian PowerPC.
+/// Actual ASCII85 SIMD control-skipping and codec paths compile on wasm32, ARM and big-endian PowerPC.
 #[test]
 fn ascii85_simd_kernels_compile_for_arm_and_big_endian() {
-    let source = include_str!("../prelude/Text/Ascii85.cinch");
-    let mut consumer = String::from("module Main where\n  import Data.Machine\n");
-    for name in ["encode-word", "decode-word", "reverse-word", "control-word", "address-overlap"] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let tail = &source[start..];
-        let end = tail.find("\n    }\n").unwrap() + 7;
-        consumer.push_str(&tail[..end]);
-    }
-    consumer.push_str("  main :: Int\n  main = if eq-u64 (encode-word 0) 0x2121212121 && eq-u64 (decode-word 0x2121212121) 0 && eq-u32 (reverse-word 0x01020304) 0x04030201 && control-word 0x201f000a0d090120 && address-overlap 100 5 104 1 then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
+        ("wasm32-unknown-unknown", "wasm32", "little"),
         ("aarch64-unknown-linux-gnu", "aarch64", "little"),
         ("powerpc64-unknown-linux-gnu", "powerpc64", "big"),
     ] {
-        let mut profile = cinch::core::TargetProfile::native();
-        profile.triple = triple.into();
-        profile.arch = arch.into();
-        profile.endian = endian.into();
-        let source = consumer.clone();
-        let (profile, program) = std::thread::Builder::new()
+        let profile = cinch::driver::target_profile(&cinch::driver::DriverOptions {
+            target: Some(triple.into()),
+            ..Default::default()
+        })
+        .unwrap_or_else(|_| {
+            assert_eq!(arch, "powerpc64");
+            let mut profile = cinch::core::TargetProfile::native();
+            profile.triple = triple.into();
+            profile.arch = arch.into();
+            profile.endian = endian.into();
+            profile
+        });
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("Text.Ascii85.cinch"),
+            include_str!("../prelude/Text/Ascii85.cinch"),
+        )
+        .unwrap();
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public ASCII85 encode, decode and buffer paths for foreign targets.\nmodule Main where\n  import Text.Ascii85\n  import Data.Bytes\n  import Data.Nat\n  import Data.Option\n  import Data.Result\n\n  -- | Exercise public ASCII85 encoding, 128-bit SIMD control skipping and overlap decoding across targets.\n  main :: Int\n  main =\n    let input = bytes-new 32 in\n    let encoded = ascii85-encode-bytes input in\n    let scratch = bytes-new 64 in\n    case ascii85-decode-bytes encoded of\n      Err err -> 1\n      Ok decoded -> case ascii85-decode-into scratch 0 encoded True of\n        Ok (written, used, None) -> if bytes-len decoded == 32 && written == 32 && used == bytes-len encoded then 0 else 1\n        other -> 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
+        let ir = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(move || {
-                cinch::driver::check_sources_profile(&source, "kernels.cinch", &profile)
-                    .map(|program| (profile, program))
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        let ir = cinch::codegen::emit_for(&profile, &program).unwrap();
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, ir).unwrap();
+        assert!(ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>"));
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

@@ -67,6 +67,17 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
         PrimOp::Bytes(BytesOp::Get) => (range(0, 255), None),
         // A buffer's length is the runtime's `i64` count.
         PrimOp::Bytes(BytesOp::Len) => (range(0, i64::MAX as i128), None),
+        PrimOp::Bytes(BytesOp::LenI64) => (
+            and(
+                range(0, i64::MAX as i128),
+                PTerm::Cmp(
+                    IdxCmp::Eq,
+                    it(),
+                    Box::new(ITerm::app_fn(BYTE_LENGTH_INDEX, vec![*arg(0)])),
+                ),
+            ),
+            None,
+        ),
         PrimOp::Bytes(BytesOp::New) => (
             PTerm::Cmp(
                 IdxCmp::Eq,
@@ -84,6 +95,8 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
         PrimOp::Int(IntOp::FromI128 | IntOp::ToI128) => (same(), None),
         PrimOp::Nat(NatOp::Rem) => (and(PTerm::Cmp(IdxCmp::Lt, it(), arg(1)), le(it(), arg(0))), None),
         PrimOp::Nat(NatOp::Div) => (le(it(), arg(0)), None),
+        PrimOp::Rem { ty } if !ty.is_wide() => (and(PTerm::Cmp(IdxCmp::Lt, it(), arg(1)), le(it(), arg(0))), None),
+        PrimOp::Div { ty } if !ty.is_wide() => (le(it(), arg(0)), None),
         PrimOp::Nat(NatOp::Cmp) | PrimOp::Int(IntOp::Cmp) => (range(-1, 1), None),
         PrimOp::Bit { op: crate::core::BitOp::And, .. } => (and(le(num(0), it()), le(it(), arg(1))), Some(le(num(0), arg(1)))),
         _ => return None,
@@ -22756,6 +22769,136 @@ impl Checker {
                         };
                         let ord = a.borrow().as_slice().cmp(b.borrow().as_slice());
                         Value::Word(ord as i64)
+                    }
+                    BytesOp::LenI64 => match &args[0] {
+                        Value::Bytes(b) => Value::Word(b.borrow().len() as i64),
+                        other => {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(other)
+                            )))
+                        }
+                    },
+                    BytesOp::GetU8 | BytesOp::GetU8At => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let buf = b.borrow();
+                        let v = (i >= 0).then(|| buf.get(i as usize).copied()).flatten();
+                        match v {
+                            Some(byte) => Value::Word(i64::from(byte)),
+                            None => return Err(Error::plain("compiler bug: `bytesGetU8` out of bounds at compile time")),
+                        }
+                    }
+                    BytesOp::SetU8 | BytesOp::SetU8At => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        let v = bytes_word(&args[2], "a `U8` byte")?;
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let mut buf = b.borrow_mut();
+                        let slot = (i >= 0).then(|| buf.get_mut(i as usize)).flatten();
+                        let Some(slot) = slot else {
+                            return Err(Error::plain("compiler bug: `bytesSetU8` out of bounds at compile time"));
+                        };
+                        *slot = v as u8;
+                        Value::Unit
+                    }
+                    BytesOp::LoadLe32 | BytesOp::LoadLe32At => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let buf = b.borrow();
+                        let slice = (i >= 0)
+                            .then(|| buf.get(i as usize..))
+                            .flatten()
+                            .and_then(|s| s.get(..4));
+                        let Some(bytes) = slice else {
+                            return Err(Error::plain("compiler bug: `bytesLoadLe32` out of bounds at compile time"));
+                        };
+                        let w = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                        Value::Word(i64::from(w))
+                    }
+                    BytesOp::StoreLe32 | BytesOp::StoreLe32At => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        let v = bytes_word(&args[2], "a `U32` word")?;
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let mut buf = b.borrow_mut();
+                        let slice = (i >= 0)
+                            .then(|| buf.get_mut(i as usize..))
+                            .flatten()
+                            .and_then(|s| s.get_mut(..4));
+                        let Some(dst) = slice else {
+                            return Err(Error::plain("compiler bug: `bytesStoreLe32` out of bounds at compile time"));
+                        };
+                        dst.copy_from_slice(&(v as u32).to_le_bytes());
+                        Value::Unit
+                    }
+                    BytesOp::LoadLe64 | BytesOp::LoadLe64At => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let buf = b.borrow();
+                        let slice = (i >= 0)
+                            .then(|| buf.get(i as usize..))
+                            .flatten()
+                            .and_then(|s| s.get(..8));
+                        let Some(bytes) = slice else {
+                            return Err(Error::plain("compiler bug: `bytesLoadLe64` out of bounds at compile time"));
+                        };
+                        let w = u64::from_le_bytes([
+                            bytes[0], bytes[1], bytes[2], bytes[3],
+                            bytes[4], bytes[5], bytes[6], bytes[7],
+                        ]);
+                        Value::Word(w as i64)
+                    }
+                    BytesOp::StoreLe64 | BytesOp::StoreLe64At => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        let v = bytes_word(&args[2], "a `U64` word")?;
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let mut buf = b.borrow_mut();
+                        let slice = (i >= 0)
+                            .then(|| buf.get_mut(i as usize..))
+                            .flatten()
+                            .and_then(|s| s.get_mut(..8));
+                        let Some(dst) = slice else {
+                            return Err(Error::plain("compiler bug: `bytesStoreLe64` out of bounds at compile time"));
+                        };
+                        dst.copy_from_slice(&(v as u64).to_le_bytes());
+                        Value::Unit
+                    }
+                    BytesOp::LoadU128
+                    | BytesOp::LoadU128At
+                    | BytesOp::StoreU128
+                    | BytesOp::StoreU128At => {
+                        return Err(Error::plain(
+                            "128-bit `Bytes` operations are not available at compile time in this slice",
+                        ));
                     }
                 })
             }

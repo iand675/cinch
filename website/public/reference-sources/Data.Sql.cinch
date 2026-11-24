@@ -1,0 +1,748 @@
+-- | Pure SQL value model, column metadata, transaction options, named
+-- parameters, structured errors, and typed row scanning.
+--
+-- Values are represented explicitly by `SqlValue`, avoiding untyped pointer
+-- reflection. Nullable columns decode directly to `Option` through the
+-- `scan-null-*` family, and every scanning or bounds failure produces a named
+-- `SqlError` value. Byte buffers returned from `scan-bytes` are freshly copied
+-- so callers cannot alias or mutate an immutable `SqlRow`.
+module Data.Sql where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Text.Show
+
+  export SqlValue, SqlNull, SqlBool, SqlInt, SqlFloat, SqlString, SqlBytes, SqlTimestamp
+  export sql-value-type-name, sql-value-is-null, sql-value-eq, sql-value-show
+  export SqlNamedArg, SqlPositional, SqlNamed, sql-arg, sql-named, sql-arg-name, sql-arg-value
+  export SqlIsolation, IsolationDefault, IsolationReadUncommitted, IsolationReadCommitted
+  export IsolationWriteCommitted, IsolationRepeatableRead, IsolationSnapshot
+  export IsolationSerializable, IsolationLinearizable, sql-isolation-name
+  export SqlTxOptions, MkSqlTxOptions, sql-tx-options-default, sql-tx-options, sql-tx-isolation, sql-tx-read-only
+  export SqlColumnType, MkSqlColumnType, sql-column-type, sql-column-name, sql-column-database-type-name
+  export sql-column-nullable, sql-column-length, sql-column-precision, sql-column-scale, sql-column-decimal-size
+  export SqlExecResult, MkSqlExecResult, sql-exec-result, sql-exec-result-no-rows, sql-last-insert-id, sql-rows-affected
+  export SqlError, SqlErrNoRows, SqlErrTxDone, SqlErrConnDone, SqlErrPoolClosed, SqlErrBadConn
+  export SqlErrDriver, SqlErrScan, SqlErrTypeMismatch, SqlErrColumnOutOfRange, SqlErrSkip, sql-error-message
+  export SqlRow, MkSqlRow, sql-row, row-columns, row-values, row-len, row-column-index, row-get, row-get-by-name
+  export value-as-i64, value-as-f64, value-as-bool, value-as-string, value-as-bytes, value-as-timestamp
+  export value-as-null-i64, value-as-null-f64, value-as-null-bool, value-as-null-string, value-as-null-bytes, value-as-null-timestamp
+  export scan-i64, scan-f64, scan-bool, scan-string, scan-bytes, scan-timestamp
+  export scan-null-i64, scan-null-f64, scan-null-bool, scan-null-string, scan-null-bytes, scan-null-timestamp
+  export scan-i64-by-name, scan-f64-by-name, scan-bool-by-name, scan-string-by-name, scan-bytes-by-name, scan-timestamp-by-name
+  export scan-null-i64-by-name, scan-null-f64-by-name, scan-null-bool-by-name, scan-null-string-by-name, scan-null-bytes-by-name, scan-null-timestamp-by-name
+
+  -- | A typed SQL scalar value carried by query parameters and result rows.
+  data SqlValue where
+    -- | SQL NULL.
+    SqlNull :: SqlValue
+    -- | SQL boolean value.
+    SqlBool :: Bool -> SqlValue
+    -- | SQL 64-bit signed integer value.
+    SqlInt :: I64 -> SqlValue
+    -- | SQL 64-bit IEEE-754 floating-point value.
+    SqlFloat :: F64 -> SqlValue
+    -- | SQL UTF-8 text value.
+    SqlString :: String -> SqlValue
+    -- | SQL binary blob value.
+    SqlBytes :: Bytes -> SqlValue
+    -- | SQL timestamp stored as signed Unix nanoseconds since the epoch.
+    SqlTimestamp :: I64 -> SqlValue
+
+  -- | A query parameter bound either by ordinal position or by explicit name.
+  data SqlNamedArg where
+    -- | Positional parameter bound in argument list order.
+    SqlPositional :: SqlValue -> SqlNamedArg
+    -- | Named parameter bound to the matching placeholder name without prefix.
+    SqlNamed :: String -> SqlValue -> SqlNamedArg
+
+  -- | Transaction isolation level requested when beginning a transaction.
+  data SqlIsolation where
+    -- | Use the driver or database default isolation level.
+    IsolationDefault :: SqlIsolation
+    -- | Allow dirty reads of uncommitted changes.
+    IsolationReadUncommitted :: SqlIsolation
+    -- | Only read committed data.
+    IsolationReadCommitted :: SqlIsolation
+    -- | Prevent dirty writes while permitting non-repeatable reads.
+    IsolationWriteCommitted :: SqlIsolation
+    -- | Repeated reads within the transaction observe consistent values.
+    IsolationRepeatableRead :: SqlIsolation
+    -- | Reads observe a consistent point-in-time snapshot.
+    IsolationSnapshot :: SqlIsolation
+    -- | Full serializable isolation.
+    IsolationSerializable :: SqlIsolation
+    -- | Strict linearizable consistency.
+    IsolationLinearizable :: SqlIsolation
+
+  -- | Options configuring a new database transaction.
+  data SqlTxOptions where
+    -- | Isolation level and read-only flag.
+    MkSqlTxOptions :: SqlIsolation -> Bool -> SqlTxOptions
+
+  -- | Metadata describing a single column in a query result set.
+  data SqlColumnType where
+    -- | Column name, database type name, optional nullability, optional length, optional precision, and optional scale.
+    MkSqlColumnType :: String -> String -> Option Bool -> Option I64 -> Option I64 -> Option I64 -> SqlColumnType
+
+  -- | Summary returned by a statement execution that does not yield rows.
+  data SqlExecResult where
+    -- | Optional generated insert identifier and optional count of affected rows.
+    MkSqlExecResult :: Option I64 -> Option I64 -> SqlExecResult
+
+  -- | Named SQL, pooling, driver, and row-scanning errors.
+  data SqlError where
+    -- | A single-row query returned an empty result set.
+    SqlErrNoRows :: SqlError
+    -- | An operation was attempted on a transaction that was already committed or rolled back.
+    SqlErrTxDone :: SqlError
+    -- | An operation was attempted on a connection that has already been closed or returned.
+    SqlErrConnDone :: SqlError
+    -- | An operation was attempted on a closed database connection pool.
+    SqlErrPoolClosed :: SqlError
+    -- | The driver reported a broken connection eligible for transparent retry.
+    SqlErrBadConn :: SqlError
+    -- | A driver-specific error with its diagnostic message.
+    SqlErrDriver :: String -> SqlError
+    -- | A row-scanning error with its diagnostic message.
+    SqlErrScan :: String -> SqlError
+    -- | A typed scanner expected one SQL type name but encountered another.
+    SqlErrTypeMismatch :: String -> String -> SqlError
+    -- | A column index exceeded the row width (requested index and column count).
+    SqlErrColumnOutOfRange :: Nat -> Nat -> SqlError
+    -- | A driver declined a fast path and asked the pool to fall back to prepare and execute.
+    SqlErrSkip :: SqlError
+
+  -- | An immutable materialized result row pairing column names with typed values.
+  data SqlRow where
+    -- | Column names and corresponding typed cell values.
+    MkSqlRow :: List String -> List SqlValue -> SqlRow
+
+  -- | Copy a byte buffer into fresh unaliased storage.
+  copy-bytes :: Bytes -> Bytes
+  copy-bytes src =
+    let n = bytes-len src in
+    let out = bytes-new n in
+    let copied = bytes-copy-range out src 0 0 n in
+    out
+
+  -- | Convert a single nibble (0..15) into its lowercase ASCII hexadecimal byte.
+  hex-nibble :: Nat -> InRange 0 255 Nat
+  hex-nibble n =
+    if n < 10 then 48 + n
+    else if n < 16 then 87 + n
+    else 48
+
+  -- | Fill a pre-allocated buffer with lowercase hexadecimal bytes for the input buffer.
+  bytes-hex-into :: Bytes -> Bytes -> Nat -> Unit
+  bytes-hex-into dst src i =
+    if i >= bytes-len src then ()
+    else
+      let b = bytes-get src i in
+      let hi = nat-div b 16 in
+      let lo = nat-rem b 16 in
+      let pos = i * 2 in
+      if pos + 1 < bytes-len dst then
+        let u1 = bytes-set dst pos (hex-nibble hi) in
+        let u2 = bytes-set dst (pos + 1) (hex-nibble lo) in
+        bytes-hex-into dst src (i + 1)
+      else ()
+
+  -- | Render a byte buffer as a lowercase `0x...` hexadecimal string.
+  bytes-to-hex :: Bytes -> String
+  bytes-to-hex b =
+    let n = bytes-len b in
+    let out = bytes-new (n * 2) in
+    let u = bytes-hex-into out b 0 in
+    let hex = (case string-from-bytes out of
+      Some s -> s
+      None -> "") in
+    string-concat "0x" hex
+
+  -- | Render an `I64` as decimal text.
+  i64-to-text :: I64 -> String
+  i64-to-text n = int-to-string (int-from-i64 n)
+
+  -- | Render an `F64` as decimal text.
+  f64-to-text :: F64 -> String
+  f64-to-text x =
+    if is-na-nf64 x then "NaN"
+    else if is-infinite-f64 x then (if sign-bit-f64 x then "-Inf" else "Inf")
+    else case string-from-bytes (f64-to-decimal x) of
+      Some s -> s
+      None -> "0"
+
+  -- | Return the canonical uppercase SQL type name for a value.
+  sql-value-type-name :: SqlValue -> String
+  sql-value-type-name v = case v of
+    SqlNull -> "NULL"
+    SqlBool _ -> "BOOL"
+    SqlInt _ -> "INT"
+    SqlFloat _ -> "FLOAT"
+    SqlString _ -> "STRING"
+    SqlBytes _ -> "BYTES"
+    SqlTimestamp _ -> "TIMESTAMP"
+
+  -- | Report whether a SQL value is `SqlNull`.
+  sql-value-is-null :: SqlValue -> Bool
+  sql-value-is-null v = case v of
+    SqlNull -> True
+    _ -> False
+
+  -- | Compare two floating-point values for structural equality (treating NaN as equal to NaN).
+  f64-eq :: F64 -> F64 -> Bool
+  f64-eq a b =
+    if feq-f64 a b then True
+    else is-na-nf64 a && is-na-nf64 b
+
+  -- | Structural equality on `SqlValue`.
+  sql-value-eq :: SqlValue -> SqlValue -> Bool
+  sql-value-eq a b = case (a, b) of
+    (SqlNull, SqlNull) -> True
+    (SqlBool x, SqlBool y) -> x == y
+    (SqlInt x, SqlInt y) -> x == y
+    (SqlFloat x, SqlFloat y) -> f64-eq x y
+    (SqlString x, SqlString y) -> x == y
+    (SqlBytes x, SqlBytes y) -> x == y
+    (SqlTimestamp x, SqlTimestamp y) -> x == y
+    _ -> False
+
+  -- | Human-readable representation of a `SqlValue`.
+  sql-value-show :: SqlValue -> String
+  sql-value-show v = case v of
+    SqlNull -> "NULL"
+    SqlBool b -> if b then "TRUE" else "FALSE"
+    SqlInt n -> i64-to-text n
+    SqlFloat f -> f64-to-text f
+    SqlString s -> s
+    SqlBytes b -> bytes-to-hex b
+    SqlTimestamp ts -> string-concat "TIMESTAMP(" (string-concat (i64-to-text ts) ")")
+
+  -- | Structural equality instance for `SqlValue`.
+  implicit instance Eq_SqlValue :: Eq SqlValue where
+    (==) a b = sql-value-eq a b
+    (/=) a b = not (sql-value-eq a b)
+
+  -- | Text rendering instance for `SqlValue`.
+  implicit instance Show_SqlValue :: Show SqlValue where
+    show v = sql-value-show v
+
+  -- | Construct a positional query argument.
+  sql-arg :: SqlValue -> SqlNamedArg
+  sql-arg v = SqlPositional v
+
+  -- | Construct a named query argument.
+  sql-named :: String -> SqlValue -> SqlNamedArg
+  sql-named name v = SqlNamed name v
+
+  -- | Return the explicit parameter name, or `None` for positional arguments.
+  sql-arg-name :: SqlNamedArg -> Option String
+  sql-arg-name a = case a of
+    SqlPositional _ -> None
+    SqlNamed name _ -> Some name
+
+  -- | Extract the underlying `SqlValue` from a query argument.
+  sql-arg-value :: SqlNamedArg -> SqlValue
+  sql-arg-value a = case a of
+    SqlPositional v -> v
+    SqlNamed _ v -> v
+
+  -- | Structural equality on `SqlNamedArg`.
+  sql-named-arg-eq :: SqlNamedArg -> SqlNamedArg -> Bool
+  sql-named-arg-eq a b = case (a, b) of
+    (SqlPositional x, SqlPositional y) -> sql-value-eq x y
+    (SqlNamed n1 x, SqlNamed n2 y) -> n1 == n2 && sql-value-eq x y
+    _ -> False
+
+  -- | Structural equality instance for `SqlNamedArg`.
+  implicit instance Eq_SqlNamedArg :: Eq SqlNamedArg where
+    (==) a b = sql-named-arg-eq a b
+    (/=) a b = not (sql-named-arg-eq a b)
+
+  -- | Human-readable name for a transaction isolation level.
+  sql-isolation-name :: SqlIsolation -> String
+  sql-isolation-name iso = case iso of
+    IsolationDefault -> "Default"
+    IsolationReadUncommitted -> "Read Uncommitted"
+    IsolationReadCommitted -> "Read Committed"
+    IsolationWriteCommitted -> "Write Committed"
+    IsolationRepeatableRead -> "Repeatable Read"
+    IsolationSnapshot -> "Snapshot"
+    IsolationSerializable -> "Serializable"
+    IsolationLinearizable -> "Linearizable"
+
+  -- | Structural equality on `SqlIsolation`.
+  sql-isolation-eq :: SqlIsolation -> SqlIsolation -> Bool
+  sql-isolation-eq a b = case (a, b) of
+    (IsolationDefault, IsolationDefault) -> True
+    (IsolationReadUncommitted, IsolationReadUncommitted) -> True
+    (IsolationReadCommitted, IsolationReadCommitted) -> True
+    (IsolationWriteCommitted, IsolationWriteCommitted) -> True
+    (IsolationRepeatableRead, IsolationRepeatableRead) -> True
+    (IsolationSnapshot, IsolationSnapshot) -> True
+    (IsolationSerializable, IsolationSerializable) -> True
+    (IsolationLinearizable, IsolationLinearizable) -> True
+    _ -> False
+
+  -- | Structural equality instance for `SqlIsolation`.
+  implicit instance Eq_SqlIsolation :: Eq SqlIsolation where
+    (==) a b = sql-isolation-eq a b
+    (/=) a b = not (sql-isolation-eq a b)
+
+  -- | Text rendering instance for `SqlIsolation`.
+  implicit instance Show_SqlIsolation :: Show SqlIsolation where
+    show iso = sql-isolation-name iso
+
+  -- | Default transaction options: default isolation level and read-write access.
+  sql-tx-options-default :: SqlTxOptions
+  sql-tx-options-default = MkSqlTxOptions IsolationDefault False
+
+  -- | Construct transaction options with an isolation level and read-only flag.
+  sql-tx-options :: SqlIsolation -> Bool -> SqlTxOptions
+  sql-tx-options iso ro = MkSqlTxOptions iso ro
+
+  -- | Read the isolation level from transaction options.
+  sql-tx-isolation :: SqlTxOptions -> SqlIsolation
+  sql-tx-isolation opts = case opts of
+    MkSqlTxOptions iso _ -> iso
+
+  -- | Read whether transaction options request a read-only transaction.
+  sql-tx-read-only :: SqlTxOptions -> Bool
+  sql-tx-read-only opts = case opts of
+    MkSqlTxOptions _ ro -> ro
+
+  -- | Structural equality instance for `SqlTxOptions`.
+  implicit instance Eq_SqlTxOptions :: Eq SqlTxOptions where
+    (==) a b = case (a, b) of
+      (MkSqlTxOptions i1 r1, MkSqlTxOptions i2 r2) -> sql-isolation-eq i1 i2 && r1 == r2
+    (/=) a b = not (a == b)
+
+  -- | Construct column metadata.
+  sql-column-type :: String -> String -> Option Bool -> Option I64 -> Option I64 -> Option I64 -> SqlColumnType
+  sql-column-type name db-type nullable len prec scale =
+    MkSqlColumnType name db-type nullable len prec scale
+
+  -- | Return the column name or alias.
+  sql-column-name :: SqlColumnType -> String
+  sql-column-name c = case c of
+    MkSqlColumnType name _ _ _ _ _ -> name
+
+  -- | Return the database system type name (empty when unsupported).
+  sql-column-database-type-name :: SqlColumnType -> String
+  sql-column-database-type-name c = case c of
+    MkSqlColumnType _ db-type _ _ _ _ -> db-type
+
+  -- | Report whether the column may contain NULL, when known by the driver.
+  sql-column-nullable :: SqlColumnType -> Option Bool
+  sql-column-nullable c = case c of
+    MkSqlColumnType _ _ nullable _ _ _ -> nullable
+
+  -- | Return the declared length for variable-length column types, when known.
+  sql-column-length :: SqlColumnType -> Option I64
+  sql-column-length c = case c of
+    MkSqlColumnType _ _ _ len _ _ -> len
+
+  -- | Return the decimal precision, when applicable and known.
+  sql-column-precision :: SqlColumnType -> Option I64
+  sql-column-precision c = case c of
+    MkSqlColumnType _ _ _ _ prec _ -> prec
+
+  -- | Return the decimal scale, when applicable and known.
+  sql-column-scale :: SqlColumnType -> Option I64
+  sql-column-scale c = case c of
+    MkSqlColumnType _ _ _ _ _ scale -> scale
+
+  -- | Return `(precision, scale)` when both decimal size attributes are available.
+  sql-column-decimal-size :: SqlColumnType -> Option (I64, I64)
+  sql-column-decimal-size c = case c of
+    MkSqlColumnType _ _ _ _ prec scale -> case (prec, scale) of
+      (Some p, Some s) -> Some (p, s)
+      _ -> None
+
+  -- | Structural equality on `Option Bool`.
+  opt-bool-eq :: Option Bool -> Option Bool -> Bool
+  opt-bool-eq a b = case (a, b) of
+    (None, None) -> True
+    (Some x, Some y) -> x == y
+    _ -> False
+
+  -- | Structural equality on `Option I64`.
+  opt-i64-eq :: Option I64 -> Option I64 -> Bool
+  opt-i64-eq a b = case (a, b) of
+    (None, None) -> True
+    (Some x, Some y) -> x == y
+    _ -> False
+
+  -- | Structural equality instance for `SqlColumnType`.
+  implicit instance Eq_SqlColumnType :: Eq SqlColumnType where
+    (==) a b = case (a, b) of
+      (MkSqlColumnType n1 t1 nu1 l1 p1 s1, MkSqlColumnType n2 t2 nu2 l2 p2 s2) ->
+        n1 == n2 && t1 == t2 && opt-bool-eq nu1 nu2 && opt-i64-eq l1 l2 && opt-i64-eq p1 p2 && opt-i64-eq s1 s2
+    (/=) a b = not (a == b)
+
+  -- | Construct a statement execution summary.
+  sql-exec-result :: Option I64 -> Option I64 -> SqlExecResult
+  sql-exec-result last-id affected = MkSqlExecResult last-id affected
+
+  -- | Execution summary for statements (such as DDL) reporting neither an insert ID nor affected row count.
+  sql-exec-result-no-rows :: SqlExecResult
+  sql-exec-result-no-rows = MkSqlExecResult None None
+
+  -- | Return the generated insert identifier, if reported by the driver.
+  sql-last-insert-id :: SqlExecResult -> Option I64
+  sql-last-insert-id r = case r of
+    MkSqlExecResult last-id _ -> last-id
+
+  -- | Return the number of rows affected, if reported by the driver.
+  sql-rows-affected :: SqlExecResult -> Option I64
+  sql-rows-affected r = case r of
+    MkSqlExecResult _ affected -> affected
+
+  -- | Structural equality instance for `SqlExecResult`.
+  implicit instance Eq_SqlExecResult :: Eq SqlExecResult where
+    (==) a b = case (a, b) of
+      (MkSqlExecResult i1 a1, MkSqlExecResult i2 a2) -> opt-i64-eq i1 i2 && opt-i64-eq a1 a2
+    (/=) a b = not (a == b)
+
+  -- | Format a `SqlError` as a human-readable diagnostic message.
+  sql-error-message :: SqlError -> String
+  sql-error-message e = case e of
+    SqlErrNoRows -> "sql: no rows in result set"
+    SqlErrTxDone -> "sql: transaction has already been committed or rolled back"
+    SqlErrConnDone -> "sql: connection is already closed"
+    SqlErrPoolClosed -> "sql: database is closed"
+    SqlErrBadConn -> "driver: bad connection"
+    SqlErrDriver msg -> string-concat "sql: driver error: " msg
+    SqlErrScan msg -> string-concat "sql: scan error: " msg
+    SqlErrTypeMismatch expected actual ->
+      string-concat "sql: type mismatch: expected "
+        (string-concat expected (string-concat ", got " actual))
+    SqlErrColumnOutOfRange idx count ->
+      string-concat "sql: column index "
+        (string-concat (nat-to-string idx)
+          (string-concat " out of range for row with "
+            (string-concat (nat-to-string count) " columns")))
+    SqlErrSkip -> "driver: skip fast-path; continue as if unimplemented"
+
+  -- | Structural equality on `SqlError`.
+  sql-error-eq :: SqlError -> SqlError -> Bool
+  sql-error-eq a b = case (a, b) of
+    (SqlErrNoRows, SqlErrNoRows) -> True
+    (SqlErrTxDone, SqlErrTxDone) -> True
+    (SqlErrConnDone, SqlErrConnDone) -> True
+    (SqlErrPoolClosed, SqlErrPoolClosed) -> True
+    (SqlErrBadConn, SqlErrBadConn) -> True
+    (SqlErrDriver m1, SqlErrDriver m2) -> m1 == m2
+    (SqlErrScan m1, SqlErrScan m2) -> m1 == m2
+    (SqlErrTypeMismatch e1 a1, SqlErrTypeMismatch e2 a2) -> e1 == e2 && a1 == a2
+    (SqlErrColumnOutOfRange i1 c1, SqlErrColumnOutOfRange i2 c2) -> i1 == i2 && c1 == c2
+    (SqlErrSkip, SqlErrSkip) -> True
+    _ -> False
+
+  -- | Structural equality instance for `SqlError`.
+  implicit instance Eq_SqlError :: Eq SqlError where
+    (==) a b = sql-error-eq a b
+    (/=) a b = not (sql-error-eq a b)
+
+  -- | Text rendering instance for `SqlError`.
+  implicit instance Show_SqlError :: Show SqlError where
+    show e = sql-error-message e
+
+  -- | Construct an immutable `SqlRow` from column names and cell values.
+  sql-row :: List String -> List SqlValue -> SqlRow
+  sql-row cols vals = MkSqlRow cols vals
+
+  -- | Return the column names of a row.
+  row-columns :: SqlRow -> List String
+  row-columns row = case row of
+    MkSqlRow cols _ -> cols
+
+  -- | Return the raw typed cell values of a row.
+  row-values :: SqlRow -> List SqlValue
+  row-values row = case row of
+    MkSqlRow _ vals -> vals
+
+  -- | Return the number of values in a row.
+  row-len :: SqlRow -> Nat
+  row-len row = case row of
+    MkSqlRow _ vals -> list-length vals
+
+  -- | Tail-recursive lookup of a value by zero-based index.
+  nth-value :: List SqlValue -> Nat -> Option SqlValue
+  nth-value xs idx = case xs of
+    Nil -> None
+    Cons x rest -> if idx == 0 then Some x else nth-value rest (idx - 1)
+
+  -- | Tail-recursive search for the first column index matching a name.
+  find-column-idx :: List String -> String -> Nat -> Option Nat
+  find-column-idx cols name idx = case cols of
+    Nil -> None
+    Cons c rest -> if c == name then Some idx else find-column-idx rest name (idx + 1)
+
+  -- | Return the zero-based index of the first column with the given name.
+  row-column-index :: SqlRow -> String -> Option Nat
+  row-column-index row name = case row of
+    MkSqlRow cols _ -> find-column-idx cols name 0
+
+  -- | Retrieve the cell value at zero-based column index `idx`, or `SqlErrColumnOutOfRange`.
+  row-get :: SqlRow -> Nat -> Result SqlError SqlValue
+  row-get row idx = case row of
+    MkSqlRow _ vals -> case nth-value vals idx of
+      Some v -> Ok v
+      None -> Err (SqlErrColumnOutOfRange idx (list-length vals))
+
+  -- | Retrieve the cell value for the first column matching `name`.
+  row-get-by-name :: SqlRow -> String -> Result SqlError SqlValue
+  row-get-by-name row name = case row-column-index row name of
+    Some idx -> row-get row idx
+    None -> Err (SqlErrScan (string-concat "unknown column: " name))
+
+  -- | Structural equality for string lists.
+  string-list-eq :: List String -> List String -> Bool
+  string-list-eq xs ys = case (xs, ys) of
+    (Nil, Nil) -> True
+    (Cons a ra, Cons b rb) -> if a == b then string-list-eq ra rb else False
+    _ -> False
+
+  -- | Structural equality for `SqlValue` lists.
+  value-list-eq :: List SqlValue -> List SqlValue -> Bool
+  value-list-eq xs ys = case (xs, ys) of
+    (Nil, Nil) -> True
+    (Cons a ra, Cons b rb) -> if sql-value-eq a b then value-list-eq ra rb else False
+    _ -> False
+
+  -- | Structural equality instance for `SqlRow`.
+  implicit instance Eq_SqlRow :: Eq SqlRow where
+    (==) a b = case (a, b) of
+      (MkSqlRow c1 v1, MkSqlRow c2 v2) -> string-list-eq c1 c2 && value-list-eq v1 v2
+    (/=) a b = not (a == b)
+
+  -- | Decode a non-null `SqlInt` into an `I64`.
+  value-as-i64 :: SqlValue -> Result SqlError I64
+  value-as-i64 v = case v of
+    SqlInt n -> Ok n
+    other -> Err (SqlErrTypeMismatch "INT" (sql-value-type-name other))
+
+  -- | Decode a non-null `SqlFloat` into an `F64`.
+  value-as-f64 :: SqlValue -> Result SqlError F64
+  value-as-f64 v = case v of
+    SqlFloat f -> Ok f
+    other -> Err (SqlErrTypeMismatch "FLOAT" (sql-value-type-name other))
+
+  -- | Decode a non-null `SqlBool` into a `Bool`.
+  value-as-bool :: SqlValue -> Result SqlError Bool
+  value-as-bool v = case v of
+    SqlBool b -> Ok b
+    other -> Err (SqlErrTypeMismatch "BOOL" (sql-value-type-name other))
+
+  -- | Decode a non-null `SqlString` into a `String`.
+  value-as-string :: SqlValue -> Result SqlError String
+  value-as-string v = case v of
+    SqlString s -> Ok s
+    other -> Err (SqlErrTypeMismatch "STRING" (sql-value-type-name other))
+
+  -- | Decode a non-null `SqlBytes` into a fresh copy of its `Bytes`.
+  value-as-bytes :: SqlValue -> Result SqlError Bytes
+  value-as-bytes v = case v of
+    SqlBytes b -> Ok (copy-bytes b)
+    other -> Err (SqlErrTypeMismatch "BYTES" (sql-value-type-name other))
+
+  -- | Decode a non-null `SqlTimestamp` into Unix nanoseconds (`I64`).
+  value-as-timestamp :: SqlValue -> Result SqlError I64
+  value-as-timestamp v = case v of
+    SqlTimestamp ts -> Ok ts
+    other -> Err (SqlErrTypeMismatch "TIMESTAMP" (sql-value-type-name other))
+
+  -- | Decode a nullable `SqlInt` into `Option I64`.
+  value-as-null-i64 :: SqlValue -> Result SqlError (Option I64)
+  value-as-null-i64 v = case v of
+    SqlNull -> Ok None
+    SqlInt n -> Ok (Some n)
+    other -> Err (SqlErrTypeMismatch "INT" (sql-value-type-name other))
+
+  -- | Decode a nullable `SqlFloat` into `Option F64`.
+  value-as-null-f64 :: SqlValue -> Result SqlError (Option F64)
+  value-as-null-f64 v = case v of
+    SqlNull -> Ok None
+    SqlFloat f -> Ok (Some f)
+    other -> Err (SqlErrTypeMismatch "FLOAT" (sql-value-type-name other))
+
+  -- | Decode a nullable `SqlBool` into `Option Bool`.
+  value-as-null-bool :: SqlValue -> Result SqlError (Option Bool)
+  value-as-null-bool v = case v of
+    SqlNull -> Ok None
+    SqlBool b -> Ok (Some b)
+    other -> Err (SqlErrTypeMismatch "BOOL" (sql-value-type-name other))
+
+  -- | Decode a nullable `SqlString` into `Option String`.
+  value-as-null-string :: SqlValue -> Result SqlError (Option String)
+  value-as-null-string v = case v of
+    SqlNull -> Ok None
+    SqlString s -> Ok (Some s)
+    other -> Err (SqlErrTypeMismatch "STRING" (sql-value-type-name other))
+
+  -- | Decode a nullable `SqlBytes` into `Option Bytes`, copying non-null buffers.
+  value-as-null-bytes :: SqlValue -> Result SqlError (Option Bytes)
+  value-as-null-bytes v = case v of
+    SqlNull -> Ok None
+    SqlBytes b -> Ok (Some (copy-bytes b))
+    other -> Err (SqlErrTypeMismatch "BYTES" (sql-value-type-name other))
+
+  -- | Decode a nullable `SqlTimestamp` into `Option I64` Unix nanoseconds.
+  value-as-null-timestamp :: SqlValue -> Result SqlError (Option I64)
+  value-as-null-timestamp v = case v of
+    SqlNull -> Ok None
+    SqlTimestamp ts -> Ok (Some ts)
+    other -> Err (SqlErrTypeMismatch "TIMESTAMP" (sql-value-type-name other))
+
+  -- | Scan a non-null `I64` column at index `idx`.
+  scan-i64 :: SqlRow -> Nat -> Result SqlError I64
+  scan-i64 row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-i64 v
+
+  -- | Scan a non-null `F64` column at index `idx`.
+  scan-f64 :: SqlRow -> Nat -> Result SqlError F64
+  scan-f64 row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-f64 v
+
+  -- | Scan a non-null `Bool` column at index `idx`.
+  scan-bool :: SqlRow -> Nat -> Result SqlError Bool
+  scan-bool row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-bool v
+
+  -- | Scan a non-null `String` column at index `idx`.
+  scan-string :: SqlRow -> Nat -> Result SqlError String
+  scan-string row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-string v
+
+  -- | Scan a non-null `Bytes` column at index `idx`, returning a fresh copy.
+  scan-bytes :: SqlRow -> Nat -> Result SqlError Bytes
+  scan-bytes row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-bytes v
+
+  -- | Scan a non-null timestamp (`I64` Unix nanoseconds) column at index `idx`.
+  scan-timestamp :: SqlRow -> Nat -> Result SqlError I64
+  scan-timestamp row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-timestamp v
+
+  -- | Scan a nullable `I64` column at index `idx`.
+  scan-null-i64 :: SqlRow -> Nat -> Result SqlError (Option I64)
+  scan-null-i64 row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-null-i64 v
+
+  -- | Scan a nullable `F64` column at index `idx`.
+  scan-null-f64 :: SqlRow -> Nat -> Result SqlError (Option F64)
+  scan-null-f64 row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-null-f64 v
+
+  -- | Scan a nullable `Bool` column at index `idx`.
+  scan-null-bool :: SqlRow -> Nat -> Result SqlError (Option Bool)
+  scan-null-bool row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-null-bool v
+
+  -- | Scan a nullable `String` column at index `idx`.
+  scan-null-string :: SqlRow -> Nat -> Result SqlError (Option String)
+  scan-null-string row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-null-string v
+
+  -- | Scan a nullable `Bytes` column at index `idx`, returning a fresh copy when present.
+  scan-null-bytes :: SqlRow -> Nat -> Result SqlError (Option Bytes)
+  scan-null-bytes row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-null-bytes v
+
+  -- | Scan a nullable timestamp (`I64` Unix nanoseconds) column at index `idx`.
+  scan-null-timestamp :: SqlRow -> Nat -> Result SqlError (Option I64)
+  scan-null-timestamp row idx = case row-get row idx of
+    Err e -> Err e
+    Ok v -> value-as-null-timestamp v
+
+  -- | Scan a non-null `I64` column by column name.
+  scan-i64-by-name :: SqlRow -> String -> Result SqlError I64
+  scan-i64-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-i64 v
+
+  -- | Scan a non-null `F64` column by column name.
+  scan-f64-by-name :: SqlRow -> String -> Result SqlError F64
+  scan-f64-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-f64 v
+
+  -- | Scan a non-null `Bool` column by column name.
+  scan-bool-by-name :: SqlRow -> String -> Result SqlError Bool
+  scan-bool-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-bool v
+
+  -- | Scan a non-null `String` column by column name.
+  scan-string-by-name :: SqlRow -> String -> Result SqlError String
+  scan-string-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-string v
+
+  -- | Scan a non-null `Bytes` column by column name, returning a fresh copy.
+  scan-bytes-by-name :: SqlRow -> String -> Result SqlError Bytes
+  scan-bytes-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-bytes v
+
+  -- | Scan a non-null timestamp (`I64` Unix nanoseconds) column by column name.
+  scan-timestamp-by-name :: SqlRow -> String -> Result SqlError I64
+  scan-timestamp-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-timestamp v
+
+  -- | Scan a nullable `I64` column by column name.
+  scan-null-i64-by-name :: SqlRow -> String -> Result SqlError (Option I64)
+  scan-null-i64-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-null-i64 v
+
+  -- | Scan a nullable `F64` column by column name.
+  scan-null-f64-by-name :: SqlRow -> String -> Result SqlError (Option F64)
+  scan-null-f64-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-null-f64 v
+
+  -- | Scan a nullable `Bool` column by column name.
+  scan-null-bool-by-name :: SqlRow -> String -> Result SqlError (Option Bool)
+  scan-null-bool-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-null-bool v
+
+  -- | Scan a nullable `String` column by column name.
+  scan-null-string-by-name :: SqlRow -> String -> Result SqlError (Option String)
+  scan-null-string-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-null-string v
+
+  -- | Scan a nullable `Bytes` column by column name, returning a fresh copy when present.
+  scan-null-bytes-by-name :: SqlRow -> String -> Result SqlError (Option Bytes)
+  scan-null-bytes-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-null-bytes v
+
+  -- | Scan a nullable timestamp (`I64` Unix nanoseconds) column by column name.
+  scan-null-timestamp-by-name :: SqlRow -> String -> Result SqlError (Option I64)
+  scan-null-timestamp-by-name row name = case row-get-by-name row name of
+    Err e -> Err e
+    Ok v -> value-as-null-timestamp v

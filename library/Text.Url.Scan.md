@@ -10,13 +10,13 @@ Import with `import Text.Url.Scan`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md).
 
 Non-embedded source closure: [Text.Url.Scan](Text.Url.Scan.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
-Checked byte intervals and retained, exact-load SIMD scans used by URL grammars.
+Checked byte intervals and exact-load portable 16-byte SIMD scans used by URL grammars.
 Every returned interval is a fresh buffer. Searches return the interval end
 when absent; malformed bounds are rejected by returning the complete input end.
 
@@ -36,7 +36,7 @@ This module exports no type declarations.
 
 Concatenate chunks with one exact allocation and one checked copy per chunk.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 38
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 39
 
 <a id="value-75726c2d636f7079"></a>
 
@@ -46,7 +46,7 @@ Concatenate chunks with one exact allocation and one checked copy per chunk.
 
 Copy a complete input without retaining a mutable caller alias.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 14
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 15
 
 <a id="value-75726c2d636f756e742d62797465"></a>
 
@@ -56,7 +56,7 @@ Copy a complete input without retaining a mutable caller alias.
 
 Count exact wanted-byte occurrences in a half-open interval; invalid bounds yield zero.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 264
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 271
 
 <a id="value-75726c2d66696e642d62797465"></a>
 
@@ -66,7 +66,7 @@ Count exact wanted-byte occurrences in a half-open interval; invalid bounds yiel
 
 Find the first wanted byte in a half-open interval, or its end when absent.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 247
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 253
 
 <a id="value-75726c2d66696e642d636f6e74726f6c"></a>
 
@@ -76,7 +76,7 @@ Find the first wanted byte in a half-open interval, or its end when absent.
 
 Find the first ASCII control or DEL in a half-open interval, or its end.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 251
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 257
 
 <a id="value-75726c2d66696e642d696e76616c69642d75736572"></a>
 
@@ -86,7 +86,7 @@ Find the first ASCII control or DEL in a half-open interval, or its end.
 
 Find the first unsupported raw ASCII user-information byte, or the interval end.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 282
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 290
 
 <a id="value-75726c2d6c6173742d62797465"></a>
 
@@ -96,7 +96,7 @@ Find the first unsupported raw ASCII user-information byte, or the interval end.
 
 Find the last wanted byte in a half-open interval, or its end when absent.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 255
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 261
 
 <a id="value-75726c2d736368656d652d636f6c6f6e"></a>
 
@@ -106,7 +106,7 @@ Find the last wanted byte in a half-open interval, or its end when absent.
 
 Find an ASCII scheme colon with SIMD grammar scanning; return input length when absent or invalid.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 271
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 279
 
 <a id="value-75726c2d736c696365"></a>
 
@@ -116,8 +116,8 @@ Find an ASCII scheme colon with SIMD grammar scanning; return input length when 
 
 Copy a half-open interval, returning empty bytes for invalid bounds.
 
-[Source](/reference-sources/Text.Url.Scan.cinch) · line 19
+[Source](/reference-sources/Text.Url.Scan.cinch) · line 20
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Scan.cinch`. Source SHA-256: `de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Scan.cinch`. Source SHA-256: `e76c8881d3b3527986849dbb51ec8e21afa198bc9010545000f33198baf83d8b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

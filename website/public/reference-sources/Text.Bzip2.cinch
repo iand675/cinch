@@ -15,7 +15,6 @@
 module Text.Bzip2 where
 
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.List
   import Data.Machine
   import Data.Nat
@@ -56,42 +55,35 @@ module Text.Bzip2 where
   minus :: Nat -> Nat -> Nat
   minus a b = if b <= a then a - b else 0
 
-  -- | A value below 2^32 as a 64-bit word.
-  small :: Nat -> U64
-  small n = if n < 4294967296 then wrapping-i64-to-u64 (nat-to-i64 n) else 0
-
   -- | A value below 2^32 as a 32-bit word.
   word :: Nat -> U32
   word n = if n < 4294967296 then wrapping-i64-to-u32 (nat-to-i64 n) else 0
 
   -- | A 32-bit counter in a word table, zero outside it.
   get32 :: Bytes -> Nat -> Nat
-  get32 b i = if i + 4 <= bytes-len b then u32-to-nat (bytes-read-le32 b i) else 0
+  get32 b i = if i + 4 <= bytes-len b then u32-to-nat (bytes-load-le32 b i) else 0
 
   -- | Store a 32-bit counter in a word table when it fits.
   set32 :: Bytes -> Nat -> Nat -> Unit
-  set32 b i v = if i + 4 <= bytes-len b then bytes-write-le32 b i (word v) else ()
+  set32 b i v = if i + 4 <= bytes-len b then bytes-store-le32 b i (word v) else ()
 
   -- | Store a byte when it fits.
   put :: Bytes -> Nat -> Nat -> Unit
   put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
 
   -- | The bit field of a little-endian 64-bit load: byte swap so the first byte leads, drop shift bits, keep the next n (1 to 32).
-  prim bit-field :: U64 -> U64 -> U64 -> U32 where
-    llvm {
-      %w = call i64 @llvm.bswap.i64(i64 %0)
-      %s = shl i64 %w, %1
-      %k = sub i64 64, %2
-      %v = lshr i64 %s, %k
-      %r = trunc i64 %v to i32
-      ret i32 %r
-    }
+  bit-field :: U64 -> U32 -> U32 -> U32
+  bit-field raw shift n =
+    let w = swap-bytes-u64 raw in
+    let s = wrapping-shl-u64 w shift in
+    let k = wrapping-sub-u32 64 n in
+    wrapping-u64-to-u32 (wrapping-shr-u64 s k)
 
   -- | The n bits (1 to 32) starting at a bit position, most significant first, from a buffer padded with eight zero bytes.
   peek :: Bytes -> Nat -> Nat -> Nat
   peek src pos n =
     let byte = nat-div pos 8 in
-    if byte + 8 <= bytes-len src then u32-to-nat (bit-field (bytes-read-le64 src byte) (small (nat-rem pos 8)) (small n)) else 0
+    if byte + 8 <= bytes-len src then u32-to-nat (bit-field (bytes-load-le64 src byte) (word (nat-rem pos 8)) (word n)) else 0
 
   -- | The n bits at a position when all of them lie below the input's bit length.
   take-bits :: Bytes -> Nat -> Nat -> Nat -> Option Nat
@@ -532,7 +524,7 @@ module Text.Bzip2 where
   -- | Fold four bytes per step while they last, then single bytes.
   crc-words :: Bytes -> Nat -> Nat -> U32 -> U32
   crc-words out i end crc =
-    if i + 4 <= end && i + 4 <= bytes-len out then crc-words out (i + 4) end (crc-word crc (bytes-read-le32 out i))
+    if i + 4 <= end && i + 4 <= bytes-len out then crc-words out (i + 4) end (crc-word crc (bytes-load-le32 out i))
     else crc-bytes out i end crc
 
   -- | Fold the remaining bytes one at a time.
@@ -541,176 +533,29 @@ module Text.Bzip2 where
     if i >= end then crc
     else crc-bytes out (i + 1) end (crc-step8 (bit-xor-u32 crc (wrapping-shl-u32 (word (at out i)) 24)))
 
+  -- | One branch-free shift step of the most-significant-bit-first CRC register (polynomial 0x04C11DB7).
+  crc-step1 :: U32 -> U32
+  crc-step1 c =
+    let s = wrapping-i32-to-u32 (wrapping-shr-i32 (wrapping-u32-to-i32 c) 31) in
+    bit-xor-u32 (wrapping-shl-u32 c 1) (bit-and-u32 s 79764919)
+
   -- | Eight shift steps of the most-significant-bit-first CRC register (polynomial 0x04C11DB7), branch-free.
-  prim crc-step8 :: U32 -> U32 where
-    llvm {
-      %s0 = ashr i32 %0, 31
-      %m0 = and i32 %s0, 79764919
-      %h0 = shl i32 %0, 1
-      %c0 = xor i32 %h0, %m0
-      %s1 = ashr i32 %c0, 31
-      %m1 = and i32 %s1, 79764919
-      %h1 = shl i32 %c0, 1
-      %c1 = xor i32 %h1, %m1
-      %s2 = ashr i32 %c1, 31
-      %m2 = and i32 %s2, 79764919
-      %h2 = shl i32 %c1, 1
-      %c2 = xor i32 %h2, %m2
-      %s3 = ashr i32 %c2, 31
-      %m3 = and i32 %s3, 79764919
-      %h3 = shl i32 %c2, 1
-      %c3 = xor i32 %h3, %m3
-      %s4 = ashr i32 %c3, 31
-      %m4 = and i32 %s4, 79764919
-      %h4 = shl i32 %c3, 1
-      %c4 = xor i32 %h4, %m4
-      %s5 = ashr i32 %c4, 31
-      %m5 = and i32 %s5, 79764919
-      %h5 = shl i32 %c4, 1
-      %c5 = xor i32 %h5, %m5
-      %s6 = ashr i32 %c5, 31
-      %m6 = and i32 %s6, 79764919
-      %h6 = shl i32 %c5, 1
-      %c6 = xor i32 %h6, %m6
-      %s7 = ashr i32 %c6, 31
-      %m7 = and i32 %s7, 79764919
-      %h7 = shl i32 %c6, 1
-      %c7 = xor i32 %h7, %m7
-      ret i32 %c7
-    }
+  crc-step8 :: U32 -> U32
+  crc-step8 c =
+    let c1 = crc-step1 c in
+    let c2 = crc-step1 c1 in
+    let c3 = crc-step1 c2 in
+    let c4 = crc-step1 c3 in
+    let c5 = crc-step1 c4 in
+    let c6 = crc-step1 c5 in
+    let c7 = crc-step1 c6 in
+    crc-step1 c7
 
   -- | Fold four bytes, given as a little-endian load, into the register: byte swap, XOR, then thirty-two branch-free steps.
-  prim crc-word :: U32 -> U32 -> U32 where
-    llvm {
-      %w = call i32 @llvm.bswap.i32(i32 %1)
-      %x = xor i32 %0, %w
-      %s0 = ashr i32 %x, 31
-      %m0 = and i32 %s0, 79764919
-      %h0 = shl i32 %x, 1
-      %c0 = xor i32 %h0, %m0
-      %s1 = ashr i32 %c0, 31
-      %m1 = and i32 %s1, 79764919
-      %h1 = shl i32 %c0, 1
-      %c1 = xor i32 %h1, %m1
-      %s2 = ashr i32 %c1, 31
-      %m2 = and i32 %s2, 79764919
-      %h2 = shl i32 %c1, 1
-      %c2 = xor i32 %h2, %m2
-      %s3 = ashr i32 %c2, 31
-      %m3 = and i32 %s3, 79764919
-      %h3 = shl i32 %c2, 1
-      %c3 = xor i32 %h3, %m3
-      %s4 = ashr i32 %c3, 31
-      %m4 = and i32 %s4, 79764919
-      %h4 = shl i32 %c3, 1
-      %c4 = xor i32 %h4, %m4
-      %s5 = ashr i32 %c4, 31
-      %m5 = and i32 %s5, 79764919
-      %h5 = shl i32 %c4, 1
-      %c5 = xor i32 %h5, %m5
-      %s6 = ashr i32 %c5, 31
-      %m6 = and i32 %s6, 79764919
-      %h6 = shl i32 %c5, 1
-      %c6 = xor i32 %h6, %m6
-      %s7 = ashr i32 %c6, 31
-      %m7 = and i32 %s7, 79764919
-      %h7 = shl i32 %c6, 1
-      %c7 = xor i32 %h7, %m7
-      %s8 = ashr i32 %c7, 31
-      %m8 = and i32 %s8, 79764919
-      %h8 = shl i32 %c7, 1
-      %c8 = xor i32 %h8, %m8
-      %s9 = ashr i32 %c8, 31
-      %m9 = and i32 %s9, 79764919
-      %h9 = shl i32 %c8, 1
-      %c9 = xor i32 %h9, %m9
-      %s10 = ashr i32 %c9, 31
-      %m10 = and i32 %s10, 79764919
-      %h10 = shl i32 %c9, 1
-      %c10 = xor i32 %h10, %m10
-      %s11 = ashr i32 %c10, 31
-      %m11 = and i32 %s11, 79764919
-      %h11 = shl i32 %c10, 1
-      %c11 = xor i32 %h11, %m11
-      %s12 = ashr i32 %c11, 31
-      %m12 = and i32 %s12, 79764919
-      %h12 = shl i32 %c11, 1
-      %c12 = xor i32 %h12, %m12
-      %s13 = ashr i32 %c12, 31
-      %m13 = and i32 %s13, 79764919
-      %h13 = shl i32 %c12, 1
-      %c13 = xor i32 %h13, %m13
-      %s14 = ashr i32 %c13, 31
-      %m14 = and i32 %s14, 79764919
-      %h14 = shl i32 %c13, 1
-      %c14 = xor i32 %h14, %m14
-      %s15 = ashr i32 %c14, 31
-      %m15 = and i32 %s15, 79764919
-      %h15 = shl i32 %c14, 1
-      %c15 = xor i32 %h15, %m15
-      %s16 = ashr i32 %c15, 31
-      %m16 = and i32 %s16, 79764919
-      %h16 = shl i32 %c15, 1
-      %c16 = xor i32 %h16, %m16
-      %s17 = ashr i32 %c16, 31
-      %m17 = and i32 %s17, 79764919
-      %h17 = shl i32 %c16, 1
-      %c17 = xor i32 %h17, %m17
-      %s18 = ashr i32 %c17, 31
-      %m18 = and i32 %s18, 79764919
-      %h18 = shl i32 %c17, 1
-      %c18 = xor i32 %h18, %m18
-      %s19 = ashr i32 %c18, 31
-      %m19 = and i32 %s19, 79764919
-      %h19 = shl i32 %c18, 1
-      %c19 = xor i32 %h19, %m19
-      %s20 = ashr i32 %c19, 31
-      %m20 = and i32 %s20, 79764919
-      %h20 = shl i32 %c19, 1
-      %c20 = xor i32 %h20, %m20
-      %s21 = ashr i32 %c20, 31
-      %m21 = and i32 %s21, 79764919
-      %h21 = shl i32 %c20, 1
-      %c21 = xor i32 %h21, %m21
-      %s22 = ashr i32 %c21, 31
-      %m22 = and i32 %s22, 79764919
-      %h22 = shl i32 %c21, 1
-      %c22 = xor i32 %h22, %m22
-      %s23 = ashr i32 %c22, 31
-      %m23 = and i32 %s23, 79764919
-      %h23 = shl i32 %c22, 1
-      %c23 = xor i32 %h23, %m23
-      %s24 = ashr i32 %c23, 31
-      %m24 = and i32 %s24, 79764919
-      %h24 = shl i32 %c23, 1
-      %c24 = xor i32 %h24, %m24
-      %s25 = ashr i32 %c24, 31
-      %m25 = and i32 %s25, 79764919
-      %h25 = shl i32 %c24, 1
-      %c25 = xor i32 %h25, %m25
-      %s26 = ashr i32 %c25, 31
-      %m26 = and i32 %s26, 79764919
-      %h26 = shl i32 %c25, 1
-      %c26 = xor i32 %h26, %m26
-      %s27 = ashr i32 %c26, 31
-      %m27 = and i32 %s27, 79764919
-      %h27 = shl i32 %c26, 1
-      %c27 = xor i32 %h27, %m27
-      %s28 = ashr i32 %c27, 31
-      %m28 = and i32 %s28, 79764919
-      %h28 = shl i32 %c27, 1
-      %c28 = xor i32 %h28, %m28
-      %s29 = ashr i32 %c28, 31
-      %m29 = and i32 %s29, 79764919
-      %h29 = shl i32 %c28, 1
-      %c29 = xor i32 %h29, %m29
-      %s30 = ashr i32 %c29, 31
-      %m30 = and i32 %s30, 79764919
-      %h30 = shl i32 %c29, 1
-      %c30 = xor i32 %h30, %m30
-      %s31 = ashr i32 %c30, 31
-      %m31 = and i32 %s31, 79764919
-      %h31 = shl i32 %c30, 1
-      %c31 = xor i32 %h31, %m31
-      ret i32 %c31
-    }
+  crc-word :: U32 -> U32 -> U32
+  crc-word crc w =
+    let x = bit-xor-u32 crc (swap-bytes-u32 w) in
+    let a = crc-step8 x in
+    let b = crc-step8 a in
+    let c = crc-step8 b in
+    crc-step8 c

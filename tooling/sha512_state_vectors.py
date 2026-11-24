@@ -11,11 +11,85 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
-from pathlib import Path
+import math
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import generate_sha512_kernels as model  # noqa: E402
+MASK64 = (1 << 64) - 1
+
+
+def _primes(count: int) -> list[int]:
+    result: list[int] = []
+    candidate = 2
+    while len(result) < count:
+        if all(candidate % divisor for divisor in result if divisor * divisor <= candidate):
+            result.append(candidate)
+        candidate += 1
+    return result
+
+
+def _cube_root(value: int) -> int:
+    low, high = 0, 1 << ((value.bit_length() + 2) // 3 + 1)
+    while low + 1 < high:
+        middle = (low + high) // 2
+        if middle * middle * middle <= value:
+            low = middle
+        else:
+            high = middle
+    return low
+
+
+def _round_constants() -> list[int]:
+    return [_cube_root(prime << 192) & MASK64 for prime in _primes(80)]
+
+
+def _sqrt_words(selected: list[int]) -> list[int]:
+    return [math.isqrt(prime << 128) & MASK64 for prime in selected]
+
+
+def _rotr(value: int, amount: int) -> int:
+    return ((value >> amount) | (value << (64 - amount))) & MASK64
+
+
+def _compress(state: list[int], block: bytes) -> list[int]:
+    k = _round_constants()
+    w = [int.from_bytes(block[i * 8:i * 8 + 8], "big") for i in range(16)]
+    for t in range(16, 80):
+        s0 = _rotr(w[t - 15], 1) ^ _rotr(w[t - 15], 8) ^ (w[t - 15] >> 7)
+        s1 = _rotr(w[t - 2], 19) ^ _rotr(w[t - 2], 61) ^ (w[t - 2] >> 6)
+        w.append((w[t - 16] + s0 + w[t - 7] + s1) & MASK64)
+    a, b, c, d, e, f, g, h = state
+    for t in range(80):
+        t1 = (h + (_rotr(e, 14) ^ _rotr(e, 18) ^ _rotr(e, 41)) + ((e & f) ^ (~e & g)) + k[t] + w[t]) & MASK64
+        t2 = ((_rotr(a, 28) ^ _rotr(a, 34) ^ _rotr(a, 39)) + ((a & b) ^ (a & c) ^ (b & c))) & MASK64
+        a, b, c, d, e, f, g, h = (t1 + t2) & MASK64, a, b, c, (d + t1) & MASK64, e, f, g
+    return [(x + y) & MASK64 for x, y in zip(state, [a, b, c, d, e, f, g, h])]
+
+
+def _digest(state: list[int], message: bytes) -> list[int]:
+    padded = message + b"\x80" + b"\x00" * ((111 - len(message)) % 128) + (len(message) * 8).to_bytes(16, "big")
+    for offset in range(0, len(padded), 128):
+        state = _compress(state, padded[offset:offset + 128])
+    return state
+
+
+def _initial_values() -> dict[str, list[int]]:
+    values = _primes(16)
+    full = _sqrt_words(values[:8])
+    generator = [word ^ 0xA5A5A5A5A5A5A5A5 for word in full]
+    return {
+        "512": full,
+        "384": _sqrt_words(values[8:16]),
+        "512/224": _digest(generator, b"SHA-512/224"),
+        "512/256": _digest(generator, b"SHA-512/256"),
+    }
+
+
+class _Model:
+    initial_values = staticmethod(_initial_values)
+    compress = staticmethod(_compress)
+    digest = staticmethod(_digest)
+
+
+model = _Model()
 
 VARIANTS = {4: ("sha384", "384", 48), 5: ("sha512_224", "512/224", 28), 6: ("sha512_256", "512/256", 32), 7: ("sha512", "512", 64)}
 

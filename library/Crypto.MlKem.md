@@ -10,9 +10,9 @@ Import with `import Crypto.MlKem`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Sha3](Text.Sha3.md), [Text.Show](Text.Show.md).
+[Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Sha3](Text.Sha3.md), [Text.Show](Text.Show.md).
 
-Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.MlKem](Crypto.MlKem.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha3](Text.Sha3.md).
+Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.MlKem](Crypto.MlKem.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Binary](Text.Binary.md), [Text.Sha3](Text.Sha3.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -25,7 +25,7 @@ re-encrypt to itself yields a pseudorandom rejection key instead, selected
 in constant time. Encapsulation keys from outside are checked for
 coefficients outside the field. Polynomials are immutable values of
 thirty-two 128-bit lanes of eight coefficients; transforms, products,
-compression and sampling run as generated branch-free lane kernels with
+compression and sampling run as portable branch-free 128-bit SIMD lane ops with
 exact arithmetic modulo q = 3329. Effect.Crypto draws seeds and randomness
 from the operating system.
 
@@ -235,4 +235,4 @@ Shared keys are 32 bytes.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/MlKem.cinch`. Source SHA-256: `130822b4a06af07c585a99e840d37c81576b642ae74a492e8d017c4a641bf6ed`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/MlKem.cinch`. Source SHA-256: `f690ebbc0e580315519d705e0efdc68d2c71b68a0ea99d952674545814bc7b7f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -10,18 +10,19 @@ Import with `import Text.Sha256`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Binary](Text.Binary.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha256](Text.Sha256.md).
+Non-embedded source closure: [Text.Binary](Text.Binary.md), [Text.Sha256](Text.Sha256.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 SHA-224 and SHA-256 digests, persistent streaming states and binary checkpoints.
-Compression expands four schedule words in SIMD and evaluates every ordered
-round once. Updates read exact 64-byte blocks while retaining their input
-owner, and copy pending tails into private storage. Retaining a state branches
-the computation. Digest and checkpoint words use network order; byte counts
-wrap at 64 bits. Checkpoint input and returned buffers never alias the state.
+Compression expands four schedule words per step in portable 128-bit SIMD lanes
+and evaluates all sixty-four ordered rounds in registers with native rotates.
+Updates read checked 64-byte blocks directly from the input buffer and copy
+pending tails into private storage. Retaining a state branches the computation.
+Digest and checkpoint words use network order; byte counts wrap at 64 bits.
+Checkpoint input and returned buffers never alias the state.
 
 </details>
 
@@ -35,7 +36,7 @@ wrap at 64 bits. Checkpoint input and returned buffers never alias the state.
 
 An immutable variant, wrapping byte count, copied partial block and chaining value.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 41
+[Source](/reference-sources/Text.Sha256.cinch) · line 42
 
 <a id="type-53686132353653746174654572726f72"></a>
 
@@ -45,7 +46,7 @@ An immutable variant, wrapping byte count, copied partial block and chaining val
 
 A checkpoint's complete variant identifier or exact byte length is invalid.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 282
+[Source](/reference-sources/Text.Sha256.cinch) · line 240
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidSha256StateIdentifier</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha256</span>.<span class="tok-constructor">Sha256StateError</span></code></pre>
 
@@ -61,7 +62,7 @@ A checkpoint's complete variant identifier or exact byte length is invalid.
 
 SHA-224 digest size in bytes, always 28.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 28
+[Source](/reference-sources/Text.Sha256.cinch) · line 29
 
 <a id="value-7368613232342d7374617465"></a>
 
@@ -71,7 +72,7 @@ SHA-224 digest size in bytes, always 28.
 
 Initial SHA-224 state with its distinct FIPS 180-4 chaining value and no pending bytes.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 50
+[Source](/reference-sources/Text.Sha256.cinch) · line 51
 
 <a id="value-7368613232342d73756d"></a>
 
@@ -81,7 +82,7 @@ Initial SHA-224 state with its distinct FIPS 180-4 chaining value and no pending
 
 Compute a fresh 28-byte network-order SHA-224 digest of a complete input.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 58
+[Source](/reference-sources/Text.Sha256.cinch) · line 59
 
 <a id="value-7368613235362d626c6f636b2d73697a65"></a>
 
@@ -91,7 +92,7 @@ Compute a fresh 28-byte network-order SHA-224 digest of a complete input.
 
 Compression block size in bytes for both variants, always 64.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 32
+[Source](/reference-sources/Text.Sha256.cinch) · line 33
 
 <a id="value-7368613235362d73697a65"></a>
 
@@ -101,7 +102,7 @@ Compression block size in bytes for both variants, always 64.
 
 SHA-256 digest size in bytes, always 32.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 24
+[Source](/reference-sources/Text.Sha256.cinch) · line 25
 
 <a id="value-7368613235362d7374617465"></a>
 
@@ -111,7 +112,7 @@ SHA-256 digest size in bytes, always 32.
 
 Initial SHA-256 state with the FIPS 180-4 chaining value and no pending bytes.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 46
+[Source](/reference-sources/Text.Sha256.cinch) · line 47
 
 <a id="value-7368613235362d73746174652d617070656e64"></a>
 
@@ -121,7 +122,7 @@ Initial SHA-256 state with the FIPS 180-4 chaining value and no pending bytes.
 
 Append the selected digest to a copied prefix, preserving the state and caller buffer.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 262
+[Source](/reference-sources/Text.Sha256.cinch) · line 220
 
 <a id="value-7368613235362d73746174652d617070656e642d73617665"></a>
 
@@ -131,7 +132,7 @@ Append the selected digest to a copied prefix, preserving the state and caller b
 
 Append the complete checkpoint to a copied prefix without mutating either input.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 278
+[Source](/reference-sources/Text.Sha256.cinch) · line 236
 
 <a id="value-7368613235362d73746174652d626c6f636b2d73697a65"></a>
 
@@ -141,7 +142,7 @@ Append the complete checkpoint to a copied prefix without mutating either input.
 
 Compression block size in bytes, always 64 for either variant.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 173
+[Source](/reference-sources/Text.Sha256.cinch) · line 137
 
 <a id="value-7368613235362d73746174652d6572726f722d6d657373616765"></a>
 
@@ -151,7 +152,7 @@ Compression block size in bytes, always 64 for either variant.
 
 Render identifier errors or complete required and actual checkpoint byte lengths.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 289
+[Source](/reference-sources/Text.Sha256.cinch) · line 247
 
 <a id="value-7368613235362d73746174652d6c6f6164"></a>
 
@@ -163,7 +164,7 @@ Restore every chaining/count bit, copying only the live partial block into priva
 The template selects the variant. Identifier checks precede exact-size checks;
 unused checkpoint tail bytes are ignored and serialized as zeros on the next save.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 301
+[Source](/reference-sources/Text.Sha256.cinch) · line 259
 
 <a id="value-7368613235362d73746174652d7265736574"></a>
 
@@ -173,7 +174,7 @@ unused checkpoint tail bytes are ignored and serialized as zeros on the next sav
 
 Return the initial state for the same variant, preserving the supplied state.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 161
+[Source](/reference-sources/Text.Sha256.cinch) · line 125
 
 <a id="value-7368613235362d73746174652d73617665"></a>
 
@@ -184,7 +185,7 @@ Return the initial state for the same variant, preserving the supplied state.
 Return 108 checkpoint bytes: sha, variant byte 2/3, chaining words, zero-padded tail and count.
 Variant 2 is SHA-224 and variant 3 is SHA-256. Every numeric field uses network order.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 267
+[Source](/reference-sources/Text.Sha256.cinch) · line 225
 
 <a id="value-7368613235362d73746174652d73697a65"></a>
 
@@ -194,7 +195,7 @@ Variant 2 is SHA-224 and variant 3 is SHA-256. Every numeric field uses network 
 
 Digest size in bytes, bounded by 28 and 32 and fixed by the state's selected variant.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 165
+[Source](/reference-sources/Text.Sha256.cinch) · line 129
 
 <a id="value-7368613235362d73746174652d73756d"></a>
 
@@ -204,7 +205,7 @@ Digest size in bytes, bounded by 28 and 32 and fixed by the state's selected var
 
 Return the selected network-order digest in fresh storage without changing the state.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 226
+[Source](/reference-sources/Text.Sha256.cinch) · line 184
 
 <a id="value-7368613235362d73746174652d757064617465"></a>
 
@@ -215,7 +216,7 @@ Return the selected network-order digest in fresh storage without changing the s
 Consume a complete chunk without mutating any previous state or retaining the input buffer.
 Empty chunks preserve the supplied state. Counts use explicit unsigned 64-bit wrapping.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 75
+[Source](/reference-sources/Text.Sha256.cinch) · line 76
 
 <a id="value-7368613235362d73756d"></a>
 
@@ -225,8 +226,8 @@ Empty chunks preserve the supplied state. Counts use explicit unsigned 64-bit wr
 
 Compute a fresh 32-byte network-order SHA-256 digest of a complete input.
 
-[Source](/reference-sources/Text.Sha256.cinch) · line 54
+[Source](/reference-sources/Text.Sha256.cinch) · line 55
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Sha256.cinch`. Source SHA-256: `95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Sha256.cinch`. Source SHA-256: `deb958957368625d16686b0ad7f3093c5cf4ffffa8dbfa30d54ce9016b0fc233`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

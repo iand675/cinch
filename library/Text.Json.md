@@ -10,7 +10,7 @@ Import with `import Text.Json`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.HashMap](Data.HashMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Builder](Text.Builder.md), [Text.Codec](Text.Codec.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.HashMap](Data.HashMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Text.Builder](Text.Builder.md), [Text.Codec](Text.Codec.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
 
 Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Builder](Text.Builder.md), [Text.Json](Text.Json.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Scan](Text.Scan.md).
 
@@ -100,7 +100,7 @@ A parser: a function from cursor to reply (the P30 `Parser`
 shape). Recursive parsers wrap in `MkJParser` so their references
 sit under a lambda (the D302 top-level value discipline).
 
-[Source](/reference-sources/Text.Json.cinch) · line 199
+[Source](/reference-sources/Text.Json.cinch) · line 200
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkJParser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
 
@@ -114,7 +114,7 @@ A reply: the consumed/empty success and failure distinction of
 `Text.Parse`'s `Reply` (the expected-set hint merges exactly as
 there).
 
-[Source](/reference-sources/Text.Json.cinch) · line 192
+[Source](/reference-sources/Text.Json.cinch) · line 193
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JOk</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))))</code></pre>
 
@@ -131,7 +131,7 @@ position as line and character column (a UTF-8 continuation byte
 does not advance the column, so columns count scalars like the
 compiler's spans).
 
-[Source](/reference-sources/Text.Json.cinch) · line 170
+[Source](/reference-sources/Text.Json.cinch) · line 171
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JState</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span>))))</code></pre>
 
@@ -376,4 +376,4 @@ trips as itself.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json.cinch`. Source SHA-256: `2293f2ddacb0a057f8c34771b1a069ab844f420f4b96029c15c74bcce2730089`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json.cinch`. Source SHA-256: `4394aa1b8b65c8a94d87884d0b8ad5b89ebec00ca9a4a322f6a10027286c0204`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

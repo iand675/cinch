@@ -122,34 +122,10 @@ fn csv_record_declarations_have_canonical_documentation() {
     }
 }
 
-/// Compile actual private byte classifiers, UTF-8 lead conversion and raw word loads for foreign objects.
+/// Compile actual 16-byte SIMD CSV field scanning and quoting paths for foreign objects.
 /// This explicitly invokes the Rust emitter independently of the selected host frontend.
 #[test]
 fn rust_csv_kernels_compile_for_wasm_arm_and_big_endian_targets() {
-    let source = include_str!("../prelude/Text/Csv/Record.cinch");
-    let mut kernels = String::from("-- | Isolated CSV SIMD classifier compilation.\nmodule Main where\n  import Data.Machine\n");
-    for name in [
-        "contains-byte8",
-        "special8",
-        "scalar-first",
-        "scan-match16",
-        "scan-special16",
-    ] {
-        let start = source.find(&format!("  prim {name} ::")).unwrap();
-        let remaining = &source[start..];
-        let end = remaining.find("\n  -- |").unwrap_or(remaining.len());
-        kernels.push_str("\n  -- | Actual private byte-classification or UTF-8 lead kernel.\n");
-        kernels.push_str(&remaining[..end]);
-    }
-    let words = include_str!("../prelude/Data/Bytes/Word.cinch");
-    let start = words.find("  prim load-le64 ::").unwrap();
-    let remaining = &words[start..];
-    let end = remaining.find("\n  -- |").unwrap_or(remaining.len());
-    kernels.push_str(
-        "\n  -- | Actual private exact unaligned word load with target endianness normalization.\n",
-    );
-    kernels.push_str(&remaining[..end]);
-    kernels.push_str("\n  -- | Retain the complete fixture input while the private word load finishes.\n  keep :: Bytes -> U64 -> U64\n  keep bytes value = case bytes-len bytes of _ -> value\n  -- | Retain the complete fixture owner across a private sixteen-byte load.\n  keep-flag :: Bytes -> U8 -> U8\n  keep-flag bytes value = case bytes-len bytes of _ -> value\n  -- | Keep the actual classifiers and memory load reachable without claiming foreign execution.\n  main :: Int\n  main = let bytes = bytes-new 16 in let word = keep bytes (load-le64 (bytes-data bytes) 0) in let a = keep-flag bytes (scan-match16 (bytes-data bytes) 10) in let b = keep-flag bytes (scan-special16 (bytes-data bytes) 44 13) in if eq-u8 a b && eq-u8 (contains-byte8 word 10) (special8 word (scalar-first 955)) then 0 else 1\n");
     let directory = tempfile::tempdir().unwrap();
     for (triple, arch, endian) in [
         ("wasm32-unknown-unknown", "wasm32", "little"),
@@ -168,21 +144,51 @@ fn rust_csv_kernels_compile_for_wasm_arm_and_big_endian_targets() {
             profile.endian = endian.into();
             profile
         });
-        let input = kernels.clone();
+        let project = directory.path().join(arch);
+        std::fs::create_dir_all(&project).unwrap();
+        for (name, contents) in [
+            (
+                "Text.Csv.Record",
+                include_str!("../prelude/Text/Csv/Record.cinch"),
+            ),
+            (
+                "Data.Bytes.Word",
+                include_str!("../prelude/Data/Bytes/Word.cinch"),
+            ),
+        ] {
+            std::fs::write(project.join(format!("{name}.cinch")), contents).unwrap();
+        }
+        std::fs::write(
+            project.join("Main.cinch"),
+            "-- | Reachable public CSV reading and rendering paths for foreign targets.\nmodule Main where\n  import Text.Csv.Record\n  import Data.Bytes\n  import Data.List\n  import Data.Nat\n  import Data.Result\n\n  -- | Exercise public 16-byte SIMD field scanning and quoting paths across targets.\n  main :: Int\n  main =\n    let field = bytes-new 32 in\n    let rendered = csv-render-byte-record csv-default-options False [field, field] in\n    case csv-byte-reader-read-all (csv-byte-reader csv-default-options rendered) of\n      Ok rows -> if list-length rows == 1 then 0 else 1\n      Err err -> 1\n",
+        )
+        .unwrap();
+        let entry = project.join("Main.cinch");
+        let path = project.join(format!("{arch}.ll"));
+        let ir_path = path.clone();
         let ir = std::thread::Builder::new()
             .stack_size(64 * 1024 * 1024)
             .spawn(move || {
-                let program =
-                    cinch::driver::check_sources_profile(&input, "csv-kernels.cinch", &profile)?;
-                cinch::codegen::emit_for(&profile, &program)
+                cinch::driver::driver_with_profile_opts(
+                    cinch::driver::Mode::EmitIr,
+                    cinch::check::StageMode::Refresh,
+                    &entry,
+                    Some(&ir_path),
+                    &profile,
+                    &cinch::driver::DriverOptions::default(),
+                )
+                .map(|_| std::fs::read_to_string(&ir_path).unwrap())
             })
             .unwrap()
             .join()
             .unwrap()
             .unwrap();
-        assert!(ir.contains("<8 x i8>") && ir.contains("<16 x i8>"));
-        let path = directory.path().join(format!("{arch}.ll"));
-        std::fs::write(&path, &ir).unwrap();
+        assert!(
+            ir.contains("<16 x i8>") && ir.contains("bitcast <16 x i1>") && ir.contains("load i128")
+        );
+        if endian == "big" {
+            assert!(ir.contains("call i128 @llvm.bswap.i128"));
+        }
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

@@ -10,7 +10,7 @@ Import with `import Text.Template`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Text.Show](Text.Show.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Wide](Data.Wide.md), [Text.Show](Text.Show.md).
 
 Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Template](Text.Template.md).
 
@@ -43,7 +43,7 @@ search for delimiters and HTML escaping scan sixteen bytes at a time.
 
 What a missing map key evaluates to.
 
-[Source](/reference-sources/Text.Template.cinch) · line 125
+[Source](/reference-sources/Text.Template.cinch) · line 126
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingKeyDefault</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">MissingKey</span></code></pre>
 
@@ -59,7 +59,7 @@ What a missing map key evaluates to.
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Text.Template.cinch) · line 141
+[Source](/reference-sources/Text.Template.cinch) · line 142
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Template</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">MissingKey</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">TemplateFunction</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">Node</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">Template</span>))))))</code></pre>
 
@@ -71,7 +71,7 @@ Fields in the order listed above.
 
 A failure: parsing ("template: name:line: problem") or executing ("template: name: problem").
 
-[Source](/reference-sources/Text.Template.cinch) · line 114
+[Source](/reference-sources/Text.Template.cinch) · line 115
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TemplateParseError</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">TemplateError</span>)</code></pre>
 
@@ -85,7 +85,7 @@ A failure: parsing ("template: name:line: problem") or executing ("template: nam
 
 The function.
 
-[Source](/reference-sources/Text.Template.cinch) · line 136
+[Source](/reference-sources/Text.Template.cinch) · line 137
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TemplateFunction</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">TemplateValue</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">TemplateValue</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">TemplateFunction</span>)</code></pre>
 
@@ -97,7 +97,7 @@ The function.
 
 A dynamic value: lists and maps are spines, and map entries are kept in increasing key order.
 
-[Source](/reference-sources/Text.Template.cinch) · line 42
+[Source](/reference-sources/Text.Template.cinch) · line 43
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TvNil</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Template</span>.<span class="tok-constructor">TemplateValue</span></code></pre>
 
@@ -127,7 +127,7 @@ A dynamic value: lists and maps are spines, and map entries are kept in increasi
 
 Set the delimiters used by later parses; empty strings restore the defaults.
 
-[Source](/reference-sources/Text.Template.cinch) · line 148
+[Source](/reference-sources/Text.Template.cinch) · line 149
 
 <a id="value-74656d706c6174652d6572726f722d6d657373616765"></a>
 
@@ -137,7 +137,7 @@ Set the delimiters used by later parses; empty strings restore the defaults.
 
 Render an error.
 
-[Source](/reference-sources/Text.Template.cinch) · line 121
+[Source](/reference-sources/Text.Template.cinch) · line 122
 
 <a id="value-74656d706c6174652d65786563757465"></a>
 
@@ -147,7 +147,7 @@ Render an error.
 
 Execute the main template with data.
 
-[Source](/reference-sources/Text.Template.cinch) · line 223
+[Source](/reference-sources/Text.Template.cinch) · line 224
 
 <a id="value-74656d706c6174652d657865637574652d6e616d6564"></a>
 
@@ -157,7 +157,7 @@ Execute the main template with data.
 
 Execute a named template of the set with data.
 
-[Source](/reference-sources/Text.Template.cinch) · line 227
+[Source](/reference-sources/Text.Template.cinch) · line 228
 
 <a id="value-74656d706c6174652d66726f6d2d6a736f6e"></a>
 
@@ -167,7 +167,7 @@ Execute a named template of the set with data.
 
 Convert a JSON value: null, booleans, integers, floats, strings, arrays and objects.
 
-[Source](/reference-sources/Text.Template.cinch) · line 84
+[Source](/reference-sources/Text.Template.cinch) · line 85
 
 <a id="value-74656d706c6174652d66756e6373"></a>
 
@@ -177,7 +177,7 @@ Convert a JSON value: null, booleans, integers, floats, strings, arrays and obje
 
 Add functions (later entries replace earlier ones with the same name).
 
-[Source](/reference-sources/Text.Template.cinch) · line 157
+[Source](/reference-sources/Text.Template.cinch) · line 158
 
 <a id="value-74656d706c6174652d68746d6c2d657363617065"></a>
 
@@ -188,7 +188,7 @@ Add functions (later entries replace earlier ones with the same name).
 Escape for HTML text: quotes, "&", "<" and ">" become references and NUL becomes U+FFFD. Plain runs are found
 sixteen bytes at a time.
 
-[Source](/reference-sources/Text.Template.cinch) · line 1919
+[Source](/reference-sources/Text.Template.cinch) · line 1920
 
 <a id="value-74656d706c6174652d69732d74727565"></a>
 
@@ -198,7 +198,7 @@ sixteen bytes at a time.
 
 Truth: false for nil, false, zero, the empty string and empty lists and maps.
 
-[Source](/reference-sources/Text.Template.cinch) · line 97
+[Source](/reference-sources/Text.Template.cinch) · line 98
 
 <a id="value-74656d706c6174652d6a732d657363617065"></a>
 
@@ -209,7 +209,7 @@ Truth: false for nil, false, zero, the empty string and empty lists and maps.
 Escape for JavaScript strings: backslash and quotes get backslashes; "<", ">", "&", "=" and ASCII controls
 become \u00XX; non-printable code points become \uXXXX.
 
-[Source](/reference-sources/Text.Template.cinch) · line 1944
+[Source](/reference-sources/Text.Template.cinch) · line 1937
 
 <a id="value-74656d706c6174652d6c697374"></a>
 
@@ -219,7 +219,7 @@ become \u00XX; non-printable code points become \uXXXX.
 
 A list value from elements in order.
 
-[Source](/reference-sources/Text.Template.cinch) · line 63
+[Source](/reference-sources/Text.Template.cinch) · line 64
 
 <a id="value-74656d706c6174652d6d6170"></a>
 
@@ -229,7 +229,7 @@ A list value from elements in order.
 
 A map value from entries in any order; a repeated key keeps its last value.
 
-[Source](/reference-sources/Text.Template.cinch) · line 67
+[Source](/reference-sources/Text.Template.cinch) · line 68
 
 <a id="value-74656d706c6174652d6d697373696e672d6b6579"></a>
 
@@ -239,7 +239,7 @@ A map value from entries in any order; a repeated key keeps its last value.
 
 Set the missing-key mode.
 
-[Source](/reference-sources/Text.Template.cinch) · line 153
+[Source](/reference-sources/Text.Template.cinch) · line 154
 
 <a id="value-74656d706c6174652d6e616d65"></a>
 
@@ -249,7 +249,7 @@ Set the missing-key mode.
 
 The set's main name.
 
-[Source](/reference-sources/Text.Template.cinch) · line 165
+[Source](/reference-sources/Text.Template.cinch) · line 166
 
 <a id="value-74656d706c6174652d6e616d6573"></a>
 
@@ -259,7 +259,7 @@ The set's main name.
 
 Names of the templates defined so far.
 
-[Source](/reference-sources/Text.Template.cinch) · line 169
+[Source](/reference-sources/Text.Template.cinch) · line 170
 
 <a id="value-74656d706c6174652d6e6577"></a>
 
@@ -269,7 +269,7 @@ Names of the templates defined so far.
 
 An empty set named name, with "{{" and "}}" delimiters.
 
-[Source](/reference-sources/Text.Template.cinch) · line 144
+[Source](/reference-sources/Text.Template.cinch) · line 145
 
 <a id="value-74656d706c6174652d7061727365"></a>
 
@@ -280,7 +280,7 @@ An empty set named name, with "{{" and "}}" delimiters.
 Parse text as the main template, adding the templates it defines. A body that is only white space does not
 replace a template that already has one.
 
-[Source](/reference-sources/Text.Template.cinch) · line 178
+[Source](/reference-sources/Text.Template.cinch) · line 179
 
 <a id="value-74656d706c6174652d737072696e7466"></a>
 
@@ -292,7 +292,7 @@ Format arguments by a format string: verbs %v %d %b %o %O %x %X %c %q %U %e %E %
 flags "-+# 0", widths and precisions (including "*"). Problems are written in place as %!verb(type=value),
 %!verb(MISSING), %!(NOVERB) and a trailing %!(EXTRA type=value, ...).
 
-[Source](/reference-sources/Text.Template.cinch) · line 1513
+[Source](/reference-sources/Text.Template.cinch) · line 1514
 
 <a id="value-74656d706c6174652d75726c2d71756572792d657363617065"></a>
 
@@ -302,8 +302,8 @@ flags "-+# 0", widths and precisions (including "*"). Problems are written in pl
 
 Escape for a URL query component: letters, digits and "-_.~" stay, a space becomes "+", other bytes become %XX.
 
-[Source](/reference-sources/Text.Template.cinch) · line 1966
+[Source](/reference-sources/Text.Template.cinch) · line 1959
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Template.cinch`. Source SHA-256: `c88aa762a5a75fd763c618f7aacebe7540ce8bc76b0f87e1472752c5b36a3fc6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Template.cinch`. Source SHA-256: `c6e746ae852154753cd27e83e3d7a7d775354f897ec44563dec6b371c27bb14f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

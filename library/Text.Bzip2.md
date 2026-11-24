@@ -10,9 +10,9 @@ Import with `import Text.Bzip2`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+[Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Bzip2](Text.Bzip2.md).
+Non-embedded source closure: [Text.Bzip2](Text.Bzip2.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -43,7 +43,7 @@ are rejected; streams that follow the first are decoded in turn.
 
 A malformed or corrupted bzip2 stream.
 
-[Source](/reference-sources/Text.Bzip2.cinch) · line 29
+[Source](/reference-sources/Text.Bzip2.cinch) · line 28
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Bzip2BadHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Bzip2</span>.<span class="tok-constructor">Bzip2Error</span></code></pre>
 
@@ -63,7 +63,7 @@ A malformed or corrupted bzip2 stream.
 
 Decompress a complete input of one or more concatenated streams.
 
-[Source](/reference-sources/Text.Bzip2.cinch) · line 113
+[Source](/reference-sources/Text.Bzip2.cinch) · line 105
 
 <a id="value-627a6970322d6572726f722d6d657373616765"></a>
 
@@ -73,8 +73,8 @@ Decompress a complete input of one or more concatenated streams.
 
 Render a bzip2 error.
 
-[Source](/reference-sources/Text.Bzip2.cinch) · line 40
+[Source](/reference-sources/Text.Bzip2.cinch) · line 39
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Bzip2.cinch`. Source SHA-256: `ac64666d69ed61d0f44e7ae56cbb1a840564046919b9da0718ae7b8e50bc9283`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Bzip2.cinch`. Source SHA-256: `a96b5dda7eb2a3a2c45d3593622db4390f97dc0042c40c32704c7756bd480de3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

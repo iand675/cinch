@@ -2843,10 +2843,21 @@ fn callee_writes_opaque(core: &ECore) -> bool {
         ECore::Foreign(_) => true,
         ECore::Prim(crate::core::PrimOp::Eval) => true,
         ECore::Prim(crate::core::PrimOp::Bytes(op)) => {
-            // `Data` reads the payload address and writes nothing.
+            // Read-only byte buffer ops and `Data` read without writing.
             !matches!(
                 op,
-                crate::core::BytesOp::Len | crate::core::BytesOp::Get | crate::core::BytesOp::Data
+                crate::core::BytesOp::Len
+                    | crate::core::BytesOp::LenI64
+                    | crate::core::BytesOp::Get
+                    | crate::core::BytesOp::GetU8
+                    | crate::core::BytesOp::GetU8At
+                    | crate::core::BytesOp::LoadLe32
+                    | crate::core::BytesOp::LoadLe32At
+                    | crate::core::BytesOp::LoadLe64
+                    | crate::core::BytesOp::LoadLe64At
+                    | crate::core::BytesOp::LoadU128
+                    | crate::core::BytesOp::LoadU128At
+                    | crate::core::BytesOp::Data
             )
         }
         // The platform ops mutate the filesystem and the process table:
@@ -3838,7 +3849,7 @@ fn fn_id(module: &str, name: &str) -> GlobalId {
 /// operation. A similarly named ordinary definition keeps its own identity.
 fn value_index_id(value: &ValueInfo) -> String {
     match value.kind {
-        ValueKind::Prim(PrimOp::Bytes(BytesOp::Len)) => BYTE_LENGTH_INDEX.to_string(),
+        ValueKind::Prim(PrimOp::Bytes(BytesOp::Len | BytesOp::LenI64)) => BYTE_LENGTH_INDEX.to_string(),
         _ => fn_id(&value.module, &value.name).0,
     }
 }

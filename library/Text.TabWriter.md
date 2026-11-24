@@ -10,9 +10,9 @@ Import with `import Text.TabWriter`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.TabWriter](Text.TabWriter.md).
+Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.TabWriter](Text.TabWriter.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -46,7 +46,7 @@ buffered. Retaining a writer branches the formatting.
 Formatting parameters: minimum cell width, tab width (for tab padding), padding added to the
 widest cell, the padding byte, and the bitwise union of the flag constants.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 59
+[Source](/reference-sources/Text.TabWriter.cinch) · line 58
 
 <a id="type-546162577269746572"></a>
 
@@ -57,7 +57,7 @@ widest cell, the padding byte, and the bitwise union of the flag constants.
 Buffered lines (most recent first, each line's cells in order), the current line's finished
 cells (most recent first), the current cell's chunks (most recent first) and width, and the lexer.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 94
+[Source](/reference-sources/Text.TabWriter.cinch) · line 93
 
 # Values
 
@@ -69,7 +69,7 @@ cells (most recent first), the current cell's chunks (most recent first) and wid
 
 Pad cells on the left, aligning their text to the right edge of the column.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 38
+[Source](/reference-sources/Text.TabWriter.cinch) · line 37
 
 <a id="value-7461622d636f6e666967"></a>
 
@@ -81,7 +81,7 @@ Build a configuration. A padding byte of 9 (tab) pads with tabs of the given tab
 column widths up to multiples of it; any other byte pads with repetitions of that byte.
 Tab padding implies left alignment, so tab-align-right is cleared when the padding byte is a tab.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 66
+[Source](/reference-sources/Text.TabWriter.cinch) · line 65
 
 <a id="value-7461622d6465627567"></a>
 
@@ -91,7 +91,7 @@ Tab padding implies left alignment, so tab-align-right is cleared when the paddi
 
 Print a vertical bar between columns and a dashed line after each form feed.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 50
+[Source](/reference-sources/Text.TabWriter.cinch) · line 49
 
 <a id="value-7461622d646973636172642d656d7074792d636f6c756d6e73"></a>
 
@@ -101,7 +101,7 @@ Print a vertical bar between columns and a dashed line after each form feed.
 
 Give columns whose cells are all empty and soft-terminated a width of zero.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 42
+[Source](/reference-sources/Text.TabWriter.cinch) · line 41
 
 <a id="value-7461622d657363617065"></a>
 
@@ -111,7 +111,7 @@ Give columns whose cells are all empty and soft-terminated a width of zero.
 
 The escape byte, 0xff, that brackets literal text.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 54
+[Source](/reference-sources/Text.TabWriter.cinch) · line 53
 
 <a id="value-7461622d66696c7465722d68746d6c"></a>
 
@@ -121,7 +121,7 @@ The escape byte, 0xff, that brackets literal text.
 
 Treat HTML tags as zero width and entities as width one; both are copied unchanged.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 30
+[Source](/reference-sources/Text.TabWriter.cinch) · line 29
 
 <a id="value-7461622d666c757368"></a>
 
@@ -132,7 +132,7 @@ Treat HTML tags as zero width and entities as width one; both are copied unchang
 Release every buffered line and the pending cell, ending any open escape, as final output.
 The final line receives no newline of its own; the writer is empty afterwards.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 114
+[Source](/reference-sources/Text.TabWriter.cinch) · line 113
 
 <a id="value-7461622d666f726d6174"></a>
 
@@ -142,7 +142,7 @@ The final line receives no newline of its own; the writer is empty afterwards.
 
 Format an entire input as one write followed by a flush.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 103
+[Source](/reference-sources/Text.TabWriter.cinch) · line 102
 
 <a id="value-7461622d696e64656e74"></a>
 
@@ -152,7 +152,7 @@ Format an entire input as one write followed by a flush.
 
 Pad leading empty cells with tabs, whatever the padding byte, so indentation stays tab-based.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 46
+[Source](/reference-sources/Text.TabWriter.cinch) · line 45
 
 <a id="value-7461622d73747269702d657363617065"></a>
 
@@ -162,7 +162,7 @@ Pad leading empty cells with tabs, whatever the padding byte, so indentation sta
 
 Remove the 0xff escape bytes that bracket literal text instead of copying them.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 34
+[Source](/reference-sources/Text.TabWriter.cinch) · line 33
 
 <a id="value-7461622d7772697465"></a>
 
@@ -172,7 +172,7 @@ Remove the 0xff escape bytes that bracket literal text instead of copying them.
 
 Consume input and return the output that became final, with the advanced writer.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 108
+[Source](/reference-sources/Text.TabWriter.cinch) · line 107
 
 <a id="value-7461622d777269746572"></a>
 
@@ -182,8 +182,8 @@ Consume input and return the output that became final, with the advanced writer.
 
 A writer with nothing buffered.
 
-[Source](/reference-sources/Text.TabWriter.cinch) · line 99
+[Source](/reference-sources/Text.TabWriter.cinch) · line 98
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/TabWriter.cinch`. Source SHA-256: `e13da1b41483f29493fe929ca885b7a91a5483f3a3b11ff56482fc034161acc5`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/TabWriter.cinch`. Source SHA-256: `23eb9045652eacead14caf3989c0f61eb6d61dc8d3f06b4910e673dee57bff1b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

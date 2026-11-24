@@ -5,7 +5,6 @@
 module Text.Mime where
   import Data.Bool
   import Data.Bytes
-  import Data.Bytes.Word
   import Data.Bytes.Utf8
   import Data.Char
   import Data.Hash
@@ -19,6 +18,7 @@ module Text.Mime where
   import Data.String (String, empty-string, string-concat, string-from-bytes, string-to-bytes)
   import Text.Show (nat-to-string)
   import Data.Unicode.Kernel
+  import Data.Wide
   import Relation.Eq
   import Text.Base64.Encoding
 
@@ -226,50 +226,68 @@ module Text.Mime where
   plain-byte :: Nat -> Bool
   plain-byte byte = byte == 9 || (byte >= 32 && byte <= 126)
 
-  -- | Select one scalar class for exact fringes and first exceptional bytes.
-  class-byte :: U8 -> Nat -> Bool
-  class-byte kind byte =
-    if eq-u8 kind 1 then plain-byte byte
-    else if eq-u8 kind 2 then byte >= 33 && byte <= 126 && byte /= 61 && byte /= 63 && byte /= 95
-    else if eq-u8 kind 3 then token-byte byte && byte /= 42 && byte /= 39 && byte /= 37
-    else if eq-u8 kind 4 then byte /= 34 && byte /= 92 && byte /= 13 && byte /= 10
-    else if eq-u8 kind 5 then byte < 128
-    else token-byte byte
-
-  -- | Scan proved complete windows with SIMD and retain exact scalar fringe behavior.
+  -- | Scan proved complete windows with portable 128-bit SIMD and retain exact scalar fringe behavior.
   scan-end :: using (at <= limit, limit <= bytes-len input) => U8 -> (input :: Bytes) -> (at :: Nat) -> (limit :: Nat) -> refined (at <= r && r <= limit) Nat
   scan-end kind input at limit =
-    if at + 16 <= limit then
-      let mask = classify-sixteen (bytes-read-le64 input at) (bytes-read-le64 input (at + 8)) kind in
-      let count = if eq-u32 mask 0 then (16 :: Nat) else u32-to-nat (trailing-zeros-u32 mask) in
-      if count < 16 then at + count else scan-end kind input (at + 16) limit
-    else if at < limit then
-      if class-byte kind (bytes-get input at) then scan-end kind input (at + 1) limit else at
+    let start = nat-to-i64 at in
+    let bound = nat-to-i64 limit in
+    let found = (
+      if eq-u8 kind 1 then scan-plain-at input start bound
+      else if eq-u8 kind 2 then scan-q-at input start bound
+      else if eq-u8 kind 3 then scan-attr-at input start bound
+      else if eq-u8 kind 4 then scan-quoted-at input start bound
+      else if eq-u8 kind 5 then scan-ascii-at input start bound
+      else scan-token-at input start bound) in
+    if 0 <= found then
+      let pos = nat-from-i64 found in
+      if at <= pos && pos <= limit then pos else at
     else at
 
-  -- | Lower one byte while preserving its explicit unsigned-byte bound.
-  lower-ascii-byte :: (byte :: InRange 0 255 Nat) -> InRange 0 255 Nat
-  lower-ascii-byte byte = if byte >= 65 && byte <= 90 then ((byte + 32) :: Nat) else byte
+  -- | Lower one ASCII machine byte without altering any other byte.
+  lower-ascii-u8 :: U8 -> U8
+  lower-ascii-u8 byte = if ge-u8 byte 65 && le-u8 byte 90 then wrapping-add-u8 byte 32 else byte
 
-  -- | Lowercase proved sixteen-byte windows with pure packed-word transforms,
-  -- existing checked word stores and exact scalar tails.
-  lower-ascii-copy :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Unit
-  lower-ascii-copy input start count out at =
-    if at + 16 <= count && start + at + 16 <= bytes-len input && at + 16 <= bytes-len out then
-      let first = bytes-write-le64 out at (lower-eight (bytes-read-le64 input (start + at))) in
-      let last = bytes-write-le64 out (at + 8) (lower-eight (bytes-read-le64 input (start + at + 8))) in
-      lower-ascii-copy input start count out (at + 16)
-    else if at < count && start + at < bytes-len input && at < bytes-len out then
-      let byte = bytes-get input (start + at) in
-      let value = lower-ascii-byte byte in
-      let stored = bytes-set out at value in
-      lower-ascii-copy input start count out (at + 1)
+  -- | Lowercase sixteen packed ASCII bytes in parallel without altering any other byte.
+  lower-sixteen :: U128 -> U128
+  lower-sixteen v =
+    let ge-a = simd-u8x16-cmpgt v (simd-u8x16-splat 64) in
+    let le-z = simd-u8x16-cmplt v (simd-u8x16-splat 91) in
+    let upper = bit-and-u128 ge-a le-z in
+    bit-or-u128 v (bit-and-u128 upper (simd-u8x16-splat 32))
+
+  -- | Lowercase proved sixteen-byte windows with portable 128-bit SIMD and exact scalar tails.
+  lower-ascii-loop :: Bytes -> I64 -> Bytes -> I64 -> Unit
+  lower-ascii-loop input src out dst =
+    let in-len = bytes-len-i64 input in
+    let out-len = bytes-len-i64 out in
+    if 16 <= in-len && 16 <= out-len && 0 <= src && src <= wrapping-sub-i64 in-len 16 && 0 <= dst && dst <= wrapping-sub-i64 out-len 16 then
+      let inn = nat-from-i64 in-len in
+      let outn = nat-from-i64 out-len in
+      if 16 <= inn && 16 <= outn then
+        let ns = nat-from-i64 src in
+        let nd = nat-from-i64 dst in
+        if ns <= inn - 16 && nd <= outn - 16 then
+          let stored = bytes-store-u128-at out dst (lower-sixteen (bytes-load-u128-at input src)) in
+          lower-ascii-loop input (wrapping-add-i64 src 16) out (wrapping-add-i64 dst 16)
+        else lower-ascii-tail input src out dst
+      else lower-ascii-tail input src out dst
+    else lower-ascii-tail input src out dst
+
+  -- | Lowercase remaining tail bytes one byte at a time within both buffer bounds.
+  lower-ascii-tail :: Bytes -> I64 -> Bytes -> I64 -> Unit
+  lower-ascii-tail input src out dst =
+    if 0 <= src && src < bytes-len-i64 input && 0 <= dst && dst < bytes-len-i64 out then
+      let stored = bytes-set-u8-at out dst (lower-ascii-u8 (bytes-get-u8-at input src)) in
+      lower-ascii-tail input (wrapping-add-i64 src 1) out (wrapping-add-i64 dst 1)
     else ()
 
   -- | Return an independent lowercase ASCII span without scalar-sized temporary buffers.
   lower-ascii :: Bytes -> Nat -> Nat -> Bytes
-  lower-ascii input start count = let out = bytes-new count in
-    let copied = lower-ascii-copy input start count out 0 in out
+  lower-ascii input start count =
+    let out = bytes-new count in
+    if start <= bytes-len input then
+      let copied = lower-ascii-loop input (nat-to-i64 start) out 0 in out
+    else out
 
   -- | Scan a complete token without inspecting bytes beyond the supplied buffer.
   token-end :: Bytes -> Nat -> Nat
@@ -580,187 +598,228 @@ module Text.Mime where
         Some pieces -> case string-from-bytes (join-pieces pieces) of Some text -> text; None -> empty-string
     else empty-string
 
-  -- | Produce a proved sixteen-byte invalid-lane mask for tokens, plain values,
-  -- Q literals, extended attributes, quoted spans or ASCII casing runs.
-  -- The first physical input byte always occupies mask bit zero.
-  prim classify-sixteen :: U64 -> U64 -> U8 -> U32 where
-    llvm {
-      %lo = bitcast i64 %0 to <8 x i8>
-      %hi = bitcast i64 %1 to <8 x i8>
-      %b = shufflevector <8 x i8> %lo, <8 x i8> %hi, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %gt-space = icmp ugt <16 x i8> %b, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %lt-del = icmp ult <16 x i8> %b, <i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127>
-      %printable = and <16 x i1> %gt-space, %lt-del
-      %special-0 = icmp eq <16 x i8> %b, <i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40>
-      %special-1 = icmp eq <16 x i8> %b, <i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41>
-      %special-or-1 = or <16 x i1> %special-0, %special-1
-      %special-2 = icmp eq <16 x i8> %b, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %special-or-2 = or <16 x i1> %special-or-1, %special-2
-      %special-3 = icmp eq <16 x i8> %b, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %special-or-3 = or <16 x i1> %special-or-2, %special-3
-      %special-4 = icmp eq <16 x i8> %b, <i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64>
-      %special-or-4 = or <16 x i1> %special-or-3, %special-4
-      %special-5 = icmp eq <16 x i8> %b, <i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44>
-      %special-or-5 = or <16 x i1> %special-or-4, %special-5
-      %special-6 = icmp eq <16 x i8> %b, <i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59>
-      %special-or-6 = or <16 x i1> %special-or-5, %special-6
-      %special-7 = icmp eq <16 x i8> %b, <i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58>
-      %special-or-7 = or <16 x i1> %special-or-6, %special-7
-      %special-8 = icmp eq <16 x i8> %b, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
-      %special-or-8 = or <16 x i1> %special-or-7, %special-8
-      %special-9 = icmp eq <16 x i8> %b, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %special-or-9 = or <16 x i1> %special-or-8, %special-9
-      %special-10 = icmp eq <16 x i8> %b, <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
-      %special-or-10 = or <16 x i1> %special-or-9, %special-10
-      %special-11 = icmp eq <16 x i8> %b, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
-      %special-or-11 = or <16 x i1> %special-or-10, %special-11
-      %special-12 = icmp eq <16 x i8> %b, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
-      %special-or-12 = or <16 x i1> %special-or-11, %special-12
-      %special-13 = icmp eq <16 x i8> %b, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %special-or-13 = or <16 x i1> %special-or-12, %special-13
-      %special-14 = icmp eq <16 x i8> %b, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
-      %special-or-14 = or <16 x i1> %special-or-13, %special-14
-      %not-special = xor <16 x i1> %special-or-14, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
-      %token = and <16 x i1> %printable, %not-special
-      %space = icmp eq <16 x i8> %b, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %tab = icmp eq <16 x i8> %b, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
-      %print-or-space = or <16 x i1> %printable, %space
-      %plain = or <16 x i1> %print-or-space, %tab
-      %qbad-0 = icmp eq <16 x i8> %b, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
-      %qbad-1 = icmp eq <16 x i8> %b, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %qbad-or-1 = or <16 x i1> %qbad-0, %qbad-1
-      %qbad-2 = icmp eq <16 x i8> %b, <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>
-      %qbad-or-2 = or <16 x i1> %qbad-or-1, %qbad-2
-      %not-qbad = xor <16 x i1> %qbad-or-2, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
-      %q = and <16 x i1> %printable, %not-qbad
-      %abad-0 = icmp eq <16 x i8> %b, <i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42>
-      %abad-1 = icmp eq <16 x i8> %b, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
-      %abad-or-1 = or <16 x i1> %abad-0, %abad-1
-      %abad-2 = icmp eq <16 x i8> %b, <i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37>
-      %abad-or-2 = or <16 x i1> %abad-or-1, %abad-2
-      %not-abad = xor <16 x i1> %abad-or-2, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
-      %attr = and <16 x i1> %token, %not-abad
-      %quotedbad-0 = icmp eq <16 x i8> %b, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %quotedbad-1 = icmp eq <16 x i8> %b, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
-      %quotedbad-or-1 = or <16 x i1> %quotedbad-0, %quotedbad-1
-      %quotedbad-2 = icmp eq <16 x i8> %b, <i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13>
-      %quotedbad-or-2 = or <16 x i1> %quotedbad-or-1, %quotedbad-2
-      %quotedbad-3 = icmp eq <16 x i8> %b, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
-      %quotedbad-or-3 = or <16 x i1> %quotedbad-or-2, %quotedbad-3
-      %quoted = xor <16 x i1> %quotedbad-or-3, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
-      %ascii = icmp ult <16 x i8> %b, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
-      %mode-1 = icmp eq i8 %2, 1
-      %selected-1 = select i1 %mode-1, <16 x i1> %plain, <16 x i1> %token
-      %mode-2 = icmp eq i8 %2, 2
-      %selected-2 = select i1 %mode-2, <16 x i1> %q, <16 x i1> %selected-1
-      %mode-3 = icmp eq i8 %2, 3
-      %selected-3 = select i1 %mode-3, <16 x i1> %attr, <16 x i1> %selected-2
-      %mode-4 = icmp eq i8 %2, 4
-      %selected-4 = select i1 %mode-4, <16 x i1> %quoted, <16 x i1> %selected-3
-      %mode-5 = icmp eq i8 %2, 5
-      %selected-5 = select i1 %mode-5, <16 x i1> %ascii, <16 x i1> %selected-4
-      %good = bitcast <16 x i1> %selected-5 to i16
-      %bad = xor i16 %good, 65535
-      %mask = zext i16 %bad to i32
-      ret i32 %mask
-    } when endian little
-    llvm {
-      %s0 = call i64 @llvm.bswap.i64(i64 %0)
-      %s1 = call i64 @llvm.bswap.i64(i64 %1)
-      %lo = bitcast i64 %s0 to <8 x i8>
-      %hi = bitcast i64 %s1 to <8 x i8>
-      %b = shufflevector <8 x i8> %lo, <8 x i8> %hi, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %gt-space = icmp ugt <16 x i8> %b, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %lt-del = icmp ult <16 x i8> %b, <i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127>
-      %printable = and <16 x i1> %gt-space, %lt-del
-      %special-0 = icmp eq <16 x i8> %b, <i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40>
-      %special-1 = icmp eq <16 x i8> %b, <i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41>
-      %special-or-1 = or <16 x i1> %special-0, %special-1
-      %special-2 = icmp eq <16 x i8> %b, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %special-or-2 = or <16 x i1> %special-or-1, %special-2
-      %special-3 = icmp eq <16 x i8> %b, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %special-or-3 = or <16 x i1> %special-or-2, %special-3
-      %special-4 = icmp eq <16 x i8> %b, <i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64>
-      %special-or-4 = or <16 x i1> %special-or-3, %special-4
-      %special-5 = icmp eq <16 x i8> %b, <i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44>
-      %special-or-5 = or <16 x i1> %special-or-4, %special-5
-      %special-6 = icmp eq <16 x i8> %b, <i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59>
-      %special-or-6 = or <16 x i1> %special-or-5, %special-6
-      %special-7 = icmp eq <16 x i8> %b, <i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58>
-      %special-or-7 = or <16 x i1> %special-or-6, %special-7
-      %special-8 = icmp eq <16 x i8> %b, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
-      %special-or-8 = or <16 x i1> %special-or-7, %special-8
-      %special-9 = icmp eq <16 x i8> %b, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %special-or-9 = or <16 x i1> %special-or-8, %special-9
-      %special-10 = icmp eq <16 x i8> %b, <i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47, i8 47>
-      %special-or-10 = or <16 x i1> %special-or-9, %special-10
-      %special-11 = icmp eq <16 x i8> %b, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
-      %special-or-11 = or <16 x i1> %special-or-10, %special-11
-      %special-12 = icmp eq <16 x i8> %b, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
-      %special-or-12 = or <16 x i1> %special-or-11, %special-12
-      %special-13 = icmp eq <16 x i8> %b, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %special-or-13 = or <16 x i1> %special-or-12, %special-13
-      %special-14 = icmp eq <16 x i8> %b, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
-      %special-or-14 = or <16 x i1> %special-or-13, %special-14
-      %not-special = xor <16 x i1> %special-or-14, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
-      %token = and <16 x i1> %printable, %not-special
-      %space = icmp eq <16 x i8> %b, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %tab = icmp eq <16 x i8> %b, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
-      %print-or-space = or <16 x i1> %printable, %space
-      %plain = or <16 x i1> %print-or-space, %tab
-      %qbad-0 = icmp eq <16 x i8> %b, <i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61, i8 61>
-      %qbad-1 = icmp eq <16 x i8> %b, <i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63, i8 63>
-      %qbad-or-1 = or <16 x i1> %qbad-0, %qbad-1
-      %qbad-2 = icmp eq <16 x i8> %b, <i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95, i8 95>
-      %qbad-or-2 = or <16 x i1> %qbad-or-1, %qbad-2
-      %not-qbad = xor <16 x i1> %qbad-or-2, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
-      %q = and <16 x i1> %printable, %not-qbad
-      %abad-0 = icmp eq <16 x i8> %b, <i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42, i8 42>
-      %abad-1 = icmp eq <16 x i8> %b, <i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39, i8 39>
-      %abad-or-1 = or <16 x i1> %abad-0, %abad-1
-      %abad-2 = icmp eq <16 x i8> %b, <i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37, i8 37>
-      %abad-or-2 = or <16 x i1> %abad-or-1, %abad-2
-      %not-abad = xor <16 x i1> %abad-or-2, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
-      %attr = and <16 x i1> %token, %not-abad
-      %quotedbad-0 = icmp eq <16 x i8> %b, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %quotedbad-1 = icmp eq <16 x i8> %b, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
-      %quotedbad-or-1 = or <16 x i1> %quotedbad-0, %quotedbad-1
-      %quotedbad-2 = icmp eq <16 x i8> %b, <i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13>
-      %quotedbad-or-2 = or <16 x i1> %quotedbad-or-1, %quotedbad-2
-      %quotedbad-3 = icmp eq <16 x i8> %b, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
-      %quotedbad-or-3 = or <16 x i1> %quotedbad-or-2, %quotedbad-3
-      %quoted = xor <16 x i1> %quotedbad-or-3, <i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1, i1 1>
-      %ascii = icmp ult <16 x i8> %b, <i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128, i8 128>
-      %mode-1 = icmp eq i8 %2, 1
-      %selected-1 = select i1 %mode-1, <16 x i1> %plain, <16 x i1> %token
-      %mode-2 = icmp eq i8 %2, 2
-      %selected-2 = select i1 %mode-2, <16 x i1> %q, <16 x i1> %selected-1
-      %mode-3 = icmp eq i8 %2, 3
-      %selected-3 = select i1 %mode-3, <16 x i1> %attr, <16 x i1> %selected-2
-      %mode-4 = icmp eq i8 %2, 4
-      %selected-4 = select i1 %mode-4, <16 x i1> %quoted, <16 x i1> %selected-3
-      %mode-5 = icmp eq i8 %2, 5
-      %selected-5 = select i1 %mode-5, <16 x i1> %ascii, <16 x i1> %selected-4
-      %reversed = shufflevector <16 x i1> %selected-5, <16 x i1> %selected-5, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
-      %good = bitcast <16 x i1> %reversed to i16
-      %bad = xor i16 %good, 65535
-      %mask = zext i16 %bad to i32
-      ret i32 %mask
-    } when endian big
+  -- | Compute the sixteen-lane invalid-byte mask for RFC media tokens.
+  token-invalid-lanes :: U128 -> U128
+  token-invalid-lanes v =
+    let low = simd-u8x16-cmplt v (simd-u8x16-splat 33) in
+    let hi = simd-u8x16-cmpgt v (simd-u8x16-splat 126) in
+    let s0 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 40)) (simd-u8x16-cmpeq v (simd-u8x16-splat 41)) in
+    let s1 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 60)) (simd-u8x16-cmpeq v (simd-u8x16-splat 62)) in
+    let s2 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 64)) (simd-u8x16-cmpeq v (simd-u8x16-splat 44)) in
+    let s3 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 59)) (simd-u8x16-cmpeq v (simd-u8x16-splat 58)) in
+    let s4 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 92)) (simd-u8x16-cmpeq v (simd-u8x16-splat 34)) in
+    let s5 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 47)) (simd-u8x16-cmpeq v (simd-u8x16-splat 91)) in
+    let s6 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 93)) (simd-u8x16-cmpeq v (simd-u8x16-splat 63)) in
+    let s7 = simd-u8x16-cmpeq v (simd-u8x16-splat 61) in
+    let sp-a = bit-or-u128 (bit-or-u128 s0 s1) (bit-or-u128 s2 s3) in
+    let sp-b = bit-or-u128 (bit-or-u128 s4 s5) (bit-or-u128 s6 s7) in
+    bit-or-u128 (bit-or-u128 low hi) (bit-or-u128 sp-a sp-b)
 
-  -- | Lowercase eight packed bytes with a pure vector transform. Little-endian
-  -- word readers and checked word writers establish owner retention and bounds.
-  prim lower-eight :: U64 -> U64 where
-    llvm {
-      %bytes = bitcast i64 %0 to <8 x i8>
-      %low = icmp uge <8 x i8> %bytes, <i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65, i8 65>
-      %high = icmp ule <8 x i8> %bytes, <i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90, i8 90>
-      %upper = and <8 x i1> %low, %high
-      %lower = add <8 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %out = select <8 x i1> %upper, <8 x i8> %lower, <8 x i8> %bytes
-      %word = bitcast <8 x i8> %out to i64
-      ret i64 %word
-    }
+  -- | Recognize one valid ASCII media token byte in machine form.
+  token-u8 :: U8 -> Bool
+  token-u8 b =
+    gt-u8 b 32 && lt-u8 b 127 && ne-u8 b 40 && ne-u8 b 41 && ne-u8 b 60 && ne-u8 b 62 && ne-u8 b 64 &&
+    ne-u8 b 44 && ne-u8 b 59 && ne-u8 b 58 && ne-u8 b 92 && ne-u8 b 34 && ne-u8 b 47 && ne-u8 b 91 &&
+    ne-u8 b 93 && ne-u8 b 63 && ne-u8 b 61
+
+  -- | Scan a media token run sixteen bytes at a time, then finish the scalar tail.
+  scan-token-at :: Bytes -> I64 -> I64 -> I64
+  scan-token-at input i limit =
+    let n = bytes-len-i64 input in
+    let bound = if lt-i64 limit n then limit else n in
+    if 16 <= n && 16 <= bound && 0 <= i && i <= wrapping-sub-i64 bound 16 && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let mask = simd-u8x16-movemask (token-invalid-lanes (bytes-load-u128-at input i)) in
+          if eq-u32 mask 0 then scan-token-at input (wrapping-add-i64 i 16) limit
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else scan-token-tail input i bound
+      else scan-token-tail input i bound
+    else scan-token-tail input i bound
+
+  -- | Scalar tail for media token runs.
+  scan-token-tail :: Bytes -> I64 -> I64 -> I64
+  scan-token-tail input i bound =
+    if 0 <= i && i < bound && i < bytes-len-i64 input then
+      if token-u8 (bytes-get-u8-at input i) then scan-token-tail input (wrapping-add-i64 i 1) bound else i
+    else i
+
+  -- | Compute the sixteen-lane invalid-byte mask for plain transfer-encoding-free bytes (tab and 32..126).
+  plain-invalid-lanes :: U128 -> U128
+  plain-invalid-lanes v =
+    let low = bit-and-u128 (simd-u8x16-cmplt v (simd-u8x16-splat 32)) (bit-not-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 9))) in
+    let hi = simd-u8x16-cmpgt v (simd-u8x16-splat 126) in
+    bit-or-u128 low hi
+
+  -- | Compute the sixteen-lane invalid-byte mask for unescaped Q-encoding literal bytes.
+  q-invalid-lanes :: U128 -> U128
+  q-invalid-lanes v =
+    let low = simd-u8x16-cmplt v (simd-u8x16-splat 33) in
+    let hi = simd-u8x16-cmpgt v (simd-u8x16-splat 126) in
+    let eq-b = simd-u8x16-cmpeq v (simd-u8x16-splat 61) in
+    let qm-b = simd-u8x16-cmpeq v (simd-u8x16-splat 63) in
+    let us-b = simd-u8x16-cmpeq v (simd-u8x16-splat 95) in
+    bit-or-u128 (bit-or-u128 low hi) (bit-or-u128 (bit-or-u128 eq-b qm-b) us-b)
+
+  -- | Compute the sixteen-lane invalid-byte mask for RFC 2231 extended-parameter attribute bytes.
+  attr-invalid-lanes :: U128 -> U128
+  attr-invalid-lanes v =
+    let tok = token-invalid-lanes v in
+    let star = simd-u8x16-cmpeq v (simd-u8x16-splat 42) in
+    let sq = simd-u8x16-cmpeq v (simd-u8x16-splat 39) in
+    let pct = simd-u8x16-cmpeq v (simd-u8x16-splat 37) in
+    bit-or-u128 tok (bit-or-u128 (bit-or-u128 star sq) pct)
+
+  -- | Compute the sixteen-lane invalid-byte mask for plain quoted-value bytes.
+  quoted-invalid-lanes :: U128 -> U128
+  quoted-invalid-lanes v =
+    let dq = simd-u8x16-cmpeq v (simd-u8x16-splat 34) in
+    let bs = simd-u8x16-cmpeq v (simd-u8x16-splat 92) in
+    let cr = simd-u8x16-cmpeq v (simd-u8x16-splat 13) in
+    let lf = simd-u8x16-cmpeq v (simd-u8x16-splat 10) in
+    bit-or-u128 (bit-or-u128 dq bs) (bit-or-u128 cr lf)
+
+  -- | Classify sixteen packed bytes under the selected MIME mode, returning the 16-bit invalid-lane bitmask.
+  classify-sixteen-mask :: U128 -> U8 -> U32
+  classify-sixteen-mask v mode =
+    if eq-u8 mode 1 then simd-u8x16-movemask (plain-invalid-lanes v)
+    else if eq-u8 mode 2 then simd-u8x16-movemask (q-invalid-lanes v)
+    else if eq-u8 mode 3 then simd-u8x16-movemask (attr-invalid-lanes v)
+    else if eq-u8 mode 4 then simd-u8x16-movemask (quoted-invalid-lanes v)
+    else if eq-u8 mode 5 then simd-u8x16-movemask v
+    else simd-u8x16-movemask (token-invalid-lanes v)
+
+  -- | Scan plain transfer-encoding-free bytes (tab and 32..126) sixteen bytes at a time.
+  scan-plain-at :: Bytes -> I64 -> I64 -> I64
+  scan-plain-at input i limit =
+    let n = bytes-len-i64 input in
+    let bound = if lt-i64 limit n then limit else n in
+    if 16 <= n && 16 <= bound && 0 <= i && i <= wrapping-sub-i64 bound 16 && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let mask = simd-u8x16-movemask (plain-invalid-lanes (bytes-load-u128-at input i)) in
+          if eq-u32 mask 0 then scan-plain-at input (wrapping-add-i64 i 16) limit
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else scan-plain-tail input i bound
+      else scan-plain-tail input i bound
+    else scan-plain-tail input i bound
+
+  -- | Scalar tail for plain transfer-encoding-free bytes.
+  scan-plain-tail :: Bytes -> I64 -> I64 -> I64
+  scan-plain-tail input i bound =
+    if 0 <= i && i < bound && i < bytes-len-i64 input then
+      let b = bytes-get-u8-at input i in
+      if eq-u8 b 9 || (ge-u8 b 32 && le-u8 b 126) then scan-plain-tail input (wrapping-add-i64 i 1) bound else i
+    else i
+
+  -- | Scan unescaped Q-encoding literal bytes sixteen bytes at a time.
+  scan-q-at :: Bytes -> I64 -> I64 -> I64
+  scan-q-at input i limit =
+    let n = bytes-len-i64 input in
+    let bound = if lt-i64 limit n then limit else n in
+    if 16 <= n && 16 <= bound && 0 <= i && i <= wrapping-sub-i64 bound 16 && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let mask = simd-u8x16-movemask (q-invalid-lanes (bytes-load-u128-at input i)) in
+          if eq-u32 mask 0 then scan-q-at input (wrapping-add-i64 i 16) limit
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else scan-q-tail input i bound
+      else scan-q-tail input i bound
+    else scan-q-tail input i bound
+
+  -- | Scalar tail for unescaped Q-encoding literal bytes.
+  scan-q-tail :: Bytes -> I64 -> I64 -> I64
+  scan-q-tail input i bound =
+    if 0 <= i && i < bound && i < bytes-len-i64 input then
+      let b = bytes-get-u8-at input i in
+      if ge-u8 b 33 && le-u8 b 126 && ne-u8 b 61 && ne-u8 b 63 && ne-u8 b 95 then scan-q-tail input (wrapping-add-i64 i 1) bound else i
+    else i
+
+  -- | Scan unescaped RFC 2231 extended-parameter attribute bytes sixteen bytes at a time.
+  scan-attr-at :: Bytes -> I64 -> I64 -> I64
+  scan-attr-at input i limit =
+    let n = bytes-len-i64 input in
+    let bound = if lt-i64 limit n then limit else n in
+    if 16 <= n && 16 <= bound && 0 <= i && i <= wrapping-sub-i64 bound 16 && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let mask = simd-u8x16-movemask (attr-invalid-lanes (bytes-load-u128-at input i)) in
+          if eq-u32 mask 0 then scan-attr-at input (wrapping-add-i64 i 16) limit
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else scan-attr-tail input i bound
+      else scan-attr-tail input i bound
+    else scan-attr-tail input i bound
+
+  -- | Scalar tail for unescaped extended-parameter attribute bytes.
+  scan-attr-tail :: Bytes -> I64 -> I64 -> I64
+  scan-attr-tail input i bound =
+    if 0 <= i && i < bound && i < bytes-len-i64 input then
+      let b = bytes-get-u8-at input i in
+      if token-u8 b && ne-u8 b 42 && ne-u8 b 39 && ne-u8 b 37 then scan-attr-tail input (wrapping-add-i64 i 1) bound else i
+    else i
+
+  -- | Scan plain quoted-value bytes (excluding quote, backslash, CR and LF) sixteen bytes at a time.
+  scan-quoted-at :: Bytes -> I64 -> I64 -> I64
+  scan-quoted-at input i limit =
+    let n = bytes-len-i64 input in
+    let bound = if lt-i64 limit n then limit else n in
+    if 16 <= n && 16 <= bound && 0 <= i && i <= wrapping-sub-i64 bound 16 && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let mask = simd-u8x16-movemask (quoted-invalid-lanes (bytes-load-u128-at input i)) in
+          if eq-u32 mask 0 then scan-quoted-at input (wrapping-add-i64 i 16) limit
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else scan-quoted-tail input i bound
+      else scan-quoted-tail input i bound
+    else scan-quoted-tail input i bound
+
+  -- | Scalar tail for plain quoted-value bytes.
+  scan-quoted-tail :: Bytes -> I64 -> I64 -> I64
+  scan-quoted-tail input i bound =
+    if 0 <= i && i < bound && i < bytes-len-i64 input then
+      let b = bytes-get-u8-at input i in
+      if ne-u8 b 34 && ne-u8 b 92 && ne-u8 b 13 && ne-u8 b 10 then scan-quoted-tail input (wrapping-add-i64 i 1) bound else i
+    else i
+
+  -- | Scan ASCII bytes (below 128) sixteen bytes at a time via high-bit lane masks.
+  scan-ascii-at :: Bytes -> I64 -> I64 -> I64
+  scan-ascii-at input i limit =
+    let n = bytes-len-i64 input in
+    let bound = if lt-i64 limit n then limit else n in
+    if 16 <= n && 16 <= bound && 0 <= i && i <= wrapping-sub-i64 bound 16 && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let mask = simd-u8x16-movemask (bytes-load-u128-at input i) in
+          if eq-u32 mask 0 then scan-ascii-at input (wrapping-add-i64 i 16) limit
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else scan-ascii-tail input i bound
+      else scan-ascii-tail input i bound
+    else scan-ascii-tail input i bound
+
+  -- | Scalar tail for ASCII bytes below 128.
+  scan-ascii-tail :: Bytes -> I64 -> I64 -> I64
+  scan-ascii-tail input i bound =
+    if 0 <= i && i < bound && i < bytes-len-i64 input then
+      if lt-u8 (bytes-get-u8-at input i) 128 then scan-ascii-tail input (wrapping-add-i64 i 1) bound else i
+    else i
 
   -- | Complete byte-valued encoded-word selector. Byte 98 selects Base64;
   -- other values select a Q body while retaining the exact supplied header byte.

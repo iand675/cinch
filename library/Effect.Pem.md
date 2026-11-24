@@ -32,7 +32,7 @@ failure returns the advanced sink without closing or flushing borrowed resources
 
 Encoding validation or transport failure, with no implicit sink closure.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 38
+[Source](/reference-sources/Text.Pem.cinch) · line 39
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PemInvalidHeaderKey</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Pem</span>.<span class="tok-constructor">PemError</span>)</code></pre>
 
@@ -48,7 +48,7 @@ Encoding validation or transport failure, with no implicit sink closure.
 
 Explain a header refusal or identify a retained underlying stream failure.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 45
+[Source](/reference-sources/Text.Pem.cinch) · line 46
 
 <a id="value-70656d2d7772697465"></a>
 
@@ -61,7 +61,7 @@ Validate all keys before any callback. Positive short writes are retried; zero p
 invalid counts and sink errors preserve the advanced writer and never replay accepted
 output. Chunk boundaries are unspecified. This operation never flushes or closes its sink.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 753
+[Source](/reference-sources/Text.Pem.cinch) · line 676
 
 # Reference provenance
 

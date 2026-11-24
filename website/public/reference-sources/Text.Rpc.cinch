@@ -1,0 +1,859 @@
+-- | Pure sans-I/O RPC framing and wire codecs for JSON-RPC 1.0, JSON-RPC 2.0, and binary gob-RPC.
+-- Provides request and response models, standard JSON-RPC 2.0 error codes, single and batch
+-- JSON-RPC encoding and decoding with automatic version detection and notification handling,
+-- 4-byte big-endian length-prefixed binary framing with configurable size limits, and typed
+-- gob-RPC request/response framing over Text.Gob values.
+module Text.Rpc where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.Json
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Gob
+  import Text.Json (parse-json, print-json, ordered-json-bytes, json-eq)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Show (nat-to-string, int-to-string)
+
+  export RpcId, RpcIdInt, RpcIdString, RpcIdNull, rpc-id-eq, rpc-id-to-json, rpc-id-from-json
+  export RpcCodecKind, RpcCodecJson1, RpcCodecJson2, RpcCodecGob, rpc-codec-eq
+  export RpcError, RpcErrorDetail, rpc-error, rpc-error-with-data
+  export rpc-err-parse-error, rpc-err-invalid-request, rpc-err-method-not-found, rpc-err-invalid-params, rpc-err-internal-error
+  export rpc-parse-error, rpc-invalid-request, rpc-method-not-found, rpc-invalid-params, rpc-internal-error
+  export rpc-error-code, rpc-error-message, rpc-error-data, rpc-error-eq
+  export RpcFrameError, RpcFrameIncomplete, RpcFrameTooLarge, RpcFrameMalformed, rpc-frame-error-message
+  export rpc-default-max-frame-bytes
+  export RpcRequest, RpcRequest, rpc-request, rpc-request-v1, rpc-notification
+  export rpc-request-method, rpc-request-params, rpc-request-id, rpc-request-codec, rpc-request-is-notification, rpc-request-eq
+  export RpcResponse, RpcResponse, rpc-response-ok, rpc-response-err, rpc-response-id, rpc-response-result, rpc-response-eq
+  export jsonrpc-encode-request, jsonrpc-decode-request
+  export jsonrpc-encode-response, jsonrpc-encode-response-with, jsonrpc-decode-response
+  export jsonrpc-encode-batch, jsonrpc-decode-batch, jsonrpc-decode-batch-items
+  export jsonrpc-encode-batch-responses, jsonrpc-decode-batch-responses, jsonrpc-is-batch
+  export rpc-frame-encode, rpc-frame-decode
+  export GobRpcRequest, GobRpcRequest, gobrpc-request-method, gobrpc-request-seq, gobrpc-request-body
+  export GobRpcResponse, GobRpcResponse, gobrpc-response-seq, gobrpc-response-result
+  export gob-infer-type
+  export gobrpc-encode-request, gobrpc-encode-request-limit, gobrpc-decode-request, gobrpc-decode-request-payload
+  export gobrpc-encode-response, gobrpc-encode-response-limit, gobrpc-decode-response, gobrpc-decode-response-payload
+
+  -- ---------------------------------------------------------------------
+  -- Core identifiers, codec kinds, and standard RPC error values.
+  -- ---------------------------------------------------------------------
+
+  -- | Correlation identifier matching an RPC response back to its originating request.
+  data RpcId where
+    -- | Signed 64-bit integer request identifier.
+    RpcIdInt :: I64 -> RpcId
+    -- | UTF-8 string request identifier.
+    RpcIdString :: String -> RpcId
+    -- | Explicit null identifier used when no request identifier could be determined.
+    RpcIdNull :: RpcId
+
+  -- | Compare two RPC correlation identifiers for exact equality.
+  rpc-id-eq :: RpcId -> RpcId -> Bool
+  rpc-id-eq a b = case a of
+    RpcIdInt x -> case b of RpcIdInt y -> eq-i64 x y; _ -> False
+    RpcIdString x -> case b of RpcIdString y -> x == y; _ -> False
+    RpcIdNull -> case b of RpcIdNull -> True; _ -> False
+
+  -- | Convert an RpcId into its wire Json representation.
+  rpc-id-to-json :: RpcId -> Json
+  rpc-id-to-json rid = case rid of
+    RpcIdInt n -> JNum (int-from-i64 n)
+    RpcIdString s -> JStr s
+    RpcIdNull -> JNull
+
+  -- | Parse a Json scalar into an RpcId, rejecting floats, booleans, arrays, and objects.
+  rpc-id-from-json :: Json -> Option RpcId
+  rpc-id-from-json val = case val of
+    JNull -> Some RpcIdNull
+    JStr s -> Some (RpcIdString s)
+    JNum n -> case checked-int-to-i64 n of
+      Some i -> Some (RpcIdInt i)
+      None -> None
+    _ -> None
+
+  -- | Wire protocol and serialization format for an RPC channel or message.
+  data RpcCodecKind where
+    -- | Newline-delimited JSON-RPC 1.0 codec.
+    RpcCodecJson1 :: RpcCodecKind
+    -- | Newline-delimited JSON-RPC 2.0 codec.
+    RpcCodecJson2 :: RpcCodecKind
+    -- | Length-prefixed binary gob-RPC codec.
+    RpcCodecGob :: RpcCodecKind
+
+  -- | Compare two RPC codec kinds for equality.
+  rpc-codec-eq :: RpcCodecKind -> RpcCodecKind -> Bool
+  rpc-codec-eq a b = case a of
+    RpcCodecJson1 -> case b of RpcCodecJson1 -> True; _ -> False
+    RpcCodecJson2 -> case b of RpcCodecJson2 -> True; _ -> False
+    RpcCodecGob -> case b of RpcCodecGob -> True; _ -> False
+
+  -- | Standard JSON-RPC 2.0 parse error code (-32700).
+  rpc-err-parse-error :: I64
+  rpc-err-parse-error = wrapping-neg-i64 32700
+
+  -- | Standard JSON-RPC 2.0 invalid request error code (-32600).
+  rpc-err-invalid-request :: I64
+  rpc-err-invalid-request = wrapping-neg-i64 32600
+
+  -- | Standard JSON-RPC 2.0 method not found error code (-32601).
+  rpc-err-method-not-found :: I64
+  rpc-err-method-not-found = wrapping-neg-i64 32601
+
+  -- | Standard JSON-RPC 2.0 invalid params error code (-32602).
+  rpc-err-invalid-params :: I64
+  rpc-err-invalid-params = wrapping-neg-i64 32602
+
+  -- | Standard JSON-RPC 2.0 internal error code (-32603).
+  rpc-err-internal-error :: I64
+  rpc-err-internal-error = wrapping-neg-i64 32603
+
+  -- | Structured RPC error carrying a numeric error code, message, and optional JSON detail payload.
+  data RpcError where
+    -- | Construct an RPC error from its signed 64-bit code, message text, and optional detail payload.
+    RpcErrorDetail :: I64 -> String -> Option Json -> RpcError
+
+  -- | Construct an RpcError with no attached detail payload.
+  rpc-error :: I64 -> String -> RpcError
+  rpc-error code msg = RpcErrorDetail code msg None
+
+  -- | Construct an RpcError with an attached JSON detail payload.
+  rpc-error-with-data :: I64 -> String -> Json -> RpcError
+  rpc-error-with-data code msg detail = RpcErrorDetail code msg (Some detail)
+
+  -- | Construct a standard JSON-RPC 2.0 parse error (-32700).
+  rpc-parse-error :: String -> RpcError
+  rpc-parse-error msg = RpcErrorDetail rpc-err-parse-error msg None
+
+  -- | Construct a standard JSON-RPC 2.0 invalid request error (-32600).
+  rpc-invalid-request :: String -> RpcError
+  rpc-invalid-request msg = RpcErrorDetail rpc-err-invalid-request msg None
+
+  -- | Construct a standard JSON-RPC 2.0 method not found error (-32601).
+  rpc-method-not-found :: String -> RpcError
+  rpc-method-not-found method = RpcErrorDetail rpc-err-method-not-found (string-concat "method not found: " method) None
+
+  -- | Construct a standard JSON-RPC 2.0 invalid params error (-32602).
+  rpc-invalid-params :: String -> RpcError
+  rpc-invalid-params msg = RpcErrorDetail rpc-err-invalid-params msg None
+
+  -- | Construct a standard JSON-RPC 2.0 internal error (-32603).
+  rpc-internal-error :: String -> RpcError
+  rpc-internal-error msg = RpcErrorDetail rpc-err-internal-error msg None
+
+  -- | Return the signed 64-bit error code of an RpcError.
+  rpc-error-code :: RpcError -> I64
+  rpc-error-code err = case err of RpcErrorDetail code _ _ -> code
+
+  -- | Return the human-readable error message of an RpcError.
+  rpc-error-message :: RpcError -> String
+  rpc-error-message err = case err of RpcErrorDetail _ msg _ -> msg
+
+  -- | Return the optional JSON detail payload of an RpcError.
+  rpc-error-data :: RpcError -> Option Json
+  rpc-error-data err = case err of RpcErrorDetail _ _ detail -> detail
+
+  -- | Compare two Option Json values for structural equality.
+  opt-json-eq :: Option Json -> Option Json -> Bool
+  opt-json-eq a b = case a of
+    None -> case b of None -> True; Some _ -> False
+    Some x -> case b of None -> False; Some y -> json-eq x y
+
+  -- | Compare two RpcError values for structural equality.
+  rpc-error-eq :: RpcError -> RpcError -> Bool
+  rpc-error-eq a b = case a of
+    RpcErrorDetail c1 m1 d1 -> case b of
+      RpcErrorDetail c2 m2 d2 -> eq-i64 c1 c2 && m1 == m2 && opt-json-eq d1 d2
+
+  -- | Named errors produced by binary frame encoding, frame decoding, or gob-RPC serialization.
+  data RpcFrameError where
+    -- | The input buffer contains fewer bytes than required for the frame header or body.
+    RpcFrameIncomplete :: RpcFrameError
+    -- | The frame length exceeds the configured maximum byte limit or 32-bit wire bound.
+    RpcFrameTooLarge :: Nat -> RpcFrameError
+    -- | The frame body violates gob-RPC envelope or payload structure.
+    RpcFrameMalformed :: String -> RpcFrameError
+
+  -- | Render a readable diagnostic message for an RpcFrameError.
+  rpc-frame-error-message :: RpcFrameError -> String
+  rpc-frame-error-message err = case err of
+    RpcFrameIncomplete -> "rpc frame: incomplete frame"
+    RpcFrameTooLarge n -> string-concat "rpc frame: frame size exceeds limit: " (nat-to-string n)
+    RpcFrameMalformed detail -> string-concat "rpc frame: malformed payload: " detail
+
+  -- | Default maximum binary frame size in bytes (16 MiB).
+  rpc-default-max-frame-bytes :: Nat
+  rpc-default-max-frame-bytes = 16777216
+
+  -- ---------------------------------------------------------------------
+  -- JSON-RPC request and response values.
+  -- ---------------------------------------------------------------------
+
+  -- | A JSON-RPC request or notification carrying method name, parameters, optional id, and codec kind.
+  data RpcRequest where
+    -- | Construct an RPC request with method name, JSON params, optional id (None for notification), and codec kind.
+    RpcRequest :: String -> Json -> Option RpcId -> RpcCodecKind -> RpcRequest
+
+  -- | Construct a JSON-RPC 2.0 request with an explicit correlation identifier.
+  rpc-request :: String -> Json -> RpcId -> RpcRequest
+  rpc-request method params rid = RpcRequest method params (Some rid) RpcCodecJson2
+
+  -- | Construct a JSON-RPC 1.0 request with an explicit correlation identifier.
+  rpc-request-v1 :: String -> Json -> RpcId -> RpcRequest
+  rpc-request-v1 method params rid = RpcRequest method params (Some rid) RpcCodecJson1
+
+  -- | Construct a JSON-RPC 2.0 notification (carrying no correlation identifier).
+  rpc-notification :: String -> Json -> RpcRequest
+  rpc-notification method params = RpcRequest method params None RpcCodecJson2
+
+  -- | Return the method name of an RpcRequest.
+  rpc-request-method :: RpcRequest -> String
+  rpc-request-method req = case req of RpcRequest m _ _ _ -> m
+
+  -- | Return the JSON parameters payload of an RpcRequest.
+  rpc-request-params :: RpcRequest -> Json
+  rpc-request-params req = case req of RpcRequest _ p _ _ -> p
+
+  -- | Return the optional correlation identifier of an RpcRequest (None indicates a notification).
+  rpc-request-id :: RpcRequest -> Option RpcId
+  rpc-request-id req = case req of RpcRequest _ _ rid _ -> rid
+
+  -- | Return the wire codec kind associated with an RpcRequest.
+  rpc-request-codec :: RpcRequest -> RpcCodecKind
+  rpc-request-codec req = case req of RpcRequest _ _ _ c -> c
+
+  -- | Return True when the request is a notification expecting no response.
+  rpc-request-is-notification :: RpcRequest -> Bool
+  rpc-request-is-notification req = case rpc-request-id req of
+    None -> True
+    Some _ -> False
+
+  -- | Compare two Option RpcId values for equality.
+  opt-id-eq :: Option RpcId -> Option RpcId -> Bool
+  opt-id-eq a b = case a of
+    None -> case b of None -> True; Some _ -> False
+    Some x -> case b of None -> False; Some y -> rpc-id-eq x y
+
+  -- | Compare two RpcRequest values for structural equality.
+  rpc-request-eq :: RpcRequest -> RpcRequest -> Bool
+  rpc-request-eq a b = case a of
+    RpcRequest m1 p1 id1 c1 -> case b of
+      RpcRequest m2 p2 id2 c2 ->
+        m1 == m2 && json-eq p1 p2 && opt-id-eq id1 id2 && rpc-codec-eq c1 c2
+
+  -- | A JSON-RPC response carrying a correlation identifier and either an error or JSON result.
+  data RpcResponse where
+    -- | Construct an RPC response from its correlation identifier and result outcome.
+    RpcResponse :: RpcId -> Result RpcError Json -> RpcResponse
+
+  -- | Construct a successful RpcResponse carrying a JSON result value.
+  rpc-response-ok :: RpcId -> Json -> RpcResponse
+  rpc-response-ok rid val = RpcResponse rid (Ok val)
+
+  -- | Construct an error RpcResponse carrying a structured RpcError.
+  rpc-response-err :: RpcId -> RpcError -> RpcResponse
+  rpc-response-err rid err = RpcResponse rid (Err err)
+
+  -- | Return the correlation identifier of an RpcResponse.
+  rpc-response-id :: RpcResponse -> RpcId
+  rpc-response-id resp = case resp of RpcResponse rid _ -> rid
+
+  -- | Return the Result outcome of an RpcResponse.
+  rpc-response-result :: RpcResponse -> Result RpcError Json
+  rpc-response-result resp = case resp of RpcResponse _ res -> res
+
+  -- | Compare two RpcResponse values for structural equality.
+  rpc-response-eq :: RpcResponse -> RpcResponse -> Bool
+  rpc-response-eq a b = case a of
+    RpcResponse id1 r1 -> case b of
+      RpcResponse id2 r2 ->
+        rpc-id-eq id1 id2 && (case r1 of
+          Ok v1 -> case r2 of Ok v2 -> json-eq v1 v2; Err _ -> False
+          Err e1 -> case r2 of Err e2 -> rpc-error-eq e1 e2; Ok _ -> False)
+
+  -- ---------------------------------------------------------------------
+  -- Internal byte and JSON helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Copy bytes in the half-open interval [start, stop) into a fresh buffer.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes buf start stop =
+    if start <= stop && stop <= bytes-len buf then
+      let out = bytes-new (stop - start) in
+      let copied = bytes-copy-range out buf 0 start (stop - start) in
+      out
+    else bytes-new 0
+
+  -- | Single ASCII newline byte buffer.
+  newline-bytes :: Bytes
+  newline-bytes = bytes-from-list [10]
+
+  -- | Append a trailing newline to a UTF-8 rendered JSON value.
+  json-line-bytes :: Json -> Bytes
+  json-line-bytes val = bytes-concat [ordered-json-bytes val, newline-bytes]
+
+  -- | Look up a named member in a JSON object spine.
+  json-obj-get :: String -> Json -> Option Json
+  json-obj-get key obj = case obj of
+    JObj k v rest -> if k == key then Some v else json-obj-get key rest
+    _ -> None
+
+  -- | Check whether a JSON value is an object (empty or non-empty).
+  is-json-object :: Json -> Bool
+  is-json-object val = case val of
+    JObj _ _ _ -> True
+    JObjEnd -> True
+    _ -> False
+
+  -- | Check whether a JSON value is an array (empty or non-empty).
+  is-json-array :: Json -> Bool
+  is-json-array val = case val of
+    JArr _ _ -> True
+    JArrEnd -> True
+    _ -> False
+
+  -- | Check whether a JSON value is a structured container (array or object).
+  is-json-structured :: Json -> Bool
+  is-json-structured val = is-json-array val || is-json-object val
+
+  -- | Check whether a byte is JSON insignificant whitespace (space, tab, LF, CR).
+  is-json-ws :: Nat -> Bool
+  is-json-ws b = b == 32 || b == 9 || b == 10 || b == 13
+
+  -- | Advance past leading JSON whitespace bytes.
+  skip-ws-pos :: Bytes -> Nat -> Nat
+  skip-ws-pos buf pos =
+    if pos < bytes-len buf then
+      if is-json-ws (bytes-get buf pos) then skip-ws-pos buf (pos + 1)
+      else pos
+    else pos
+
+  -- | Return True when the first non-whitespace byte of the payload is '[' (indicating a JSON-RPC batch).
+  jsonrpc-is-batch :: Bytes -> Bool
+  jsonrpc-is-batch buf =
+    let pos = skip-ws-pos buf 0 in
+    if pos < bytes-len buf then bytes-get buf pos == 91 else False
+
+  -- | Convert a list of Json values into a JArr spine.
+  list-to-jarr :: List Json -> Json
+  list-to-jarr xs = case xs of
+    Nil -> JArrEnd
+    Cons x rest -> JArr x (list-to-jarr rest)
+
+  -- | Convert a JArr spine into a List Json.
+  jarr-to-list :: Json -> Option (List Json)
+  jarr-to-list val = case val of
+    JArrEnd -> Some Nil
+    JArr x rest -> case jarr-to-list rest of
+      None -> None
+      Some tail -> Some (Cons x tail)
+    _ -> None
+
+  -- | Encode an RpcError into a standard JSON-RPC error object.
+  error-to-json :: RpcError -> Json
+  error-to-json err = case err of
+    RpcErrorDetail code msg opt-detail ->
+      let tail = (case opt-detail of
+        None -> JObjEnd
+        Some d -> JObj "data" d JObjEnd) in
+      JObj "code" (JNum (int-from-i64 code)) (JObj "message" (JStr msg) tail)
+
+  -- | Decode a standard JSON-RPC 2.0 error object into an RpcError.
+  error-from-json2 :: Json -> Result RpcError RpcError
+  error-from-json2 val =
+    if not (is-json-object val) then Err (rpc-invalid-request "error member must be a JSON object")
+    else case json-obj-get "code" val of
+      Some (JNum code-int) -> case checked-int-to-i64 code-int of
+        None -> Err (rpc-invalid-request "error code out of 64-bit integer range")
+        Some code -> case json-obj-get "message" val of
+          Some (JStr msg) ->
+            let detail = json-obj-get "data" val in
+            Ok (RpcErrorDetail code msg detail)
+          _ -> Err (rpc-invalid-request "error object missing string message")
+      _ -> Err (rpc-invalid-request "error object missing integer code")
+
+  -- | Decode a JSON-RPC 1.0 error value (either a string, a structured error object, or arbitrary JSON).
+  error-from-json1 :: Json -> RpcError
+  error-from-json1 val = case val of
+    JStr msg -> RpcErrorDetail rpc-err-internal-error msg None
+    _ -> case error-from-json2 val of
+      Ok parsed -> parsed
+      Err _ -> RpcErrorDetail rpc-err-internal-error (print-json val) (Some val)
+
+  -- ---------------------------------------------------------------------
+  -- JSON-RPC 1.0 and 2.0 encoding and decoding.
+  -- ---------------------------------------------------------------------
+
+  -- | Convert an RpcRequest into its wire Json object according to its codec kind.
+  request-to-json :: RpcRequest -> Json
+  request-to-json req = case req of
+    RpcRequest method params opt-id codec -> case codec of
+      RpcCodecJson1 ->
+        let wire-params = (if is-json-array params then params
+          else case params of
+            JNull -> JArrEnd
+            other -> JArr other JArrEnd) in
+        let wire-id = (case opt-id of
+          None -> JNull
+          Some rid -> rpc-id-to-json rid) in
+        JObj "method" (JStr method) (JObj "params" wire-params (JObj "id" wire-id JObjEnd))
+      _ ->
+        let with-id = (case opt-id of
+          None -> JObjEnd
+          Some rid -> JObj "id" (rpc-id-to-json rid) JObjEnd) in
+        let with-params = (case params of
+          JNull -> with-id
+          other -> JObj "params" other with-id) in
+        JObj "jsonrpc" (JStr "2.0") (JObj "method" (JStr method) with-params)
+
+  -- | Encode an RpcRequest as newline-delimited JSON-RPC 1.0 or 2.0 bytes.
+  jsonrpc-encode-request :: RpcRequest -> Bytes
+  jsonrpc-encode-request req = json-line-bytes (request-to-json req)
+
+  -- | Decode a parsed Json value into an RpcRequest, auto-detecting JSON-RPC 1.0 vs 2.0.
+  decode-request-json :: Json -> Result RpcError RpcRequest
+  decode-request-json val =
+    if not (is-json-object val) then Err (rpc-invalid-request "request must be a JSON object")
+    else case json-obj-get "method" val of
+      Some (JStr method) -> case json-obj-get "jsonrpc" val of
+        Some ver -> case ver of
+          JStr ver-str ->
+            if ver-str == "2.0" then decode-request-v2 method val
+            else Err (rpc-invalid-request "unsupported jsonrpc version")
+          _ -> Err (rpc-invalid-request "unsupported jsonrpc version")
+        None -> decode-request-v1 method val
+      _ -> Err (rpc-invalid-request "request missing string method")
+
+  -- | Validate and decode the remaining fields of a JSON-RPC 2.0 request object.
+  decode-request-v2 :: String -> Json -> Result RpcError RpcRequest
+  decode-request-v2 method obj =
+    let params-res = (case json-obj-get "params" obj of
+      None -> Ok JNull
+      Some p ->
+        if is-json-structured p then Ok p
+        else Err (rpc-invalid-request "JSON-RPC 2.0 params must be an array or object")) in
+    case params-res of
+      Err err -> Err err
+      Ok params -> case json-obj-get "id" obj of
+        None -> Ok (RpcRequest method params None RpcCodecJson2)
+        Some raw-id -> case rpc-id-from-json raw-id of
+          Some rid -> Ok (RpcRequest method params (Some rid) RpcCodecJson2)
+          None -> Err (rpc-invalid-request "invalid JSON-RPC 2.0 request id")
+
+  -- | Validate and decode the remaining fields of a JSON-RPC 1.0 request object.
+  decode-request-v1 :: String -> Json -> Result RpcError RpcRequest
+  decode-request-v1 method obj =
+    let params-res = (case json-obj-get "params" obj of
+      Some p ->
+        if is-json-array p then Ok p
+        else case p of
+          JNull -> Ok JArrEnd
+          _ -> Err (rpc-invalid-request "JSON-RPC 1.0 params must be an array")
+      None -> Err (rpc-invalid-request "JSON-RPC 1.0 request missing params")) in
+    case params-res of
+      Err err -> Err err
+      Ok params -> case json-obj-get "id" obj of
+        None -> Err (rpc-invalid-request "JSON-RPC 1.0 request missing id")
+        Some raw-id -> case raw-id of
+          JNull -> Ok (RpcRequest method params None RpcCodecJson1)
+          _ -> case rpc-id-from-json raw-id of
+            Some rid -> Ok (RpcRequest method params (Some rid) RpcCodecJson1)
+            None -> Err (rpc-invalid-request "invalid JSON-RPC 1.0 request id")
+
+  -- | Decode a single JSON-RPC 1.0 or 2.0 request from UTF-8 JSON bytes.
+  jsonrpc-decode-request :: Bytes -> Result RpcError RpcRequest
+  jsonrpc-decode-request src = case parse-json "jsonrpc" src of
+    Failed _ -> Err (rpc-parse-error "invalid JSON")
+    Parsed val _ -> decode-request-json val
+
+  -- | Convert an RpcResponse into its wire Json object for the specified codec kind.
+  response-to-json :: RpcCodecKind -> RpcResponse -> Json
+  response-to-json codec resp = case resp of
+    RpcResponse rid outcome -> case codec of
+      RpcCodecJson1 -> case outcome of
+        Ok val -> JObj "id" (rpc-id-to-json rid) (JObj "result" val (JObj "error" JNull JObjEnd))
+        Err err -> JObj "id" (rpc-id-to-json rid) (JObj "result" JNull (JObj "error" (error-to-json err) JObjEnd))
+      _ -> case outcome of
+        Ok val -> JObj "jsonrpc" (JStr "2.0") (JObj "result" val (JObj "id" (rpc-id-to-json rid) JObjEnd))
+        Err err -> JObj "jsonrpc" (JStr "2.0") (JObj "error" (error-to-json err) (JObj "id" (rpc-id-to-json rid) JObjEnd))
+
+  -- | Encode an RpcResponse as newline-delimited JSON-RPC 2.0 bytes.
+  jsonrpc-encode-response :: RpcResponse -> Bytes
+  jsonrpc-encode-response resp = json-line-bytes (response-to-json RpcCodecJson2 resp)
+
+  -- | Encode an RpcResponse using either JSON-RPC 1.0 or JSON-RPC 2.0 wire format.
+  jsonrpc-encode-response-with :: RpcCodecKind -> RpcResponse -> Bytes
+  jsonrpc-encode-response-with codec resp = json-line-bytes (response-to-json codec resp)
+
+  -- | Decode a parsed Json value into an RpcResponse, supporting both JSON-RPC 1.0 and 2.0 shapes.
+  decode-response-json :: Json -> Result RpcError RpcResponse
+  decode-response-json val =
+    if not (is-json-object val) then Err (rpc-invalid-request "response must be a JSON object")
+    else case json-obj-get "id" val of
+      None -> Err (rpc-invalid-request "response missing id")
+      Some raw-id -> case rpc-id-from-json raw-id of
+        None -> Err (rpc-invalid-request "invalid response id")
+        Some rid -> case json-obj-get "jsonrpc" val of
+          Some ver -> case ver of
+            JStr ver-str ->
+              if ver-str == "2.0" then decode-response-v2 rid val
+              else Err (rpc-invalid-request "unsupported jsonrpc response version")
+            _ -> Err (rpc-invalid-request "unsupported jsonrpc response version")
+          None -> decode-response-v1 rid val
+
+  -- | Decode the result or error member of a JSON-RPC 2.0 response object.
+  decode-response-v2 :: RpcId -> Json -> Result RpcError RpcResponse
+  decode-response-v2 rid obj =
+    let has-res = json-obj-get "result" obj in
+    let has-err = json-obj-get "error" obj in
+    case (has-res, has-err) of
+      (Some res, None) -> Ok (RpcResponse rid (Ok res))
+      (None, Some err-val) -> case error-from-json2 err-val of
+        Err bad -> Err bad
+        Ok rpc-err -> Ok (RpcResponse rid (Err rpc-err))
+      _ -> Err (rpc-invalid-request "JSON-RPC 2.0 response must contain exactly one of result or error")
+
+  -- | Decode the result or error member of a JSON-RPC 1.0 response object.
+  decode-response-v1 :: RpcId -> Json -> Result RpcError RpcResponse
+  decode-response-v1 rid obj =
+    let has-err = json-obj-get "error" obj in
+    let has-res = json-obj-get "result" obj in
+    case has-err of
+      Some err-val -> case err-val of
+        JNull -> case has-res of
+          Some res -> Ok (RpcResponse rid (Ok res))
+          None -> Err (rpc-invalid-request "JSON-RPC 1.0 response missing result")
+        other -> Ok (RpcResponse rid (Err (error-from-json1 other)))
+      None -> case has-res of
+        Some res -> Ok (RpcResponse rid (Ok res))
+        None -> Err (rpc-invalid-request "JSON-RPC 1.0 response missing result and error")
+
+  -- | Decode a single JSON-RPC 1.0 or 2.0 response from UTF-8 JSON bytes.
+  jsonrpc-decode-response :: Bytes -> Result RpcError RpcResponse
+  jsonrpc-decode-response src = case parse-json "jsonrpc" src of
+    Failed _ -> Err (rpc-parse-error "invalid JSON")
+    Parsed val _ -> decode-response-json val
+
+  -- | Encode a list of JSON-RPC requests into a newline-terminated JSON-RPC 2.0 batch array.
+  jsonrpc-encode-batch :: List RpcRequest -> Bytes
+  jsonrpc-encode-batch reqs = json-line-bytes (list-to-jarr (map request-to-json reqs))
+
+  -- | Decode every element of a JSON array into per-item request decode results.
+  decode-batch-item-list :: List Json -> List (Result RpcError RpcRequest) -> List (Result RpcError RpcRequest)
+  decode-batch-item-list items acc = case items of
+    Nil -> reverse acc
+    Cons item rest -> decode-batch-item-list rest (Cons (decode-request-json item) acc)
+
+  -- | Decode a JSON-RPC 2.0 batch array preserving per-item validation errors for server dispatch.
+  -- Returns Parse error on invalid JSON and Invalid Request on empty arrays or non-array inputs.
+  jsonrpc-decode-batch-items :: Bytes -> Result RpcError (List (Result RpcError RpcRequest))
+  jsonrpc-decode-batch-items src = case parse-json "jsonrpc-batch" src of
+    Failed _ -> Err (rpc-parse-error "invalid JSON")
+    Parsed val _ -> case val of
+      JArrEnd -> Err (rpc-invalid-request "empty JSON-RPC batch")
+      JArr _ _ -> case jarr-to-list val of
+        None -> Err (rpc-invalid-request "malformed JSON array")
+        Some items -> Ok (decode-batch-item-list items Nil)
+      _ -> Err (rpc-invalid-request "expected JSON array for batch")
+
+  -- | Collapse a list of per-item request results, failing on the first invalid element.
+  collect-batch-requests :: List (Result RpcError RpcRequest) -> List RpcRequest -> Result RpcError (List RpcRequest)
+  collect-batch-requests items acc = case items of
+    Nil -> Ok (reverse acc)
+    Cons item rest -> case item of
+      Err err -> Err err
+      Ok req -> collect-batch-requests rest (Cons req acc)
+
+  -- | Decode a non-empty JSON-RPC 2.0 batch array where every element must be a valid request.
+  jsonrpc-decode-batch :: Bytes -> Result RpcError (List RpcRequest)
+  jsonrpc-decode-batch src = case jsonrpc-decode-batch-items src of
+    Err err -> Err err
+    Ok items -> collect-batch-requests items Nil
+
+  -- | Encode a list of JSON-RPC 2.0 responses into a newline-terminated JSON batch array.
+  jsonrpc-encode-batch-responses :: List RpcResponse -> Bytes
+  jsonrpc-encode-batch-responses resps =
+    json-line-bytes (list-to-jarr (map (\r -> response-to-json RpcCodecJson2 r) resps))
+
+  -- | Decode every element of a JSON response array into RpcResponse values.
+  decode-batch-resp-list :: List Json -> List RpcResponse -> Result RpcError (List RpcResponse)
+  decode-batch-resp-list items acc = case items of
+    Nil -> Ok (reverse acc)
+    Cons item rest -> case decode-response-json item of
+      Err err -> Err err
+      Ok resp -> decode-batch-resp-list rest (Cons resp acc)
+
+  -- | Decode a JSON-RPC 2.0 batch response array from UTF-8 JSON bytes.
+  jsonrpc-decode-batch-responses :: Bytes -> Result RpcError (List RpcResponse)
+  jsonrpc-decode-batch-responses src = case parse-json "jsonrpc-batch-resp" src of
+    Failed _ -> Err (rpc-parse-error "invalid JSON")
+    Parsed val _ -> case val of
+      JArrEnd -> Ok Nil
+      JArr _ _ -> case jarr-to-list val of
+        None -> Err (rpc-invalid-request "malformed JSON array")
+        Some items -> decode-batch-resp-list items Nil
+      _ -> Err (rpc-invalid-request "expected JSON array for batch response")
+
+  -- ---------------------------------------------------------------------
+  -- 4-byte big-endian length-prefixed framing.
+  -- ---------------------------------------------------------------------
+
+  -- | Maximum payload length representable in a 32-bit unsigned big-endian length prefix.
+  max-u32-frame-len :: Nat
+  max-u32-frame-len = 4294967295
+
+  -- | Wrap a payload in a 4-byte big-endian length-prefixed frame, enforcing max-size (0 disables custom cap).
+  rpc-frame-encode :: Nat -> Bytes -> Result RpcFrameError Bytes
+  rpc-frame-encode max-size payload =
+    let n = bytes-len payload in
+    if n > max-u32-frame-len then Err (RpcFrameTooLarge n)
+    else if max-size > 0 && n > max-size then Err (RpcFrameTooLarge n)
+    else
+      let out = bytes-new (4 + n) in
+      let w0 = bytes-set out 0 (nat-rem (nat-div n 16777216) 256) in
+      let w1 = bytes-set out 1 (nat-rem (nat-div n 65536) 256) in
+      let w2 = bytes-set out 2 (nat-rem (nat-div n 256) 256) in
+      let w3 = bytes-set out 3 (nat-rem n 256) in
+      let copied = bytes-copy-range out payload 4 0 n in
+      Ok out
+
+  -- | Decode one 4-byte big-endian length-prefixed frame from a streaming byte buffer, enforcing max-size.
+  -- Returns the extracted payload paired with any trailing unread bytes.
+  rpc-frame-decode :: Nat -> Bytes -> Result RpcFrameError (Bytes, Bytes)
+  rpc-frame-decode max-size buf =
+    let total = bytes-len buf in
+    if total < 4 then Err RpcFrameIncomplete
+    else
+      let b0 = bytes-get buf 0 in
+      let b1 = bytes-get buf 1 in
+      let b2 = bytes-get buf 2 in
+      let b3 = bytes-get buf 3 in
+      let frame-len = b0 * 16777216 + b1 * 65536 + b2 * 256 + b3 in
+      if max-size > 0 && frame-len > max-size then Err (RpcFrameTooLarge frame-len)
+      else if total < 4 + frame-len then Err RpcFrameIncomplete
+      else
+        let payload = slice-bytes buf 4 (4 + frame-len) in
+        let rest = slice-bytes buf (4 + frame-len) total in
+        Ok (payload, rest)
+
+  -- ---------------------------------------------------------------------
+  -- Gob-framed RPC requests and responses over Text.Gob.
+  -- ---------------------------------------------------------------------
+
+  -- | A binary gob-framed RPC request carrying method name, sequence number, and argument GobValue.
+  data GobRpcRequest where
+    -- | Construct a gob-RPC request from method name, sequence identifier, and argument value.
+    GobRpcRequest :: String -> I64 -> GobValue -> GobRpcRequest
+
+  -- | Return the method name of a GobRpcRequest.
+  gobrpc-request-method :: GobRpcRequest -> String
+  gobrpc-request-method req = case req of GobRpcRequest m _ _ -> m
+
+  -- | Return the sequence identifier of a GobRpcRequest.
+  gobrpc-request-seq :: GobRpcRequest -> I64
+  gobrpc-request-seq req = case req of GobRpcRequest _ seq _ -> seq
+
+  -- | Return the argument GobValue of a GobRpcRequest.
+  gobrpc-request-body :: GobRpcRequest -> GobValue
+  gobrpc-request-body req = case req of GobRpcRequest _ _ body -> body
+
+  -- | A binary gob-framed RPC response carrying sequence number and either an RpcError or result GobValue.
+  data GobRpcResponse where
+    -- | Construct a gob-RPC response from sequence identifier and result outcome.
+    GobRpcResponse :: I64 -> Result RpcError GobValue -> GobRpcResponse
+
+  -- | Return the sequence identifier of a GobRpcResponse.
+  gobrpc-response-seq :: GobRpcResponse -> I64
+  gobrpc-response-seq resp = case resp of GobRpcResponse seq _ -> seq
+
+  -- | Return the result outcome of a GobRpcResponse.
+  gobrpc-response-result :: GobRpcResponse -> Result RpcError GobValue
+  gobrpc-response-result resp = case resp of GobRpcResponse _ res -> res
+
+  -- | Count elements in a GobValueList spine.
+  gob-val-list-len :: GobValueList -> Nat -> Nat
+  gob-val-list-len xs acc = case xs of
+    GobValueEnd -> acc
+    GobValueCons _ rest -> gob-val-list-len rest (acc + 1)
+
+  -- | Infer field type descriptors from a GobStructFields value spine.
+  infer-struct-field-types :: GobStructFields -> GobFieldTypes
+  infer-struct-field-types fields = case fields of
+    GobFieldEnd -> GobFieldTypesEnd
+    GobFieldCons fname fval rest ->
+      GobFieldTypeCons fname (gob-infer-type fval) (infer-struct-field-types rest)
+
+  -- | Infer a compatible GobType descriptor directly from a runtime GobValue.
+  gob-infer-type :: GobValue -> GobType
+  gob-infer-type val = case val of
+    GobBool _ -> GobTBool
+    GobInt _ -> GobTInt
+    GobUint _ -> GobTUint
+    GobFloat _ -> GobTFloat
+    GobBytes _ -> GobTBytes
+    GobString _ -> GobTString
+    GobComplex _ _ -> GobTComplex
+    GobSlice items -> case items of
+      GobValueEnd -> GobTSlice GobTBytes
+      GobValueCons first _ -> GobTSlice (gob-infer-type first)
+    GobArray items ->
+      let elem-ty = (case items of
+        GobValueEnd -> GobTBytes
+        GobValueCons first _ -> gob-infer-type first) in
+      GobTArray elem-ty (gob-val-list-len items 0)
+    GobMap entries -> case entries of
+      GobMapEnd -> GobTMap GobTString GobTBytes
+      GobMapCons k v _ -> GobTMap (gob-infer-type k) (gob-infer-type v)
+    GobStruct name fields -> GobTStruct name (infer-struct-field-types fields)
+
+  -- | Static gob struct descriptor for the gob-RPC request envelope.
+  gobrpc-req-wire-type :: GobType
+  gobrpc-req-wire-type = gob-type-struct "RpcRequest" [
+    ("Method", GobTString),
+    ("Seq", GobTInt),
+    ("Body", GobTBytes)]
+
+  -- | Static gob struct descriptor for the gob-RPC response envelope.
+  gobrpc-resp-wire-type :: GobType
+  gobrpc-resp-wire-type = gob-type-struct "RpcResponse" [
+    ("Seq", GobTInt),
+    ("HasError", GobTBool),
+    ("ErrorCode", GobTInt),
+    ("ErrorMessage", GobTString),
+    ("HasErrorData", GobTBool),
+    ("ErrorData", GobTBytes),
+    ("Body", GobTBytes)]
+
+  -- | Lift a GobError into an RpcFrameError with a descriptive message.
+  lift-gob-error :: GobError -> RpcFrameError
+  lift-gob-error err = RpcFrameMalformed (gob-error-message err)
+
+  -- | Encode a GobRpcRequest into a 4-byte length-prefixed gob frame with the default maximum frame size.
+  gobrpc-encode-request :: GobRpcRequest -> Result RpcFrameError Bytes
+  gobrpc-encode-request req = gobrpc-encode-request-limit rpc-default-max-frame-bytes req
+
+  -- | Encode a GobRpcRequest into a 4-byte length-prefixed gob frame enforcing max-size.
+  gobrpc-encode-request-limit :: Nat -> GobRpcRequest -> Result RpcFrameError Bytes
+  gobrpc-encode-request-limit max-size req = case req of
+    GobRpcRequest method seq body ->
+      case gob-encode (gob-infer-type body) body of
+        Err err -> Err (lift-gob-error err)
+        Ok body-bytes ->
+          let env = gob-struct "RpcRequest" [
+            ("Method", GobString method),
+            ("Seq", GobInt seq),
+            ("Body", GobBytes body-bytes)] in
+          case gob-encode gobrpc-req-wire-type env of
+            Err err -> Err (lift-gob-error err)
+            Ok raw -> rpc-frame-encode max-size raw
+
+  -- | Decode a single already-deframed GobRpcRequest gob payload.
+  gobrpc-decode-request-payload :: Bytes -> Result RpcFrameError GobRpcRequest
+  gobrpc-decode-request-payload frame = case gob-decode-as gobrpc-req-wire-type frame of
+    Err err -> Err (lift-gob-error err)
+    Ok env -> case gob-field-string "Method" env of
+      Err err -> Err (lift-gob-error err)
+      Ok method -> case gob-field-int "Seq" env of
+        Err err -> Err (lift-gob-error err)
+        Ok seq -> case gob-field-bytes "Body" env of
+          Err err -> Err (lift-gob-error err)
+          Ok body-bytes -> case gob-decode body-bytes of
+            Err err -> Err (lift-gob-error err)
+            Ok (_, body-val) -> Ok (GobRpcRequest method seq body-val)
+
+  -- | Decode one 4-byte length-prefixed GobRpcRequest frame from a buffer, enforcing max-size.
+  -- Returns the decoded request paired with any remaining unread bytes.
+  gobrpc-decode-request :: Nat -> Bytes -> Result RpcFrameError (GobRpcRequest, Bytes)
+  gobrpc-decode-request max-size buf = case rpc-frame-decode max-size buf of
+    Err err -> Err err
+    Ok (frame, rest) -> case gobrpc-decode-request-payload frame of
+      Err err -> Err err
+      Ok req -> Ok (req, rest)
+
+  -- | Encode a GobRpcResponse into a 4-byte length-prefixed gob frame with the default maximum frame size.
+  gobrpc-encode-response :: GobRpcResponse -> Result RpcFrameError Bytes
+  gobrpc-encode-response resp = gobrpc-encode-response-limit rpc-default-max-frame-bytes resp
+
+  -- | Encode a GobRpcResponse into a 4-byte length-prefixed gob frame enforcing max-size.
+  gobrpc-encode-response-limit :: Nat -> GobRpcResponse -> Result RpcFrameError Bytes
+  gobrpc-encode-response-limit max-size resp = case resp of
+    GobRpcResponse seq outcome -> case outcome of
+      Ok val -> case gob-encode (gob-infer-type val) val of
+        Err err -> Err (lift-gob-error err)
+        Ok body-bytes ->
+          let env = gob-struct "RpcResponse" [
+            ("Seq", GobInt seq),
+            ("HasError", GobBool False),
+            ("ErrorCode", GobInt 0),
+            ("ErrorMessage", GobString ""),
+            ("HasErrorData", GobBool False),
+            ("ErrorData", GobBytes (bytes-new 0)),
+            ("Body", GobBytes body-bytes)] in
+          case gob-encode gobrpc-resp-wire-type env of
+            Err err -> Err (lift-gob-error err)
+            Ok raw -> rpc-frame-encode max-size raw
+      Err rpc-err -> case rpc-err of
+        RpcErrorDetail code msg opt-detail ->
+          let has-detail = (case opt-detail of Some _ -> True; None -> False) in
+          let detail-bytes = (case opt-detail of
+            None -> bytes-new 0
+            Some d -> ordered-json-bytes d) in
+          let env = gob-struct "RpcResponse" [
+            ("Seq", GobInt seq),
+            ("HasError", GobBool True),
+            ("ErrorCode", GobInt code),
+            ("ErrorMessage", GobString msg),
+            ("HasErrorData", GobBool has-detail),
+            ("ErrorData", GobBytes detail-bytes),
+            ("Body", GobBytes (bytes-new 0))] in
+          case gob-encode gobrpc-resp-wire-type env of
+            Err err -> Err (lift-gob-error err)
+            Ok raw -> rpc-frame-encode max-size raw
+
+  -- | Decode a single already-deframed GobRpcResponse gob payload.
+  gobrpc-decode-response-payload :: Bytes -> Result RpcFrameError GobRpcResponse
+  gobrpc-decode-response-payload frame = case gob-decode-as gobrpc-resp-wire-type frame of
+    Err err -> Err (lift-gob-error err)
+    Ok env -> case gob-field-int "Seq" env of
+      Err err -> Err (lift-gob-error err)
+      Ok seq -> case gob-field-bool "HasError" env of
+        Err err -> Err (lift-gob-error err)
+        Ok has-err ->
+          if has-err then
+            case gob-field-int "ErrorCode" env of
+              Err err -> Err (lift-gob-error err)
+              Ok code -> case gob-field-string "ErrorMessage" env of
+                Err err -> Err (lift-gob-error err)
+                Ok msg -> case gob-field-bool "HasErrorData" env of
+                  Err err -> Err (lift-gob-error err)
+                  Ok has-detail ->
+                    if has-detail then
+                      case gob-field-bytes "ErrorData" env of
+                        Err err -> Err (lift-gob-error err)
+                        Ok detail-bytes -> case parse-json "gobrpc-err-data" detail-bytes of
+                          Failed _ -> Err (RpcFrameMalformed "invalid JSON in gob-RPC error data")
+                          Parsed d _ -> Ok (GobRpcResponse seq (Err (RpcErrorDetail code msg (Some d))))
+                    else Ok (GobRpcResponse seq (Err (RpcErrorDetail code msg None)))
+          else
+            case gob-field-bytes "Body" env of
+              Err err -> Err (lift-gob-error err)
+              Ok body-bytes -> case gob-decode body-bytes of
+                Err err -> Err (lift-gob-error err)
+                Ok (_, body-val) -> Ok (GobRpcResponse seq (Ok body-val))
+
+  -- | Decode one 4-byte length-prefixed GobRpcResponse frame from a buffer, enforcing max-size.
+  -- Returns the decoded response paired with any remaining unread bytes.
+  gobrpc-decode-response :: Nat -> Bytes -> Result RpcFrameError (GobRpcResponse, Bytes)
+  gobrpc-decode-response max-size buf = case rpc-frame-decode max-size buf of
+    Err err -> Err err
+    Ok (frame, rest) -> case gobrpc-decode-response-payload frame of
+      Err err -> Err err
+      Ok resp -> Ok (resp, rest)

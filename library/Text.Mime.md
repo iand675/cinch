@@ -10,7 +10,7 @@ Import with `import Text.Mime`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.HashMap](Data.HashMap.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Relation.Eq](Relation.Eq.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Show](Text.Show.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.HashMap](Data.HashMap.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Show](Text.Show.md).
 
 Non-embedded source closure: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Mime](Text.Mime.md).
 
@@ -67,7 +67,7 @@ A precise syntax, registration or encoded-word failure without mutable payloads.
 
 A single header scan observation, preserving literal prefixes and candidate spelling.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1030
+[Source](/reference-sources/Text.Mime.cinch) · line 1089
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MimeHeaderEnd</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Mime</span>.<span class="tok-constructor">MimeHeaderPart</span>)</code></pre>
 
@@ -102,7 +102,7 @@ Persistent exact-key parameter map with privately copied values.
 Explicit persistent association context. Exact spellings and lowercase
 fallbacks are distinct; inverse lists preserve historical registered types.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1065
+[Source](/reference-sources/Text.Mime.cinch) · line 1124
 
 <a id="type-4d696d65576f7264456e636f646572"></a>
 
@@ -112,7 +112,7 @@ fallbacks are distinct; inverse lists preserve historical registered types.
 
 Preserve any U8 selector, including nonstandard values, without silently restricting it.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 769
+[Source](/reference-sources/Text.Mime.cinch) · line 828
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MimeWordEncoder</span> :: (<span class="tok-constructor">U8</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Mime</span>.<span class="tok-constructor">MimeWordEncoder</span>)</code></pre>
 
@@ -124,7 +124,7 @@ Preserve any U8 selector, including nonstandard values, without silently restric
 
 A parsed encoded-word charset label and decoded transfer body.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 873
+[Source](/reference-sources/Text.Mime.cinch) · line 932
 
 # Values
 
@@ -136,7 +136,7 @@ A parsed encoded-word charset label and decoded transfer body.
 
 Standard Base64 encoded-word selector, with canonical byte value 98.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 772
+[Source](/reference-sources/Text.Mime.cinch) · line 831
 
 <a id="value-6d696d652d636861727365742d6e616d65"></a>
 
@@ -146,7 +146,7 @@ Standard Base64 encoded-word selector, with canonical byte value 98.
 
 Produce the lowercase callback label, repairing each malformed source byte separately.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 995
+[Source](/reference-sources/Text.Mime.cinch) · line 1054
 
 <a id="value-6d696d652d636f6e766572742d6b6e6f776e2d63686172736574"></a>
 
@@ -157,7 +157,7 @@ Produce the lowercase callback label, repairing each malformed source byte separ
 Convert the built-in UTF-8, Latin-1 and US-ASCII charsets. UTF-8-labelled
 payload bytes pass through without validation; an unknown label returns None.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 987
+[Source](/reference-sources/Text.Mime.cinch) · line 1046
 
 <a id="value-6d696d652d6572726f722d6d657373616765"></a>
 
@@ -179,7 +179,7 @@ Serialize a valid token or major/subtype pair with sorted parameter names.
 Invalid type/name arguments return empty; arbitrary value bytes are preserved
 through quoted or extended encoding, and all successful output is UTF-8 ASCII.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 573
+[Source](/reference-sources/Text.Mime.cinch) · line 591
 
 <a id="value-6d696d652d6865616465722d73746570"></a>
 
@@ -190,7 +190,7 @@ through quoted or extended encoding, and all successful output is UTF-8 ASCII.
 Parse one header candidate using permissive header rules, which differ from
 full-word rules: empty charsets and literal question marks in Q bodies remain observable.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1044
+[Source](/reference-sources/Text.Mime.cinch) · line 1103
 
 <a id="value-6d696d652d6d656469612d62617365"></a>
 
@@ -281,7 +281,7 @@ Begin with an empty, non-null parameter context.
 Parse media syntax and RFC 2231 continuations. Successful parameters are non-null;
 parameter errors retain the valid base, while conflicting duplicates clear it.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 516
+[Source](/reference-sources/Text.Mime.cinch) · line 534
 
 <a id="value-6d696d652d712d656e636f64696e67"></a>
 
@@ -291,7 +291,7 @@ parameter errors retain the valid base, while conflicting duplicates clear it.
 
 Standard Q encoded-word selector, with canonical byte value 113.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 776
+[Source](/reference-sources/Text.Mime.cinch) · line 835
 
 <a id="value-6d696d652d71756f74652d6279746573"></a>
 
@@ -301,7 +301,7 @@ Standard Q encoded-word selector, with canonical byte value 113.
 
 Return an immutable quoted diagnostic spelling of arbitrary bytes.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1026
+[Source](/reference-sources/Text.Mime.cinch) · line 1085
 
 <a id="value-6d696d652d72656769737472792d616464"></a>
 
@@ -312,7 +312,7 @@ Return an immutable quoted diagnostic spelling of arbitrary bytes.
 Register one exact association atomically. Text defaults apply only to a
 literal lowercase text/ prefix, and missing or empty charsets become utf-8.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1085
+[Source](/reference-sources/Text.Mime.cinch) · line 1144
 
 <a id="value-6d696d652d72656769737472792d6173736f63696174696f6e73"></a>
 
@@ -324,7 +324,7 @@ Import associations explicitly in order, returning the first registration
 error without modifying the supplied context. Host-specific data is supplied
 as ordinary associations rather than read through ambient initialization.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1140
+[Source](/reference-sources/Text.Mime.cinch) · line 1199
 
 <a id="value-6d696d652d72656769737472792d64656661756c74"></a>
 
@@ -335,7 +335,7 @@ as ordinary associations rather than read through ambient initialization.
 Stable built-in associations. Additional host-specific records are imported
 through mime-registry-associations, keeping configuration explicit and reproducible.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1150
+[Source](/reference-sources/Text.Mime.cinch) · line 1209
 
 <a id="value-6d696d652d72656769737472792d656d707479"></a>
 
@@ -345,7 +345,7 @@ through mime-registry-associations, keeping configuration explicit and reproduci
 
 Begin with no hidden host or process-wide registry state.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1070
+[Source](/reference-sources/Text.Mime.cinch) · line 1129
 
 <a id="value-6d696d652d72656769737472792d657874656e73696f6e73"></a>
 
@@ -356,7 +356,7 @@ Begin with no hidden host or process-wide registry state.
 Return sorted historical lowercase extensions after full media-type validation.
 Parameters do not affect the inverse lookup, but parameter errors remain visible.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1127
+[Source](/reference-sources/Text.Mime.cinch) · line 1186
 
 <a id="value-6d696d652d72656769737472792d74797065"></a>
 
@@ -367,7 +367,7 @@ Parameters do not affect the inverse lookup, but parameter errors remain visible
 Resolve the exact spelling first, then its Unicode lowercase fallback.
 Unknown extensions return a fresh empty buffer. Observations never alias a context.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 1108
+[Source](/reference-sources/Text.Mime.cinch) · line 1167
 
 <a id="value-6d696d652d776f72642d656e636f64652d6279746573"></a>
 
@@ -379,7 +379,7 @@ Encode arbitrary source bytes. Plain ASCII including tab is returned freshly
 unchanged. Only UTF-8-labelled encoded words split at scalar boundaries;
 other labels remain unvalidated and unsplit, with no implicit transcoding.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 856
+[Source](/reference-sources/Text.Mime.cinch) · line 915
 
 <a id="value-6d696d652d776f72642d656e636f64652d74657874"></a>
 
@@ -390,7 +390,7 @@ other labels remain unvalidated and unsplit, with no implicit transcoding.
 Checked String convenience retaining exact byte-valued selector behavior.
 Use the byte API when a nonstandard selector creates non-UTF-8 header bytes.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 864
+[Source](/reference-sources/Text.Mime.cinch) · line 923
 
 <a id="value-6d696d652d776f72642d656e636f6465722d62797465"></a>
 
@@ -400,7 +400,7 @@ Use the byte API when a nonstandard selector creates non-UTF-8 header bytes.
 
 Observe the exact byte-valued selector used in an encoded-word header.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 780
+[Source](/reference-sources/Text.Mime.cinch) · line 839
 
 <a id="value-6d696d652d776f72642d746f6b656e"></a>
 
@@ -411,7 +411,7 @@ Observe the exact byte-valued selector used in an encoded-word header.
 Parse a complete single encoded word with exactly four question delimiters.
 Empty transfer bodies are accepted; charset labels remain unvalidated bytes.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 958
+[Source](/reference-sources/Text.Mime.cinch) · line 1017
 
 <a id="value-6d696d652d776f72642d746f6b656e2d63686172736574"></a>
 
@@ -421,7 +421,7 @@ Empty transfer bodies are accepted; charset labels remain unvalidated bytes.
 
 Observe an independent copy of the exact unnormalized charset label.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 878
+[Source](/reference-sources/Text.Mime.cinch) · line 937
 
 <a id="value-6d696d652d776f72642d746f6b656e2d636f6e74656e74"></a>
 
@@ -431,7 +431,7 @@ Observe an independent copy of the exact unnormalized charset label.
 
 Observe independent decoded transfer bytes before any charset conversion.
 
-[Source](/reference-sources/Text.Mime.cinch) · line 882
+[Source](/reference-sources/Text.Mime.cinch) · line 941
 
 # Instances
 
@@ -447,4 +447,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Mime.cinch`. Source SHA-256: `399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/Mime.cinch`. Source SHA-256: `ea71ed1a006e5d645b2a3e0dddc05e4303b45e8c9ec0c114fb358e3756c01fe0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

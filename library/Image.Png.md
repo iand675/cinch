@@ -10,16 +10,16 @@ Import with `import Image.Png`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Image.Raster](Image.Raster.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Png](Image.Png.md), [Image.Raster](Image.Raster.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md), [Text.Zlib](Text.Zlib.md).
+Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Png](Image.Png.md), [Image.Raster](Image.Raster.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md), [Text.Flate](Text.Flate.md), [Text.Zlib](Text.Zlib.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 PNG images: decode every color type, bit depth and interlace method into rasters, and encode rasters.
 Decoding verifies the signature and every chunk CRC, joins the IDAT stream
 and inflates it, then reverses each scanline's filter in place: Up adds the
-prior row eight bytes at a time in SIMD lanes, and Sub reconstructs eight
+prior row sixteen bytes at a time in SIMD lanes, and Sub reconstructs sixteen
 bytes per step with a lane-shift prefix scan specialized to the pixel size;
 Average and Paeth depend on the byte to their left and run bytewise with a
 branchless Paeth predictor. Samples below eight bits are widened (gray scaled
@@ -40,7 +40,7 @@ of absolute signed residuals.
 
 A malformed or unsupported PNG file.
 
-[Source](/reference-sources/Image.Png.cinch) · line 30
+[Source](/reference-sources/Image.Png.cinch) · line 31
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PngBadSignature</span> :: <span class="tok-constructor">Image</span>.<span class="tok-constructor">Png</span>.<span class="tok-constructor">PngError</span></code></pre>
 
@@ -65,7 +65,7 @@ A malformed or unsupported PNG file.
 Read only the header: width, height and the raster format decoding would produce, without inflating
 image data. Transparency is taken into account when a tRNS chunk precedes the first IDAT.
 
-[Source](/reference-sources/Image.Png.cinch) · line 102
+[Source](/reference-sources/Image.Png.cinch) · line 103
 
 <a id="value-706e672d6465636f6465"></a>
 
@@ -75,7 +75,7 @@ image data. Transparency is taken into account when a tRNS chunk precedes the fi
 
 Decode a complete PNG file.
 
-[Source](/reference-sources/Image.Png.cinch) · line 90
+[Source](/reference-sources/Image.Png.cinch) · line 91
 
 <a id="value-706e672d656e636f6465"></a>
 
@@ -85,7 +85,7 @@ Decode a complete PNG file.
 
 Encode a raster as a non-interlaced PNG.
 
-[Source](/reference-sources/Image.Png.cinch) · line 473
+[Source](/reference-sources/Image.Png.cinch) · line 461
 
 <a id="value-706e672d6572726f722d6d657373616765"></a>
 
@@ -95,8 +95,8 @@ Encode a raster as a non-interlaced PNG.
 
 Render a PNG error.
 
-[Source](/reference-sources/Image.Png.cinch) · line 45
+[Source](/reference-sources/Image.Png.cinch) · line 46
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Png.cinch`. Source SHA-256: `8040ff6891b589157daeda5d4d55e83daf7543d91591dc202a193f662fe44060`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Image/Png.cinch`. Source SHA-256: `4365df5473eb069b7c08d3151d5603c6e5475295e52f25e140c1a41d50af4e1b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

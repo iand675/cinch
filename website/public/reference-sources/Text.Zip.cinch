@@ -20,13 +20,14 @@ module Text.Zip where
   import Data.Result
   import Data.String
   import Text.Checksum
+  import Text.Flate
   import Text.Zlib
 
   export ZipArchive, ZipEntry, ZipFile, ZipError, ZipNotFound, ZipBadEntry, ZipTruncated, ZipUnsupportedMethod, ZipChecksumMismatch, ZipSizeMismatch, ZipBadDeflate, zip-error-message
   export zip-read, zip-entries, zip-comment, zip-open
   export zip-entry-name, zip-entry-comment, zip-entry-method, zip-entry-flags, zip-entry-crc32, zip-entry-compressed-size, zip-entry-size
   export zip-entry-modified, zip-entry-mode, zip-entry-external-attrs, zip-entry-creator, zip-entry-extra, zip-entry-is-directory
-  export zip-store, zip-deflate, zip-file, zip-file-with-mode, zip-file-with-modified, zip-file-with-comment, zip-write
+  export zip-store, zip-deflate, zip-file, zip-file-with-level, zip-file-with-mode, zip-file-with-modified, zip-file-with-comment, zip-write
 
   -- | Method code for uncompressed data.
   zip-store :: Nat
@@ -316,27 +317,32 @@ module Text.Zip where
     Ok result -> (case result of (contents, used) -> Ok contents)
     Err error -> Err ZipBadDeflate
 
-  -- | A file to write: name, comment, method, Unix mode (zero for none), modification time and data.
+  -- | A file to write: name, comment, method, compression level, Unix mode (zero for none), modification time and data.
   data ZipFile where
     -- | Private fields in the order listed above, with a flag recording whether a time was set.
-    File :: Bytes -> Bytes -> Nat -> Nat -> Bool -> Int -> Bytes -> ZipFile
+    File :: Bytes -> Bytes -> Nat -> FlateCompression -> Nat -> Bool -> Int -> Bytes -> ZipFile
 
   -- | A file with the given name, method and data, no mode, no comment and no modification time.
   -- Names ending in a slash are written as directories, always stored and without data.
   zip-file :: Bytes -> Nat -> Bytes -> ZipFile
-  zip-file name method contents = File name (bytes-new 0) method 0 False 0 contents
+  zip-file name method contents = File name (bytes-new 0) method FlateDefaultCompression 0 False 0 contents
+
+  -- | A deflated file with the given name, compression level and data, no mode, no comment and no modification time.
+  -- Names ending in a slash are written as directories, always stored and without data.
+  zip-file-with-level :: Bytes -> FlateCompression -> Bytes -> ZipFile
+  zip-file-with-level name level contents = File name (bytes-new 0) zip-deflate level 0 False 0 contents
 
   -- | Record Unix permission and type bits (for example 0o100644 for a regular file or 0o40755 for a directory).
   zip-file-with-mode :: ZipFile -> Nat -> ZipFile
-  zip-file-with-mode f mode = case f of File n c m o has t d -> File n c m mode has t d
+  zip-file-with-mode f mode = case f of File n c m lv o has t d -> File n c m lv mode has t d
 
   -- | Record a modification time in Unix seconds (UTC).
   zip-file-with-modified :: ZipFile -> Int -> ZipFile
-  zip-file-with-modified f time = case f of File n c m o has t d -> File n c m o True time d
+  zip-file-with-modified f time = case f of File n c m lv o has t d -> File n c m lv o True time d
 
   -- | Attach a per-file comment.
   zip-file-with-comment :: ZipFile -> Bytes -> ZipFile
-  zip-file-with-comment f comment = case f of File n c m o has t d -> File n comment m o has t d
+  zip-file-with-comment f comment = case f of File n c m lv o has t d -> File n comment m lv o has t d
 
   -- | Write files and an archive comment as a complete archive.
   zip-write :: List ZipFile -> Bytes -> Result ZipError Bytes
@@ -353,16 +359,22 @@ module Text.Zip where
       Ok pieces -> case pieces of
         (local, central) -> write-files rest (offset + bytes-len local) (Cons local body) (Cons central directory) comment
 
+  -- | Compress an entry's payload with raw DEFLATE at the requested level, falling back to stored blocks on invalid levels.
+  deflate-payload :: FlateCompression -> Bytes -> Bytes
+  deflate-payload level payload = case flate-compress level payload of
+    Ok compressed -> compressed
+    Err _ -> deflate-raw-stored payload
+
   -- | Encode a file's local header, data and descriptor, and its central directory record.
   encode-file :: ZipFile -> Nat -> Result ZipError (Bytes, Bytes)
   encode-file file offset = case file of
-    File name comment method mode has-time time contents ->
+    File name comment method level mode has-time time contents ->
       let directory = 0 < bytes-len name && at name (minus (bytes-len name) 1) == 47 in
       let used = if directory then (0 :: Nat) else method in
       if not (used == 0 || used == 8) then Err (ZipUnsupportedMethod used)
       else
         let payload = file-data directory contents in
-        let packed = if used == 8 then deflate-raw-rle payload else payload in
+        let packed = if used == 8 then deflate-payload level payload else payload in
         let crc = crc32-sum payload in
         let big = bytes-len packed >= 4294967295 || bytes-len payload >= 4294967295 in
         let flags = (if directory then (0 :: Nat) else 8) + (if needs-utf8 name comment then 2048 else 0) in

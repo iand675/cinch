@@ -1,5 +1,5 @@
 -- | Adler-32 checksums, persistent accumulators and versioned binary checkpoints.
--- Updates consume sixteen bytes with SIMD weighted reductions and normalize
+-- Updates consume sixteen bytes with packed parallel weighted reductions and normalize
 -- the two sums after segments of at most 5552 bytes. Accumulators use explicit
 -- 32-bit wrapping; normal states satisfy the segment's no-overflow bound.
 -- Digest bytes use network order. Retaining a state branches the computation,
@@ -12,6 +12,7 @@ module Text.Adler32 where
   import Data.Nat
   import Data.Result
   import Data.String
+  import Data.Wide (wrapping-u128-to-u64, wrapping-shr-u128)
   import Text.Binary
 
   export adler32-sum, adler32-update
@@ -30,38 +31,54 @@ module Text.Adler32 where
   adler32-update previous input = segments input 0 previous
 
   -- | Normalize after at most 5552 bytes, bounding ordinary accumulator growth.
-  segments :: Bytes -> Nat -> U32 -> U32
+  segments :: Bytes -> I64 -> U32 -> U32
   segments input start previous =
-    if start < bytes-len input then
-      let end = if start + 5552 <= bytes-len input then start + 5552 else bytes-len input in
-      case accumulate input start end (bit-and-u32 previous 65535) (wrapping-shr-u32 previous 16) of
+    let n = bytes-len-i64 input in
+    if 0 <= start && start < n then
+      let end = if 5552 <= wrapping-sub-i64 n start then wrapping-add-i64 start 5552 else wrapping-add-i64 n 0 in
+      let low0 = bit-and-u32 previous 65535 in
+      let high0 = wrapping-shr-u32 previous 16 in
+      case accumulate input start end low0 high0 of
         (low, high) -> segments input end (reduce-sums low high)
     else previous
 
-  -- | Advance complete SIMD blocks and exact tail bytes within one bounded segment.
+  -- | Advance complete 16-byte blocks and exact tail bytes within one bounded segment.
   -- The weighted sum includes sixteen copies of the preceding low accumulator.
-  accumulate :: Bytes -> Nat -> Nat -> U32 -> U32 -> (U32, U32)
+  accumulate :: Bytes -> I64 -> I64 -> U32 -> U32 -> (U32, U32)
   accumulate input i end low high =
-    if i + 16 <= end && i + 16 <= bytes-len input then
-      let sums = adler16 (bytes-read-le64 input i) (bytes-read-le64 input (i + 8)) in
-      let total = wrapping-u64-to-u32 sums in
-      let weighted = wrapping-u64-to-u32 (wrapping-shr-u64 sums 32) in
-      accumulate input (i + 16) end (wrapping-add-u32 low total)
-        (wrapping-add-u32 high (wrapping-add-u32 (wrapping-mul-u32 low 16) weighted))
-    else if i < end && i < bytes-len input then
-      let next = wrapping-add-u32 low (wrapping-i64-to-u32 (nat-to-i64 (bytes-get input i))) in
-      accumulate input (i + 1) end next (wrapping-add-u32 high next)
+    let n = bytes-len-i64 input in
+    if 16 <= n then
+      let stop = if end <= n then end else wrapping-add-i64 n 0 in
+      if 16 <= stop then
+        let stop-lim = wrapping-sub-i64 stop 16 in
+        let nn = nat-from-i64 n in
+        let lim = nn - 16 in
+        if 0 <= i && i <= stop-lim && i <= wrapping-sub-i64 n 16 && nat-from-i64 i <= lim then
+          let chunk = bytes-load-u128-at input i in
+          let w0 = wrapping-u128-to-u64 chunk in
+          let w1 = wrapping-u128-to-u64 (wrapping-shr-u128 chunk 64) in
+          let sums = adler16 w0 w1 in
+          let total = wrapping-u64-to-u32 sums in
+          let weighted = wrapping-u64-to-u32 (wrapping-shr-u64 sums 32) in
+          accumulate input (wrapping-add-i64 i 16) end
+            (wrapping-add-u32 low total)
+            (wrapping-add-u32 high (wrapping-add-u32 (wrapping-shl-u32 low 4) weighted))
+        else accumulate-tail input i stop low high
+      else accumulate-tail input i stop low high
+    else accumulate-tail input i end low high
+
+  -- | Finish remaining bytes after the final complete 16-byte block within one segment.
+  accumulate-tail :: Bytes -> I64 -> I64 -> U32 -> U32 -> (U32, U32)
+  accumulate-tail input i end low high =
+    if 0 <= i && i < end && i < bytes-len-i64 input then
+      let next = wrapping-add-u32 low (u8-to-u32 (bytes-get-u8-at input i)) in
+      accumulate-tail input (wrapping-add-i64 i 1) end next (wrapping-add-u32 high next)
     else (low, high)
 
   -- | Reduce both unsigned accumulators by the fixed positive modulus and pack the finished checksum.
-  prim reduce-sums :: U32 -> U32 -> U32 where
-    llvm {
-      %low = urem i32 %0, 65521
-      %high = urem i32 %1, 65521
-      %upper = shl i32 %high, 16
-      %result = or i32 %upper, %low
-      ret i32 %result
-    }
+  reduce-sums :: U32 -> U32 -> U32
+  reduce-sums low high =
+    bit-or-u32 (wrapping-shl-u32 (rem-u32 high 65521) 16) (rem-u32 low 65521)
 
   -- | An immutable scalar checksum accumulator; input buffers are never retained.
   data Adler32State where
@@ -141,38 +158,22 @@ module Text.Adler32 where
         else Err (InvalidAdler32StateSize 8 (bytes-len input))
       else Err InvalidAdler32StateIdentifier
     else Err InvalidAdler32StateIdentifier
-  -- | Reduce sixteen byte lanes to their sum and descending weighted sum; each fits in 32 bits.
-  prim adler16 :: U64 -> U64 -> U64 where
-    llvm {
-      %in0 = or i64 %0, 0
-      %in1 = or i64 %1, 0
-      %a = bitcast i64 %in0 to <8 x i8>
-      %b = bitcast i64 %in1 to <8 x i8>
-      %bytes = shufflevector <8 x i8> %a, <8 x i8> %b, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %wide = zext <16 x i8> %bytes to <16 x i32>
-      %weighted = mul <16 x i32> %wide, <i32 16, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1>
-      %sum = call i32 @llvm.vector.reduce.add.v16i32(<16 x i32> %wide)
-      %weight = call i32 @llvm.vector.reduce.add.v16i32(<16 x i32> %weighted)
-      %lo = zext i32 %sum to i64
-      %hi = zext i32 %weight to i64
-      %hs = shl i64 %hi, 32
-      %result = or i64 %lo, %hs
-      ret i64 %result
-    } when endian little
-    llvm {
-      %in0 = call i64 @llvm.bswap.i64(i64 %0)
-      %in1 = call i64 @llvm.bswap.i64(i64 %1)
-      %a = bitcast i64 %in0 to <8 x i8>
-      %b = bitcast i64 %in1 to <8 x i8>
-      %bytes = shufflevector <8 x i8> %a, <8 x i8> %b, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
-      %wide = zext <16 x i8> %bytes to <16 x i32>
-      %weighted = mul <16 x i32> %wide, <i32 16, i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1>
-      %sum = call i32 @llvm.vector.reduce.add.v16i32(<16 x i32> %wide)
-      %weight = call i32 @llvm.vector.reduce.add.v16i32(<16 x i32> %weighted)
-      %lo = zext i32 %sum to i64
-      %hi = zext i32 %weight to i64
-      %hs = shl i64 %hi, 32
-      %result = or i64 %lo, %hs
-      ret i64 %result
-    } when endian big
+
+  -- | Reduce sixteen little-endian packed bytes to their sum (low 32 bits) and descending weighted sum (high 32 bits).
+  -- Each intermediate 16-bit SWAR lane stays well below 65536, so multiplying by packed weights is exact.
+  adler16 :: U64 -> U64 -> U64
+  adler16 w0 w1 =
+    let even0 = bit-and-u64 w0 0x00FF00FF00FF00FF in
+    let odd0 = bit-and-u64 (wrapping-shr-u64 w0 8) 0x00FF00FF00FF00FF in
+    let even1 = bit-and-u64 w1 0x00FF00FF00FF00FF in
+    let odd1 = bit-and-u64 (wrapping-shr-u64 w1 8) 0x00FF00FF00FF00FF in
+    let s0 = wrapping-shr-u64 (wrapping-mul-u64 (wrapping-add-u64 even0 odd0) 0x0001000100010001) 48 in
+    let s1 = wrapping-shr-u64 (wrapping-mul-u64 (wrapping-add-u64 even1 odd1) 0x0001000100010001) 48 in
+    let total = wrapping-add-u64 s0 s1 in
+    let even = wrapping-add-u64 even0 even1 in
+    let odd = wrapping-add-u64 odd0 odd1 in
+    let w-even = wrapping-shr-u64 (wrapping-mul-u64 even 0x0008000600040002) 48 in
+    let w-odd = wrapping-shr-u64 (wrapping-mul-u64 odd 0x0007000500030001) 48 in
+    let weighted = wrapping-add-u64 (wrapping-shl-u64 s0 3) (wrapping-add-u64 w-even w-odd) in
+    bit-or-u64 total (wrapping-shl-u64 weighted 32)
 

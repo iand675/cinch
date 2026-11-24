@@ -1,0 +1,2608 @@
+-- | X.509 v3 certificates, public/private key codecs (PKIX, PKCS#8, SEC 1, PKCS#1),
+-- certificate signing requests (PKCS#10), hostname verification (RFC 6125),
+-- certificate revocation list verification, and chain validation (RFC 5280).
+--
+-- Supports RSA (PKCS#1 v1.5 and RSASSA-PSS), ECDSA P-256, Ed25519, and X25519 keys.
+-- All parsing, cryptographic signature verification, constraint checking, and DER
+-- generation are pure Cinch over Crypto.Pkix, Text.Asn1, Text.Pem, Crypto.Rsa,
+-- Crypto.Ecdsa, Crypto.P256, Crypto.Ed25519, Crypto.X25519, and Data.NetIp.
+module Crypto.X509 where
+
+  import Crypto.Ecdsa
+  import Crypto.Ed25519
+  import Crypto.P256
+  import Crypto.Pkix
+  import Crypto.Rsa
+  import Crypto.X25519
+  import Data.Bool
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.NetIp
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Wide
+  import Text.Asn1
+  import Text.Pem
+  import Text.Sha1
+  import Text.Sha256
+  import Text.Sha512
+
+  export X509Error, X509Asn1Error, X509PkixError, X509InvalidEncoding, X509InvalidKey, X509UnsupportedAlgorithm, X509SignatureAlgorithmMismatch, X509SignatureInvalid, X509Expired, X509HostnameMismatch, X509UnknownAuthority, X509NotAuthorizedToSign, X509TooManyIntermediates, X509NameConstraintViolation, X509IncompatibleUsage, X509UnhandledCriticalExtension, X509InvalidExtension, x509-error-message
+  export Ed25519PublicKey, ed25519-public-key-from-bytes, ed25519-public-key-bytes
+  export X25519PublicKey, x25519-public-key-from-bytes, x25519-public-key-bytes
+  export PublicKey, PubRsa, PubP256, PubEd25519, PubX25519, public-key-equal
+  export PrivateKey, PrivRsa, PrivP256, PrivEd25519, PrivX25519, public-key-of
+  export parse-pkix-public-key, marshal-pkix-public-key
+  export parse-pkcs8-private-key, marshal-pkcs8-private-key
+  export parse-ec-private-key, marshal-ec-private-key
+  export parse-pkcs1-public-key, marshal-pkcs1-public-key, parse-pkcs1-private-key, marshal-pkcs1-private-key
+  export SignatureAlgorithm, SigUnknownAlgorithm, SigSha1WithRsa, SigSha256WithRsa, SigSha384WithRsa, SigSha512WithRsa, SigSha256WithRsaPss, SigSha384WithRsaPss, SigSha512WithRsaPss, SigEcdsaWithSha256, SigEcdsaWithSha384, SigEcdsaWithSha512, SigPureEd25519, sig-alg-equal, sig-alg-to-pkix, sig-alg-from-pkix
+  export key-usage-none, key-usage-digital-signature, key-usage-content-commitment, key-usage-key-encipherment, key-usage-data-encipherment, key-usage-key-agreement, key-usage-cert-sign, key-usage-crl-sign, key-usage-encipher-only, key-usage-decipher-only, key-usage-has, key-usage-union
+  export ExtKeyUsage, ExtKeyUsageAny, ExtKeyUsageServerAuth, ExtKeyUsageClientAuth, ExtKeyUsageCodeSigning, ExtKeyUsageEmailProtection, ExtKeyUsageIpsecEndSystem, ExtKeyUsageIpsecTunnel, ExtKeyUsageIpsecUser, ExtKeyUsageTimeStamping, ExtKeyUsageOcspSigning, ExtKeyUsageOther, eku-equal, eku-to-oid, eku-from-oid
+  export Certificate, cert-version, cert-serial-number, cert-signature-algorithm, cert-issuer, cert-subject, cert-not-before, cert-not-after, cert-public-key, cert-raw-tbs-certificate, cert-signature, cert-basic-constraints-valid, cert-is-ca, cert-max-path-len, cert-key-usage, cert-ext-key-usage, cert-dns-names, cert-email-addresses, cert-ip-addresses, cert-uris, cert-subject-key-id, cert-authority-key-id, cert-permitted-dns-domains, cert-excluded-dns-domains, cert-permitted-ip-ranges, cert-excluded-ip-ranges, cert-extensions, cert-raw
+  export parse-certificate, parse-certificates, parse-certificates-pem
+  export check-signature, check-signature-from, check-crl-signature-from
+  export verify-hostname
+  export CertPool, cert-pool-new, cert-pool-add, cert-pool-append-pem, cert-pool-certs, cert-pool-len
+  export VerifyOptions, verify-options-new, verify-with-intermediates, verify-with-dns-name, verify-with-key-usages, verify-certificate
+  export CertificateTemplate, cert-template-new, template-with-sig-alg, template-with-ca, template-with-max-path-len, template-with-key-usage, template-with-ext-key-usage, template-with-dns-names, template-with-email-addresses, template-with-ip-addresses, template-with-uris, template-with-subject-key-id, template-with-authority-key-id, template-with-permitted-dns, template-with-excluded-dns, template-with-permitted-ips, template-with-excluded-ips, template-with-extra-extensions, create-certificate
+  export CertificateRequest, csr-version, csr-subject, csr-public-key, csr-signature-algorithm, csr-signature, csr-raw-tbs, csr-raw, csr-dns-names, csr-email-addresses, csr-ip-addresses, csr-uris, csr-extensions
+  export parse-certificate-request, check-certificate-request-signature
+  export CsrTemplate, csr-template-new, csr-template-with-sig-alg, csr-template-with-dns-names, csr-template-with-email-addresses, csr-template-with-ip-addresses, csr-template-with-uris, csr-template-with-extensions, create-certificate-request
+  export create-revocation-list
+
+  -- ---------------------------------------------------------------------
+  -- Errors.
+  -- ---------------------------------------------------------------------
+
+  -- | Structured error values returned by X.509 parsing, signing, and verification operations.
+  data X509Error where
+    -- | Underlying ASN.1 DER decoding failure.
+    X509Asn1Error :: Asn1Error -> X509Error
+    -- | Underlying PKIX structure failure.
+    X509PkixError :: PkixError -> X509Error
+    -- | Malformed DER structure in a key, certificate, CSR, or CRL.
+    X509InvalidEncoding :: String -> X509Error
+    -- | Invalid key parameters, curve point, or key material.
+    X509InvalidKey :: String -> X509Error
+    -- | Unsupported public key, private key, curve, or signature algorithm.
+    X509UnsupportedAlgorithm :: X509Error
+    -- | Signature algorithm does not match the key type.
+    X509SignatureAlgorithmMismatch :: X509Error
+    -- | Cryptographic signature verification failed.
+    X509SignatureInvalid :: X509Error
+    -- | Certificate is expired or not yet valid at the verification timestamp.
+    X509Expired :: X509Error
+    -- | Certificate does not match the requested DNS name or IP address.
+    X509HostnameMismatch :: String -> X509Error
+    -- | Certificate is signed by an unknown or untrusted authority.
+    X509UnknownAuthority :: X509Error
+    -- | Issuing certificate is not authorized to sign certificates or CRLs.
+    X509NotAuthorizedToSign :: X509Error
+    -- | Certificate chain exceeds a CA's BasicConstraints pathLenConstraint.
+    X509TooManyIntermediates :: X509Error
+    -- | Subject alternative name violates a CA's NameConstraints extension.
+    X509NameConstraintViolation :: String -> X509Error
+    -- | Certificate chain is not valid for any of the requested extended key usages.
+    X509IncompatibleUsage :: X509Error
+    -- | Certificate contains an unrecognized critical extension.
+    X509UnhandledCriticalExtension :: List Nat -> X509Error
+    -- | An X.509 v3 extension failed structural validation.
+    X509InvalidExtension :: String -> X509Error
+
+  -- | Render an `X509Error` as a human-readable diagnostic message.
+  x509-error-message :: X509Error -> String
+  x509-error-message err = case err of
+    X509Asn1Error e -> string-concat "x509: " (asn1-error-message e)
+    X509PkixError e -> string-concat "x509: " (pkix-error-message e)
+    X509InvalidEncoding msg -> string-concat "x509: invalid encoding: " msg
+    X509InvalidKey msg -> string-concat "x509: invalid key: " msg
+    X509UnsupportedAlgorithm -> "x509: unsupported algorithm"
+    X509SignatureAlgorithmMismatch -> "x509: signature algorithm does not match key type"
+    X509SignatureInvalid -> "x509: invalid signature"
+    X509Expired -> "x509: certificate has expired or is not yet valid"
+    X509HostnameMismatch host -> string-concat "x509: certificate is not valid for " host
+    X509UnknownAuthority -> "x509: certificate signed by unknown authority"
+    X509NotAuthorizedToSign -> "x509: issuer is not authorized to sign"
+    X509TooManyIntermediates -> "x509: too many intermediates for path length constraint"
+    X509NameConstraintViolation detail -> string-concat "x509: name constraint violation: " detail
+    X509IncompatibleUsage -> "x509: certificate specifies an incompatible key usage"
+    X509UnhandledCriticalExtension oid -> string-concat "x509: unhandled critical extension " (oid-to-string oid)
+    X509InvalidExtension msg -> string-concat "x509: invalid extension: " msg
+
+  -- ---------------------------------------------------------------------
+  -- Byte, list, and ASCII helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Read a byte at index i, or 0 past the end.
+  at :: Bytes -> Nat -> Nat
+  at buf i = if i < bytes-len buf then bytes-get buf i else 0
+
+  -- | Copy slice [start, stop) into a fresh buffer.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice buf start stop =
+    if start <= stop && stop <= bytes-len buf then
+      let len = stop - start in
+      let out = bytes-new len in
+      let c = bytes-copy-range out buf 0 start len in
+      out
+    else bytes-new 0
+
+  -- | Saturating natural subtraction.
+  sub-sat :: Nat -> Nat -> Nat
+  sub-sat a b = if b <= a then a - b else 0
+
+  -- | Exact byte-buffer equality.
+  bytes-eq :: Bytes -> Bytes -> Bool
+  bytes-eq a b = eq-i64 (bytes-compare a b) 0
+
+  -- | Single-byte buffer from a natural value modulo 256.
+  one-byte :: Nat -> Bytes
+  one-byte n = bytes-from-u8s [wrapping-i64-to-u8 (nat-to-i64 (nat-rem n 256))]
+
+  -- | Convert a Nat to U32 modulo 2^32.
+  nat-to-u32-mod :: Nat -> U32
+  nat-to-u32-mod n = wrapping-i64-to-u32 (nat-to-i64 (nat-rem n 4294967296))
+
+  -- | Left-pad a byte buffer with zero bytes to length `width`.
+  left-pad-bytes :: Bytes -> Nat -> Bytes
+  left-pad-bytes buf width =
+    let n = bytes-len buf in
+    if n >= width then buf
+    else bytes-concat [bytes-new (sub-sat width n), buf]
+
+  -- | Tail-recursive list append.
+  append-list :: forall a. List a -> List a -> List a
+  append-list xs ys = rev-onto (reverse xs) ys
+
+  -- | Reverse the first list onto the front of the second.
+  rev-onto :: forall a. List a -> List a -> List a
+  rev-onto xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> rev-onto rest (Cons x acc)
+
+  -- | Count list elements tail-recursively.
+  list-len :: forall a. List a -> Nat -> Nat
+  list-len xs acc = case xs of
+    Nil -> acc
+    Cons _ rest -> list-len rest (acc + 1)
+
+  -- | Lowercase ASCII bytes in a String.
+  ascii-lower :: String -> String
+  ascii-lower text =
+    let bs = string-to-bytes text in
+    let n = bytes-len bs in
+    let out = bytes-new n in
+    let done = ascii-lower-loop bs out 0 n in
+    case string-from-bytes out of
+      Some s -> s
+      None -> text
+
+  -- | Copy bytes from src into dst, folding ASCII A..Z to a..z.
+  ascii-lower-loop :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  ascii-lower-loop src dst i n =
+    if i < n && i < bytes-len src && i < bytes-len dst then
+      let b = bytes-get src i in
+      let w = if b >= 65 && b <= 90 then bytes-set dst i (b + 32) else bytes-set dst i b in
+      ascii-lower-loop src dst (i + 1) n
+    else ()
+
+  -- | Strip a single trailing ASCII dot from a String if present.
+  strip-trailing-dot :: String -> String
+  strip-trailing-dot text =
+    let bs = string-to-bytes text in
+    let n = bytes-len bs in
+    if n > 0 && at bs (sub-sat n 1) == 46 then
+      (case string-from-bytes (slice bs 0 (sub-sat n 1)) of
+        Some s -> s
+        None -> text)
+    else text
+
+  -- | Split a String on an ASCII delimiter byte (such as '.' = 46).
+  split-ascii :: String -> Nat -> List String
+  split-ascii text sep =
+    let bs = string-to-bytes text in
+    split-ascii-loop bs sep 0 0 (bytes-len bs) Nil
+
+  -- | Tail-recursive byte splitter on a single ASCII delimiter.
+  split-ascii-loop :: Bytes -> Nat -> Nat -> Nat -> Nat -> List String -> List String
+  split-ascii-loop bs sep start i n acc =
+    if i >= n then
+      let piece = bytes-to-str (slice bs start n) in
+      reverse (Cons piece acc)
+    else if at bs i == sep then
+      let piece = bytes-to-str (slice bs start i) in
+      split-ascii-loop bs sep (i + 1) (i + 1) n (Cons piece acc)
+    else split-ascii-loop bs sep start (i + 1) n acc
+
+  -- | Convert valid UTF-8 bytes to a String, returning empty string on invalid UTF-8.
+  bytes-to-str :: Bytes -> String
+  bytes-to-str bs = case string-from-bytes bs of
+    Some s -> s
+    None -> empty-string
+
+  -- | Strip outer DER tag and length bytes from a DER element to obtain its content octets.
+  strip-der-header :: Bytes -> Bytes
+  strip-der-header der = case der-element-bounds der 0 of
+    Some (_, cstart, cend) -> slice der cstart cend
+    None -> bytes-new 0
+
+  -- ---------------------------------------------------------------------
+  -- Standard X.509 OIDs.
+  -- ---------------------------------------------------------------------
+
+  -- | OID 1.2.840.113549.1.1.1 (rsaEncryption).
+  oid-rsa-encryption :: List Nat
+  oid-rsa-encryption = [1, 2, 840, 113549, 1, 1, 1]
+
+  -- | OID 1.2.840.10045.2.1 (id-ecPublicKey).
+  oid-ec-public-key :: List Nat
+  oid-ec-public-key = [1, 2, 840, 10045, 2, 1]
+
+  -- | OID 1.2.840.10045.3.1.7 (prime256v1 / secp256r1 / NIST P-256).
+  oid-curve-p256 :: List Nat
+  oid-curve-p256 = [1, 2, 840, 10045, 3, 1, 7]
+
+  -- | OID 1.3.101.112 (id-Ed25519).
+  oid-ed25519 :: List Nat
+  oid-ed25519 = [1, 3, 101, 112]
+
+  -- | OID 1.3.101.110 (id-X25519).
+  oid-x25519 :: List Nat
+  oid-x25519 = [1, 3, 101, 110]
+
+  -- | OID 1.2.840.113549.1.1.5 (sha1WithRSAEncryption).
+  oid-sha1-with-rsa :: List Nat
+  oid-sha1-with-rsa = [1, 2, 840, 113549, 1, 1, 5]
+
+  -- | OID 1.2.840.113549.1.1.11 (sha256WithRSAEncryption).
+  oid-sha256-with-rsa :: List Nat
+  oid-sha256-with-rsa = [1, 2, 840, 113549, 1, 1, 11]
+
+  -- | OID 1.2.840.113549.1.1.12 (sha384WithRSAEncryption).
+  oid-sha384-with-rsa :: List Nat
+  oid-sha384-with-rsa = [1, 2, 840, 113549, 1, 1, 12]
+
+  -- | OID 1.2.840.113549.1.1.13 (sha512WithRSAEncryption).
+  oid-sha512-with-rsa :: List Nat
+  oid-sha512-with-rsa = [1, 2, 840, 113549, 1, 1, 13]
+
+  -- | OID 1.2.840.113549.1.1.10 (id-RSASSA-PSS).
+  oid-rsassa-pss :: List Nat
+  oid-rsassa-pss = [1, 2, 840, 113549, 1, 1, 10]
+
+  -- | OID 1.2.840.113549.1.1.8 (id-mgf1).
+  oid-mgf1 :: List Nat
+  oid-mgf1 = [1, 2, 840, 113549, 1, 1, 8]
+
+  -- | OID 2.16.840.1.101.3.4.2.1 (id-sha256).
+  oid-hash-sha256 :: List Nat
+  oid-hash-sha256 = [2, 16, 840, 1, 101, 3, 4, 2, 1]
+
+  -- | OID 2.16.840.1.101.3.4.2.2 (id-sha384).
+  oid-hash-sha384 :: List Nat
+  oid-hash-sha384 = [2, 16, 840, 1, 101, 3, 4, 2, 2]
+
+  -- | OID 2.16.840.1.101.3.4.2.3 (id-sha512).
+  oid-hash-sha512 :: List Nat
+  oid-hash-sha512 = [2, 16, 840, 1, 101, 3, 4, 2, 3]
+
+  -- | OID 1.2.840.10045.4.3.2 (ecdsa-with-SHA256).
+  oid-ecdsa-sha256 :: List Nat
+  oid-ecdsa-sha256 = [1, 2, 840, 10045, 4, 3, 2]
+
+  -- | OID 1.2.840.10045.4.3.3 (ecdsa-with-SHA384).
+  oid-ecdsa-sha384 :: List Nat
+  oid-ecdsa-sha384 = [1, 2, 840, 10045, 4, 3, 3]
+
+  -- | OID 1.2.840.10045.4.3.4 (ecdsa-with-SHA512).
+  oid-ecdsa-sha512 :: List Nat
+  oid-ecdsa-sha512 = [1, 2, 840, 10045, 4, 3, 4]
+
+  -- | OID 2.5.29.14 (subjectKeyIdentifier).
+  oid-ext-ski :: List Nat
+  oid-ext-ski = [2, 5, 29, 14]
+
+  -- | OID 2.5.29.15 (keyUsage).
+  oid-ext-key-usage :: List Nat
+  oid-ext-key-usage = [2, 5, 29, 15]
+
+  -- | OID 2.5.29.17 (subjectAltName).
+  oid-ext-san :: List Nat
+  oid-ext-san = [2, 5, 29, 17]
+
+  -- | OID 2.5.29.19 (basicConstraints).
+  oid-ext-basic-constraints :: List Nat
+  oid-ext-basic-constraints = [2, 5, 29, 19]
+
+  -- | OID 2.5.29.30 (nameConstraints).
+  oid-ext-name-constraints :: List Nat
+  oid-ext-name-constraints = [2, 5, 29, 30]
+
+  -- | OID 2.5.29.35 (authorityKeyIdentifier).
+  oid-ext-aki :: List Nat
+  oid-ext-aki = [2, 5, 29, 35]
+
+  -- | OID 2.5.29.37 (extKeyUsage).
+  oid-ext-eku :: List Nat
+  oid-ext-eku = [2, 5, 29, 37]
+
+  -- | OID 1.2.840.113549.1.9.14 (pkcs-9-at-extensionRequest for CSRs).
+  oid-ext-request :: List Nat
+  oid-ext-request = [1, 2, 840, 113549, 1, 9, 14]
+
+  -- | Return True iff the extension OID is understood and enforced by this verifier.
+  is-handled-extension :: List Nat -> Bool
+  is-handled-extension oid =
+    oid-equal oid oid-ext-basic-constraints
+      || oid-equal oid oid-ext-key-usage
+      || oid-equal oid oid-ext-eku
+      || oid-equal oid oid-ext-san
+      || oid-equal oid oid-ext-ski
+      || oid-equal oid oid-ext-aki
+      || oid-equal oid oid-ext-name-constraints
+
+  -- ---------------------------------------------------------------------
+  -- PublicKey and PrivateKey types and codecs (PKIX, PKCS#8, SEC 1, PKCS#1).
+  -- ---------------------------------------------------------------------
+
+  -- | A validated 32-byte Ed25519 public key.
+  data Ed25519PublicKey where
+    -- | Private 32-byte public key buffer.
+    MkEd25519PublicKey :: Bytes -> Ed25519PublicKey
+
+  -- | Validate and construct an `Ed25519PublicKey` from 32 raw bytes.
+  ed25519-public-key-from-bytes :: Bytes -> Result X509Error Ed25519PublicKey
+  ed25519-public-key-from-bytes bs =
+    if bytes-len bs == ed25519-public-key-size then Ok (MkEd25519PublicKey (bytes-clone bs))
+    else Err (X509InvalidKey "Ed25519 public key must be 32 bytes")
+
+  -- | Return an independent copy of an `Ed25519PublicKey`'s 32 bytes.
+  ed25519-public-key-bytes :: Ed25519PublicKey -> Bytes
+  ed25519-public-key-bytes k = case k of MkEd25519PublicKey bs -> bytes-clone bs
+
+  -- | A validated 32-byte X25519 public key.
+  data X25519PublicKey where
+    -- | Private 32-byte public key buffer.
+    MkX25519PublicKey :: Bytes -> X25519PublicKey
+
+  -- | Validate and construct an `X25519PublicKey` from 32 raw bytes.
+  x25519-public-key-from-bytes :: Bytes -> Result X509Error X25519PublicKey
+  x25519-public-key-from-bytes bs =
+    if bytes-len bs == x25519-key-size then Ok (MkX25519PublicKey (bytes-clone bs))
+    else Err (X509InvalidKey "X25519 public key must be 32 bytes")
+
+  -- | Return an independent copy of an `X25519PublicKey`'s 32 bytes.
+  x25519-public-key-bytes :: X25519PublicKey -> Bytes
+  x25519-public-key-bytes k = case k of MkX25519PublicKey bs -> bytes-clone bs
+
+  -- | A supported X.509 public key.
+  data PublicKey where
+    -- | An RSA public key.
+    PubRsa :: RsaPublicKey -> PublicKey
+    -- | A NIST P-256 ECDSA public key.
+    PubP256 :: P256PublicKey -> PublicKey
+    -- | An Ed25519 public key.
+    PubEd25519 :: Ed25519PublicKey -> PublicKey
+    -- | An X25519 key agreement public key.
+    PubX25519 :: X25519PublicKey -> PublicKey
+
+  -- | A supported X.509 private key.
+  data PrivateKey where
+    -- | An RSA private key.
+    PrivRsa :: RsaPrivateKey -> PrivateKey
+    -- | A NIST P-256 ECDSA private key.
+    PrivP256 :: P256PrivateKey -> PrivateKey
+    -- | An Ed25519 private key.
+    PrivEd25519 :: Ed25519PrivateKey -> PrivateKey
+    -- | An X25519 private key.
+    PrivX25519 :: X25519PrivateKey -> PrivateKey
+
+  -- | Derive the corresponding `PublicKey` from a `PrivateKey`.
+  public-key-of :: PrivateKey -> PublicKey
+  public-key-of priv = case priv of
+    PrivRsa k -> PubRsa (rsa-public-key-of k)
+    PrivP256 k -> PubP256 (p256-public-key-of k)
+    PrivEd25519 k -> PubEd25519 (MkEd25519PublicKey (ed25519-public-key k))
+    PrivX25519 k -> PubX25519 (MkX25519PublicKey (x25519-public-key k))
+
+  -- | Return True iff two `PublicKey` values are of the same type and equal.
+  public-key-equal :: PublicKey -> PublicKey -> Bool
+  public-key-equal a b = bytes-eq (marshal-pkix-public-key a) (marshal-pkix-public-key b)
+
+  -- | Parse an RSA public key in PKCS#1 ASN.1 DER form (delegating to `Crypto.Rsa`).
+  parse-pkcs1-public-key :: Bytes -> Result X509Error RsaPublicKey
+  parse-pkcs1-public-key der = case rsa-parse-pkcs1-public-key der of
+    Ok k -> Ok k
+    Err e -> Err (X509InvalidKey (rsa-error-message e))
+
+  -- | Marshal an RSA public key to PKCS#1 ASN.1 DER form (delegating to `Crypto.Rsa`).
+  marshal-pkcs1-public-key :: RsaPublicKey -> Bytes
+  marshal-pkcs1-public-key pub = rsa-marshal-pkcs1-public-key pub
+
+  -- | Parse an RSA private key in PKCS#1 ASN.1 DER form (delegating to `Crypto.Rsa`).
+  parse-pkcs1-private-key :: Bytes -> Result X509Error RsaPrivateKey
+  parse-pkcs1-private-key der = case rsa-parse-pkcs1-private-key der of
+    Ok k -> Ok k
+    Err e -> Err (X509InvalidKey (rsa-error-message e))
+
+  -- | Marshal an RSA private key to PKCS#1 ASN.1 DER form (delegating to `Crypto.Rsa`).
+  marshal-pkcs1-private-key :: RsaPrivateKey -> Bytes
+  marshal-pkcs1-private-key priv = rsa-marshal-pkcs1-private-key priv
+
+  -- | Encode a `PublicKey` to its SubjectPublicKeyInfo ASN.1 value.
+  public-key-to-spki-asn1 :: PublicKey -> Asn1
+  public-key-to-spki-asn1 pub = case pub of
+    PubRsa k ->
+      let raw = rsa-marshal-pkcs1-public-key k in
+      asn1-sequence [
+        pkix-alg-to-asn1 (pkix-algorithm-identifier oid-rsa-encryption (Some Asn1Null)),
+        Asn1BitString raw (bytes-len raw * 8)
+      ]
+    PubP256 k ->
+      let raw = p256-public-key-bytes k in
+      asn1-sequence [
+        pkix-alg-to-asn1 (pkix-algorithm-identifier oid-ec-public-key (Some (Asn1Oid oid-curve-p256))),
+        Asn1BitString raw (bytes-len raw * 8)
+      ]
+    PubEd25519 k ->
+      let raw = ed25519-public-key-bytes k in
+      asn1-sequence [
+        pkix-alg-to-asn1 (pkix-algorithm-identifier oid-ed25519 None),
+        Asn1BitString raw (bytes-len raw * 8)
+      ]
+    PubX25519 k ->
+      let raw = x25519-public-key-bytes k in
+      asn1-sequence [
+        pkix-alg-to-asn1 (pkix-algorithm-identifier oid-x25519 None),
+        Asn1BitString raw (bytes-len raw * 8)
+      ]
+
+  -- | Marshal a `PublicKey` to PKIX SubjectPublicKeyInfo DER bytes.
+  marshal-pkix-public-key :: PublicKey -> Bytes
+  marshal-pkix-public-key pub = asn1-encode (public-key-to-spki-asn1 pub)
+
+  -- | Parse a SubjectPublicKeyInfo ASN.1 value into a `PublicKey`.
+  parse-spki-asn1 :: Asn1 -> Result X509Error PublicKey
+  parse-spki-asn1 val = case val of
+    Asn1Sequence _ -> (case asn1-members val of
+      Cons alg-val (Cons (Asn1BitString key-bytes key-bits) Nil) ->
+        if nat-rem key-bits 8 /= 0 then Err (X509InvalidEncoding "SPKI bit string has unused bits")
+        else (case pkix-alg-from-asn1 alg-val of
+          Err e -> Err (X509PkixError e)
+          Ok alg -> decode-spki-key alg key-bytes)
+      other -> Err (X509InvalidEncoding "SubjectPublicKeyInfo must be SEQUENCE { AlgorithmIdentifier, BIT STRING }"))
+    other -> Err (X509InvalidEncoding "SubjectPublicKeyInfo must be a SEQUENCE")
+
+  -- | Decode the key bytes of a SubjectPublicKeyInfo according to its AlgorithmIdentifier.
+  decode-spki-key :: PkixAlgorithmIdentifier -> Bytes -> Result X509Error PublicKey
+  decode-spki-key alg key-bytes =
+    let oid = pkix-alg-oid alg in
+    let params = pkix-alg-params alg in
+    if oid-equal oid oid-rsa-encryption then
+      (case params of
+        None -> decode-spki-rsa key-bytes
+        Some Asn1Null -> decode-spki-rsa key-bytes
+        other -> Err (X509InvalidKey "RSA SPKI parameters must be NULL or absent"))
+    else if oid-equal oid oid-ec-public-key then
+      (case params of
+        Some (Asn1Oid curve) ->
+          if oid-equal curve oid-curve-p256 then
+            (case p256-public-key key-bytes of
+              Ok k -> Ok (PubP256 k)
+              Err e -> Err (X509InvalidKey (p256-error-message e)))
+          else Err X509UnsupportedAlgorithm
+        other -> Err (X509InvalidKey "EC SPKI parameters must be a named curve OID"))
+    else if oid-equal oid oid-ed25519 then
+      (case params of
+        None -> (case ed25519-public-key-from-bytes key-bytes of Ok k -> Ok (PubEd25519 k); Err e -> Err e)
+        Some _ -> Err (X509InvalidKey "Ed25519 SPKI must not carry parameters"))
+    else if oid-equal oid oid-x25519 then
+      (case params of
+        None -> (case x25519-public-key-from-bytes key-bytes of Ok k -> Ok (PubX25519 k); Err e -> Err e)
+        Some _ -> Err (X509InvalidKey "X25519 SPKI must not carry parameters"))
+    else Err X509UnsupportedAlgorithm
+
+  -- | Decode an RSA public key from SPKI subjectPublicKey bytes.
+  decode-spki-rsa :: Bytes -> Result X509Error PublicKey
+  decode-spki-rsa key-bytes = case rsa-parse-pkcs1-public-key key-bytes of
+    Ok k -> Ok (PubRsa k)
+    Err e -> Err (X509InvalidKey (rsa-error-message e))
+
+  -- | Parse a PKIX SubjectPublicKeyInfo DER buffer into a `PublicKey`.
+  parse-pkix-public-key :: Bytes -> Result X509Error PublicKey
+  parse-pkix-public-key der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> parse-spki-asn1 val
+
+  -- | Marshal a NIST P-256 private key to SEC 1 ECPrivateKey DER (RFC 5915), optionally including [0] namedCurve.
+  marshal-ec-private-key-inner :: P256PrivateKey -> Bool -> Bytes
+  marshal-ec-private-key-inner key include-curve =
+    let priv-bytes = p256-private-key-bytes key in
+    let pub-bytes = p256-public-key-bytes (p256-public-key-of key) in
+    let pub-field = asn1-explicit 1 (Asn1BitString pub-bytes (bytes-len pub-bytes * 8)) in
+    if include-curve then
+      asn1-encode (asn1-sequence [
+        Asn1Integer 1,
+        Asn1OctetString priv-bytes,
+        asn1-explicit 0 (Asn1Oid oid-curve-p256),
+        pub-field
+      ])
+    else
+      asn1-encode (asn1-sequence [
+        Asn1Integer 1,
+        Asn1OctetString priv-bytes,
+        pub-field
+      ])
+
+  -- | Marshal a NIST P-256 private key to standalone SEC 1 ASN.1 DER (including curve OID and public key).
+  marshal-ec-private-key :: P256PrivateKey -> Bytes
+  marshal-ec-private-key key = marshal-ec-private-key-inner key True
+
+  -- | Parse a SEC 1 ECPrivateKey DER buffer into a NIST P-256 private key.
+  parse-ec-private-key :: Bytes -> Result X509Error P256PrivateKey
+  parse-ec-private-key der = parse-ec-private-key-with-curve der None
+
+  -- | Parse a SEC 1 ECPrivateKey DER buffer with an optional outer curve OID from PKCS#8.
+  parse-ec-private-key-with-curve :: Bytes -> Option (List Nat) -> Result X509Error P256PrivateKey
+  parse-ec-private-key-with-curve der outer-curve = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> (case asn1-members val of
+        Cons (Asn1Integer 1) (Cons (Asn1OctetString scalar-raw) rest) ->
+          (case check-ec-private-tail rest outer-curve of
+            Err e -> Err e
+            Ok opt-pub ->
+              if bytes-len scalar-raw == 0 || bytes-len scalar-raw > 32 then
+                Err (X509InvalidKey "EC private scalar length out of range")
+              else
+                let scalar = left-pad-bytes scalar-raw 32 in
+                (case p256-private-key scalar of
+                  Err e -> Err (X509InvalidKey (p256-error-message e))
+                  Ok priv -> verify-ec-opt-pub priv opt-pub))
+        other -> Err (X509InvalidEncoding "ECPrivateKey must start with version 1 and privateKey OCTET STRING"))
+      other -> Err (X509InvalidEncoding "ECPrivateKey must be a SEQUENCE"))
+
+  -- | Check optional [0] namedCurve and [1] publicKey trailing fields in SEC 1 ECPrivateKey.
+  check-ec-private-tail :: List Asn1 -> Option (List Nat) -> Result X509Error (Option Bytes)
+  check-ec-private-tail rest outer-curve = case rest of
+    Nil -> (case outer-curve of
+      Some curve -> if oid-equal curve oid-curve-p256 then Ok None else Err X509UnsupportedAlgorithm
+      None -> Err (X509InvalidKey "ECPrivateKey missing namedCurve parameter"))
+    Cons (Asn1Raw cls 0 True content) more ->
+      if cls /= class-context then Err (X509InvalidEncoding "unexpected element in ECPrivateKey")
+      else (case asn1-decode content of
+        Err e -> Err (X509Asn1Error e)
+        Ok (Asn1Oid curve) ->
+          if not (oid-equal curve oid-curve-p256) then Err X509UnsupportedAlgorithm
+          else check-ec-opt-pub-field more
+        other -> Err (X509InvalidEncoding "ECPrivateKey parameters must be an OID"))
+    items ->
+      (case outer-curve of
+        Some curve ->
+          if oid-equal curve oid-curve-p256 then check-ec-opt-pub-field items
+          else Err X509UnsupportedAlgorithm
+        None -> Err (X509InvalidKey "ECPrivateKey missing namedCurve parameter"))
+
+  -- | Parse optional [1] EXPLICIT BIT STRING publicKey in SEC 1 ECPrivateKey.
+  check-ec-opt-pub-field :: List Asn1 -> Result X509Error (Option Bytes)
+  check-ec-opt-pub-field items = case items of
+    Nil -> Ok None
+    Cons (Asn1Raw cls 1 True content) Nil ->
+      if cls /= class-context then Err (X509InvalidEncoding "unexpected trailing element in ECPrivateKey")
+      else (case asn1-decode content of
+        Err e -> Err (X509Asn1Error e)
+        Ok (Asn1BitString pub-bs pub-bits) ->
+          if nat-rem pub-bits 8 == 0 then Ok (Some pub-bs)
+          else Err (X509InvalidEncoding "ECPrivateKey publicKey has unused bits")
+        other -> Err (X509InvalidEncoding "ECPrivateKey publicKey must be a BIT STRING"))
+    other -> Err (X509InvalidEncoding "unexpected trailing fields in ECPrivateKey")
+
+  -- | Verify optional embedded EC public key matches the derived public key when present.
+  verify-ec-opt-pub :: P256PrivateKey -> Option Bytes -> Result X509Error P256PrivateKey
+  verify-ec-opt-pub priv opt-pub = case opt-pub of
+    None -> Ok priv
+    Some raw -> (case p256-public-key raw of
+      Err e -> Err (X509InvalidKey (p256-error-message e))
+      Ok parsed-pub ->
+        if bytes-eq (p256-public-key-bytes parsed-pub) (p256-public-key-bytes (p256-public-key-of priv)) then Ok priv
+        else Err (X509InvalidKey "ECPrivateKey public key does not match private key"))
+
+  -- | Marshal a `PrivateKey` to PKCS#8 PrivateKeyInfo DER bytes (RFC 5208 / RFC 5958).
+  marshal-pkcs8-private-key :: PrivateKey -> Bytes
+  marshal-pkcs8-private-key priv = case priv of
+    PrivRsa k ->
+      asn1-encode (asn1-sequence [
+        Asn1Integer 0,
+        pkix-alg-to-asn1 (pkix-algorithm-identifier oid-rsa-encryption (Some Asn1Null)),
+        Asn1OctetString (rsa-marshal-pkcs1-private-key k)
+      ])
+    PrivP256 k ->
+      asn1-encode (asn1-sequence [
+        Asn1Integer 0,
+        pkix-alg-to-asn1 (pkix-algorithm-identifier oid-ec-public-key (Some (Asn1Oid oid-curve-p256))),
+        Asn1OctetString (marshal-ec-private-key-inner k False)
+      ])
+    PrivEd25519 k ->
+      asn1-encode (asn1-sequence [
+        Asn1Integer 0,
+        pkix-alg-to-asn1 (pkix-algorithm-identifier oid-ed25519 None),
+        Asn1OctetString (asn1-encode (Asn1OctetString (ed25519-seed k)))
+      ])
+    PrivX25519 k ->
+      asn1-encode (asn1-sequence [
+        Asn1Integer 0,
+        pkix-alg-to-asn1 (pkix-algorithm-identifier oid-x25519 None),
+        Asn1OctetString (asn1-encode (Asn1OctetString (x25519-private-bytes k)))
+      ])
+
+  -- | Parse a PKCS#8 PrivateKeyInfo DER buffer into a `PrivateKey`.
+  parse-pkcs8-private-key :: Bytes -> Result X509Error PrivateKey
+  parse-pkcs8-private-key der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> (case asn1-members val of
+        Cons (Asn1Integer ver) (Cons alg-val (Cons (Asn1OctetString key-bytes) rest)) ->
+          if ver /= 0 && ver /= 1 then Err (X509InvalidEncoding "unsupported PKCS#8 version")
+          else (case pkix-alg-from-asn1 alg-val of
+            Err e -> Err (X509PkixError e)
+            Ok alg -> decode-pkcs8-key alg key-bytes)
+        other -> Err (X509InvalidEncoding "PKCS#8 PrivateKeyInfo must be SEQUENCE { version, algorithm, privateKey }"))
+      other -> Err (X509InvalidEncoding "PKCS#8 PrivateKeyInfo must be a SEQUENCE"))
+
+  -- | Decode the inner privateKey OCTET STRING of a PKCS#8 PrivateKeyInfo.
+  decode-pkcs8-key :: PkixAlgorithmIdentifier -> Bytes -> Result X509Error PrivateKey
+  decode-pkcs8-key alg key-bytes =
+    let oid = pkix-alg-oid alg in
+    let params = pkix-alg-params alg in
+    if oid-equal oid oid-rsa-encryption then
+      (case params of
+        None -> decode-pkcs8-rsa key-bytes
+        Some Asn1Null -> decode-pkcs8-rsa key-bytes
+        other -> Err (X509InvalidKey "RSA PKCS#8 parameters must be NULL or absent"))
+    else if oid-equal oid oid-ec-public-key then
+      (case params of
+        Some (Asn1Oid curve) ->
+          (case parse-ec-private-key-with-curve key-bytes (Some curve) of
+            Ok k -> Ok (PrivP256 k)
+            Err e -> Err e)
+        other -> Err (X509InvalidKey "EC PKCS#8 parameters must be a named curve OID"))
+    else if oid-equal oid oid-ed25519 then
+      (case params of
+        None -> (case asn1-decode key-bytes of
+          Err e -> Err (X509Asn1Error e)
+          Ok (Asn1OctetString seed) -> (case ed25519-private-key seed of
+            Ok k -> Ok (PrivEd25519 k)
+            Err e -> Err (X509InvalidKey (ed25519-error-message e)))
+          other -> Err (X509InvalidEncoding "Ed25519 PKCS#8 key must wrap an OCTET STRING seed"))
+        Some _ -> Err (X509InvalidKey "Ed25519 PKCS#8 must not carry parameters"))
+    else if oid-equal oid oid-x25519 then
+      (case params of
+        None -> (case asn1-decode key-bytes of
+          Err e -> Err (X509Asn1Error e)
+          Ok (Asn1OctetString secret) -> (case x25519-private-key secret of
+            Ok k -> Ok (PrivX25519 k)
+            Err e -> Err (X509InvalidKey (x25519-error-message e)))
+          other -> Err (X509InvalidEncoding "X25519 PKCS#8 key must wrap an OCTET STRING secret"))
+        Some _ -> Err (X509InvalidKey "X25519 PKCS#8 must not carry parameters"))
+    else Err X509UnsupportedAlgorithm
+
+  -- | Decode an RSA private key inside PKCS#8.
+  decode-pkcs8-rsa :: Bytes -> Result X509Error PrivateKey
+  decode-pkcs8-rsa key-bytes = case rsa-parse-pkcs1-private-key key-bytes of
+    Ok k -> Ok (PrivRsa k)
+    Err e -> Err (X509InvalidKey (rsa-error-message e))
+
+  -- ---------------------------------------------------------------------
+  -- SignatureAlgorithm and PKIX AlgorithmIdentifier mapping.
+  -- ---------------------------------------------------------------------
+
+  -- | Supported X.509 signature algorithms.
+  data SignatureAlgorithm where
+    -- | Unrecognized or unsupported signature algorithm.
+    SigUnknownAlgorithm :: SignatureAlgorithm
+    -- | RSASSA-PKCS1-v1_5 with SHA-1 (legacy verification only).
+    SigSha1WithRsa :: SignatureAlgorithm
+    -- | RSASSA-PKCS1-v1_5 with SHA-256.
+    SigSha256WithRsa :: SignatureAlgorithm
+    -- | RSASSA-PKCS1-v1_5 with SHA-384.
+    SigSha384WithRsa :: SignatureAlgorithm
+    -- | RSASSA-PKCS1-v1_5 with SHA-512.
+    SigSha512WithRsa :: SignatureAlgorithm
+    -- | RSASSA-PSS with SHA-256, MGF1-SHA-256, and 32-byte salt.
+    SigSha256WithRsaPss :: SignatureAlgorithm
+    -- | RSASSA-PSS with SHA-384, MGF1-SHA-384, and 48-byte salt.
+    SigSha384WithRsaPss :: SignatureAlgorithm
+    -- | RSASSA-PSS with SHA-512, MGF1-SHA-512, and 64-byte salt.
+    SigSha512WithRsaPss :: SignatureAlgorithm
+    -- | ECDSA with SHA-256 (DER-encoded r, s).
+    SigEcdsaWithSha256 :: SignatureAlgorithm
+    -- | ECDSA with SHA-384 (DER-encoded r, s).
+    SigEcdsaWithSha384 :: SignatureAlgorithm
+    -- | ECDSA with SHA-512 (DER-encoded r, s).
+    SigEcdsaWithSha512 :: SignatureAlgorithm
+    -- | PureEd25519 (RFC 8410).
+    SigPureEd25519 :: SignatureAlgorithm
+
+  -- | Return True iff two `SignatureAlgorithm` values are equal.
+  sig-alg-equal :: SignatureAlgorithm -> SignatureAlgorithm -> Bool
+  sig-alg-equal a b = sig-alg-tag a == sig-alg-tag b
+
+  -- | Numeric tag for `SignatureAlgorithm` equality checks.
+  sig-alg-tag :: SignatureAlgorithm -> Nat
+  sig-alg-tag a = case a of
+    SigUnknownAlgorithm -> 0
+    SigSha1WithRsa -> 1
+    SigSha256WithRsa -> 2
+    SigSha384WithRsa -> 3
+    SigSha512WithRsa -> 4
+    SigSha256WithRsaPss -> 5
+    SigSha384WithRsaPss -> 6
+    SigSha512WithRsaPss -> 7
+    SigEcdsaWithSha256 -> 8
+    SigEcdsaWithSha384 -> 9
+    SigEcdsaWithSha512 -> 10
+    SigPureEd25519 -> 11
+
+  -- | Build the RSASSA-PSS-params ASN.1 SEQUENCE for a hash OID and salt length (RFC 4055).
+  pss-params-asn1 :: List Nat -> Nat -> Asn1
+  pss-params-asn1 hash-oid salt-len =
+    let hash-alg = pkix-alg-to-asn1 (pkix-algorithm-identifier hash-oid None) in
+    let mgf-alg = pkix-alg-to-asn1 (pkix-algorithm-identifier oid-mgf1 (Some hash-alg)) in
+    asn1-sequence [
+      asn1-explicit 0 hash-alg,
+      asn1-explicit 1 mgf-alg,
+      asn1-explicit 2 (Asn1Integer (nat-to-int salt-len))
+    ]
+
+  -- | Convert a `SignatureAlgorithm` to its PKIX `PkixAlgorithmIdentifier`.
+  sig-alg-to-pkix :: SignatureAlgorithm -> Result X509Error PkixAlgorithmIdentifier
+  sig-alg-to-pkix alg = case alg of
+    SigSha1WithRsa -> Ok (pkix-algorithm-identifier oid-sha1-with-rsa (Some Asn1Null))
+    SigSha256WithRsa -> Ok (pkix-algorithm-identifier oid-sha256-with-rsa (Some Asn1Null))
+    SigSha384WithRsa -> Ok (pkix-algorithm-identifier oid-sha384-with-rsa (Some Asn1Null))
+    SigSha512WithRsa -> Ok (pkix-algorithm-identifier oid-sha512-with-rsa (Some Asn1Null))
+    SigSha256WithRsaPss -> Ok (pkix-algorithm-identifier oid-rsassa-pss (Some (pss-params-asn1 oid-hash-sha256 32)))
+    SigSha384WithRsaPss -> Ok (pkix-algorithm-identifier oid-rsassa-pss (Some (pss-params-asn1 oid-hash-sha384 48)))
+    SigSha512WithRsaPss -> Ok (pkix-algorithm-identifier oid-rsassa-pss (Some (pss-params-asn1 oid-hash-sha512 64)))
+    SigEcdsaWithSha256 -> Ok (pkix-algorithm-identifier oid-ecdsa-sha256 None)
+    SigEcdsaWithSha384 -> Ok (pkix-algorithm-identifier oid-ecdsa-sha384 None)
+    SigEcdsaWithSha512 -> Ok (pkix-algorithm-identifier oid-ecdsa-sha512 None)
+    SigPureEd25519 -> Ok (pkix-algorithm-identifier oid-ed25519 None)
+    SigUnknownAlgorithm -> Err X509UnsupportedAlgorithm
+
+  -- | Recognize a `SignatureAlgorithm` from a `PkixAlgorithmIdentifier`.
+  sig-alg-from-pkix :: PkixAlgorithmIdentifier -> SignatureAlgorithm
+  sig-alg-from-pkix alg =
+    let oid = pkix-alg-oid alg in
+    let params = pkix-alg-params alg in
+    if oid-equal oid oid-sha1-with-rsa then SigSha1WithRsa
+    else if oid-equal oid oid-sha256-with-rsa then SigSha256WithRsa
+    else if oid-equal oid oid-sha384-with-rsa then SigSha384WithRsa
+    else if oid-equal oid oid-sha512-with-rsa then SigSha512WithRsa
+    else if oid-equal oid oid-ecdsa-sha256 then (case params of None -> SigEcdsaWithSha256; Some _ -> SigUnknownAlgorithm)
+    else if oid-equal oid oid-ecdsa-sha384 then (case params of None -> SigEcdsaWithSha384; Some _ -> SigUnknownAlgorithm)
+    else if oid-equal oid oid-ecdsa-sha512 then (case params of None -> SigEcdsaWithSha512; Some _ -> SigUnknownAlgorithm)
+    else if oid-equal oid oid-ed25519 then (case params of None -> SigPureEd25519; Some _ -> SigUnknownAlgorithm)
+    else if oid-equal oid oid-rsassa-pss then parse-rsassa-pss-alg params
+    else SigUnknownAlgorithm
+
+  -- | Parse RSASSA-PSS-params into one of the standard SHA-256/384/512 PSS signature algorithms.
+  parse-rsassa-pss-alg :: Option Asn1 -> SignatureAlgorithm
+  parse-rsassa-pss-alg params = case params of
+    Some (Asn1Sequence cells) ->
+      parse-pss-fields (asn1-members (Asn1Sequence cells)) None None None True
+    other -> SigUnknownAlgorithm
+
+  -- | Extract [0] hashAlgorithm, [1] maskGenAlgorithm, [2] saltLength, [3] trailerField from RSASSA-PSS-params.
+  parse-pss-fields :: List Asn1 -> Option (List Nat) -> Option (List Nat) -> Option Int -> Bool -> SignatureAlgorithm
+  parse-pss-fields items h-oid mgf-h-oid salt-len trailer-ok = case items of
+    Nil ->
+      if not trailer-ok then SigUnknownAlgorithm
+      else match-pss-triple h-oid mgf-h-oid salt-len
+    Cons (Asn1Raw cls tag True content) rest ->
+      if cls /= class-context then SigUnknownAlgorithm
+      else if tag == 0 then
+        (case decode-hash-alg-oid content of
+          Some oid -> parse-pss-fields rest (Some oid) mgf-h-oid salt-len trailer-ok
+          None -> SigUnknownAlgorithm)
+      else if tag == 1 then
+        (case decode-mgf1-hash-oid content of
+          Some oid -> parse-pss-fields rest h-oid (Some oid) salt-len trailer-ok
+          None -> SigUnknownAlgorithm)
+      else if tag == 2 then
+        (case asn1-decode content of
+          Ok (Asn1Integer s) -> parse-pss-fields rest h-oid mgf-h-oid (Some s) trailer-ok
+          other -> SigUnknownAlgorithm)
+      else if tag == 3 then
+        (case asn1-decode content of
+          Ok (Asn1Integer t) -> parse-pss-fields rest h-oid mgf-h-oid salt-len (t == 1)
+          other -> SigUnknownAlgorithm)
+      else SigUnknownAlgorithm
+    other -> SigUnknownAlgorithm
+
+  -- | Match parsed RSASSA-PSS hash, MGF1 hash, and salt length against standard X.509 PSS variants.
+  match-pss-triple :: Option (List Nat) -> Option (List Nat) -> Option Int -> SignatureAlgorithm
+  match-pss-triple h-oid mgf-h-oid salt-len = case (h-oid, mgf-h-oid, salt-len) of
+    (Some h, Some mh, Some s) ->
+      if oid-equal h oid-hash-sha256 && oid-equal mh oid-hash-sha256 && s == 32 then SigSha256WithRsaPss
+      else if oid-equal h oid-hash-sha384 && oid-equal mh oid-hash-sha384 && s == 48 then SigSha384WithRsaPss
+      else if oid-equal h oid-hash-sha512 && oid-equal mh oid-hash-sha512 && s == 64 then SigSha512WithRsaPss
+      else SigUnknownAlgorithm
+    other -> SigUnknownAlgorithm
+
+  -- | Decode an AlgorithmIdentifier whose parameters are absent or NULL and return its OID.
+  decode-hash-alg-oid :: Bytes -> Option (List Nat)
+  decode-hash-alg-oid der = case asn1-decode der of
+    Ok val -> (case pkix-alg-from-asn1 val of
+      Ok alg -> (case pkix-alg-params alg of
+        None -> Some (pkix-alg-oid alg)
+        Some Asn1Null -> Some (pkix-alg-oid alg)
+        other -> None)
+      Err _ -> None)
+    Err _ -> None
+
+  -- | Decode an MGF1 AlgorithmIdentifier and return its inner hash algorithm OID.
+  decode-mgf1-hash-oid :: Bytes -> Option (List Nat)
+  decode-mgf1-hash-oid der = case asn1-decode der of
+    Ok val -> (case pkix-alg-from-asn1 val of
+      Ok alg ->
+        if oid-equal (pkix-alg-oid alg) oid-mgf1 then
+          (case pkix-alg-params alg of
+            Some inner -> (case pkix-alg-from-asn1 inner of
+              Ok inner-alg -> (case pkix-alg-params inner-alg of
+                None -> Some (pkix-alg-oid inner-alg)
+                Some Asn1Null -> Some (pkix-alg-oid inner-alg)
+                other -> None)
+              Err _ -> None)
+            None -> None)
+        else None
+      Err _ -> None)
+    Err _ -> None
+
+  -- | Pick the default `SignatureAlgorithm` for a given `PrivateKey`.
+  default-sig-alg :: PrivateKey -> Result X509Error SignatureAlgorithm
+  default-sig-alg priv = case priv of
+    PrivRsa _ -> Ok SigSha256WithRsa
+    PrivP256 _ -> Ok SigEcdsaWithSha256
+    PrivEd25519 _ -> Ok SigPureEd25519
+    PrivX25519 _ -> Err X509UnsupportedAlgorithm
+
+  -- ---------------------------------------------------------------------
+  -- KeyUsage bitmask flags and Extended Key Usage (RFC 5280).
+  -- ---------------------------------------------------------------------
+
+  -- | Empty KeyUsage bitmask.
+  key-usage-none :: U32
+  key-usage-none = 0
+
+  -- | KeyUsage bit 0: digitalSignature.
+  key-usage-digital-signature :: U32
+  key-usage-digital-signature = 1
+
+  -- | KeyUsage bit 1: contentCommitment (nonRepudiation).
+  key-usage-content-commitment :: U32
+  key-usage-content-commitment = 2
+
+  -- | KeyUsage bit 2: keyEncipherment.
+  key-usage-key-encipherment :: U32
+  key-usage-key-encipherment = 4
+
+  -- | KeyUsage bit 3: dataEncipherment.
+  key-usage-data-encipherment :: U32
+  key-usage-data-encipherment = 8
+
+  -- | KeyUsage bit 4: keyAgreement.
+  key-usage-key-agreement :: U32
+  key-usage-key-agreement = 16
+
+  -- | KeyUsage bit 5: keyCertSign.
+  key-usage-cert-sign :: U32
+  key-usage-cert-sign = 32
+
+  -- | KeyUsage bit 6: cRLSign.
+  key-usage-crl-sign :: U32
+  key-usage-crl-sign = 64
+
+  -- | KeyUsage bit 7: encipherOnly.
+  key-usage-encipher-only :: U32
+  key-usage-encipher-only = 128
+
+  -- | KeyUsage bit 8: decipherOnly.
+  key-usage-decipher-only :: U32
+  key-usage-decipher-only = 256
+
+  -- | Return True iff all flags in `mask` are set in `usage`.
+  key-usage-has :: U32 -> U32 -> Bool
+  key-usage-has usage mask = eq-u32 (bit-and-u32 usage mask) mask
+
+  -- | Combine two KeyUsage bitmasks.
+  key-usage-union :: U32 -> U32 -> U32
+  key-usage-union a b = bit-or-u32 a b
+
+  -- | Decode an ASN.1 BIT STRING KeyUsage into a U32 bitmask (RFC 5280 Section 4.2.1.3).
+  decode-key-usage-bits :: Bytes -> Nat -> U32
+  decode-key-usage-bits bs bits = decode-ku-loop bs bits 0 0
+
+  -- | Accumulate MSB-first ASN.1 BIT STRING bits 0..8 into a U32 bitmask.
+  decode-ku-loop :: Bytes -> Nat -> Nat -> U32 -> U32
+  decode-ku-loop bs bits k acc =
+    if k >= 9 || k >= bits then acc
+    else
+      let byte-idx = nat-div k 8 in
+      let bit-pos = sub-sat 7 (nat-rem k 8) in
+      let b = at bs byte-idx in
+      let shift = nat-to-u32-mod bit-pos in
+      let is-set = ne-u32 (bit-and-u32 (wrapping-shr-u32 (nat-to-u32-mod b) shift) 1) 0 in
+      let flag = wrapping-shl-u32 1 (nat-to-u32-mod k) in
+      let next = if is-set then bit-or-u32 acc flag else acc in
+      decode-ku-loop bs bits (k + 1) next
+
+  -- | Encode a KeyUsage bitmask into a minimal DER ASN.1 BIT STRING.
+  encode-key-usage-bits :: U32 -> Asn1
+  encode-key-usage-bits ku =
+    let len = highest-ku-bit ku 0 0 in
+    if len == 0 then Asn1BitString (bytes-new 0) 0
+    else
+      let b0 = encode-ku-byte ku 0 0 0 in
+      if len <= 8 then Asn1BitString (one-byte b0) len
+      else
+        let b1 = if key-usage-has ku key-usage-decipher-only then (128 :: Nat) else 0 in
+        Asn1BitString (bytes-concat [one-byte b0, one-byte b1]) len
+
+  -- | Find 1 + highest set bit index in bits 0..8 of a KeyUsage bitmask.
+  highest-ku-bit :: U32 -> Nat -> Nat -> Nat
+  highest-ku-bit ku k best =
+    if k >= 9 then best
+    else
+      let flag = wrapping-shl-u32 1 (nat-to-u32-mod k) in
+      let next = if key-usage-has ku flag then k + 1 else best in
+      highest-ku-bit ku (k + 1) next
+
+  -- | Pack KeyUsage bits 0..7 into the first ASN.1 BIT STRING octet (MSB-first).
+  encode-ku-byte :: U32 -> Nat -> Nat -> Nat -> Nat
+  encode-ku-byte ku k acc unused =
+    if k >= 8 then acc
+    else
+      let flag = wrapping-shl-u32 1 (nat-to-u32-mod k) in
+      let bit-val = u32-to-nat (wrapping-shl-u32 1 (nat-to-u32-mod (sub-sat 7 k))) in
+      let next = if key-usage-has ku flag then acc + bit-val else acc in
+      encode-ku-byte ku (k + 1) next unused
+
+  -- | Extended Key Usage purpose identifiers (RFC 5280 Section 4.2.1.12).
+  data ExtKeyUsage where
+    -- | OID 2.5.29.37.0 (anyExtendedKeyUsage).
+    ExtKeyUsageAny :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.1 (TLS Web server authentication).
+    ExtKeyUsageServerAuth :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.2 (TLS Web client authentication).
+    ExtKeyUsageClientAuth :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.3 (code signing).
+    ExtKeyUsageCodeSigning :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.4 (email protection).
+    ExtKeyUsageEmailProtection :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.5 (IPsec end system).
+    ExtKeyUsageIpsecEndSystem :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.6 (IPsec tunnel).
+    ExtKeyUsageIpsecTunnel :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.7 (IPsec user).
+    ExtKeyUsageIpsecUser :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.8 (time stamping).
+    ExtKeyUsageTimeStamping :: ExtKeyUsage
+    -- | OID 1.3.6.1.5.5.7.3.9 (OCSP signing).
+    ExtKeyUsageOcspSigning :: ExtKeyUsage
+    -- | Any other Extended Key Usage OID.
+    ExtKeyUsageOther :: List Nat -> ExtKeyUsage
+
+  -- | Convert an `ExtKeyUsage` to its OID arc list.
+  eku-to-oid :: ExtKeyUsage -> List Nat
+  eku-to-oid u = case u of
+    ExtKeyUsageAny -> [2, 5, 29, 37, 0]
+    ExtKeyUsageServerAuth -> [1, 3, 6, 1, 5, 5, 7, 3, 1]
+    ExtKeyUsageClientAuth -> [1, 3, 6, 1, 5, 5, 7, 3, 2]
+    ExtKeyUsageCodeSigning -> [1, 3, 6, 1, 5, 5, 7, 3, 3]
+    ExtKeyUsageEmailProtection -> [1, 3, 6, 1, 5, 5, 7, 3, 4]
+    ExtKeyUsageIpsecEndSystem -> [1, 3, 6, 1, 5, 5, 7, 3, 5]
+    ExtKeyUsageIpsecTunnel -> [1, 3, 6, 1, 5, 5, 7, 3, 6]
+    ExtKeyUsageIpsecUser -> [1, 3, 6, 1, 5, 5, 7, 3, 7]
+    ExtKeyUsageTimeStamping -> [1, 3, 6, 1, 5, 5, 7, 3, 8]
+    ExtKeyUsageOcspSigning -> [1, 3, 6, 1, 5, 5, 7, 3, 9]
+    ExtKeyUsageOther oid -> oid
+
+  -- | Map an OID arc list to an `ExtKeyUsage` value.
+  eku-from-oid :: List Nat -> ExtKeyUsage
+  eku-from-oid oid =
+    if oid-equal oid [2, 5, 29, 37, 0] then ExtKeyUsageAny
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 1] then ExtKeyUsageServerAuth
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 2] then ExtKeyUsageClientAuth
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 3] then ExtKeyUsageCodeSigning
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 4] then ExtKeyUsageEmailProtection
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 5] then ExtKeyUsageIpsecEndSystem
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 6] then ExtKeyUsageIpsecTunnel
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 7] then ExtKeyUsageIpsecUser
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 8] then ExtKeyUsageTimeStamping
+    else if oid-equal oid [1, 3, 6, 1, 5, 5, 7, 3, 9] then ExtKeyUsageOcspSigning
+    else ExtKeyUsageOther oid
+
+  -- | Return True iff two `ExtKeyUsage` values represent the same OID.
+  eku-equal :: ExtKeyUsage -> ExtKeyUsage -> Bool
+  eku-equal a b = oid-equal (eku-to-oid a) (eku-to-oid b)
+
+  -- ---------------------------------------------------------------------
+  -- Certificate data representation and accessors.
+  -- ---------------------------------------------------------------------
+
+  -- | Subject Alternative Name entries extracted from a certificate or CSR.
+  data CertSan where
+    -- | DNS names, RFC 822 email addresses, IP addresses, and URIs.
+    MkCertSan :: List String -> List String -> List Addr -> List String -> CertSan
+
+  -- | Empty `CertSan`.
+  empty-san :: CertSan
+  empty-san = MkCertSan Nil Nil Nil Nil
+
+  -- | BasicConstraints and NameConstraints extracted from a certificate.
+  data CertConstraints where
+    -- | basicConstraintsValid, isCA, maxPathLen, permittedDNS, excludedDNS, permittedIPs, excludedIPs.
+    MkCertConstraints :: Bool -> Bool -> Option Nat -> List String -> List String -> List Prefix -> List Prefix -> CertConstraints
+
+  -- | Empty `CertConstraints`.
+  empty-constraints :: CertConstraints
+  empty-constraints = MkCertConstraints False False None Nil Nil Nil Nil
+
+  -- | Core TBS metadata fields of a certificate.
+  data CertCore where
+    -- | Version (1..3), serial number, signature algorithm, issuer, subject, notBefore, notAfter, publicKey.
+    MkCertCore :: Nat -> Int -> SignatureAlgorithm -> PkixName -> PkixName -> I64 -> I64 -> PublicKey -> CertCore
+
+  -- | Parsed extensions bundle of a certificate.
+  data CertExtData where
+    -- | keyUsage, extKeyUsage, SAN, constraints, SKI, AKI, raw extensions list.
+    MkCertExtData :: U32 -> List ExtKeyUsage -> CertSan -> CertConstraints -> Option Bytes -> Option Bytes -> List PkixExtension -> CertExtData
+
+  -- | A parsed X.509 certificate.
+  data Certificate where
+    -- | Core fields, parsed extensions, raw TBS DER, signature bytes, complete DER.
+    MkCertificate :: CertCore -> CertExtData -> Bytes -> Bytes -> Bytes -> Certificate
+
+  -- | Return the X.509 certificate version (1, 2, or 3).
+  cert-version :: Certificate -> Nat
+  cert-version c = case c of MkCertificate (MkCertCore v _ _ _ _ _ _ _) _ _ _ _ -> v
+
+  -- | Return the certificate serial number.
+  cert-serial-number :: Certificate -> Int
+  cert-serial-number c = case c of MkCertificate (MkCertCore _ s _ _ _ _ _ _) _ _ _ _ -> s
+
+  -- | Return the certificate signature algorithm.
+  cert-signature-algorithm :: Certificate -> SignatureAlgorithm
+  cert-signature-algorithm c = case c of MkCertificate (MkCertCore _ _ alg _ _ _ _ _) _ _ _ _ -> alg
+
+  -- | Return the certificate issuer distinguished name.
+  cert-issuer :: Certificate -> PkixName
+  cert-issuer c = case c of MkCertificate (MkCertCore _ _ _ iss _ _ _ _) _ _ _ _ -> iss
+
+  -- | Return the certificate subject distinguished name.
+  cert-subject :: Certificate -> PkixName
+  cert-subject c = case c of MkCertificate (MkCertCore _ _ _ _ sub _ _ _) _ _ _ _ -> sub
+
+  -- | Return the certificate validity start timestamp in Unix seconds.
+  cert-not-before :: Certificate -> I64
+  cert-not-before c = case c of MkCertificate (MkCertCore _ _ _ _ _ nb _ _) _ _ _ _ -> nb
+
+  -- | Return the certificate validity end timestamp in Unix seconds.
+  cert-not-after :: Certificate -> I64
+  cert-not-after c = case c of MkCertificate (MkCertCore _ _ _ _ _ _ na _) _ _ _ _ -> na
+
+  -- | Return the certificate subject public key.
+  cert-public-key :: Certificate -> PublicKey
+  cert-public-key c = case c of MkCertificate (MkCertCore _ _ _ _ _ _ _ pub) _ _ _ _ -> pub
+
+  -- | Return the exact raw DER bytes of the TBSCertificate signed by the issuer.
+  cert-raw-tbs-certificate :: Certificate -> Bytes
+  cert-raw-tbs-certificate c = case c of MkCertificate _ _ tbs _ _ -> bytes-clone tbs
+
+  -- | Return the raw signature bytes.
+  cert-signature :: Certificate -> Bytes
+  cert-signature c = case c of MkCertificate _ _ _ sig _ -> bytes-clone sig
+
+  -- | Return True iff the BasicConstraints extension was present in the certificate.
+  cert-basic-constraints-valid :: Certificate -> Bool
+  cert-basic-constraints-valid c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ (MkCertConstraints bcv _ _ _ _ _ _) _ _ _) _ _ _ -> bcv
+
+  -- | Return True iff BasicConstraints asserts cA = TRUE.
+  cert-is-ca :: Certificate -> Bool
+  cert-is-ca c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ (MkCertConstraints _ ca _ _ _ _ _) _ _ _) _ _ _ -> ca
+
+  -- | Return the optional BasicConstraints pathLenConstraint (`None` if unconstrained).
+  cert-max-path-len :: Certificate -> Option Nat
+  cert-max-path-len c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ (MkCertConstraints _ _ mpl _ _ _ _) _ _ _) _ _ _ -> mpl
+
+  -- | Return the KeyUsage bitmask (0 if extension is absent).
+  cert-key-usage :: Certificate -> U32
+  cert-key-usage c = case c of MkCertificate _ (MkCertExtData ku _ _ _ _ _ _) _ _ _ -> ku
+
+  -- | Return the list of Extended Key Usages.
+  cert-ext-key-usage :: Certificate -> List ExtKeyUsage
+  cert-ext-key-usage c = case c of MkCertificate _ (MkCertExtData _ ekus _ _ _ _ _) _ _ _ -> ekus
+
+  -- | Return the DNS names from the Subject Alternative Name extension.
+  cert-dns-names :: Certificate -> List String
+  cert-dns-names c = case c of MkCertificate _ (MkCertExtData _ _ (MkCertSan dns _ _ _) _ _ _ _) _ _ _ -> dns
+
+  -- | Return the email addresses from the Subject Alternative Name extension.
+  cert-email-addresses :: Certificate -> List String
+  cert-email-addresses c = case c of MkCertificate _ (MkCertExtData _ _ (MkCertSan _ emails _ _) _ _ _ _) _ _ _ -> emails
+
+  -- | Return the IP addresses from the Subject Alternative Name extension.
+  cert-ip-addresses :: Certificate -> List Addr
+  cert-ip-addresses c = case c of MkCertificate _ (MkCertExtData _ _ (MkCertSan _ _ ips _) _ _ _ _) _ _ _ -> ips
+
+  -- | Return the URIs from the Subject Alternative Name extension.
+  cert-uris :: Certificate -> List String
+  cert-uris c = case c of MkCertificate _ (MkCertExtData _ _ (MkCertSan _ _ _ uris) _ _ _ _) _ _ _ -> uris
+
+  -- | Return the Subject Key Identifier bytes, if present.
+  cert-subject-key-id :: Certificate -> Option Bytes
+  cert-subject-key-id c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ _ ski _ _) _ _ _ -> (case ski of Some b -> Some (bytes-clone b); None -> None)
+
+  -- | Return the Authority Key Identifier keyIdentifier bytes, if present.
+  cert-authority-key-id :: Certificate -> Option Bytes
+  cert-authority-key-id c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ _ _ aki _) _ _ _ -> (case aki of Some b -> Some (bytes-clone b); None -> None)
+
+  -- | Return the permitted DNS domain constraints from the NameConstraints extension.
+  cert-permitted-dns-domains :: Certificate -> List String
+  cert-permitted-dns-domains c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ (MkCertConstraints _ _ _ pd _ _ _) _ _ _) _ _ _ -> pd
+
+  -- | Return the excluded DNS domain constraints from the NameConstraints extension.
+  cert-excluded-dns-domains :: Certificate -> List String
+  cert-excluded-dns-domains c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ (MkCertConstraints _ _ _ _ ed _ _) _ _ _) _ _ _ -> ed
+
+  -- | Return the permitted IP range constraints from the NameConstraints extension.
+  cert-permitted-ip-ranges :: Certificate -> List Prefix
+  cert-permitted-ip-ranges c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ (MkCertConstraints _ _ _ _ _ pi _) _ _ _) _ _ _ -> pi
+
+  -- | Return the excluded IP range constraints from the NameConstraints extension.
+  cert-excluded-ip-ranges :: Certificate -> List Prefix
+  cert-excluded-ip-ranges c = case c of
+    MkCertificate _ (MkCertExtData _ _ _ (MkCertConstraints _ _ _ _ _ _ ei) _ _ _) _ _ _ -> ei
+
+  -- | Return all raw X.509 v3 extensions present on the certificate.
+  cert-extensions :: Certificate -> List PkixExtension
+  cert-extensions c = case c of MkCertificate _ (MkCertExtData _ _ _ _ _ _ exts) _ _ _ -> exts
+
+  -- | Return the complete DER encoding of the certificate.
+  cert-raw :: Certificate -> Bytes
+  cert-raw c = case c of MkCertificate _ _ _ _ raw -> bytes-clone raw
+
+  -- ---------------------------------------------------------------------
+  -- Extension parsing helpers (BasicConstraints, KeyUsage, EKU, SAN, SKI, AKI, NameConstraints).
+  -- ---------------------------------------------------------------------
+
+  -- | Parse a BasicConstraints extension value.
+  parse-basic-constraints :: Bytes -> Result X509Error (Bool, Option Nat)
+  parse-basic-constraints der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> (case asn1-members val of
+        Nil -> Ok (False, None)
+        Cons (Asn1Boolean ca) Nil -> Ok (ca, None)
+        Cons (Asn1Boolean ca) (Cons (Asn1Integer pathlen) Nil) ->
+          if pathlen < 0 then Err (X509InvalidExtension "negative pathLenConstraint")
+          else Ok (ca, Some (nat-from-int pathlen))
+        Cons (Asn1Integer pathlen) Nil ->
+          if pathlen < 0 then Err (X509InvalidExtension "negative pathLenConstraint")
+          else Ok (False, Some (nat-from-int pathlen))
+        other -> Err (X509InvalidExtension "invalid BasicConstraints sequence"))
+      other -> Err (X509InvalidExtension "BasicConstraints must be a SEQUENCE"))
+
+  -- | Parse a KeyUsage extension value.
+  parse-key-usage-ext :: Bytes -> Result X509Error U32
+  parse-key-usage-ext der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok (Asn1BitString bs bits) -> Ok (decode-key-usage-bits bs bits)
+    other -> Err (X509InvalidExtension "KeyUsage must be a BIT STRING")
+
+  -- | Parse an ExtKeyUsage extension value.
+  parse-eku-ext :: Bytes -> Result X509Error (List ExtKeyUsage)
+  parse-eku-ext der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> decode-eku-oids (asn1-members val) Nil
+      other -> Err (X509InvalidExtension "ExtKeyUsage must be a SEQUENCE"))
+
+  -- | Decode a list of OID elements into `ExtKeyUsage` values.
+  decode-eku-oids :: List Asn1 -> List ExtKeyUsage -> Result X509Error (List ExtKeyUsage)
+  decode-eku-oids items acc = case items of
+    Nil -> Ok (reverse acc)
+    Cons (Asn1Oid oid) rest -> decode-eku-oids rest (Cons (eku-from-oid oid) acc)
+    other -> Err (X509InvalidExtension "ExtKeyUsage entry must be an OID")
+
+  -- | Parse a SubjectAltName extension value.
+  parse-san-ext :: Bytes -> Result X509Error CertSan
+  parse-san-ext der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> parse-san-items (asn1-members val) Nil Nil Nil Nil
+      other -> Err (X509InvalidExtension "SubjectAltName must be a SEQUENCE"))
+
+  -- | Collect DNS, email, IP, and URI entries from a GeneralNames sequence.
+  parse-san-items :: List Asn1 -> List String -> List String -> List Addr -> List String -> Result X509Error CertSan
+  parse-san-items items dns emails ips uris = case items of
+    Nil -> Ok (MkCertSan (reverse dns) (reverse emails) (reverse ips) (reverse uris))
+    Cons (Asn1Raw cls tag False content) rest ->
+      if cls /= class-context then Err (X509InvalidExtension "GeneralName must be context-tagged")
+      else if tag == 1 then
+        (case string-from-bytes content of
+          Some s -> parse-san-items rest dns (Cons s emails) ips uris
+          None -> Err (X509InvalidExtension "invalid UTF-8 in rfc822Name"))
+      else if tag == 2 then
+        (case string-from-bytes content of
+          Some s -> parse-san-items rest (Cons s dns) emails ips uris
+          None -> Err (X509InvalidExtension "invalid UTF-8 in dNSName"))
+      else if tag == 6 then
+        (case string-from-bytes content of
+          Some s -> parse-san-items rest dns emails ips (Cons s uris)
+          None -> Err (X509InvalidExtension "invalid UTF-8 in URI"))
+      else if tag == 7 then
+        (case addr-from-slice content of
+          Some ip -> parse-san-items rest dns emails (Cons ip ips) uris
+          None -> Err (X509InvalidExtension "SAN iPAddress must be 4 or 16 bytes"))
+      else parse-san-items rest dns emails ips uris
+    Cons (Asn1Raw cls _ True _) rest ->
+      if cls == class-context then parse-san-items rest dns emails ips uris
+      else Err (X509InvalidExtension "GeneralName must be context-tagged")
+    other -> Err (X509InvalidExtension "invalid GeneralName element")
+
+  -- | Parse a SubjectKeyIdentifier extension value.
+  parse-ski-ext :: Bytes -> Result X509Error Bytes
+  parse-ski-ext der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok (Asn1OctetString bs) -> Ok bs
+    other -> Err (X509InvalidExtension "SubjectKeyIdentifier must be an OCTET STRING")
+
+  -- | Parse an AuthorityKeyIdentifier extension value, returning its optional [0] keyIdentifier.
+  parse-aki-ext :: Bytes -> Result X509Error (Option Bytes)
+  parse-aki-ext der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> Ok (find-aki-key-id (asn1-members val))
+      other -> Err (X509InvalidExtension "AuthorityKeyIdentifier must be a SEQUENCE"))
+
+  -- | Locate the optional [0] IMPLICIT OCTET STRING keyIdentifier inside AuthorityKeyIdentifier.
+  find-aki-key-id :: List Asn1 -> Option Bytes
+  find-aki-key-id items = case items of
+    Nil -> None
+    Cons (Asn1Raw cls 0 False content) _ ->
+      if cls == class-context then Some content else None
+    Cons _ rest -> find-aki-key-id rest
+
+  -- | Parse an RFC 5280 NameConstraints extension value.
+  parse-name-constraints-ext :: Bytes -> Result X509Error (List String, List String, List Prefix, List Prefix)
+  parse-name-constraints-ext der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> parse-nc-fields (asn1-members val) Nil Nil Nil Nil
+      other -> Err (X509InvalidExtension "NameConstraints must be a SEQUENCE"))
+
+  -- | Parse optional [0] permittedSubtrees and [1] excludedSubtrees inside NameConstraints.
+  parse-nc-fields :: List Asn1 -> List String -> List String -> List Prefix -> List Prefix -> Result X509Error (List String, List String, List Prefix, List Prefix)
+  parse-nc-fields items pd ed pi ei = case items of
+    Nil -> Ok (pd, ed, pi, ei)
+    Cons (Asn1Raw cls 0 True content) rest ->
+      if cls /= class-context then Err (X509InvalidExtension "invalid NameConstraints element")
+      else (case parse-subtrees content of
+        Err e -> Err e
+        Ok (dns, ips) -> parse-nc-fields rest (append-list pd dns) ed (append-list pi ips) ei)
+    Cons (Asn1Raw cls 1 True content) rest ->
+      if cls /= class-context then Err (X509InvalidExtension "invalid NameConstraints element")
+      else (case parse-subtrees content of
+        Err e -> Err e
+        Ok (dns, ips) -> parse-nc-fields rest pd (append-list ed dns) pi (append-list ei ips))
+    other -> Err (X509InvalidExtension "unexpected field in NameConstraints")
+
+  -- | Parse IMPLICIT GeneralSubtrees content octets as a SEQUENCE OF GeneralSubtree.
+  parse-subtrees :: Bytes -> Result X509Error (List String, List Prefix)
+  parse-subtrees content =
+    let seq-der = asn1-encode (Asn1Raw class-universal 16 True content) in
+    case asn1-decode seq-der of
+      Err e -> Err (X509Asn1Error e)
+      Ok val -> (case val of
+        Asn1Sequence _ -> parse-subtree-list (asn1-members val) Nil Nil
+        other -> Err (X509InvalidExtension "GeneralSubtrees must be a SEQUENCE"))
+
+  -- | Parse each GeneralSubtree entry, rejecting non-zero minimum or present maximum.
+  parse-subtree-list :: List Asn1 -> List String -> List Prefix -> Result X509Error (List String, List Prefix)
+  parse-subtree-list items dns ips = case items of
+    Nil -> Ok (reverse dns, reverse ips)
+    Cons (Asn1Sequence cells) rest ->
+      (case asn1-members (Asn1Sequence cells) of
+        Cons base tail ->
+          if not (valid-subtree-distance tail) then
+            Err (X509InvalidExtension "NameConstraints subtree has non-zero minimum or maximum")
+          else (case base of
+            Asn1Raw cls 2 False content ->
+              if cls == class-context then
+                (case string-from-bytes content of
+                  Some s -> parse-subtree-list rest (Cons s dns) ips
+                  None -> Err (X509InvalidExtension "invalid DNS constraint"))
+              else Err (X509InvalidExtension "invalid GeneralSubtree base")
+            Asn1Raw cls 7 False content ->
+              if cls == class-context then
+                (case parse-ip-constraint content of
+                  Ok pfx -> parse-subtree-list rest dns (Cons pfx ips)
+                  Err e -> Err e)
+              else Err (X509InvalidExtension "invalid GeneralSubtree base")
+            other -> parse-subtree-list rest dns ips)
+        Nil -> Err (X509InvalidExtension "empty GeneralSubtree"))
+    other -> Err (X509InvalidExtension "GeneralSubtree must be a SEQUENCE")
+
+  -- | Validate RFC 5280 Section 4.2.1.10: minimum must be absent or 0, maximum must be absent.
+  valid-subtree-distance :: List Asn1 -> Bool
+  valid-subtree-distance tail = case tail of
+    Nil -> True
+    Cons (Asn1Raw cls 0 False content) Nil ->
+      cls == class-context && bytes-len content == 1 && at content 0 == 0
+    other -> False
+
+  -- | Parse an 8-byte (IPv4 + mask) or 32-byte (IPv6 + mask) NameConstraints IP range into a `Prefix`.
+  parse-ip-constraint :: Bytes -> Result X509Error Prefix
+  parse-ip-constraint bs =
+    let n = bytes-len bs in
+    if n == 8 then
+      (case addr-from-slice (slice bs 0 4) of
+        None -> Err (X509InvalidExtension "invalid IPv4 constraint")
+        Some ip ->
+          (case mask-to-prefix-len (slice bs 4 8) of
+            None -> Err (X509InvalidExtension "non-contiguous IPv4 NameConstraints mask")
+            Some bits -> (case prefix-from ip (nat-to-int bits) of
+              Ok p -> Ok (prefix-masked p)
+              Err _ -> Err (X509InvalidExtension "invalid IPv4 prefix bits"))))
+    else if n == 32 then
+      (case addr-from-slice (slice bs 0 16) of
+        None -> Err (X509InvalidExtension "invalid IPv6 constraint")
+        Some ip ->
+          (case mask-to-prefix-len (slice bs 16 32) of
+            None -> Err (X509InvalidExtension "non-contiguous IPv6 NameConstraints mask")
+            Some bits -> (case prefix-from ip (nat-to-int bits) of
+              Ok p -> Ok (prefix-masked p)
+              Err _ -> Err (X509InvalidExtension "invalid IPv6 prefix bits"))))
+    else Err (X509InvalidExtension "NameConstraints IP range must be 8 or 32 bytes")
+
+  -- | Convert a contiguous big-endian netmask into its prefix bit count; returns None if non-contiguous.
+  mask-to-prefix-len :: Bytes -> Option Nat
+  mask-to-prefix-len mask = mask-bits-loop mask 0 (bytes-len mask) 0 False
+
+  -- | Scan mask octets validating contiguous leading 1-bits followed only by 0-bits.
+  mask-bits-loop :: Bytes -> Nat -> Nat -> Nat -> Bool -> Option Nat
+  mask-bits-loop mask i n acc seen-zero =
+    if i >= n then Some acc
+    else
+      let b = at mask i in
+      if seen-zero then
+        if b == 0 then mask-bits-loop mask (i + 1) n acc True
+        else None
+      else if b == 255 then mask-bits-loop mask (i + 1) n (acc + 8) False
+      else if b == 254 then mask-bits-loop mask (i + 1) n (acc + 7) True
+      else if b == 252 then mask-bits-loop mask (i + 1) n (acc + 6) True
+      else if b == 248 then mask-bits-loop mask (i + 1) n (acc + 5) True
+      else if b == 240 then mask-bits-loop mask (i + 1) n (acc + 4) True
+      else if b == 224 then mask-bits-loop mask (i + 1) n (acc + 3) True
+      else if b == 192 then mask-bits-loop mask (i + 1) n (acc + 2) True
+      else if b == 128 then mask-bits-loop mask (i + 1) n (acc + 1) True
+      else if b == 0 then mask-bits-loop mask (i + 1) n acc True
+      else None
+
+  -- | Encode a `Prefix` as an 8-byte (IPv4) or 32-byte (IPv6) NameConstraints iPAddress value.
+  encode-ip-constraint :: Prefix -> Bytes
+  encode-ip-constraint pfx =
+    let masked = prefix-masked pfx in
+    let ip-bs = addr-as-slice (prefix-addr masked) in
+    let mask-len = bytes-len ip-bs in
+    let bits = prefix-bits masked in
+    let mask-bs = build-netmask mask-len bits in
+    bytes-concat [ip-bs, mask-bs]
+
+  -- | Build a big-endian netmask of `width` bytes with `bits` leading 1-bits.
+  build-netmask :: Nat -> Nat -> Bytes
+  build-netmask width bits =
+    let out = bytes-new width in
+    let done = fill-netmask out 0 width bits in
+    out
+
+  -- | Fill netmask bytes from index `i` with `rem-bits` leading ones remaining.
+  fill-netmask :: Bytes -> Nat -> Nat -> Nat -> Unit
+  fill-netmask out i width rem-bits =
+    if i < width && i < bytes-len out then
+      if rem-bits >= 8 then
+        let w = bytes-set out i 255 in
+        fill-netmask out (i + 1) width (sub-sat rem-bits 8)
+      else if rem-bits == 0 then ()
+      else
+        let shift = nat-to-u32-mod (sub-sat 8 rem-bits) in
+        let b = u8-to-nat (wrapping-shl-u8 255 shift) in
+        let w = if b <= 255 then bytes-set out i b else () in
+        ()
+    else ()
+
+  -- | Process all X.509 v3 extensions into a `CertExtData` structure.
+  process-cert-extensions :: List PkixExtension -> Result X509Error CertExtData
+  process-cert-extensions exts =
+    process-exts-loop exts key-usage-none Nil empty-san empty-constraints None None exts
+
+  -- | Fold over certificate extensions, decoding each known extension.
+  process-exts-loop :: List PkixExtension -> U32 -> List ExtKeyUsage -> CertSan -> CertConstraints -> Option Bytes -> Option Bytes -> List PkixExtension -> Result X509Error CertExtData
+  process-exts-loop rem ku ekus san cons ski aki all-exts = case rem of
+    Nil -> Ok (MkCertExtData ku ekus san cons ski aki all-exts)
+    Cons ext rest ->
+      let oid = pkix-ext-oid ext in
+      let val = pkix-ext-value ext in
+      if oid-equal oid oid-ext-basic-constraints then
+        (case parse-basic-constraints val of
+          Err e -> Err e
+          Ok (ca, mpl) ->
+            let next-cons = (case cons of MkCertConstraints _ _ _ pd ed pi ei -> MkCertConstraints True ca mpl pd ed pi ei) in
+            process-exts-loop rest ku ekus san next-cons ski aki all-exts)
+      else if oid-equal oid oid-ext-key-usage then
+        (case parse-key-usage-ext val of
+          Err e -> Err e
+          Ok next-ku -> process-exts-loop rest next-ku ekus san cons ski aki all-exts)
+      else if oid-equal oid oid-ext-eku then
+        (case parse-eku-ext val of
+          Err e -> Err e
+          Ok next-ekus -> process-exts-loop rest ku next-ekus san cons ski aki all-exts)
+      else if oid-equal oid oid-ext-san then
+        (case parse-san-ext val of
+          Err e -> Err e
+          Ok next-san -> process-exts-loop rest ku ekus next-san cons ski aki all-exts)
+      else if oid-equal oid oid-ext-ski then
+        (case parse-ski-ext val of
+          Err e -> Err e
+          Ok next-ski -> process-exts-loop rest ku ekus san cons (Some next-ski) aki all-exts)
+      else if oid-equal oid oid-ext-aki then
+        (case parse-aki-ext val of
+          Err e -> Err e
+          Ok next-aki -> process-exts-loop rest ku ekus san cons ski next-aki all-exts)
+      else if oid-equal oid oid-ext-name-constraints then
+        (case parse-name-constraints-ext val of
+          Err e -> Err e
+          Ok (pd, ed, pi, ei) ->
+            let next-cons = (case cons of MkCertConstraints bcv ca mpl _ _ _ _ -> MkCertConstraints bcv ca mpl pd ed pi ei) in
+            process-exts-loop rest ku ekus san next-cons ski aki all-exts)
+      else process-exts-loop rest ku ekus san cons ski aki all-exts
+
+  -- ---------------------------------------------------------------------
+  -- Certificate Parsing (DER, concatenated DER, PEM).
+  -- ---------------------------------------------------------------------
+
+  -- | Parse a single DER-encoded X.509 certificate.
+  parse-certificate :: Bytes -> Result X509Error Certificate
+  parse-certificate der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> (case asn1-members val of
+        Cons tbs-val (Cons alg-val (Cons (Asn1BitString sig-bytes sig-bits) Nil)) ->
+          if nat-rem sig-bits 8 /= 0 then Err (X509InvalidEncoding "certificate signature has unused bits")
+          else (case der-first-child-bytes der of
+            None -> Err (X509InvalidEncoding "failed to extract raw TBSCertificate")
+            Some raw-tbs -> (case pkix-alg-from-asn1 alg-val of
+              Err e -> Err (X509PkixError e)
+              Ok outer-alg -> parse-tbs-certificate tbs-val raw-tbs outer-alg sig-bytes der))
+        other -> Err (X509InvalidEncoding "Certificate must be SEQUENCE { tbsCertificate, signatureAlgorithm, signatureValue }"))
+      other -> Err (X509InvalidEncoding "Certificate must be a SEQUENCE"))
+
+  -- | Parse the TBSCertificate sequence.
+  parse-tbs-certificate :: Asn1 -> Bytes -> PkixAlgorithmIdentifier -> Bytes -> Bytes -> Result X509Error Certificate
+  parse-tbs-certificate tbs-val raw-tbs outer-alg sig-bytes raw = case tbs-val of
+    Asn1Sequence _ ->
+      let items = asn1-members tbs-val in
+      (case parse-tbs-version items of
+        Err e -> Err e
+        Ok (ver, rest) -> parse-tbs-body ver rest raw-tbs outer-alg sig-bytes raw)
+    other -> Err (X509InvalidEncoding "TBSCertificate must be a SEQUENCE")
+
+  -- | Parse optional [0] EXPLICIT version (DEFAULT v1 = 0, returning 1, 2, or 3).
+  parse-tbs-version :: List Asn1 -> Result X509Error (Nat, List Asn1)
+  parse-tbs-version items = case items of
+    Cons (Asn1Raw cls 0 True content) rest ->
+      if cls /= class-context then Err (X509InvalidEncoding "invalid TBSCertificate version tag")
+      else (case asn1-decode content of
+        Err e -> Err (X509Asn1Error e)
+        Ok (Asn1Integer v) ->
+          if v == 0 || v == 1 || v == 2 then Ok (nat-from-int v + 1, rest)
+          else Err (X509InvalidEncoding "unsupported X.509 version")
+        other -> Err (X509InvalidEncoding "TBSCertificate version must be an INTEGER"))
+    other -> Ok (1, items)
+
+  -- | Parse serial, signature, issuer, validity, subject, subjectPublicKeyInfo, and optional extensions.
+  parse-tbs-body :: Nat -> List Asn1 -> Bytes -> PkixAlgorithmIdentifier -> Bytes -> Bytes -> Result X509Error Certificate
+  parse-tbs-body ver items raw-tbs outer-alg sig-bytes raw = case items of
+    Cons (Asn1Integer serial) (Cons tbs-alg-val (Cons iss-val (Cons validity-val (Cons sub-val (Cons spki-val tail))))) ->
+      (case pkix-alg-from-asn1 tbs-alg-val of
+        Err e -> Err (X509PkixError e)
+        Ok tbs-alg ->
+          if not (pkix-alg-equal tbs-alg outer-alg) then
+            Err (X509InvalidEncoding "TBSCertificate signature algorithm does not match outer signatureAlgorithm")
+          else (case pkix-name-from-asn1 iss-val of
+            Err e -> Err (X509PkixError e)
+            Ok issuer -> (case parse-validity validity-val of
+              Err e -> Err e
+              Ok (not-before, not-after) -> (case pkix-name-from-asn1 sub-val of
+                Err e -> Err (X509PkixError e)
+                Ok subject -> (case parse-spki-asn1 spki-val of
+                  Err e -> Err e
+                  Ok pub -> (case parse-tbs-tail tail of
+                    Err e -> Err e
+                    Ok exts -> (case process-cert-extensions exts of
+                      Err e -> Err e
+                      Ok ext-data ->
+                        let core = MkCertCore ver serial (sig-alg-from-pkix outer-alg) issuer subject not-before not-after pub in
+                        Ok (MkCertificate core ext-data raw-tbs (bytes-clone sig-bytes) (bytes-clone raw)))))))))
+    other -> Err (X509InvalidEncoding "TBSCertificate missing required fields")
+
+  -- | Parse Validity ::= SEQUENCE { notBefore Time, notAfter Time }.
+  parse-validity :: Asn1 -> Result X509Error (I64, I64)
+  parse-validity val = case val of
+    Asn1Sequence _ -> (case asn1-members val of
+      Cons nb (Cons na Nil) -> (case (pkix-decode-time nb, pkix-decode-time na) of
+        (Ok t0, Ok t1) -> Ok (t0, t1)
+        (Err e, _) -> Err (X509PkixError e)
+        (_, Err e) -> Err (X509PkixError e))
+      other -> Err (X509InvalidEncoding "Validity must contain notBefore and notAfter"))
+    other -> Err (X509InvalidEncoding "Validity must be a SEQUENCE")
+
+  -- | Parse optional issuerUniqueID [1], subjectUniqueID [2], and extensions [3] from TBSCertificate tail.
+  parse-tbs-tail :: List Asn1 -> Result X509Error (List PkixExtension)
+  parse-tbs-tail items = case items of
+    Nil -> Ok Nil
+    Cons (Asn1Raw cls 1 False _) rest ->
+      if cls == class-context then parse-tbs-tail rest
+      else Err (X509InvalidEncoding "unexpected TBSCertificate tail element")
+    Cons (Asn1Raw cls 2 False _) rest ->
+      if cls == class-context then parse-tbs-tail rest
+      else Err (X509InvalidEncoding "unexpected TBSCertificate tail element")
+    Cons (Asn1Raw cls 3 True content) Nil ->
+      if cls /= class-context then Err (X509InvalidEncoding "unexpected extensions tag")
+      else (case asn1-decode content of
+        Err e -> Err (X509Asn1Error e)
+        Ok (Asn1Sequence cells) -> decode-cert-exts (asn1-members (Asn1Sequence cells)) Nil
+        other -> Err (X509InvalidEncoding "extensions must be a SEQUENCE"))
+    other -> Err (X509InvalidEncoding "unexpected trailing fields in TBSCertificate")
+
+  -- | Decode a list of ASN.1 Extension elements into `List PkixExtension`.
+  decode-cert-exts :: List Asn1 -> List PkixExtension -> Result X509Error (List PkixExtension)
+  decode-cert-exts items acc = case items of
+    Nil -> Ok (reverse acc)
+    Cons item rest -> (case pkix-ext-from-asn1 item of
+      Err e -> Err (X509PkixError e)
+      Ok ext -> decode-cert-exts rest (Cons ext acc))
+
+  -- | Parse one or more concatenated DER-encoded X.509 certificates.
+  parse-certificates :: Bytes -> Result X509Error (List Certificate)
+  parse-certificates der =
+    if bytes-len der == 0 then Ok Nil
+    else case der-split-sequence der of
+      None -> Err (X509InvalidEncoding "malformed concatenated DER certificates")
+      Some chunks -> parse-cert-chunks chunks Nil
+
+  -- | Parse each individual DER chunk into a `Certificate`.
+  parse-cert-chunks :: List Bytes -> List Certificate -> Result X509Error (List Certificate)
+  parse-cert-chunks chunks acc = case chunks of
+    Nil -> Ok (reverse acc)
+    Cons chunk rest -> (case parse-certificate chunk of
+      Err e -> Err e
+      Ok c -> parse-cert-chunks rest (Cons c acc))
+
+  -- | Parse all `"CERTIFICATE"` PEM blocks from a PEM byte stream.
+  -- Non-certificate PEM blocks are skipped; malformed certificate DER fails with an error.
+  parse-certificates-pem :: Bytes -> Result X509Error (List Certificate)
+  parse-certificates-pem pem-bytes = parse-pem-loop pem-bytes Nil
+
+  -- | Tail-recursive PEM decoding loop extracting `"CERTIFICATE"` blocks.
+  parse-pem-loop :: Bytes -> List Certificate -> Result X509Error (List Certificate)
+  parse-pem-loop remaining acc = case pem-decode remaining of
+    (None, _) -> Ok (reverse acc)
+    (Some block, rest) ->
+      if bytes-eq (pem-block-type block) (string-to-bytes "CERTIFICATE") && is-empty (pem-block-headers block) then
+        (case parse-certificate (pem-block-bytes block) of
+          Err e -> Err e
+          Ok c -> parse-pem-loop rest (Cons c acc))
+      else parse-pem-loop rest acc
+
+  -- ---------------------------------------------------------------------
+  -- Cryptographic Signature Verification and Signing.
+  -- ---------------------------------------------------------------------
+
+  -- | Verify `signature` over raw `signed` bytes using `pub` and `alg`.
+  check-signature :: PublicKey -> SignatureAlgorithm -> Bytes -> Bytes -> Result X509Error Unit
+  check-signature pub alg signed sig = case (pub, alg) of
+    (PubRsa k, SigSha1WithRsa) -> verify-rsa-v15 k RsaSha1 (sha1-sum signed) sig
+    (PubRsa k, SigSha256WithRsa) -> verify-rsa-v15 k RsaSha256 (sha256-sum signed) sig
+    (PubRsa k, SigSha384WithRsa) -> verify-rsa-v15 k RsaSha384 (sha384-sum signed) sig
+    (PubRsa k, SigSha512WithRsa) -> verify-rsa-v15 k RsaSha512 (sha512-sum signed) sig
+    (PubRsa k, SigSha256WithRsaPss) -> verify-rsa-pss k RsaSha256 (sha256-sum signed) sig
+    (PubRsa k, SigSha384WithRsaPss) -> verify-rsa-pss k RsaSha384 (sha384-sum signed) sig
+    (PubRsa k, SigSha512WithRsaPss) -> verify-rsa-pss k RsaSha512 (sha512-sum signed) sig
+    (PubP256 k, SigEcdsaWithSha256) ->
+      if ecdsa-verify-der k (sha256-sum signed) sig then Ok () else Err X509SignatureInvalid
+    (PubP256 k, SigEcdsaWithSha384) ->
+      if ecdsa-verify-der k (sha384-sum signed) sig then Ok () else Err X509SignatureInvalid
+    (PubP256 k, SigEcdsaWithSha512) ->
+      if ecdsa-verify-der k (sha512-sum signed) sig then Ok () else Err X509SignatureInvalid
+    (PubEd25519 k, SigPureEd25519) ->
+      if ed25519-verify (ed25519-public-key-bytes k) signed sig then Ok () else Err X509SignatureInvalid
+    (_, SigUnknownAlgorithm) -> Err X509UnsupportedAlgorithm
+    other -> Err X509SignatureAlgorithmMismatch
+
+  -- | Verify an RSA PKCS#1 v1.5 signature, mapping RSA errors to `X509SignatureInvalid`.
+  verify-rsa-v15 :: RsaPublicKey -> RsaHash -> Bytes -> Bytes -> Result X509Error Unit
+  verify-rsa-v15 pub h digest sig = case rsa-verify-pkcs1v15 pub h digest sig of
+    Ok _ -> Ok ()
+    Err _ -> Err X509SignatureInvalid
+
+  -- | Verify an RSASSA-PSS signature with salt length equal to hash digest size.
+  verify-rsa-pss :: RsaPublicKey -> RsaHash -> Bytes -> Bytes -> Result X509Error Unit
+  verify-rsa-pss pub h digest sig = case rsa-verify-pss pub h digest sig PssSaltEqualsHash of
+    Ok _ -> Ok ()
+    Err _ -> Err X509SignatureInvalid
+
+  -- | Sign raw `tbs` bytes with `priv` under `alg`.
+  sign-tbs :: PrivateKey -> SignatureAlgorithm -> Bytes -> Result X509Error Bytes
+  sign-tbs priv alg tbs = case (priv, alg) of
+    (PrivRsa k, SigSha1WithRsa) -> sign-rsa-v15 k RsaSha1 (sha1-sum tbs)
+    (PrivRsa k, SigSha256WithRsa) -> sign-rsa-v15 k RsaSha256 (sha256-sum tbs)
+    (PrivRsa k, SigSha384WithRsa) -> sign-rsa-v15 k RsaSha384 (sha384-sum tbs)
+    (PrivRsa k, SigSha512WithRsa) -> sign-rsa-v15 k RsaSha512 (sha512-sum tbs)
+    (PrivRsa k, SigSha256WithRsaPss) -> sign-rsa-pss k RsaSha256 (sha256-sum tbs) (sha256-sum tbs)
+    (PrivRsa k, SigSha384WithRsaPss) -> sign-rsa-pss k RsaSha384 (sha384-sum tbs) (sha256-sum tbs)
+    (PrivRsa k, SigSha512WithRsaPss) -> sign-rsa-pss k RsaSha512 (sha512-sum tbs) (sha256-sum tbs)
+    (PrivP256 k, SigEcdsaWithSha256) -> sign-ecdsa k (sha256-sum tbs)
+    (PrivP256 k, SigEcdsaWithSha384) -> sign-ecdsa k (sha384-sum tbs)
+    (PrivP256 k, SigEcdsaWithSha512) -> sign-ecdsa k (sha512-sum tbs)
+    (PrivEd25519 k, SigPureEd25519) -> Ok (ed25519-sign k tbs)
+    (_, SigUnknownAlgorithm) -> Err X509UnsupportedAlgorithm
+    other -> Err X509SignatureAlgorithmMismatch
+
+  -- | Sign a digest with RSA PKCS#1 v1.5, mapping errors to `X509Error`.
+  sign-rsa-v15 :: RsaPrivateKey -> RsaHash -> Bytes -> Result X509Error Bytes
+  sign-rsa-v15 priv h digest = case rsa-sign-pkcs1v15 priv h digest of
+    Ok sig -> Ok sig
+    Err e -> Err (X509InvalidKey (rsa-error-message e))
+
+  -- | Sign a digest with RSASSA-PSS using salt length equal to hash size.
+  sign-rsa-pss :: RsaPrivateKey -> RsaHash -> Bytes -> Bytes -> Result X509Error Bytes
+  sign-rsa-pss priv h digest seed = case rsa-sign-pss priv h digest PssSaltEqualsHash seed of
+    Ok sig -> Ok sig
+    Err e -> Err (X509InvalidKey (rsa-error-message e))
+
+  -- | Sign a digest with ECDSA P-256 (DER-encoded RFC 6979 deterministic signature).
+  sign-ecdsa :: P256PrivateKey -> Bytes -> Result X509Error Bytes
+  sign-ecdsa priv digest = case ecdsa-sign-der priv digest of
+    Ok sig -> Ok sig
+    Err _ -> Err X509SignatureInvalid
+
+  -- | Verify that `cert` carries a valid signature created by `parent`.
+  -- Checks parent CA authority (BasicConstraints and KeyUsageCertSign when present) and signature.
+  check-signature-from :: Certificate -> Certificate -> Result X509Error Unit
+  check-signature-from cert parent =
+    let parent-ku = cert-key-usage parent in
+    let not-ca = (cert-version parent == 3 && not (cert-basic-constraints-valid parent)) || (cert-basic-constraints-valid parent && not (cert-is-ca parent)) in
+    let bad-ku = ne-u32 parent-ku 0 && not (key-usage-has parent-ku key-usage-cert-sign) in
+    if not-ca || bad-ku then Err X509NotAuthorizedToSign
+    else check-signature (cert-public-key parent) (cert-signature-algorithm cert) (cert-raw-tbs-certificate cert) (cert-signature cert)
+
+  -- | Verify that `crl` carries a valid signature created by `issuer`.
+  -- Checks KeyUsageCRLSign when KeyUsage is present on `issuer`, then verifies the signature.
+  check-crl-signature-from :: PkixCrl -> Certificate -> Result X509Error Unit
+  check-crl-signature-from crl issuer =
+    let ku = cert-key-usage issuer in
+    if ne-u32 ku 0 && not (key-usage-has ku key-usage-crl-sign) then
+      Err X509NotAuthorizedToSign
+    else
+      let alg = sig-alg-from-pkix (crl-signature-algorithm crl) in
+      check-signature (cert-public-key issuer) alg (crl-raw-tbs crl) (crl-signature crl)
+
+  -- ---------------------------------------------------------------------
+  -- Hostname Verification (RFC 6125).
+  -- ---------------------------------------------------------------------
+
+  -- | Verify that `cert` is valid for `host` (either a DNS hostname or an IPv4/IPv6 literal).
+  -- Follows RFC 6125: matches only Subject Alternative Name entries (never CommonName),
+  -- performs case-insensitive ASCII DNS comparison with single-label leftmost wildcards,
+  -- and matches IP literals (with optional IPv6 brackets) via `Data.NetIp`.
+  verify-hostname :: Certificate -> String -> Result X509Error Unit
+  verify-hostname cert host =
+    let stripped-ip = strip-ipv6-brackets host in
+    case parse-addr stripped-ip of
+      Ok ip ->
+        if match-ip-list (addr-unmap ip) (cert-ip-addresses cert) then Ok ()
+        else Err (X509HostnameMismatch host)
+      Err _ ->
+        let norm-host = strip-trailing-dot (ascii-lower host) in
+        if string-byte-length norm-host == 0 then Err (X509HostnameMismatch host)
+        else if match-dns-list norm-host (cert-dns-names cert) then Ok ()
+        else Err (X509HostnameMismatch host)
+
+  -- | Strip surrounding `[` and `]` brackets from an IPv6 literal string if present.
+  strip-ipv6-brackets :: String -> String
+  strip-ipv6-brackets text =
+    let bs = string-to-bytes text in
+    let n = bytes-len bs in
+    if n >= 2 && at bs 0 == 91 && at bs (sub-sat n 1) == 93 then
+      bytes-to-str (slice bs 1 (sub-sat n 1))
+    else text
+
+  -- | Return True iff `ip` matches any IP address in `list` after unmapping IPv4-in-IPv6.
+  match-ip-list :: Addr -> List Addr -> Bool
+  match-ip-list ip addrs = case addrs of
+    Nil -> False
+    Cons a rest ->
+      if addr-unmap a == ip then True
+      else match-ip-list ip rest
+
+  -- | Return True iff normalized hostname `host` matches any SAN DNS pattern in `patterns`.
+  match-dns-list :: String -> List String -> Bool
+  match-dns-list host patterns = case patterns of
+    Nil -> False
+    Cons pat rest ->
+      if match-hostname-pattern (strip-trailing-dot (ascii-lower pat)) host then True
+      else match-dns-list host rest
+
+  -- | Match a single lowercased SAN DNS pattern against a lowercased hostname (RFC 6125).
+  match-hostname-pattern :: String -> String -> Bool
+  match-hostname-pattern pat host =
+    if string-byte-length pat == 0 || string-byte-length host == 0 then False
+    else if pat == host then True
+    else
+      let pat-labels = split-ascii pat 46 in
+      let host-labels = split-ascii host 46 in
+      if list-len pat-labels 0 /= list-len host-labels 0 then False
+      else match-wildcard-labels pat-labels host-labels
+
+  -- | Match DNS labels where only the leftmost pattern label may contain `*`.
+  match-wildcard-labels :: List String -> List String -> Bool
+  match-wildcard-labels pat-labels host-labels = case (pat-labels, host-labels) of
+    (Cons p0 p-rest, Cons h0 h-rest) ->
+      if string-byte-length h0 == 0 then False
+      else if not (valid-tail-labels p-rest h-rest) then False
+      else if p0 == "*" then list-len p-rest 0 >= 2
+      else if p0 == h0 then True
+      else False
+    other -> False
+
+  -- | Verify that every non-leftmost label contains no `*`, is non-empty, and matches exactly.
+  valid-tail-labels :: List String -> List String -> Bool
+  valid-tail-labels ps hs = case (ps, hs) of
+    (Nil, Nil) -> True
+    (Cons p prest, Cons h hrest) ->
+      if string-byte-length p == 0 || contains-byte (string-to-bytes p) 0 (bytes-len (string-to-bytes p)) 42 then False
+      else if p == h then valid-tail-labels prest hrest
+      else False
+    other -> False
+
+  -- | Return True iff `needle` byte occurs in buf[i..n).
+  contains-byte :: Bytes -> Nat -> Nat -> Nat -> Bool
+  contains-byte buf i n needle =
+    if i >= n then False
+    else if at buf i == needle then True
+    else contains-byte buf (i + 1) n needle
+
+  -- ---------------------------------------------------------------------
+  -- NameConstraints Checking (RFC 5280 Section 4.2.1.10).
+  -- ---------------------------------------------------------------------
+
+  -- | Check whether `domain` falls within DNS NameConstraint `constraint`.
+  -- Leading dot matches only strict subdomains; without leading dot matches exact domain or subdomains.
+  match-domain-constraint :: String -> String -> Bool
+  match-domain-constraint raw-domain raw-constraint =
+    let domain = strip-trailing-dot (ascii-lower raw-domain) in
+    let constraint = strip-trailing-dot (ascii-lower raw-constraint) in
+    let cbs = string-to-bytes constraint in
+    let dbs = string-to-bytes domain in
+    let clen = bytes-len cbs in
+    let dlen = bytes-len dbs in
+    if clen == 0 then True
+    else if at cbs 0 == 46 then
+      dlen > clen && bytes-ends-with dbs cbs
+    else if domain == constraint then True
+    else
+      let dot-c = bytes-concat [one-byte 46, cbs] in
+      dlen > bytes-len dot-c && bytes-ends-with dbs dot-c
+
+  -- | Return True iff `haystack` ends with `suffix`.
+  bytes-ends-with :: Bytes -> Bytes -> Bool
+  bytes-ends-with haystack suffix =
+    let hlen = bytes-len haystack in
+    let slen = bytes-len suffix in
+    if slen > hlen then False
+    else bytes-eq (slice haystack (sub-sat hlen slen) hlen) suffix
+
+  -- | Check whether any DNS constraint in `constraints` matches `domain`.
+  any-domain-constraint-matches :: String -> List String -> Bool
+  any-domain-constraint-matches domain constraints = case constraints of
+    Nil -> False
+    Cons c rest ->
+      if match-domain-constraint domain c then True
+      else any-domain-constraint-matches domain rest
+
+  -- | Check whether any IP `Prefix` constraint in `ranges` contains `ip`.
+  any-ip-constraint-matches :: Addr -> List Prefix -> Bool
+  any-ip-constraint-matches ip ranges = case ranges of
+    Nil -> False
+    Cons p rest ->
+      if prefix-contains p ip then True
+      else any-ip-constraint-matches ip rest
+
+  -- | Check all DNS and IP SANs of `sub` against the NameConstraints of `ca`.
+  check-name-constraints :: Certificate -> Certificate -> Result X509Error Unit
+  check-name-constraints ca sub =
+    let pd = cert-permitted-dns-domains ca in
+    let ed = cert-excluded-dns-domains ca in
+    let pi = cert-permitted-ip-ranges ca in
+    let ei = cert-excluded-ip-ranges ca in
+    case check-dns-constraints (cert-dns-names sub) pd ed of
+      Err e -> Err e
+      Ok _ -> check-ip-constraints (cert-ip-addresses sub) pi ei
+
+  -- | Validate each DNS SAN against permitted and excluded DNS constraints.
+  check-dns-constraints :: List String -> List String -> List String -> Result X509Error Unit
+  check-dns-constraints names permitted excluded = case names of
+    Nil -> Ok ()
+    Cons name rest ->
+      if any-domain-constraint-matches name excluded then
+        Err (X509NameConstraintViolation (string-concat "DNS name excluded: " name))
+      else if not (is-empty permitted) && not (any-domain-constraint-matches name permitted) then
+        Err (X509NameConstraintViolation (string-concat "DNS name not permitted: " name))
+      else check-dns-constraints rest permitted excluded
+
+  -- | Validate each IP SAN against permitted and excluded IP prefix constraints.
+  check-ip-constraints :: List Addr -> List Prefix -> List Prefix -> Result X509Error Unit
+  check-ip-constraints addrs permitted excluded = case addrs of
+    Nil -> Ok ()
+    Cons ip rest ->
+      if any-ip-constraint-matches ip excluded then
+        Err (X509NameConstraintViolation (string-concat "IP address excluded: " (addr-to-string ip)))
+      else if not (is-empty permitted) && not (any-ip-constraint-matches ip permitted) then
+        Err (X509NameConstraintViolation (string-concat "IP address not permitted: " (addr-to-string ip)))
+      else check-ip-constraints rest permitted excluded
+
+  -- ---------------------------------------------------------------------
+  -- CertPool and Chain Verification (RFC 5280).
+  -- ---------------------------------------------------------------------
+
+  -- | An immutable set of trusted root or intermediate certificates.
+  data CertPool where
+    -- | Stored certificates in insertion order.
+    MkCertPool :: List Certificate -> CertPool
+
+  -- | Create an empty `CertPool`.
+  cert-pool-new :: CertPool
+  cert-pool-new = MkCertPool Nil
+
+  -- | Return a new `CertPool` with `cert` added.
+  cert-pool-add :: CertPool -> Certificate -> CertPool
+  cert-pool-add pool cert = case pool of
+    MkCertPool cs -> MkCertPool (append-list cs [cert])
+
+  -- | Parse all valid `"CERTIFICATE"` PEM blocks and add them to `pool`.
+  -- Returns `(updated-pool, added-any)`, skipping invalid or non-certificate PEM blocks.
+  cert-pool-append-pem :: CertPool -> Bytes -> (CertPool, Bool)
+  cert-pool-append-pem pool pem-bytes = append-pem-loop pool pem-bytes False
+
+  -- | Tail-recursive PEM scanner adding valid certificates to a `CertPool`.
+  append-pem-loop :: CertPool -> Bytes -> Bool -> (CertPool, Bool)
+  append-pem-loop pool remaining added = case pem-decode remaining of
+    (None, _) -> (pool, added)
+    (Some block, rest) ->
+      if bytes-eq (pem-block-type block) (string-to-bytes "CERTIFICATE") && is-empty (pem-block-headers block) then
+        (case parse-certificate (pem-block-bytes block) of
+          Ok c -> append-pem-loop (cert-pool-add pool c) rest True
+          Err _ -> append-pem-loop pool rest added)
+      else append-pem-loop pool rest added
+
+  -- | Return all certificates stored in a `CertPool`.
+  cert-pool-certs :: CertPool -> List Certificate
+  cert-pool-certs pool = case pool of MkCertPool cs -> cs
+
+  -- | Return the number of certificates in a `CertPool`.
+  cert-pool-len :: CertPool -> Nat
+  cert-pool-len pool = list-len (cert-pool-certs pool) 0
+
+  -- | Parameters controlling X.509 certificate chain verification.
+  data VerifyOptions where
+    -- | Trusted roots, untrusted intermediates, optional DNS/IP name, verification Unix timestamp, required EKUs.
+    MkVerifyOptions :: CertPool -> CertPool -> Option String -> I64 -> List ExtKeyUsage -> VerifyOptions
+
+  -- | Create default `VerifyOptions` with the given trusted root pool and Unix verification time.
+  verify-options-new :: CertPool -> I64 -> VerifyOptions
+  verify-options-new roots now = MkVerifyOptions roots cert-pool-new None now Nil
+
+  -- | Attach an intermediate certificate pool to `VerifyOptions`.
+  verify-with-intermediates :: VerifyOptions -> CertPool -> VerifyOptions
+  verify-with-intermediates opts inters = case opts of
+    MkVerifyOptions roots _ dns now ekus -> MkVerifyOptions roots inters dns now ekus
+
+  -- | Set the hostname or IP address to verify against the leaf certificate.
+  verify-with-dns-name :: VerifyOptions -> String -> VerifyOptions
+  verify-with-dns-name opts host = case opts of
+    MkVerifyOptions roots inters _ now ekus -> MkVerifyOptions roots inters (Some host) now ekus
+
+  -- | Set the acceptable extended key usages (empty list defaults to `[ExtKeyUsageServerAuth]`).
+  verify-with-key-usages :: VerifyOptions -> List ExtKeyUsage -> VerifyOptions
+  verify-with-key-usages opts ekus = case opts of
+    MkVerifyOptions roots inters dns now _ -> MkVerifyOptions roots inters dns now ekus
+
+  -- | Check that `cert` contains no unrecognized critical extensions.
+  check-critical-extensions :: Certificate -> Result X509Error Unit
+  check-critical-extensions cert = check-crit-loop (cert-extensions cert)
+
+  -- | Scan certificate extensions for any unhandled critical extension.
+  check-crit-loop :: List PkixExtension -> Result X509Error Unit
+  check-crit-loop exts = case exts of
+    Nil -> Ok ()
+    Cons ext rest ->
+      if pkix-ext-critical ext && not (is-handled-extension (pkix-ext-oid ext)) then
+        Err (X509UnhandledCriticalExtension (pkix-ext-oid ext))
+      else check-crit-loop rest
+
+  -- | Check whether `now` falls within `[not-before, not-after]` of `cert`.
+  check-cert-time :: Certificate -> I64 -> Result X509Error Unit
+  check-cert-time cert now =
+    if lt-i64 now (cert-not-before cert) || gt-i64 now (cert-not-after cert) then Err X509Expired
+    else Ok ()
+
+  -- | Return True iff `cert` is already in `chain` (by exact DER equality).
+  cert-in-list :: Certificate -> List Certificate -> Bool
+  cert-in-list cert cs = case cs of
+    Nil -> False
+    Cons c rest ->
+      if bytes-eq (cert-raw cert) (cert-raw c) then True
+      else cert-in-list cert rest
+
+  -- | Check whether `eku` is permitted by `cert` (empty cert EKU list allows all; ExtKeyUsageAny allows all).
+  cert-allows-eku :: Certificate -> ExtKeyUsage -> Bool
+  cert-allows-eku cert req =
+    let ekus = cert-ext-key-usage cert in
+    case ekus of
+      Nil -> True
+      Cons _ _ -> eku-list-contains ekus ExtKeyUsageAny || eku-list-contains ekus req
+
+  -- | Return True iff `target-eku` appears in `ekus`.
+  eku-list-contains :: List ExtKeyUsage -> ExtKeyUsage -> Bool
+  eku-list-contains ekus needle = case ekus of
+    Nil -> False
+    Cons u rest -> if eku-equal u needle then True else eku-list-contains rest needle
+
+  -- | Return True iff every certificate in `chain` permits `req`.
+  chain-allows-eku :: List Certificate -> ExtKeyUsage -> Bool
+  chain-allows-eku chain req = case chain of
+    Nil -> True
+    Cons c rest -> if cert-allows-eku c req then chain-allows-eku rest req else False
+
+  -- | Check whether a chain satisfies at least one of the requested extended key usages.
+  check-chain-ekus :: List Certificate -> List ExtKeyUsage -> Bool
+  check-chain-ekus chain requested =
+    let effective = (case requested of Nil -> [ExtKeyUsageServerAuth]; Cons _ _ -> requested) in
+    if eku-list-contains effective ExtKeyUsageAny then True
+    else any-eku-allowed chain effective
+
+  -- | Return True iff at least one EKU in `reqs` is allowed by every certificate in `chain`.
+  any-eku-allowed :: List Certificate -> List ExtKeyUsage -> Bool
+  any-eku-allowed chain reqs = case reqs of
+    Nil -> False
+    Cons r rest -> if chain-allows-eku chain r then True else any-eku-allowed chain rest
+
+  -- | Check NameConstraints of `ca` against every subordinate certificate in `subs`.
+  check-constraints-against-chain :: Certificate -> List Certificate -> Result X509Error Unit
+  check-constraints-against-chain ca subs = case subs of
+    Nil -> Ok ()
+    Cons sub rest -> (case check-name-constraints ca sub of
+      Err e -> Err e
+      Ok _ -> check-constraints-against-chain ca rest)
+
+  -- | Validate that `parent` can legally sign `current` given `num-inter` intermediate CAs already below `parent`.
+  validate-parent-step :: Certificate -> Certificate -> List Certificate -> Nat -> I64 -> Result X509Error Unit
+  validate-parent-step current parent subs num-inter now =
+    case check-cert-time parent now of
+      Err e -> Err e
+      Ok _ -> (case check-critical-extensions parent of
+        Err e -> Err e
+        Ok _ ->
+          if not (cert-is-ca parent) then Err X509NotAuthorizedToSign
+          else
+            let ku = cert-key-usage parent in
+            if ne-u32 ku 0 && not (key-usage-has ku key-usage-cert-sign) then Err X509NotAuthorizedToSign
+            else
+              let pathlen-ok = (case cert-max-path-len parent of
+                None -> True
+                Some limit -> num-inter <= limit) in
+              if not pathlen-ok then Err X509TooManyIntermediates
+              else (case check-constraints-against-chain parent subs of
+                Err e -> Err e
+                Ok _ ->
+                  check-signature (cert-public-key parent) (cert-signature-algorithm current) (cert-raw-tbs-certificate current) (cert-signature current)))
+
+  -- | Filter a list of candidate issuer certificates whose Subject equals `issuer-name`.
+  matching-issuers :: PkixName -> List Certificate -> List Certificate -> List Certificate
+  matching-issuers issuer-name candidates acc = case candidates of
+    Nil -> reverse acc
+    Cons c rest ->
+      if pkix-name-equal (cert-subject c) issuer-name then
+        matching-issuers issuer-name rest (Cons c acc)
+      else matching-issuers issuer-name rest acc
+
+  -- | Pick the higher-priority verification error when multiple candidate paths fail.
+  prefer-error :: Option X509Error -> X509Error -> Option X509Error
+  prefer-error prev next = case prev of
+    None -> Some next
+    Some p -> if error-rank next > error-rank p then Some next else Some p
+
+  -- | Priority ranking so specific policy/crypto failures override generic `X509UnknownAuthority`.
+  error-rank :: X509Error -> Nat
+  error-rank err = case err of
+    X509UnknownAuthority -> 1
+    X509IncompatibleUsage -> 2
+    X509Expired -> 3
+    X509NotAuthorizedToSign -> 4
+    X509TooManyIntermediates -> 5
+    X509NameConstraintViolation _ -> 6
+    X509UnhandledCriticalExtension _ -> 7
+    X509SignatureInvalid -> 8
+    other -> 5
+
+  -- | Verify `leaf` under `opts`, returning all valid certificate chains `[leaf, ..., root]`.
+  verify-certificate :: VerifyOptions -> Certificate -> Result X509Error (List (List Certificate))
+  verify-certificate opts leaf = case opts of
+    MkVerifyOptions roots inters dns now ekus ->
+      case check-cert-time leaf now of
+        Err e -> Err e
+        Ok _ -> (case check-critical-extensions leaf of
+          Err e -> Err e
+          Ok _ ->
+            let host-ok = (case dns of None -> Ok (); Some h -> verify-hostname leaf h) in
+            (case host-ok of
+              Err e -> Err e
+              Ok _ ->
+                let root-list = cert-pool-certs roots in
+                let inter-list = cert-pool-certs inters in
+                let self-chains = if cert-in-list leaf root-list then [[leaf]] else Nil in
+                case build-chains [leaf] leaf root-list inter-list 0 now 100 of
+                  (built, best-err) ->
+                    let all-chains = append-list self-chains built in
+                    let valid-eku = filter-eku-chains all-chains ekus Nil in
+                    (case valid-eku of
+                      Cons _ _ -> Ok valid-eku
+                      Nil ->
+                        if not (is-empty all-chains) then Err X509IncompatibleUsage
+                        else (case best-err of
+                          Some e -> Err e
+                          None -> Err X509UnknownAuthority))))
+
+  -- | Filter candidate chains to those satisfying the requested Extended Key Usages.
+  filter-eku-chains :: List (List Certificate) -> List ExtKeyUsage -> List (List Certificate) -> List (List Certificate)
+  filter-eku-chains chains reqs acc = case chains of
+    Nil -> reverse acc
+    Cons ch rest ->
+      if check-chain-ekus ch reqs then filter-eku-chains rest reqs (Cons ch acc)
+      else filter-eku-chains rest reqs acc
+
+  -- | Recursively build all valid certificate chains from `current` up to `roots`.
+  build-chains :: List Certificate -> Certificate -> List Certificate -> List Certificate -> Nat -> I64 -> Nat -> (List (List Certificate), Option X509Error)
+  build-chains chain-rev current roots inters num-inter now fuel =
+    if fuel == 0 then (Nil, Some X509TooManyIntermediates)
+    else
+      let subs = reverse chain-rev in
+      let root-cands = matching-issuers (cert-issuer current) roots Nil in
+      let inter-cands = matching-issuers (cert-issuer current) inters Nil in
+      case try-roots root-cands chain-rev current subs num-inter now Nil None of
+        (root-chains, err1) ->
+          case try-intermediates inter-cands chain-rev current subs roots inters num-inter now (sub-sat fuel 1) Nil err1 of
+            (inter-chains, err2) -> (append-list root-chains inter-chains, err2)
+
+  -- | Try terminating the chain at each candidate root certificate.
+  try-roots :: List Certificate -> List Certificate -> Certificate -> List Certificate -> Nat -> I64 -> List (List Certificate) -> Option X509Error -> (List (List Certificate), Option X509Error)
+  try-roots cands chain-rev current subs num-inter now acc best-err = case cands of
+    Nil -> (reverse acc, best-err)
+    Cons root rest ->
+      if cert-in-list root chain-rev then
+        try-roots rest chain-rev current subs num-inter now acc best-err
+      else case validate-parent-step current root subs num-inter now of
+        Ok _ ->
+          let full = reverse (Cons root chain-rev) in
+          try-roots rest chain-rev current subs num-inter now (Cons full acc) best-err
+        Err e ->
+          try-roots rest chain-rev current subs num-inter now acc (prefer-error best-err e)
+
+  -- | Try extending the chain through each candidate intermediate certificate.
+  try-intermediates :: List Certificate -> List Certificate -> Certificate -> List Certificate -> List Certificate -> List Certificate -> Nat -> I64 -> Nat -> List (List Certificate) -> Option X509Error -> (List (List Certificate), Option X509Error)
+  try-intermediates cands chain-rev current subs roots inters num-inter now fuel acc best-err = case cands of
+    Nil -> (acc, best-err)
+    Cons inter rest ->
+      if cert-in-list inter chain-rev then
+        try-intermediates rest chain-rev current subs roots inters num-inter now fuel acc best-err
+      else case validate-parent-step current inter subs num-inter now of
+        Err e ->
+          try-intermediates rest chain-rev current subs roots inters num-inter now fuel acc (prefer-error best-err e)
+        Ok _ ->
+          let is-self-issued = pkix-name-equal (cert-subject inter) (cert-issuer inter) in
+          let next-inter-count = if is-self-issued then num-inter else num-inter + 1 in
+          case build-chains (Cons inter chain-rev) inter roots inters next-inter-count now fuel of
+            (sub-chains, sub-err) ->
+              let merged-err = (case sub-err of Some e -> prefer-error best-err e; None -> best-err) in
+              try-intermediates rest chain-rev current subs roots inters num-inter now fuel (append-list acc sub-chains) merged-err
+
+  -- ---------------------------------------------------------------------
+  -- Certificate Creation (X.509 v3 DER generation).
+  -- ---------------------------------------------------------------------
+
+  -- | Parameters for creating an X.509 v3 certificate with `create-certificate`.
+  data CertificateTemplate where
+    -- | Serial, subject, notBefore, notAfter, optional sigAlg, extData.
+    MkCertTemplate :: Int -> PkixName -> I64 -> I64 -> Option SignatureAlgorithm -> CertExtData -> CertificateTemplate
+
+  -- | Construct a minimal `CertificateTemplate` with serial, subject, notBefore, and notAfter.
+  cert-template-new :: Int -> PkixName -> I64 -> I64 -> CertificateTemplate
+  cert-template-new serial subject not-before not-after =
+    MkCertTemplate serial subject not-before not-after None
+      (MkCertExtData key-usage-none Nil empty-san empty-constraints None None Nil)
+
+  -- | Override the signature algorithm on a `CertificateTemplate`.
+  template-with-sig-alg :: CertificateTemplate -> SignatureAlgorithm -> CertificateTemplate
+  template-with-sig-alg t alg = case t of
+    MkCertTemplate s sub nb na _ ext -> MkCertTemplate s sub nb na (Some alg) ext
+
+  -- | Set BasicConstraints `cA` flag (and mark BasicConstraints valid) on a `CertificateTemplate`.
+  template-with-ca :: CertificateTemplate -> Bool -> CertificateTemplate
+  template-with-ca t is-ca = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints _ _ mpl pd ed pi ei) ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints True is-ca mpl pd ed pi ei) ski aki extra)
+
+  -- | Set BasicConstraints `pathLenConstraint` on a `CertificateTemplate`.
+  template-with-max-path-len :: CertificateTemplate -> Nat -> CertificateTemplate
+  template-with-max-path-len t limit = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca _ pd ed pi ei) ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints True ca (Some limit) pd ed pi ei) ski aki extra)
+
+  -- | Set the KeyUsage bitmask on a `CertificateTemplate`.
+  template-with-key-usage :: CertificateTemplate -> U32 -> CertificateTemplate
+  template-with-key-usage t ku = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData _ ekus san cons ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san cons ski aki extra)
+
+  -- | Set the Extended Key Usage list on a `CertificateTemplate`.
+  template-with-ext-key-usage :: CertificateTemplate -> List ExtKeyUsage -> CertificateTemplate
+  template-with-ext-key-usage t ekus = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku _ san cons ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san cons ski aki extra)
+
+  -- | Set SAN DNS names on a `CertificateTemplate`.
+  template-with-dns-names :: CertificateTemplate -> List String -> CertificateTemplate
+  template-with-dns-names t dns = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus (MkCertSan _ em ip ur) cons ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus (MkCertSan dns em ip ur) cons ski aki extra)
+
+  -- | Set SAN email addresses on a `CertificateTemplate`.
+  template-with-email-addresses :: CertificateTemplate -> List String -> CertificateTemplate
+  template-with-email-addresses t emails = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus (MkCertSan dns _ ip ur) cons ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus (MkCertSan dns emails ip ur) cons ski aki extra)
+
+  -- | Set SAN IP addresses on a `CertificateTemplate`.
+  template-with-ip-addresses :: CertificateTemplate -> List Addr -> CertificateTemplate
+  template-with-ip-addresses t ips = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus (MkCertSan dns em _ ur) cons ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus (MkCertSan dns em ips ur) cons ski aki extra)
+
+  -- | Set SAN URIs on a `CertificateTemplate`.
+  template-with-uris :: CertificateTemplate -> List String -> CertificateTemplate
+  template-with-uris t uris = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus (MkCertSan dns em ip _) cons ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus (MkCertSan dns em ip uris) cons ski aki extra)
+
+  -- | Set Subject Key Identifier bytes on a `CertificateTemplate`.
+  template-with-subject-key-id :: CertificateTemplate -> Bytes -> CertificateTemplate
+  template-with-subject-key-id t ski = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san cons _ aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san cons (Some (bytes-clone ski)) aki extra)
+
+  -- | Set Authority Key Identifier bytes on a `CertificateTemplate`.
+  template-with-authority-key-id :: CertificateTemplate -> Bytes -> CertificateTemplate
+  template-with-authority-key-id t aki = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san cons ski _ extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san cons ski (Some (bytes-clone aki)) extra)
+
+  -- | Set permitted DNS domain NameConstraints on a `CertificateTemplate`.
+  template-with-permitted-dns :: CertificateTemplate -> List String -> CertificateTemplate
+  template-with-permitted-dns t pd = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca mpl _ ed pi ei) ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca mpl pd ed pi ei) ski aki extra)
+
+  -- | Set excluded DNS domain NameConstraints on a `CertificateTemplate`.
+  template-with-excluded-dns :: CertificateTemplate -> List String -> CertificateTemplate
+  template-with-excluded-dns t ed = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca mpl pd _ pi ei) ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca mpl pd ed pi ei) ski aki extra)
+
+  -- | Set permitted IP range NameConstraints on a `CertificateTemplate`.
+  template-with-permitted-ips :: CertificateTemplate -> List Prefix -> CertificateTemplate
+  template-with-permitted-ips t pi = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca mpl pd ed _ ei) ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca mpl pd ed pi ei) ski aki extra)
+
+  -- | Set excluded IP range NameConstraints on a `CertificateTemplate`.
+  template-with-excluded-ips :: CertificateTemplate -> List Prefix -> CertificateTemplate
+  template-with-excluded-ips t ei = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca mpl pd ed pi _) ski aki extra) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san (MkCertConstraints bcv ca mpl pd ed pi ei) ski aki extra)
+
+  -- | Attach additional raw `PkixExtension` entries to a `CertificateTemplate`.
+  template-with-extra-extensions :: CertificateTemplate -> List PkixExtension -> CertificateTemplate
+  template-with-extra-extensions t extra = case t of
+    MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san cons ski aki _) ->
+      MkCertTemplate s sub nb na alg (MkCertExtData ku ekus san cons ski aki extra)
+
+  -- | Build the SAN extension ASN.1 bytes from `CertSan`, returning `None` if all SAN lists are empty.
+  build-san-extension :: CertSan -> Option PkixExtension
+  build-san-extension san = case san of
+    MkCertSan dns emails ips uris ->
+      let dns-items = encode-san-strings 2 dns Nil in
+      let email-items = encode-san-strings 1 emails Nil in
+      let ip-items = encode-san-ips ips Nil in
+      let uri-items = encode-san-strings 6 uris Nil in
+      let items = append-list dns-items (append-list email-items (append-list ip-items uri-items)) in
+      case items of
+        Nil -> None
+        Cons _ _ -> Some (pkix-extension oid-ext-san False (asn1-encode (asn1-sequence items)))
+
+  -- | Encode string SAN entries with an implicit context tag (1=email, 2=DNS, 6=URI).
+  encode-san-strings :: Nat -> List String -> List Asn1 -> List Asn1
+  encode-san-strings tag xs acc = case xs of
+    Nil -> reverse acc
+    Cons s rest -> encode-san-strings tag rest (Cons (Asn1Raw class-context tag False (string-to-bytes s)) acc)
+
+  -- | Encode IP SAN entries as [7] IMPLICIT OCTET STRING.
+  encode-san-ips :: List Addr -> List Asn1 -> List Asn1
+  encode-san-ips ips acc = case ips of
+    Nil -> reverse acc
+    Cons ip rest -> encode-san-ips rest (Cons (Asn1Raw class-context 7 False (addr-as-slice ip)) acc)
+
+  -- | Encode EKU OIDs into an ExtKeyUsage ASN.1 SEQUENCE.
+  encode-eku-oids :: List ExtKeyUsage -> List Asn1 -> List Asn1
+  encode-eku-oids ekus acc = case ekus of
+    Nil -> reverse acc
+    Cons u rest -> encode-eku-oids rest (Cons (Asn1Oid (eku-to-oid u)) acc)
+
+  -- | Encode DNS and IP NameConstraint subtrees for one side (permitted or excluded).
+  encode-nc-subtrees :: List String -> List Prefix -> List Asn1
+  encode-nc-subtrees dns ips =
+    append-list (encode-nc-dns dns Nil) (encode-nc-ips ips Nil)
+
+  -- | Encode DNS NameConstraint GeneralSubtree entries.
+  encode-nc-dns :: List String -> List Asn1 -> List Asn1
+  encode-nc-dns xs acc = case xs of
+    Nil -> reverse acc
+    Cons d rest ->
+      let st = asn1-sequence [Asn1Raw class-context 2 False (string-to-bytes d)] in
+      encode-nc-dns rest (Cons st acc)
+
+  -- | Encode IP NameConstraint GeneralSubtree entries.
+  encode-nc-ips :: List Prefix -> List Asn1 -> List Asn1
+  encode-nc-ips xs acc = case xs of
+    Nil -> reverse acc
+    Cons p rest ->
+      let st = asn1-sequence [Asn1Raw class-context 7 False (encode-ip-constraint p)] in
+      encode-nc-ips rest (Cons st acc)
+
+  -- | Build the NameConstraints extension if any permitted or excluded constraints are configured.
+  build-nc-extension :: CertConstraints -> Option PkixExtension
+  build-nc-extension cons = case cons of
+    MkCertConstraints _ _ _ pd ed pi ei ->
+      let p-items = encode-nc-subtrees pd pi in
+      let e-items = encode-nc-subtrees ed ei in
+      let f0 = (case p-items of Nil -> Nil; Cons _ _ -> [Asn1Raw class-context 0 True (strip-der-header (asn1-encode (asn1-sequence p-items)))]) in
+      let f1 = (case e-items of Nil -> Nil; Cons _ _ -> [Asn1Raw class-context 1 True (strip-der-header (asn1-encode (asn1-sequence e-items)))]) in
+      let both = append-list f0 f1 in
+      case both of
+        Nil -> None
+        Cons _ _ -> Some (pkix-extension oid-ext-name-constraints True (asn1-encode (asn1-sequence both)))
+
+  -- | Build all X.509 v3 extensions from `CertExtData` and inherited AKI.
+  build-cert-extensions :: CertExtData -> Option Bytes -> List PkixExtension
+  build-cert-extensions ext-data inherited-aki = case ext-data of
+    MkCertExtData ku ekus san cons ski aki extra ->
+      let e-ku = if ne-u32 ku 0 then [pkix-extension oid-ext-key-usage True (asn1-encode (encode-key-usage-bits ku))] else Nil in
+      let e-eku = (case ekus of Nil -> Nil; Cons _ _ -> [pkix-extension oid-ext-eku False (asn1-encode (asn1-sequence (encode-eku-oids ekus Nil)))]) in
+      let e-bc = (case cons of
+        MkCertConstraints bcv ca mpl _ _ _ _ ->
+          if not bcv then Nil
+          else
+            let bc-fields = if ca then (case mpl of None -> [Asn1Boolean True]; Some n -> [Asn1Boolean True, Asn1Integer (nat-to-int n)]) else Nil in
+            [pkix-extension oid-ext-basic-constraints True (asn1-encode (asn1-sequence bc-fields))]) in
+      let e-ski = (case ski of None -> Nil; Some b -> [pkix-extension oid-ext-ski False (asn1-encode (Asn1OctetString b))]) in
+      let eff-aki = (case aki of Some b -> Some b; None -> inherited-aki) in
+      let e-aki = (case eff-aki of None -> Nil; Some b -> [pkix-extension oid-ext-aki False (asn1-encode (asn1-sequence [Asn1Raw class-context 0 False b]))]) in
+      let e-san = (case build-san-extension san of None -> Nil; Some x -> [x]) in
+      let e-nc = (case build-nc-extension cons of None -> Nil; Some x -> [x]) in
+      append-list e-ku (append-list e-eku (append-list e-bc (append-list e-ski (append-list e-aki (append-list e-san (append-list e-nc extra))))))
+
+  -- | Encode a list of `PkixExtension` values to ASN.1 elements.
+  encode-ext-asn1-list :: List PkixExtension -> List Asn1 -> List Asn1
+  encode-ext-asn1-list exts acc = case exts of
+    Nil -> reverse acc
+    Cons e rest -> encode-ext-asn1-list rest (Cons (pkix-ext-to-asn1 e) acc)
+
+  -- | Create and sign an X.509 v3 certificate in DER format.
+  -- Pass `None` as `parent` for a self-signed certificate, or `Some ca` for a CA-signed certificate.
+  create-certificate :: CertificateTemplate -> Option Certificate -> PublicKey -> PrivateKey -> Result X509Error Bytes
+  create-certificate tmpl parent pub priv = case tmpl of
+    MkCertTemplate serial subject not-before not-after opt-alg ext-data ->
+      let resolved-alg = (case opt-alg of Some a -> Ok a; None -> default-sig-alg priv) in
+      (case resolved-alg of
+        Err e -> Err e
+        Ok alg -> (case sig-alg-to-pkix alg of
+          Err e -> Err e
+          Ok pkix-alg ->
+            let issuer = (case parent of Some ca -> cert-subject ca; None -> subject) in
+            let inherited-aki = (case parent of Some ca -> cert-subject-key-id ca; None -> None) in
+            let exts = build-cert-extensions ext-data inherited-aki in
+            let ext-field = (case exts of
+              Nil -> Nil
+              Cons _ _ -> [asn1-explicit 3 (asn1-sequence (encode-ext-asn1-list exts Nil))]) in
+            let tbs-fields = append-list [
+              asn1-explicit 0 (Asn1Integer 2),
+              Asn1Integer serial,
+              pkix-alg-to-asn1 pkix-alg,
+              pkix-name-to-asn1 issuer,
+              asn1-sequence [pkix-encode-time not-before, pkix-encode-time not-after],
+              pkix-name-to-asn1 subject,
+              public-key-to-spki-asn1 pub
+            ] ext-field in
+            let tbs-der = asn1-encode (asn1-sequence tbs-fields) in
+            (case sign-tbs priv alg tbs-der of
+              Err e -> Err e
+              Ok sig ->
+                Ok (asn1-encode (asn1-sequence [
+                  Asn1Raw class-universal 16 True (strip-der-header tbs-der),
+                  pkix-alg-to-asn1 pkix-alg,
+                  Asn1BitString sig (bytes-len sig * 8)
+                ])))))
+
+  -- ---------------------------------------------------------------------
+  -- Certificate Signing Requests (PKCS#10 / RFC 2986).
+  -- ---------------------------------------------------------------------
+
+  -- | A parsed PKCS#10 Certificate Signing Request.
+  data CertificateRequest where
+    -- | Version, subject, publicKey, signatureAlgorithm, signature, rawTBS, rawDER, SAN, extensions.
+    MkCertificateRequest :: Nat -> PkixName -> PublicKey -> SignatureAlgorithm -> Bytes -> Bytes -> Bytes -> CertSan -> List PkixExtension -> CertificateRequest
+
+  -- | Return the CSR version (always 0 for PKCS#10).
+  csr-version :: CertificateRequest -> Nat
+  csr-version r = case r of MkCertificateRequest v _ _ _ _ _ _ _ _ -> v
+
+  -- | Return the requested subject distinguished name.
+  csr-subject :: CertificateRequest -> PkixName
+  csr-subject r = case r of MkCertificateRequest _ sub _ _ _ _ _ _ _ -> sub
+
+  -- | Return the requested subject public key.
+  csr-public-key :: CertificateRequest -> PublicKey
+  csr-public-key r = case r of MkCertificateRequest _ _ pub _ _ _ _ _ _ -> pub
+
+  -- | Return the CSR signature algorithm.
+  csr-signature-algorithm :: CertificateRequest -> SignatureAlgorithm
+  csr-signature-algorithm r = case r of MkCertificateRequest _ _ _ alg _ _ _ _ _ -> alg
+
+  -- | Return the raw CSR signature bytes.
+  csr-signature :: CertificateRequest -> Bytes
+  csr-signature r = case r of MkCertificateRequest _ _ _ _ sig _ _ _ _ -> bytes-clone sig
+
+  -- | Return the exact raw DER bytes of CertificationRequestInfo.
+  csr-raw-tbs :: CertificateRequest -> Bytes
+  csr-raw-tbs r = case r of MkCertificateRequest _ _ _ _ _ tbs _ _ _ -> bytes-clone tbs
+
+  -- | Return the complete DER encoding of the CSR.
+  csr-raw :: CertificateRequest -> Bytes
+  csr-raw r = case r of MkCertificateRequest _ _ _ _ _ _ raw _ _ -> bytes-clone raw
+
+  -- | Return the requested SAN DNS names from the CSR.
+  csr-dns-names :: CertificateRequest -> List String
+  csr-dns-names r = case r of MkCertificateRequest _ _ _ _ _ _ _ (MkCertSan dns _ _ _) _ -> dns
+
+  -- | Return the requested SAN email addresses from the CSR.
+  csr-email-addresses :: CertificateRequest -> List String
+  csr-email-addresses r = case r of MkCertificateRequest _ _ _ _ _ _ _ (MkCertSan _ emails _ _) _ -> emails
+
+  -- | Return the requested SAN IP addresses from the CSR.
+  csr-ip-addresses :: CertificateRequest -> List Addr
+  csr-ip-addresses r = case r of MkCertificateRequest _ _ _ _ _ _ _ (MkCertSan _ _ ips _) _ -> ips
+
+  -- | Return the requested SAN URIs from the CSR.
+  csr-uris :: CertificateRequest -> List String
+  csr-uris r = case r of MkCertificateRequest _ _ _ _ _ _ _ (MkCertSan _ _ _ uris) _ -> uris
+
+  -- | Return all requested X.509 extensions attached to the CSR.
+  csr-extensions :: CertificateRequest -> List PkixExtension
+  csr-extensions r = case r of MkCertificateRequest _ _ _ _ _ _ _ _ exts -> exts
+
+  -- | Parse a DER-encoded PKCS#10 Certificate Signing Request.
+  parse-certificate-request :: Bytes -> Result X509Error CertificateRequest
+  parse-certificate-request der = case asn1-decode der of
+    Err e -> Err (X509Asn1Error e)
+    Ok val -> (case val of
+      Asn1Sequence _ -> (case asn1-members val of
+        Cons info-val (Cons alg-val (Cons (Asn1BitString sig-bytes sig-bits) Nil)) ->
+          if nat-rem sig-bits 8 /= 0 then Err (X509InvalidEncoding "CSR signature has unused bits")
+          else (case der-first-child-bytes der of
+            None -> Err (X509InvalidEncoding "failed to extract raw CertificationRequestInfo")
+            Some raw-tbs -> (case pkix-alg-from-asn1 alg-val of
+              Err e -> Err (X509PkixError e)
+              Ok pkix-alg -> parse-csr-info info-val raw-tbs (sig-alg-from-pkix pkix-alg) sig-bytes der))
+        other -> Err (X509InvalidEncoding "CertificationRequest must be SEQUENCE { info, signatureAlgorithm, signature }"))
+      other -> Err (X509InvalidEncoding "CertificationRequest must be a SEQUENCE"))
+
+  -- | Parse CertificationRequestInfo inside a PKCS#10 CSR.
+  parse-csr-info :: Asn1 -> Bytes -> SignatureAlgorithm -> Bytes -> Bytes -> Result X509Error CertificateRequest
+  parse-csr-info info-val raw-tbs sig-alg sig-bytes raw = case info-val of
+    Asn1Sequence _ -> (case asn1-members info-val of
+      Cons (Asn1Integer 0) (Cons sub-val (Cons spki-val tail)) ->
+        (case pkix-name-from-asn1 sub-val of
+          Err e -> Err (X509PkixError e)
+          Ok subject -> (case parse-spki-asn1 spki-val of
+            Err e -> Err e
+            Ok pub -> (case parse-csr-attributes tail of
+              Err e -> Err e
+              Ok exts -> (case extract-csr-san exts of
+                Err e -> Err e
+                Ok san ->
+                  Ok (MkCertificateRequest 0 subject pub sig-alg (bytes-clone sig-bytes) raw-tbs (bytes-clone raw) san exts)))))
+      other -> Err (X509InvalidEncoding "CertificationRequestInfo must start with version 0, subject, subjectPKInfo"))
+    other -> Err (X509InvalidEncoding "CertificationRequestInfo must be a SEQUENCE")
+
+  -- | Parse optional [0] IMPLICIT Attributes in CertificationRequestInfo, extracting extensionRequest extensions.
+  parse-csr-attributes :: List Asn1 -> Result X509Error (List PkixExtension)
+  parse-csr-attributes tail = case tail of
+    Nil -> Ok Nil
+    Cons (Asn1Raw cls 0 True content) Nil ->
+      if cls /= class-context then Err (X509InvalidEncoding "unexpected CSR attributes tag")
+      else
+        let seq-der = asn1-encode (Asn1Raw class-universal 16 True content) in
+        (case asn1-decode seq-der of
+          Err e -> Err (X509Asn1Error e)
+          Ok (Asn1Sequence cells) -> extract-csr-ext-attrs (asn1-members (Asn1Sequence cells)) Nil
+          other -> Err (X509InvalidEncoding "CSR attributes must decode as a sequence"))
+    other -> Err (X509InvalidEncoding "unexpected trailing fields in CertificationRequestInfo")
+
+  -- | Extract X.509 extensions from PKCS#9 extensionRequest attributes.
+  extract-csr-ext-attrs :: List Asn1 -> List PkixExtension -> Result X509Error (List PkixExtension)
+  extract-csr-ext-attrs attrs acc = case attrs of
+    Nil -> Ok acc
+    Cons (Asn1Sequence cells) rest ->
+      (case asn1-members (Asn1Sequence cells) of
+        Cons (Asn1Oid oid) (Cons (Asn1Set val-cells) Nil) ->
+          if oid-equal oid oid-ext-request then
+            (case asn1-members (Asn1Set val-cells) of
+              Cons (Asn1Sequence ext-cells) _ ->
+                (case decode-cert-exts (asn1-members (Asn1Sequence ext-cells)) Nil of
+                  Err e -> Err e
+                  Ok exts -> extract-csr-ext-attrs rest (append-list acc exts))
+              other -> Err (X509InvalidExtension "extensionRequest must hold a SEQUENCE OF Extension"))
+          else extract-csr-ext-attrs rest acc
+        other -> Err (X509InvalidEncoding "CSR attribute must be SEQUENCE { OID, SET }"))
+    other -> Err (X509InvalidEncoding "CSR attribute must be a SEQUENCE")
+
+  -- | Extract SubjectAltName fields from CSR requested extensions, if present.
+  extract-csr-san :: List PkixExtension -> Result X509Error CertSan
+  extract-csr-san exts = case pkix-find-extension oid-ext-san exts of
+    None -> Ok empty-san
+    Some ext -> parse-san-ext (pkix-ext-value ext)
+
+  -- | Verify the self-signature on a PKCS#10 `CertificateRequest`.
+  check-certificate-request-signature :: CertificateRequest -> Result X509Error Unit
+  check-certificate-request-signature csr =
+    check-signature (csr-public-key csr) (csr-signature-algorithm csr) (csr-raw-tbs csr) (csr-signature csr)
+
+  -- | Template for creating a PKCS#10 Certificate Signing Request.
+  data CsrTemplate where
+    -- | Subject, optional signature algorithm, SANs, and extra extensions.
+    MkCsrTemplate :: PkixName -> Option SignatureAlgorithm -> CertSan -> List PkixExtension -> CsrTemplate
+
+  -- | Create a minimal `CsrTemplate` for the given subject distinguished name.
+  csr-template-new :: PkixName -> CsrTemplate
+  csr-template-new subject = MkCsrTemplate subject None empty-san Nil
+
+  -- | Override the signature algorithm on a `CsrTemplate`.
+  csr-template-with-sig-alg :: CsrTemplate -> SignatureAlgorithm -> CsrTemplate
+  csr-template-with-sig-alg t alg = case t of
+    MkCsrTemplate sub _ san exts -> MkCsrTemplate sub (Some alg) san exts
+
+  -- | Set requested DNS names on a `CsrTemplate`.
+  csr-template-with-dns-names :: CsrTemplate -> List String -> CsrTemplate
+  csr-template-with-dns-names t dns = case t of
+    MkCsrTemplate sub alg (MkCertSan _ em ip ur) exts -> MkCsrTemplate sub alg (MkCertSan dns em ip ur) exts
+
+  -- | Set requested email addresses on a `CsrTemplate`.
+  csr-template-with-email-addresses :: CsrTemplate -> List String -> CsrTemplate
+  csr-template-with-email-addresses t emails = case t of
+    MkCsrTemplate sub alg (MkCertSan dns _ ip ur) exts -> MkCsrTemplate sub alg (MkCertSan dns emails ip ur) exts
+
+  -- | Set requested IP addresses on a `CsrTemplate`.
+  csr-template-with-ip-addresses :: CsrTemplate -> List Addr -> CsrTemplate
+  csr-template-with-ip-addresses t ips = case t of
+    MkCsrTemplate sub alg (MkCertSan dns em _ ur) exts -> MkCsrTemplate sub alg (MkCertSan dns em ips ur) exts
+
+  -- | Set requested URIs on a `CsrTemplate`.
+  csr-template-with-uris :: CsrTemplate -> List String -> CsrTemplate
+  csr-template-with-uris t uris = case t of
+    MkCsrTemplate sub alg (MkCertSan dns em ip _) exts -> MkCsrTemplate sub alg (MkCertSan dns em ip uris) exts
+
+  -- | Attach extra requested extensions to a `CsrTemplate`.
+  csr-template-with-extensions :: CsrTemplate -> List PkixExtension -> CsrTemplate
+  csr-template-with-extensions t exts = case t of
+    MkCsrTemplate sub alg san _ -> MkCsrTemplate sub alg san exts
+
+  -- | Create and sign a PKCS#10 Certificate Signing Request in DER format.
+  create-certificate-request :: CsrTemplate -> PrivateKey -> Result X509Error Bytes
+  create-certificate-request tmpl priv = case tmpl of
+    MkCsrTemplate subject opt-alg san extra-exts ->
+      let resolved-alg = (case opt-alg of Some a -> Ok a; None -> default-sig-alg priv) in
+      (case resolved-alg of
+        Err e -> Err e
+        Ok alg -> (case sig-alg-to-pkix alg of
+          Err e -> Err e
+          Ok pkix-alg ->
+            let pub = public-key-of priv in
+            let all-exts = (case build-san-extension san of
+              None -> extra-exts
+              Some san-ext -> Cons san-ext extra-exts) in
+            let attrs-raw = (case all-exts of
+              Nil -> Asn1Raw class-context 0 True (bytes-new 0)
+              Cons _ _ ->
+                let ext-req = asn1-sequence [
+                  Asn1Oid oid-ext-request,
+                  asn1-set [asn1-sequence (encode-ext-asn1-list all-exts Nil)]
+                ] in
+                Asn1Raw class-context 0 True (asn1-encode ext-req)) in
+            let info-der = asn1-encode (asn1-sequence [
+              Asn1Integer 0,
+              pkix-name-to-asn1 subject,
+              public-key-to-spki-asn1 pub,
+              attrs-raw
+            ]) in
+            (case sign-tbs priv alg info-der of
+              Err e -> Err e
+              Ok sig ->
+                Ok (asn1-encode (asn1-sequence [
+                  Asn1Raw class-universal 16 True (strip-der-header info-der),
+                  pkix-alg-to-asn1 pkix-alg,
+                  Asn1BitString sig (bytes-len sig * 8)
+                ])))))
+
+  -- ---------------------------------------------------------------------
+  -- CRL Creation (RFC 5280 v2 CertificateList).
+  -- ---------------------------------------------------------------------
+
+  -- | Create and sign an X.509 v2 Certificate Revocation List in DER format.
+  create-revocation-list :: Certificate -> PrivateKey -> Option SignatureAlgorithm -> I64 -> Option I64 -> List PkixRevokedCertificate -> List PkixExtension -> Result X509Error Bytes
+  create-revocation-list issuer priv opt-alg this-upd next-upd revoked exts =
+    let resolved-alg = (case opt-alg of Some a -> Ok a; None -> default-sig-alg priv) in
+    case resolved-alg of
+      Err e -> Err e
+      Ok alg -> (case sig-alg-to-pkix alg of
+        Err e -> Err e
+        Ok pkix-alg ->
+          let tbs = marshal-tbs-crl 2 pkix-alg (cert-subject issuer) this-upd next-upd revoked exts in
+          (case sign-tbs priv alg tbs of
+            Err e -> Err e
+            Ok sig -> Ok (marshal-crl (pkix-crl-from-parts 2 pkix-alg (cert-subject issuer) this-upd next-upd revoked exts sig))))

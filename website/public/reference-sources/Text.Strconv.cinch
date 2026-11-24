@@ -1,0 +1,1784 @@
+-- | Conversions between strings, byte buffers, and basic scalar values:
+-- booleans, signed and unsigned machine integers in bases 2 through 36 (plus
+-- base-0 prefix and underscore syntax), binary32 and binary64 floating-point
+-- numbers (decimal, hexadecimal, and special values with exact IEEE-754
+-- round-to-nearest-even), complex pairs, literal quoting and unquoting, and
+-- Unicode printable/graphic rune classification.
+--
+-- Every fallible conversion returns an explicit Result with a named
+-- StrconvError rather than panicking, and clamped-pair variants expose the
+-- saturated boundary value alongside a range error when overflow occurs.
+-- Byte-appending functions return fresh buffers without mutating caller
+-- prefixes.
+module Text.Strconv where
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.Float
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Unicode.Kernel
+  import Relation.Eq
+  import Text.Builder
+  import Text.Show
+
+  export int-size
+  export StrconvError, StrconvSyntax, StrconvRange, StrconvBadBase, StrconvBadBitSize, StrconvBadFormat, strconv-error-message
+  export parse-bool, format-bool, append-bool
+  export parse-int, parse-int-with-clamp, parse-uint, parse-uint-with-clamp, atoi, atoi-with-clamp
+  export format-int, format-uint, itoa, append-int, append-uint
+  export parse-float64, parse-float64-with-clamp, parse-float32, parse-float32-with-clamp
+  export format-float64, format-float32, append-float64, append-float32
+  export parse-complex128, parse-complex128-with-clamp, parse-complex64, parse-complex64-with-clamp
+  export format-complex128, format-complex64
+  export quote, quote-to-ascii, quote-to-graphic, quote-bytes, quote-bytes-to-ascii, quote-bytes-to-graphic
+  export append-quote, append-quote-to-ascii, append-quote-to-graphic
+  export quote-rune, quote-rune-to-ascii, quote-rune-to-graphic
+  export append-quote-rune, append-quote-rune-to-ascii, append-quote-rune-to-graphic
+  export unquote, unquote-bytes, unquote-char, quoted-prefix, can-backquote
+  export is-print, is-graphic
+
+  -- ---------------------------------------------------------------------
+  -- Constants and error type.
+  -- ---------------------------------------------------------------------
+
+  -- | Size in bits of the default machine integer width used when bit size 0 is requested.
+  int-size :: Nat
+  int-size = 64
+
+  -- | Why a string conversion failed.
+  data StrconvError where
+    -- | The input string does not satisfy the expected literal or numeric grammar.
+    StrconvSyntax :: StrconvError
+    -- | The parsed numeric value overflows the target representation.
+    StrconvRange :: StrconvError
+    -- | The requested numeric base is outside the supported range.
+    StrconvBadBase :: StrconvError
+    -- | The requested integer bit width is outside 0..64.
+    StrconvBadBitSize :: StrconvError
+    -- | The requested floating-point format specifier is not one of b, e, E, f, g, G, x, X.
+    StrconvBadFormat :: StrconvError
+
+  -- | Structural equality for conversion errors.
+  implicit instance Eq_StrconvError :: Eq StrconvError where
+    (==) a b = eq-i64 (error-tag a) (error-tag b)
+    (/=) a b = ne-i64 (error-tag a) (error-tag b)
+
+  -- | Numeric tag for an error variant.
+  error-tag :: StrconvError -> I64
+  error-tag err = case err of
+    StrconvSyntax -> 0
+    StrconvRange -> 1
+    StrconvBadBase -> 2
+    StrconvBadBitSize -> 3
+    StrconvBadFormat -> 4
+
+  -- | Human-readable message describing a conversion error.
+  strconv-error-message :: StrconvError -> String
+  strconv-error-message err = case err of
+    StrconvSyntax -> "invalid syntax"
+    StrconvRange -> "value out of range"
+    StrconvBadBase -> "invalid base"
+    StrconvBadBitSize -> "invalid bit size"
+    StrconvBadFormat -> "invalid format"
+
+  -- ---------------------------------------------------------------------
+  -- Byte and ASCII helpers.
+  -- ---------------------------------------------------------------------
+
+  -- | Append a suffix byte buffer to a prefix byte buffer, returning a fresh buffer.
+  append-raw-bytes :: Bytes -> Bytes -> Bytes
+  append-raw-bytes prefix suffix =
+    let plen = bytes-len prefix in
+    let slen = bytes-len suffix in
+    let out = bytes-new (plen + slen) in
+    let c1 = if plen <= bytes-len out && plen <= bytes-len prefix then bytes-copy-range out prefix 0 0 plen else () in
+    let c2 = if plen + slen <= bytes-len out && slen <= bytes-len suffix then bytes-copy-range out suffix plen 0 slen else () in
+    out
+
+  -- | Append a string's UTF-8 bytes to a prefix byte buffer without mutating the prefix.
+  append-raw-string :: Bytes -> String -> Bytes
+  append-raw-string prefix text = append-raw-bytes prefix (string-to-bytes text)
+
+  -- | Copy a checked half-open byte slice [start, end) into a fresh buffer.
+  bytes-slice :: Bytes -> Nat -> Nat -> Bytes
+  bytes-slice buf start end =
+    if start <= end && end <= bytes-len buf then
+      let count = end - start in
+      let out = bytes-new count in
+      let u = if count <= bytes-len out && start + count <= bytes-len buf then bytes-copy-range out buf 0 start count else () in
+      out
+    else bytes-new 0
+
+  -- | Decode an ASCII-guaranteed byte buffer into a String.
+  ascii-bytes-to-string :: Bytes -> String
+  ascii-bytes-to-string buf = case string-from-bytes buf of
+    Some s -> s
+    None -> empty-string
+
+  -- | Lowercase an ASCII letter byte; non-letters are returned unchanged.
+  ascii-lower-byte :: Nat -> Nat
+  ascii-lower-byte c = if c >= 65 && c <= 90 then c + 32 else c
+
+  -- | Convert the absolute value of a signed 64-bit integer to a Nat without overflow.
+  i64-abs-nat :: I64 -> Nat
+  i64-abs-nat v =
+    let x = int-from-i64 v in
+    if x < 0 then nat-from-int (0 - x) else nat-from-int x
+
+  -- | Convert an unsigned 64-bit machine word to an exact arbitrary-precision Nat.
+  u64-to-nat-exact :: U64 -> Nat
+  u64-to-nat-exact w =
+    let lo = u32-to-nat (wrapping-u64-to-u32 w) in
+    let hi = u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 w 32)) in
+    hi * 4294967296 + lo
+
+  -- | Convert a digit index 0..35 to its lowercase ASCII character code.
+  digit-char-lower :: Nat -> InRange 0 255 Nat
+  digit-char-lower d =
+    if d < 10 then 48 + d
+    else if d < 36 then 87 + d
+    else 48
+
+  -- | Convert a hex nibble 0..15 to its lowercase or uppercase ASCII character code.
+  hex-nibble-byte :: Nat -> Bool -> InRange 0 255 Nat
+  hex-nibble-byte d upper =
+    if d < 10 then 48 + d
+    else if d < 16 then (if upper then 55 + d else 87 + d)
+    else 48
+
+  -- | Decode one ASCII hex digit byte to 0..15.
+  hex-byte-val :: Nat -> Option (InRange 0 15 Nat)
+  hex-byte-val c =
+    if c >= 48 && c <= 57 then Some (c - 48)
+    else if c >= 97 && c <= 102 then Some (c - 87)
+    else if c >= 65 && c <= 70 then Some (c - 55)
+    else None
+
+  -- | Append one single byte to a Builder.
+  builder-add-byte :: InRange 0 255 Nat -> Builder -> Builder
+  builder-add-byte b acc =
+    let buf = bytes-new 1 in
+    let u = bytes-set buf 0 b in
+    builder-add-bytes buf acc
+
+  -- | Append two bytes to a Builder.
+  builder-add-two :: InRange 0 255 Nat -> InRange 0 255 Nat -> Builder -> Builder
+  builder-add-two b0 b1 acc =
+    let buf = bytes-new 2 in
+    let u0 = bytes-set buf 0 b0 in
+    let u1 = bytes-set buf 1 b1 in
+    builder-add-bytes buf acc
+
+  -- | Append a Unicode scalar value's UTF-8 encoding to a Builder.
+  builder-add-utf8-cp :: Nat -> Builder -> Builder
+  builder-add-utf8-cp cp acc =
+    let w = utf8-encode-width cp in
+    let buf = bytes-new w in
+    let u = if 0 + utf8-encode-width cp <= bytes-len buf then utf8-encode-into buf 0 cp else 0 in
+    builder-add-bytes buf acc
+
+  -- | Append n copies of an ASCII byte to a Builder.
+  builder-add-repeat-byte :: Nat -> InRange 0 255 Nat -> Builder -> Builder
+  builder-add-repeat-byte count ch acc =
+    if count == 0 then acc
+    else
+      let buf = bytes-new count in
+      let u = fill-byte-loop buf 0 ch in
+      builder-add-bytes buf acc
+
+  -- | Fill every slot of a byte buffer with one constant byte value.
+  fill-byte-loop :: Bytes -> Nat -> InRange 0 255 Nat -> Unit
+  fill-byte-loop buf i ch =
+    if i < bytes-len buf then
+      let u = bytes-set buf i ch in
+      fill-byte-loop buf (i + 1) ch
+    else ()
+
+  -- ---------------------------------------------------------------------
+  -- Booleans.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse a boolean string accepting 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
+  parse-bool :: String -> Result StrconvError Bool
+  parse-bool s =
+    if s == "1" || s == "t" || s == "T" || s == "true" || s == "TRUE" || s == "True" then Ok True
+    else if s == "0" || s == "f" || s == "F" || s == "false" || s == "FALSE" || s == "False" then Ok False
+    else Err StrconvSyntax
+
+  -- | Format a boolean as "true" or "false".
+  format-bool :: Bool -> String
+  format-bool b = if b then "true" else "false"
+
+  -- | Append "true" or "false" to a byte buffer, returning a fresh buffer.
+  append-bool :: Bytes -> Bool -> Bytes
+  append-bool dst b = append-raw-string dst (format-bool b)
+
+  -- ---------------------------------------------------------------------
+  -- Underscore validation for base-0 integers and floating-point literals.
+  -- ---------------------------------------------------------------------
+
+  -- | Validate underscore placement inside a numeric token [start, end).
+  -- Underscores may appear only between digits or immediately after a base prefix
+  -- (0b, 0o, 0x), never doubled, leading, trailing, or adjacent to punctuation.
+  underscore-ok-range :: Bytes -> Nat -> Nat -> Bool
+  underscore-ok-range buf start end =
+    let s1 = if start < end && start < bytes-len buf && (bytes-get buf start == 45 || bytes-get buf start == 43) then start + 1 else start in
+    if s1 + 1 < end && s1 + 1 < bytes-len buf && bytes-get buf s1 == 48 then
+      let c1 = ascii-lower-byte (bytes-get buf (s1 + 1)) in
+      if c1 == 98 || c1 == 111 || c1 == 120 then
+        underscore-ok-loop buf (s1 + 2) end 48 (c1 == 120)
+      else
+        underscore-ok-loop buf s1 end 94 False
+    else
+      underscore-ok-loop buf s1 end 94 False
+
+  -- | Tail-recursive state machine validating numeric underscores.
+  -- State `saw`: 94 ('^') start, 48 ('0') digit/prefix, 95 ('_') underscore, 33 ('!') other.
+  underscore-ok-loop :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool
+  underscore-ok-loop buf i end saw hex =
+    if i >= end || i >= bytes-len buf then saw /= 95
+    else
+      let c = bytes-get buf i in
+      let lc = ascii-lower-byte c in
+      if (c >= 48 && c <= 57) || (hex && lc >= 97 && lc <= 102) then
+        underscore-ok-loop buf (i + 1) end 48 hex
+      else if c == 95 then
+        if saw /= 48 then False
+        else underscore-ok-loop buf (i + 1) end 95 hex
+      else if saw == 95 then False
+      else underscore-ok-loop buf (i + 1) end 33 hex
+
+  -- ---------------------------------------------------------------------
+  -- Integer parsing and formatting.
+  -- ---------------------------------------------------------------------
+
+  -- | Decode an ASCII alphanumeric digit byte to 0..35.
+  base-digit-val :: Nat -> Option (InRange 0 35 Nat)
+  base-digit-val c =
+    if c >= 48 && c <= 57 then Some (c - 48)
+    else
+      let lc = ascii-lower-byte c in
+      if lc >= 97 && lc <= 122 then Some (lc - 87)
+      else None
+
+  -- | Compute max-bound-u64 / base + 1 for base >= 2.
+  uint-cutoff :: U64 -> U64
+  uint-cutoff b = case checked-div-u64 max-bound-u64 b of
+    Some q -> wrapping-add-u64 q 1
+    None -> max-bound-u64
+
+  -- | Compute the maximum unsigned integer representable in `bits` bits (1 <= bits <= 64).
+  uint-max-val :: I64 -> U64
+  uint-max-val bits =
+    if eq-i64 bits 64 then max-bound-u64
+    else wrapping-sub-u64 (wrapping-shl-u64 1 (wrapping-i64-to-u32 bits)) 1
+
+  -- | Parse an unsigned integer in a byte slice [start, end), returning the clamped value on range errors.
+  parse-uint-bytes :: Bytes -> Nat -> Nat -> I64 -> I64 -> (U64, Option StrconvError)
+  parse-uint-bytes buf start end base bit-size =
+    if start >= end || end > bytes-len buf then (0, Some StrconvSyntax)
+    else
+      let base0 = eq-i64 base 0 in
+      if not base0 && (lt-i64 base 2 || gt-i64 base 36) then (0, Some StrconvBadBase)
+      else
+        let resolved = resolve-uint-base buf start end base in
+        case resolved of
+          (eff-base, digit-start) ->
+            if lt-i64 bit-size 0 || gt-i64 bit-size 64 then (0, Some StrconvBadBitSize)
+            else
+              let eff-bits = if eq-i64 bit-size 0 then (64 :: I64) else bit-size in
+              let b64 = wrapping-i64-to-u64 eff-base in
+              let cutoff = uint-cutoff b64 in
+              let max-val = uint-max-val eff-bits in
+              parse-uint-loop buf start digit-start end base0 eff-base b64 cutoff max-val 0 False
+
+  -- | Determine the effective base and first digit index when base == 0 or explicit.
+  resolve-uint-base :: Bytes -> Nat -> Nat -> I64 -> (I64, Nat)
+  resolve-uint-base buf start end base =
+    if ne-i64 base 0 then (base, start)
+    else if start < end && start < bytes-len buf && bytes-get buf start == 48 then
+      if start + 2 < end && start + 1 < bytes-len buf then
+        let c1 = ascii-lower-byte (bytes-get buf (start + 1)) in
+        if c1 == 98 then (2, start + 2)
+        else if c1 == 111 then (8, start + 2)
+        else if c1 == 120 then (16, start + 2)
+        else (8, start + 1)
+      else (8, start + 1)
+    else (10, start)
+
+  -- | Tail-recursive unsigned digit accumulation loop with overflow detection.
+  parse-uint-loop :: Bytes -> Nat -> Nat -> Nat -> Bool -> I64 -> U64 -> U64 -> U64 -> U64 -> Bool -> (U64, Option StrconvError)
+  parse-uint-loop buf orig-start i end base0 eff-base b64 cutoff max-val acc saw-us =
+    if i >= end || i >= bytes-len buf then
+      if saw-us && not (underscore-ok-range buf orig-start end) then (0, Some StrconvSyntax)
+      else (acc, None)
+    else
+      let c = bytes-get buf i in
+      if c == 95 && base0 then
+        parse-uint-loop buf orig-start (i + 1) end base0 eff-base b64 cutoff max-val acc True
+      else case base-digit-val c of
+        None -> (0, Some StrconvSyntax)
+        Some d ->
+          let di = nat-to-i64 d in
+          if ge-i64 di eff-base then (0, Some StrconvSyntax)
+          else if ge-u64 acc cutoff then (max-val, Some StrconvRange)
+          else
+            let prod = wrapping-mul-u64 acc b64 in
+            let next = wrapping-add-u64 prod (wrapping-i64-to-u64 di) in
+            if lt-u64 next prod || gt-u64 next max-val then (max-val, Some StrconvRange)
+            else parse-uint-loop buf orig-start (i + 1) end base0 eff-base b64 cutoff max-val next saw-us
+
+  -- | Parse an unsigned integer, returning both the value (clamped to the bit-size maximum on overflow) and any error.
+  parse-uint-with-clamp :: String -> I64 -> I64 -> (U64, Option StrconvError)
+  parse-uint-with-clamp s base bit-size =
+    let buf = string-to-bytes s in
+    parse-uint-bytes buf 0 (bytes-len buf) base bit-size
+
+  -- | Parse an unsigned integer in the given base (0, or 2..36) and bit size (0..64).
+  parse-uint :: String -> I64 -> I64 -> Result StrconvError U64
+  parse-uint s base bit-size = case parse-uint-with-clamp s base bit-size of
+    (v, None) -> Ok v
+    (_, Some e) -> Err e
+
+  -- | Parse a signed integer, returning both the value (clamped to the bit-size minimum or maximum on overflow) and any error.
+  parse-int-with-clamp :: String -> I64 -> I64 -> (I64, Option StrconvError)
+  parse-int-with-clamp s base bit-size =
+    let buf = string-to-bytes s in
+    let len = bytes-len buf in
+    if len == 0 then (0, Some StrconvSyntax)
+    else
+      let b0 = bytes-get buf 0 in
+      let neg = b0 == 45 in
+      let start = if b0 == 45 || b0 == 43 then (1 :: Nat) else 0 in
+      case parse-uint-bytes buf start len base bit-size of
+        (un, err) ->
+          case err of
+            Some e ->
+              if e /= StrconvRange then (0, Some e)
+              else clamp-signed un neg bit-size
+            None -> clamp-signed un neg bit-size
+
+  -- | Apply signed range bounds and sign negation for a parsed unsigned magnitude.
+  clamp-signed :: U64 -> Bool -> I64 -> (I64, Option StrconvError)
+  clamp-signed un neg bit-size =
+    let eff-bits = if eq-i64 bit-size 0 then (64 :: I64) else bit-size in
+    let shift = wrapping-i64-to-u32 (wrapping-sub-i64 eff-bits 1) in
+    let cutoff = wrapping-shl-u64 1 shift in
+    if not neg && ge-u64 un cutoff then
+      (wrapping-u64-to-i64 (wrapping-sub-u64 cutoff 1), Some StrconvRange)
+    else if neg && gt-u64 un cutoff then
+      (wrapping-neg-i64 (wrapping-u64-to-i64 cutoff), Some StrconvRange)
+    else
+      let n = wrapping-u64-to-i64 un in
+      (if neg then wrapping-neg-i64 n else n, None)
+
+  -- | Parse a signed integer in the given base (0, or 2..36) and bit size (0..64).
+  parse-int :: String -> I64 -> I64 -> Result StrconvError I64
+  parse-int s base bit-size = case parse-int-with-clamp s base bit-size of
+    (v, None) -> Ok v
+    (_, Some e) -> Err e
+
+  -- | Parse a base-10 64-bit signed integer, returning the clamped value alongside any error.
+  atoi-with-clamp :: String -> (I64, Option StrconvError)
+  atoi-with-clamp s = parse-int-with-clamp s 10 0
+
+  -- | Parse a base-10 64-bit signed integer.
+  atoi :: String -> Result StrconvError I64
+  atoi s = parse-int s 10 0
+
+  -- | Format an unsigned 64-bit integer in base 2..36 into a fresh byte buffer with optional leading minus.
+  format-uint-bytes :: U64 -> I64 -> Bool -> Bytes
+  format-uint-bytes u base neg =
+    let buf = bytes-new 66 in
+    let b64 = wrapping-i64-to-u64 base in
+    let pos = format-uint-fill buf 66 u b64 in
+    if neg && pos > 0 && pos - 1 < bytes-len buf then
+      let u0 = bytes-set buf (pos - 1) 45 in
+      bytes-slice buf (pos - 1) 66
+    else bytes-slice buf pos 66
+
+  -- | Fill base-b digits backward into a scratch buffer, returning the starting index.
+  format-uint-fill :: Bytes -> Nat -> U64 -> U64 -> Nat
+  format-uint-fill buf pos u b64 =
+    if pos == 0 then 0
+    else
+      let next-pos = pos - 1 in
+      let q = case checked-div-u64 u b64 of Some v -> v; None -> 0 in
+      let r = wrapping-sub-u64 u (wrapping-mul-u64 q b64) in
+      let d = u32-to-nat (wrapping-u64-to-u32 r) in
+      let w = if next-pos < bytes-len buf then bytes-set buf next-pos (digit-char-lower d) else () in
+      if eq-u64 q 0 then next-pos
+      else format-uint-fill buf next-pos q b64
+
+  -- | Format an unsigned 64-bit integer in the given base (2..36) using lowercase letters a..z.
+  format-uint :: U64 -> I64 -> Result StrconvError String
+  format-uint u base =
+    if lt-i64 base 2 || gt-i64 base 36 then Err StrconvBadBase
+    else Ok (ascii-bytes-to-string (format-uint-bytes u base False))
+
+  -- | Format a signed 64-bit integer in the given base (2..36) using lowercase letters a..z.
+  format-int :: I64 -> I64 -> Result StrconvError String
+  format-int i base =
+    if lt-i64 base 2 || gt-i64 base 36 then Err StrconvBadBase
+    else
+      let neg = lt-i64 i 0 in
+      let mag = if neg then wrapping-neg-u64 (wrapping-i64-to-u64 i) else wrapping-i64-to-u64 i in
+      Ok (ascii-bytes-to-string (format-uint-bytes mag base neg))
+
+  -- | Format a signed 64-bit integer in base 10.
+  itoa :: I64 -> String
+  itoa i =
+    let neg = lt-i64 i 0 in
+    let mag = if neg then wrapping-neg-u64 (wrapping-i64-to-u64 i) else wrapping-i64-to-u64 i in
+    ascii-bytes-to-string (format-uint-bytes mag 10 neg)
+
+  -- | Append the base-b representation of a signed 64-bit integer to a byte buffer.
+  append-int :: Bytes -> I64 -> I64 -> Result StrconvError Bytes
+  append-int dst i base =
+    if lt-i64 base 2 || gt-i64 base 36 then Err StrconvBadBase
+    else
+      let neg = lt-i64 i 0 in
+      let mag = if neg then wrapping-neg-u64 (wrapping-i64-to-u64 i) else wrapping-i64-to-u64 i in
+      Ok (append-raw-bytes dst (format-uint-bytes mag base neg))
+
+  -- | Append the base-b representation of an unsigned 64-bit integer to a byte buffer.
+  append-uint :: Bytes -> U64 -> I64 -> Result StrconvError Bytes
+  append-uint dst u base =
+    if lt-i64 base 2 || gt-i64 base 36 then Err StrconvBadBase
+    else Ok (append-raw-bytes dst (format-uint-bytes u base False))
+
+  -- ---------------------------------------------------------------------
+  -- Exact multiprecision decimal arithmetic over Nat.
+  -- ---------------------------------------------------------------------
+
+  -- | An exact nonnegative decimal represented as significant ASCII digits (no leading or trailing zeros)
+  -- and decimal point position `dp` such that value = 0.<digits> * 10^dp. Zero has empty digits and dp = 0.
+  data ExactDec where
+    -- | Normalized significant digit bytes and decimal point exponent.
+    ExactDec :: Bytes -> Int -> ExactDec
+
+  -- | Fast tail-recursive binary exponentiation over arbitrary-precision Nat.
+  nat-pow :: Nat -> Nat -> Nat
+  nat-pow base exp = nat-pow-acc base exp 1
+
+  -- | Accumulator loop for binary exponentiation.
+  nat-pow-acc :: Nat -> Nat -> Nat -> Nat
+  nat-pow-acc base exp acc =
+    if exp == 0 then acc
+    else
+      let next-acc = if nat-rem exp 2 == 1 then acc * base else acc in
+      nat-pow-acc (base * base) (nat-div exp 2) next-acc
+
+  -- | Trim trailing ASCII '0' bytes from a digit buffer.
+  trim-trailing-zeros :: Bytes -> Nat -> Nat
+  trim-trailing-zeros buf n =
+    if n > 0 && n <= bytes-len buf && bytes-get buf (n - 1) == 48 then
+      trim-trailing-zeros buf (n - 1)
+    else n
+
+  -- | Construct a normalized ExactDec by trimming trailing zeros and normalizing zero to dp = 0.
+  make-exact-dec :: Bytes -> Int -> ExactDec
+  make-exact-dec raw dp =
+    let nd = trim-trailing-zeros raw (bytes-len raw) in
+    if nd == 0 then ExactDec (bytes-new 0) 0
+    else ExactDec (bytes-slice raw 0 nd) dp
+
+  -- | Compute the exact decimal expansion of mant * 2^e2 for finite nonzero mantissa.
+  exact-binary-decimal :: U64 -> I64 -> ExactDec
+  exact-binary-decimal mant e2 =
+    if eq-u64 mant 0 then ExactDec (bytes-new 0) 0
+    else
+      let m = u64-to-nat-exact mant in
+      if ge-i64 e2 0 then
+        let n = m * nat-pow 2 (i64-abs-nat e2) in
+        let raw = string-to-bytes (nat-to-string n) in
+        make-exact-dec raw (nat-to-int (bytes-len raw))
+      else
+        let k = i64-abs-nat e2 in
+        let n = m * nat-pow 5 k in
+        let raw = string-to-bytes (nat-to-string n) in
+        make-exact-dec raw (nat-to-int (bytes-len raw) - nat-to-int k)
+
+  -- | Compare two exact normalized decimals lexicographically; returns -1, 0, or 1.
+  exact-dec-compare :: ExactDec -> ExactDec -> I64
+  exact-dec-compare left right = case left of
+    ExactDec a adp -> case right of
+      ExactDec b bdp ->
+        if bytes-len a == 0 then (if bytes-len b == 0 then 0 else -1)
+        else if bytes-len b == 0 then 1
+        else if adp < bdp then -1
+        else if adp > bdp then 1
+        else exact-dec-digits-cmp a b 0
+
+  -- | Compare digit sequences with implicit trailing zeros.
+  exact-dec-digits-cmp :: Bytes -> Bytes -> Nat -> I64
+  exact-dec-digits-cmp a b i =
+    if i < bytes-len a || i < bytes-len b then
+      let ca = if i < bytes-len a then bytes-get a i else 48 in
+      let cb = if i < bytes-len b then bytes-get b i else 48 in
+      if ca < cb then -1
+      else if ca > cb then 1
+      else exact-dec-digits-cmp a b (i + 1)
+    else 0
+
+  -- | Whether rounding `d` at position `n` should round up (round-to-nearest-even).
+  dec-should-round-up :: Bytes -> Nat -> Bool
+  dec-should-round-up d n =
+    if n >= bytes-len d then False
+    else
+      let cn = bytes-get d n in
+      if cn > 53 then True
+      else if cn < 53 then False
+      else if n + 1 < bytes-len d then True
+      else if n > 0 && n - 1 < bytes-len d then nat-rem (bytes-get d (n - 1)) 2 /= 0
+      else False
+
+  -- | Round an exact decimal down (truncate) to `nd` digits.
+  dec-round-down :: ExactDec -> Int -> ExactDec
+  dec-round-down dec nd = case dec of
+    ExactDec d dp ->
+      if nd < 0 then dec
+      else
+        let n = nat-from-int nd in
+        if n >= bytes-len d then dec
+        else make-exact-dec (bytes-slice d 0 n) dp
+
+  -- | Round an exact decimal up at position `nd`, propagating carry through trailing nines.
+  dec-round-up :: ExactDec -> Int -> ExactDec
+  dec-round-up dec nd = case dec of
+    ExactDec d dp ->
+      if nd < 0 then dec
+      else
+        let n = nat-from-int nd in
+        if n >= bytes-len d then dec
+        else case find-non-nine d n of
+          None ->
+            let one = bytes-new 1 in
+            let u = bytes-set one 0 49 in
+            ExactDec one (dp + 1)
+          Some idx ->
+            let out = bytes-slice d 0 (idx + 1) in
+            let cur = if idx < bytes-len out then bytes-get out idx else 48 in
+            let u = if idx < bytes-len out && cur < 57 then bytes-set out idx (cur + 1) else () in
+            ExactDec out dp
+
+  -- | Find the rightmost index strictly below `limit` whose digit is less than '9'.
+  find-non-nine :: Bytes -> Nat -> Option Nat
+  find-non-nine d limit =
+    if limit == 0 then None
+    else
+      let i = limit - 1 in
+      if i < bytes-len d && bytes-get d i < 57 then Some i
+      else find-non-nine d i
+
+  -- | Round an exact decimal to `nd` significant digits using round-to-nearest-even.
+  dec-round :: ExactDec -> Int -> ExactDec
+  dec-round dec nd = case dec of
+    ExactDec d dp ->
+      if nd < 0 then dec
+      else
+        let n = nat-from-int nd in
+        if n >= bytes-len d then dec
+        else if dec-should-round-up d n then dec-round-up dec nd
+        else dec-round-down dec nd
+
+  -- | Compute the shortest decimal representation for a binary32 value that rounds back identically.
+  f32-shortest-decimal :: U64 -> I64 -> ExactDec
+  f32-shortest-decimal mant exp =
+    if eq-u64 mant 0 then ExactDec (bytes-new 0) 0
+    else
+      let d = exact-binary-decimal mant (wrapping-sub-i64 exp 23) in
+      let upper = exact-binary-decimal (wrapping-add-u64 (wrapping-shl-u64 mant 1) 1) (wrapping-sub-i64 exp 24) in
+      let minexp = wrapping-neg-i64 126 in
+      let mantlo = if gt-u64 mant 8388608 || eq-i64 exp minexp then wrapping-sub-u64 mant 1 else wrapping-sub-u64 (wrapping-shl-u64 mant 1) 1 in
+      let explo = if gt-u64 mant 8388608 || eq-i64 exp minexp then exp else wrapping-sub-i64 exp 1 in
+      let lower = exact-binary-decimal (wrapping-add-u64 (wrapping-shl-u64 mantlo 1) 1) (wrapping-sub-i64 explo 24) in
+      let inclusive = eq-u64 (bit-and-u64 mant 1) 0 in
+      round-shortest-walk d lower upper inclusive 0 0
+
+  -- | Walk digits of d, lower, and upper simultaneously to find the shortest round-trip prefix.
+  round-shortest-walk :: ExactDec -> ExactDec -> ExactDec -> Bool -> Int -> Nat -> ExactDec
+  round-shortest-walk dec lower upper inclusive ui upper-delta =
+    case dec of
+      ExactDec dd ddp ->
+        case lower of
+          ExactDec ld ldp ->
+            case upper of
+              ExactDec ud udp ->
+                let mi = ui - udp + ddp in
+                if mi >= nat-to-int (bytes-len dd) then dec
+                else
+                  let li = ui - udp + ldp in
+                  let l = if li >= 0 && nat-from-int li < bytes-len ld then bytes-get ld (nat-from-int li) else 48 in
+                  let m = if mi >= 0 && nat-from-int mi < bytes-len dd then bytes-get dd (nat-from-int mi) else 48 in
+                  let u = if ui >= 0 && nat-from-int ui < bytes-len ud then bytes-get ud (nat-from-int ui) else 48 in
+                  let ok-down = l /= m || (inclusive && li + 1 == nat-to-int (bytes-len ld)) in
+                  let next-delta = (if upper-delta == 0 && m + 1 < u then (2 :: Nat) else if upper-delta == 0 && m /= u then 1 else if upper-delta == 1 && (m /= 57 || u /= 48) then 2 else upper-delta) in
+                  let ok-up = next-delta > 0 && (inclusive || next-delta > 1 || ui + 1 < nat-to-int (bytes-len ud)) in
+                  if ok-down && ok-up then dec-round dec (mi + 1)
+                  else if ok-down then dec-round-down dec (mi + 1)
+                  else if ok-up then dec-round-up dec (mi + 1)
+                  else round-shortest-walk dec lower upper inclusive (ui + 1) next-delta
+
+  -- | Parse the runtime shortest scientific string from `f64-to-decimal (abs-f64 f)` into ExactDec.
+  f64-shortest-decimal :: F64 -> ExactDec
+  f64-shortest-decimal f =
+    let raw = f64-to-decimal (abs-f64 f) in
+    parse-sci-decimal raw 0 Nil
+
+  -- | Scan mantissa digits from `f64-to-decimal` up to the exponent marker 'e'.
+  parse-sci-decimal :: Bytes -> Nat -> List (InRange 0 255 Nat) -> ExactDec
+  parse-sci-decimal raw i acc =
+    if i >= bytes-len raw then
+      let digs = bytes-from-list (reverse acc) in
+      make-exact-dec digs (nat-to-int (bytes-len digs))
+    else
+      let c = bytes-get raw i in
+      if c == 101 || c == 69 then
+        let digs = bytes-from-list (reverse acc) in
+        let exp = parse-sci-exp raw (i + 1) in
+        make-exact-dec digs (exp + 1)
+      else if c == 46 then
+        parse-sci-decimal raw (i + 1) acc
+      else
+        parse-sci-decimal raw (i + 1) (Cons c acc)
+
+  -- | Parse the signed decimal exponent following 'e' in `f64-to-decimal`.
+  parse-sci-exp :: Bytes -> Nat -> Int
+  parse-sci-exp raw i =
+    if i >= bytes-len raw then 0
+    else
+      let c = bytes-get raw i in
+      let neg = c == 45 in
+      let start = if c == 45 || c == 43 then i + 1 else i in
+      let mag = parse-sci-exp-digits raw start 0 in
+      if neg then 0 - nat-to-int mag else nat-to-int mag
+
+  -- | Accumulate unsigned decimal exponent digits.
+  parse-sci-exp-digits :: Bytes -> Nat -> Nat -> Nat
+  parse-sci-exp-digits raw i acc =
+    if i >= bytes-len raw then acc
+    else
+      let c = bytes-get raw i in
+      if c >= 48 && c <= 57 then parse-sci-exp-digits raw (i + 1) (acc * 10 + (c - 48))
+      else acc
+
+  -- ---------------------------------------------------------------------
+  -- Floating-point formatting.
+  -- ---------------------------------------------------------------------
+
+  -- | Check whether a character is a valid floating-point format specifier.
+  is-valid-float-fmt :: Char -> Bool
+  is-valid-float-fmt fmt =
+    let c = char-code fmt in
+    c == 98 || c == 101 || c == 69 || c == 102 || c == 103 || c == 71 || c == 120 || c == 88
+
+  -- | Format a binary64 floating-point value according to format specifier and precision.
+  -- Supported formats: 'b', 'e', 'E', 'f', 'g', 'G', 'x', 'X'. Negative precision selects shortest round-trip digits.
+  format-float64 :: F64 -> Char -> I64 -> Result StrconvError String
+  format-float64 f fmt prec =
+    if not (is-valid-float-fmt fmt) then Err StrconvBadFormat
+    else
+      let bits = f64-bits f in
+      let neg = ne-u64 (wrapping-shr-u64 bits 63) 0 in
+      let raw-exp = wrapping-u64-to-i64 (bit-and-u64 (wrapping-shr-u64 bits 52) 2047) in
+      let frac = bit-and-u64 bits 4503599627370495 in
+      if eq-i64 raw-exp 2047 then
+        if ne-u64 frac 0 then Ok "NaN"
+        else if neg then Ok "-Inf"
+        else Ok "+Inf"
+      else
+        let exp = if eq-i64 raw-exp 0 then wrapping-neg-i64 1022 else wrapping-sub-i64 raw-exp 1023 in
+        let mant = if eq-i64 raw-exp 0 then frac else bit-or-u64 frac 4503599627370496 in
+        Ok (format-float-finite True f neg mant exp 52 fmt prec)
+
+  -- | Format a binary32 floating-point value according to format specifier and precision.
+  format-float32 :: F32 -> Char -> I64 -> Result StrconvError String
+  format-float32 f fmt prec =
+    if not (is-valid-float-fmt fmt) then Err StrconvBadFormat
+    else
+      let bits = f32-bits f in
+      let neg = ne-u32 (wrapping-shr-u32 bits 31) 0 in
+      let raw-exp = u32-to-i64 (bit-and-u32 (wrapping-shr-u32 bits 23) 255) in
+      let frac = u32-to-u64 (bit-and-u32 bits 8388607) in
+      if eq-i64 raw-exp 255 then
+        if ne-u64 frac 0 then Ok "NaN"
+        else if neg then Ok "-Inf"
+        else Ok "+Inf"
+      else
+        let exp = if eq-i64 raw-exp 0 then wrapping-neg-i64 126 else wrapping-sub-i64 raw-exp 127 in
+        let mant = if eq-i64 raw-exp 0 then (frac :: U64) else bit-or-u64 frac 8388608 in
+        Ok (format-float-finite False (f32-to-f64 f) neg mant exp 23 fmt prec)
+
+  -- | Append the formatted binary64 string to a byte buffer.
+  append-float64 :: Bytes -> F64 -> Char -> I64 -> Result StrconvError Bytes
+  append-float64 dst f fmt prec = case format-float64 f fmt prec of
+    Ok s -> Ok (append-raw-string dst s)
+    Err e -> Err e
+
+  -- | Append the formatted binary32 string to a byte buffer.
+  append-float32 :: Bytes -> F32 -> Char -> I64 -> Result StrconvError Bytes
+  append-float32 dst f fmt prec = case format-float32 f fmt prec of
+    Ok s -> Ok (append-raw-string dst s)
+    Err e -> Err e
+
+  -- | Format a finite floating-point number once decomposed into sign, mantissa, and unbiased exponent.
+  format-float-finite :: Bool -> F64 -> Bool -> U64 -> I64 -> I64 -> Char -> I64 -> String
+  format-float-finite is64 f64-val neg mant exp mantbits fmt prec =
+    let fc = char-code fmt in
+    if fc == 98 then fmt-b neg mant exp mantbits
+    else if fc == 120 || fc == 88 then fmt-x neg mant exp mantbits (fc == 88) prec
+    else
+      let shortest = lt-i64 prec 0 in
+      if shortest then
+        let dec = (if eq-u64 mant 0 then ExactDec (bytes-new 0) 0 else if is64 then f64-shortest-decimal f64-val else f32-shortest-decimal mant exp) in
+        case dec of
+          ExactDec digs dp ->
+            let nd = nat-to-int (bytes-len digs) in
+            let sprec = (if fc == 101 || fc == 69 then (if nd > 0 then nd - 1 else 0) else if fc == 102 then (if nd > dp then nd - dp else 0) else nd) in
+            format-decimal-digits True neg dec sprec fc
+      else
+        let exact = exact-binary-decimal mant (wrapping-sub-i64 exp mantbits) in
+        let iprec = int-from-i64 prec in
+        if fc == 101 || fc == 69 then
+          format-decimal-digits False neg (dec-round exact (iprec + 1)) iprec fc
+        else if fc == 102 then
+          case exact of
+            ExactDec _ dp -> format-decimal-digits False neg (dec-round exact (dp + iprec)) iprec fc
+        else
+          let gprec = if iprec == 0 then 1 else iprec in
+          format-decimal-digits False neg (dec-round exact gprec) gprec fc
+
+  -- | Format with 'b' (-ddddp±ddd).
+  fmt-b :: Bool -> U64 -> I64 -> I64 -> String
+  fmt-b neg mant exp mantbits =
+    let e = wrapping-sub-i64 exp mantbits in
+    let b0 = if neg then builder-add-byte 45 builder-new else builder-new in
+    let b1 = builder-add-bytes (format-uint-bytes mant 10 False) b0 in
+    let b2 = builder-add-byte 112 b1 in
+    let b3 = if ge-i64 e 0 then builder-add-byte 43 b2 else b2 in
+    let eneg = lt-i64 e 0 in
+    let emag = if eneg then wrapping-neg-u64 (wrapping-i64-to-u64 e) else wrapping-i64-to-u64 e in
+    let b4 = builder-add-bytes (format-uint-bytes emag 10 eneg) b3 in
+    builder-run b4
+
+  -- | Normalize a nonzero hex mantissa so its leading 1 sits at bit 60.
+  hex-norm :: U64 -> I64 -> (U64, I64)
+  hex-norm mant exp =
+    let top = wrapping-shl-u64 1 60 in
+    if eq-u64 mant 0 || ne-u64 (bit-and-u64 mant top) 0 then (mant, exp)
+    else hex-norm (wrapping-shl-u64 mant 1) (wrapping-sub-i64 exp 1)
+
+  -- | Round a normalized hex mantissa (leading bit at bit 60) to `prec` hex fractional digits.
+  hex-round :: U64 -> I64 -> I64 -> (U64, I64)
+  hex-round mant exp prec =
+    if lt-i64 prec 0 || ge-i64 prec 15 then (mant, exp)
+    else
+      let shift = wrapping-i64-to-u32 (wrapping-mul-i64 prec 4) in
+      let mask60 = wrapping-sub-u64 (wrapping-shl-u64 1 60) 1 in
+      let extra = bit-and-u64 (wrapping-shl-u64 mant shift) mask60 in
+      let rshift = wrapping-sub-u32 60 shift in
+      let m1 = wrapping-shr-u64 mant rshift in
+      let half = wrapping-shl-u64 1 59 in
+      let m2 = if gt-u64 (bit-or-u64 extra (bit-and-u64 m1 1)) half then wrapping-add-u64 m1 1 else m1 in
+      let m3 = wrapping-shl-u64 m2 rshift in
+      let carry = wrapping-shl-u64 1 61 in
+      if ne-u64 (bit-and-u64 m3 carry) 0 then (wrapping-shr-u64 m3 1, wrapping-add-i64 exp 1)
+      else (m3, exp)
+
+  -- | Emit hex fractional digits for 'x'/'X' format when prec < 0 (shortest) or prec > 0 (fixed).
+  hex-frac-loop :: U64 -> Bool -> Bool -> I64 -> Builder -> Builder
+  hex-frac-loop mant upper shortest rem acc =
+    if shortest then
+      if eq-u64 mant 0 then acc
+      else
+        let nib = u32-to-nat (wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 mant 60) 15)) in
+        hex-frac-loop (wrapping-shl-u64 mant 4) upper True rem (builder-add-byte (hex-nibble-byte nib upper) acc)
+    else if le-i64 rem 0 then acc
+    else
+      let nib = u32-to-nat (wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 mant 60) 15)) in
+      hex-frac-loop (wrapping-shl-u64 mant 4) upper False (wrapping-sub-i64 rem 1) (builder-add-byte (hex-nibble-byte nib upper) acc)
+
+  -- | Format with 'x' or 'X' (-0x1.yyyyyp±dd).
+  fmt-x :: Bool -> U64 -> I64 -> I64 -> Bool -> I64 -> String
+  fmt-x neg mant0 exp0 mantbits upper prec =
+    let exp1 = if eq-u64 mant0 0 then (0 :: I64) else exp0 in
+    let sh = wrapping-i64-to-u32 (wrapping-sub-i64 60 mantbits) in
+    let norm = hex-norm (wrapping-shl-u64 mant0 sh) exp1 in
+    let rounded = case norm of (m, e) -> hex-round m e prec in
+    case rounded of
+      (mant, exp) ->
+        let b0 = if neg then builder-add-byte 45 builder-new else builder-new in
+        let b1 = builder-add-two 48 (if upper then 88 else 120) b0 in
+        let b2 = builder-add-byte (if eq-u64 (bit-and-u64 (wrapping-shr-u64 mant 60) 1) 0 then 48 else 49) b1 in
+        let frac = wrapping-shl-u64 mant 4 in
+        let b3 = (if lt-i64 prec 0 && ne-u64 frac 0 then hex-frac-loop frac upper True 0 (builder-add-byte 46 b2) else if gt-i64 prec 0 then hex-frac-loop frac upper False prec (builder-add-byte 46 b2) else b2) in
+        let b4 = builder-add-byte (if upper then 80 else 112) b3 in
+        let b5 = builder-add-byte (if lt-i64 exp 0 then 45 else 43) b4 in
+        let aexp = i64-abs-nat exp in
+        let b6 = append-exp-digits aexp b5 in
+        builder-run b6
+
+  -- | Append an unsigned decimal exponent with at least 2 digits.
+  append-exp-digits :: Nat -> Builder -> Builder
+  append-exp-digits e acc =
+    if e < 10 then builder-add-two 48 (48 + e) acc
+    else builder-add-nat e acc
+
+  -- | Dispatch decimal digits to 'e'/'E', 'f', or 'g'/'G' rendering.
+  format-decimal-digits :: Bool -> Bool -> ExactDec -> Int -> Nat -> String
+  format-decimal-digits shortest neg dec prec fc =
+    if fc == 101 || fc == 69 then fmt-e neg dec prec fc
+    else if fc == 102 then fmt-f neg dec prec
+    else
+      case dec of
+        ExactDec digs dp ->
+          let nd = (nat-to-int (bytes-len digs) :: Int) in
+          let eprec0 = if prec > nd && nd >= dp then nd else prec in
+          let eprec = if shortest then 6 else eprec0 in
+          let exp = dp - 1 in
+          if exp < -4 || exp >= eprec then
+            let p1 = if prec > nd then nd else prec in
+            let p2 = if p1 > 0 then p1 - 1 else 0 in
+            let efmt = if fc == 71 then (69 :: Nat) else 101 in
+            fmt-e neg dec p2 efmt
+          else
+            let p1 = if prec > dp then nd else prec in
+            let fp = if p1 > dp then p1 - dp else 0 in
+            fmt-f neg dec fp
+
+  -- | Render scientific notation -d.dddde±dd.
+  fmt-e :: Bool -> ExactDec -> Int -> Nat -> String
+  fmt-e neg dec prec efmt = case dec of
+    ExactDec digs dp ->
+      let nd = bytes-len digs in
+      let b0 = if neg then builder-add-byte 45 builder-new else builder-new in
+      let first = if nd > 0 then bytes-get digs 0 else 48 in
+      let b1 = builder-add-byte first b0 in
+      let b2 = fmt-e-frac digs nd prec b1 in
+      let b3 = builder-add-byte (if efmt == 69 then 69 else 101) b2 in
+      let exp = if nd == 0 then 0 else dp - 1 in
+      let b4 = builder-add-byte (if exp < 0 then 45 else 43) b3 in
+      let aexp = if exp < 0 then (nat-from-int (0 - exp) :: Nat) else nat-from-int exp in
+      builder-run (append-exp-digits aexp b4)
+
+  -- | Render fixed-point notation -dddd.dddd.
+  fmt-f :: Bool -> ExactDec -> Int -> String
+  fmt-f neg dec prec = case dec of
+    ExactDec digs dp ->
+      let nd = bytes-len digs in
+      let b0 = if neg then builder-add-byte 45 builder-new else builder-new in
+      let b1 = fmt-f-int digs nd dp b0 in
+      let b2 = fmt-f-frac digs dp prec b1 in
+      builder-run b2
+
+  -- | Append fractional digits for scientific notation when prec > 0.
+  fmt-e-frac :: Bytes -> Nat -> Int -> Builder -> Builder
+  fmt-e-frac digs nd prec b1 =
+    if prec > 0 then
+      let p = nat-from-int prec in
+      let bdot = builder-add-byte 46 b1 in
+      let avail = if nd > 1 then nd - 1 else 0 in
+      let take = if avail < p then avail else p in
+      let bcopy = if take > 0 then builder-add-bytes (bytes-slice digs 1 (1 + take)) bdot else bdot in
+      let pad = if p > take then p - take else 0 in
+      builder-add-repeat-byte pad 48 bcopy
+    else b1
+
+  -- | Append integer-part digits for fixed-point notation.
+  fmt-f-int :: Bytes -> Nat -> Int -> Builder -> Builder
+  fmt-f-int digs nd dp b0 =
+    if dp > 0 then
+      let dp-nat = nat-from-int dp in
+      let m = if nd < dp-nat then nd else dp-nat in
+      let bhead = if m > 0 then builder-add-bytes (bytes-slice digs 0 m) b0 else b0 in
+      let pad = if dp-nat > m then dp-nat - m else 0 in
+      builder-add-repeat-byte pad 48 bhead
+    else builder-add-byte 48 b0
+
+  -- | Append decimal point and fractional digits for fixed-point notation when prec > 0.
+  fmt-f-frac :: Bytes -> Int -> Int -> Builder -> Builder
+  fmt-f-frac digs dp prec b1 =
+    if prec > 0 then
+      let p = nat-from-int prec in
+      let bdot = builder-add-byte 46 b1 in
+      append-frac-digits digs dp 0 p bdot
+    else b1
+
+  -- | Append `prec` fractional digits starting at decimal offset `dp`.
+  append-frac-digits :: Bytes -> Int -> Nat -> Nat -> Builder -> Builder
+  append-frac-digits digs dp i prec acc =
+    if i >= prec then acc
+    else
+      let j = dp + nat-to-int i in
+      if j < 0 then
+        let zeros = (nat-from-int (0 - j) :: Nat) in
+        let rem = prec - i in
+        let count = if zeros < rem then zeros else rem in
+        append-frac-digits digs dp (i + count) prec (builder-add-repeat-byte count 48 acc)
+      else
+        let jn = nat-from-int j in
+        let nd = bytes-len digs in
+        if jn >= nd then
+          builder-add-repeat-byte (prec - i) 48 acc
+        else
+          let avail = nd - jn in
+          let rem = prec - i in
+          let take = if avail < rem then avail else rem in
+          append-frac-digits digs dp (i + take) prec (builder-add-bytes (bytes-slice digs jn (jn + take)) acc)
+
+  -- ---------------------------------------------------------------------
+  -- Floating-point parsing (specials, hex floats, exact decimals).
+  -- ---------------------------------------------------------------------
+
+  -- | Result of scanning a floating-point prefix: kind, parsed fields, and end offset.
+  data FloatToken where
+    -- | Special floating-point value (NaN or ±Inf) and end offset.
+    TokSpecial :: F64 -> Nat -> FloatToken
+    -- | Hexadecimal float: neg, mantissa, binary exponent, truncated flag, end offset.
+    TokHex :: Bool -> U64 -> I64 -> Bool -> Nat -> FloatToken
+    -- | Validated decimal float: start offset, end offset, neg, whether underscores appeared.
+    TokDec :: Nat -> Nat -> Bool -> Bool -> FloatToken
+
+  -- | Compare buf[start..start+k] case-insensitively against an all-lowercase ASCII target.
+  match-ci-prefix :: Bytes -> Nat -> Nat -> Bytes -> Nat -> Nat
+  match-ci-prefix buf start end pat k =
+    if k >= bytes-len pat || start + k >= end || start + k >= bytes-len buf then k
+    else
+      let cb = ascii-lower-byte (bytes-get buf (start + k)) in
+      let cp = bytes-get pat k in
+      if cb == cp then match-ci-prefix buf start end pat (k + 1)
+      else k
+
+  -- | Recognize NaN, Inf, +Inf, -Inf, Infinity, +Infinity, -Infinity (case-insensitive) at prefix.
+  scan-special-float :: Bytes -> Nat -> Nat -> Option FloatToken
+  scan-special-float buf start end =
+    if start >= end || start >= bytes-len buf then None
+    else
+      let b0 = bytes-get buf start in
+      if b0 == 43 || b0 == 45 then
+        let neg = b0 == 45 in
+        let matched = match-ci-prefix buf (start + 1) end (string-to-bytes "infinity") 0 in
+        let consumed = if matched == 8 then (8 :: Nat) else if matched >= 3 then 3 else 0 in
+        if consumed > 0 then Some (TokSpecial (inf-f64 (if neg then wrapping-neg-i64 1 else 1)) (start + 1 + consumed))
+        else None
+      else if b0 == 105 || b0 == 73 then
+        let matched = match-ci-prefix buf start end (string-to-bytes "infinity") 0 in
+        let consumed = if matched == 8 then (8 :: Nat) else if matched >= 3 then 3 else 0 in
+        if consumed > 0 then Some (TokSpecial (inf-f64 1) (start + consumed))
+        else None
+      else if b0 == 110 || b0 == 78 then
+        let matched = match-ci-prefix buf start end (string-to-bytes "nan") 0 in
+        if matched == 3 then Some (TokSpecial nan-f64 (start + 3))
+        else None
+      else None
+
+  -- | Scan a floating-point literal prefix in buf[start..end).
+  scan-float-token :: Bytes -> Nat -> Nat -> Option FloatToken
+  scan-float-token buf start end =
+    case scan-special-float buf start end of
+      Some tok -> Some tok
+      None ->
+        if start >= end || start >= bytes-len buf then None
+        else
+          let b0 = bytes-get buf start in
+          let neg = b0 == 45 in
+          let pos = if b0 == 45 || b0 == 43 then start + 1 else start in
+          if pos + 2 < end && pos + 1 < bytes-len buf && bytes-get buf pos == 48 && ascii-lower-byte (bytes-get buf (pos + 1)) == 120 then
+            scan-hex-float buf start (pos + 2) end neg 0 0 0 0 False False False False
+          else
+            scan-dec-float buf start pos end neg False False False
+
+  -- | Scan hexadecimal mantissa digits for a hex float literal.
+  scan-hex-float :: Bytes -> Nat -> Nat -> Nat -> Bool -> U64 -> I64 -> I64 -> I64 -> Bool -> Bool -> Bool -> Bool -> Option FloatToken
+  scan-hex-float buf orig-start i end neg mant nd nd-mant dp saw-dot saw-digits trunc saw-us =
+    if i < end && i < bytes-len buf then
+      let c = bytes-get buf i in
+      if c == 95 then
+        scan-hex-float buf orig-start (i + 1) end neg mant nd nd-mant dp saw-dot saw-digits trunc True
+      else if c == 46 && not saw-dot then
+        scan-hex-float buf orig-start (i + 1) end neg mant nd nd-mant nd True saw-digits trunc saw-us
+      else case hex-byte-val c of
+        Some d ->
+          if d == 0 && eq-i64 nd 0 then
+            scan-hex-float buf orig-start (i + 1) end neg mant nd nd-mant (wrapping-sub-i64 dp 1) saw-dot True trunc saw-us
+          else
+            let next-nd = wrapping-add-i64 nd 1 in
+            if lt-i64 nd-mant 16 then
+              let next-mant = wrapping-add-u64 (wrapping-shl-u64 mant 4) (wrapping-i64-to-u64 (nat-to-i64 d)) in
+              scan-hex-float buf orig-start (i + 1) end neg next-mant next-nd (wrapping-add-i64 nd-mant 1) dp saw-dot True trunc saw-us
+            else
+              let next-trunc = trunc || d /= 0 in
+              scan-hex-float buf orig-start (i + 1) end neg mant next-nd nd-mant dp saw-dot True next-trunc saw-us
+        None -> finish-hex-float buf orig-start i end neg mant nd nd-mant dp saw-dot saw-digits trunc saw-us
+    else finish-hex-float buf orig-start i end neg mant nd nd-mant dp saw-dot saw-digits trunc saw-us
+
+  -- | Scan the mandatory 'p'/'P' binary exponent of a hex float literal.
+  finish-hex-float :: Bytes -> Nat -> Nat -> Nat -> Bool -> U64 -> I64 -> I64 -> I64 -> Bool -> Bool -> Bool -> Bool -> Option FloatToken
+  finish-hex-float buf orig-start i end neg mant nd nd-mant dp0 saw-dot saw-digits trunc saw-us =
+    if not saw-digits then None
+    else
+      let dp1 = if saw-dot then dp0 else nd in
+      let dp4 = wrapping-mul-i64 dp1 4 in
+      let ndm4 = wrapping-mul-i64 nd-mant 4 in
+      if i >= end || i >= bytes-len buf then None
+      else
+        let ep = ascii-lower-byte (bytes-get buf i) in
+        if ep /= 112 then None
+        else
+          let p1 = i + 1 in
+          if p1 >= end || p1 >= bytes-len buf then None
+          else
+            let sc = bytes-get buf p1 in
+            let esign = if sc == 45 then wrapping-neg-i64 1 else 1 in
+            let p2 = if sc == 45 || sc == 43 then p1 + 1 else p1 in
+            if p2 >= end || p2 >= bytes-len buf then None
+            else
+              let d0 = bytes-get buf p2 in
+              if d0 < 48 || d0 > 57 then None
+              else
+                case scan-exp-digits buf p2 end 0 saw-us of
+                  (eval, fin, us2) ->
+                    if us2 && not (underscore-ok-range buf orig-start fin) then None
+                    else
+                      let dp-total = wrapping-add-i64 dp4 (wrapping-mul-i64 eval esign) in
+                      let exp = if eq-u64 mant 0 then (0 :: I64) else wrapping-sub-i64 dp-total ndm4 in
+                      Some (TokHex neg mant exp trunc fin)
+
+  -- | Scan unsigned decimal exponent digits (clamping magnitude at 100000 to prevent overflow).
+  scan-exp-digits :: Bytes -> Nat -> Nat -> I64 -> Bool -> (I64, Nat, Bool)
+  scan-exp-digits buf i end acc saw-us =
+    if i >= end || i >= bytes-len buf then (acc, i, saw-us)
+    else
+      let c = bytes-get buf i in
+      if c == 95 then scan-exp-digits buf (i + 1) end acc True
+      else if c >= 48 && c <= 57 then
+        let next = if lt-i64 acc 100000 then wrapping-add-i64 (wrapping-mul-i64 acc 10) (nat-to-i64 (c - 48)) else acc in
+        scan-exp-digits buf (i + 1) end next saw-us
+      else (acc, i, saw-us)
+
+  -- | Scan a decimal floating-point literal (mantissa, optional '.', optional 'e'/'E' exponent).
+  scan-dec-float :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool -> Bool -> Bool -> Option FloatToken
+  scan-dec-float buf orig-start i end neg saw-dot saw-digits saw-us =
+    if i < end && i < bytes-len buf then
+      let c = bytes-get buf i in
+      if c == 95 then
+        scan-dec-float buf orig-start (i + 1) end neg saw-dot saw-digits True
+      else if c == 46 && not saw-dot then
+        scan-dec-float buf orig-start (i + 1) end neg True saw-digits saw-us
+      else if c >= 48 && c <= 57 then
+        scan-dec-float buf orig-start (i + 1) end neg saw-dot True saw-us
+      else finish-dec-float buf orig-start i end neg saw-digits saw-us
+    else finish-dec-float buf orig-start i end neg saw-digits saw-us
+
+  -- | Scan optional decimal exponent and validate underscores.
+  finish-dec-float :: Bytes -> Nat -> Nat -> Nat -> Bool -> Bool -> Bool -> Option FloatToken
+  finish-dec-float buf orig-start i end neg saw-digits saw-us =
+    if not saw-digits then None
+    else if i < end && i < bytes-len buf && ascii-lower-byte (bytes-get buf i) == 101 then
+      let p1 = i + 1 in
+      if p1 >= end || p1 >= bytes-len buf then None
+      else
+        let sc = bytes-get buf p1 in
+        let p2 = if sc == 45 || sc == 43 then p1 + 1 else p1 in
+        if p2 >= end || p2 >= bytes-len buf then None
+        else
+          let d0 = bytes-get buf p2 in
+          if d0 < 48 || d0 > 57 then None
+          else
+            case scan-exp-digits buf p2 end 0 saw-us of
+              (_, fin, us2) ->
+                if us2 && not (underscore-ok-range buf orig-start fin) then None
+                else Some (TokDec orig-start fin neg us2)
+    else if saw-us && not (underscore-ok-range buf orig-start i) then None
+    else Some (TokDec orig-start i neg saw-us)
+
+  -- | Normalize a hex float mantissa up until bit (mantbits + 2) is nonzero.
+  hex-atof-shift-up :: U64 -> I64 -> U32 -> (U64, I64)
+  hex-atof-shift-up mant exp shift-bit =
+    if eq-u64 mant 0 || ne-u64 (wrapping-shr-u64 mant shift-bit) 0 then (mant, exp)
+    else hex-atof-shift-up (wrapping-shl-u64 mant 1) (wrapping-sub-i64 exp 1) shift-bit
+
+  -- | Shift a hex float mantissa down while preserving sticky bit until bit (mantbits + 3) is zero.
+  hex-atof-shift-down :: U64 -> I64 -> U32 -> (U64, I64)
+  hex-atof-shift-down mant exp limit =
+    if eq-u64 (wrapping-shr-u64 mant limit) 0 then (mant, exp)
+    else
+      let shifted = bit-or-u64 (wrapping-shr-u64 mant 1) (bit-and-u64 mant 1) in
+      hex-atof-shift-down shifted (wrapping-add-i64 exp 1) limit
+
+  -- | Denormalize a hex float mantissa while exp < min-exp - 2, preserving sticky bit.
+  hex-atof-denorm :: U64 -> I64 -> I64 -> (U64, I64)
+  hex-atof-denorm mant exp min-limit =
+    if le-u64 mant 1 || ge-i64 exp min-limit then (mant, exp)
+    else
+      let shifted = bit-or-u64 (wrapping-shr-u64 mant 1) (bit-and-u64 mant 1) in
+      hex-atof-denorm shifted (wrapping-add-i64 exp 1) min-limit
+
+  -- | Convert a parsed hex float to IEEE-754 bit pattern and overflow flag (works for both F32 and F64).
+  hex-to-ieee-bits :: Bool -> U64 -> I64 -> Bool -> I64 -> I64 -> I64 -> (U64, Bool)
+  hex-to-ieee-bits neg mant0 exp0 trunc mantbits expbits bias =
+    let max-exp = wrapping-sub-i64 (wrapping-add-i64 (wrapping-shl-i64 1 (wrapping-i64-to-u32 expbits)) bias) 2 in
+    let min-exp = wrapping-add-i64 bias 1 in
+    let exp1 = wrapping-add-i64 exp0 mantbits in
+    let mb-u32 = wrapping-i64-to-u32 mantbits in
+    let up = hex-atof-shift-up mant0 exp1 (wrapping-add-u32 mb-u32 2) in
+    let m1 = case up of (m, _) -> if trunc then bit-or-u64 m 1 else m in
+    let e1 = case up of (_, e) -> e in
+    let down = hex-atof-shift-down m1 e1 (wrapping-add-u32 mb-u32 3) in
+    let den = case down of (m, e) -> hex-atof-denorm m e (wrapping-sub-i64 min-exp 2) in
+    case den of
+      (m2, e2) ->
+        let r0 = bit-and-u64 m2 3 in
+        let m3 = wrapping-shr-u64 m2 2 in
+        let rnd = bit-or-u64 r0 (bit-and-u64 m3 1) in
+        let e3 = wrapping-add-i64 e2 2 in
+        let top-carry = wrapping-shl-u64 1 (wrapping-add-u32 mb-u32 1) in
+        let m4 = if eq-u64 rnd 3 then wrapping-add-u64 m3 1 else m3 in
+        let m5 = if eq-u64 m4 top-carry then wrapping-shr-u64 m4 1 else m4 in
+        let e4 = if eq-u64 m4 top-carry then wrapping-add-i64 e3 1 else e3 in
+        let e5 = if eq-u64 (wrapping-shr-u64 m5 mb-u32) 0 then bias else e4 in
+        let ovf = gt-i64 e5 max-exp in
+        let m-final = if ovf then wrapping-shl-u64 1 mb-u32 else m5 in
+        let e-final = if ovf then wrapping-add-i64 max-exp 1 else e5 in
+        let mant-mask = wrapping-sub-u64 (wrapping-shl-u64 1 mb-u32) 1 in
+        let exp-mask = wrapping-sub-u64 (wrapping-shl-u64 1 (wrapping-i64-to-u32 expbits)) 1 in
+        let low = bit-and-u64 m-final mant-mask in
+        let exp-field = wrapping-shl-u64 (bit-and-u64 (wrapping-i64-to-u64 (wrapping-sub-i64 e-final bias)) exp-mask) mb-u32 in
+        let sign-field = if neg then wrapping-shl-u64 1 (wrapping-add-u32 mb-u32 (wrapping-i64-to-u32 expbits)) else 0 in
+        (bit-or-u64 sign-field (bit-or-u64 exp-field low), ovf)
+
+  -- | Copy buf[start..end) stripping any '_' bytes (and optionally stripping a leading sign).
+  strip-dec-bytes :: Bytes -> Nat -> Nat -> Bool -> Bytes
+  strip-dec-bytes buf start end drop-sign =
+    let s1 = if drop-sign && start < end && start < bytes-len buf && (bytes-get buf start == 45 || bytes-get buf start == 43) then start + 1 else start in
+    strip-dec-loop buf s1 end Nil
+
+  -- | Collect non-underscore bytes into a fresh buffer.
+  strip-dec-loop :: Bytes -> Nat -> Nat -> List (InRange 0 255 Nat) -> Bytes
+  strip-dec-loop buf i end acc =
+    if i >= end || i >= bytes-len buf then bytes-from-list (reverse acc)
+    else
+      let c = bytes-get buf i in
+      if c == 95 then strip-dec-loop buf (i + 1) end acc
+      else strip-dec-loop buf (i + 1) end (Cons c acc)
+
+  -- | Parse a validated unsigned decimal slice (no underscores) into an ExactDec for binary32 midpoint checking.
+  parse-exact-dec-unsigned :: Bytes -> ExactDec
+  parse-exact-dec-unsigned buf = parse-exact-dec-loop buf 0 False 0 0 Nil
+
+  -- | Collect significant digits and decimal point from a clean unsigned decimal string.
+  parse-exact-dec-loop :: Bytes -> Nat -> Bool -> Int -> Int -> List (InRange 0 255 Nat) -> ExactDec
+  parse-exact-dec-loop buf i saw-dot nd dp acc =
+    if i >= bytes-len buf then
+      let digs = bytes-from-list (reverse acc) in
+      make-exact-dec digs (if saw-dot then dp else nd)
+    else
+      let c = bytes-get buf i in
+      if c == 101 || c == 69 then
+        let digs = bytes-from-list (reverse acc) in
+        let base-dp = if saw-dot then dp else nd in
+        let exp = parse-bounded-sci-exp buf (i + 1) in
+        make-exact-dec digs (base-dp + exp)
+      else if c == 46 then
+        parse-exact-dec-loop buf (i + 1) True nd nd acc
+      else if c == 48 && nd == 0 then
+        parse-exact-dec-loop buf (i + 1) saw-dot 0 (if saw-dot then dp - 1 else dp) acc
+      else
+        parse-exact-dec-loop buf (i + 1) saw-dot (nd + 1) dp (Cons c acc)
+
+  -- | Parse a bounded signed exponent after 'e'/'E' (clamped at ±100000).
+  parse-bounded-sci-exp :: Bytes -> Nat -> Int
+  parse-bounded-sci-exp buf i =
+    if i >= bytes-len buf then 0
+    else
+      let c = bytes-get buf i in
+      let neg = c == 45 in
+      let start = if c == 45 || c == 43 then i + 1 else i in
+      let mag = parse-bounded-exp-loop buf start 0 in
+      if neg then 0 - nat-to-int mag else nat-to-int mag
+
+  -- | Accumulate bounded unsigned exponent digits up to 100000.
+  parse-bounded-exp-loop :: Bytes -> Nat -> Nat -> Nat
+  parse-bounded-exp-loop buf i acc =
+    if i >= bytes-len buf then acc
+    else
+      let c = bytes-get buf i in
+      if c >= 48 && c <= 57 then
+        let next = if acc < 100000 then acc * 10 + (c - 48) else acc in
+        parse-bounded-exp-loop buf (i + 1) next
+      else acc
+
+  -- | Exact midpoint above a finite positive binary32 bit pattern (including the overflow threshold).
+  f32-midpoint-dec :: U32 -> ExactDec
+  f32-midpoint-dec lower =
+    let raw-exp = u32-to-i64 (wrapping-shr-u32 lower 23) in
+    let frac = u32-to-u64 (bit-and-u32 lower 8388607) in
+    let coeff = if eq-i64 raw-exp 0 then (frac :: U64) else wrapping-add-u64 frac 8388608 in
+    let e2 = if eq-i64 raw-exp 0 then wrapping-neg-i64 150 else wrapping-sub-i64 raw-exp 151 in
+    exact-binary-decimal (wrapping-add-u64 (wrapping-shl-u64 coeff 1) 1) e2
+
+  -- | Correct a binary32 guess against exact adjacent midpoints to eliminate double rounding.
+  correct-f32-bits :: ExactDec -> U32 -> (U32, Bool)
+  correct-f32-bits exact guess =
+    if eq-u32 guess 2139095040 then
+      let cmp = exact-dec-compare exact (f32-midpoint-dec 2139095039) in
+      if lt-i64 cmp 0 then (2139095039, False)
+      else (2139095040, True)
+    else if ne-u32 guess 0 && (let prev = wrapping-sub-u32 guess 1 in let c = exact-dec-compare exact (f32-midpoint-dec prev) in lt-i64 c 0 || (eq-i64 c 0 && ne-u32 (bit-and-u32 guess 1) 0)) then
+      (wrapping-sub-u32 guess 1, False)
+    else
+      let c = exact-dec-compare exact (f32-midpoint-dec guess) in
+      if gt-i64 c 0 || (eq-i64 c 0 && ne-u32 (bit-and-u32 guess 1) 0) then
+        let next = wrapping-add-u32 guess 1 in
+        (next, eq-u32 next 2139095040)
+      else (guess, False)
+
+  -- | Parse a binary64 float prefix from buf[start..end), returning value, next index, and overflow flag.
+  parse-float64-prefix :: Bytes -> Nat -> Nat -> Option (F64, Nat, Bool)
+  parse-float64-prefix buf start end =
+    case scan-float-token buf start end of
+      None -> None
+      Some tok -> case tok of
+        TokSpecial v next -> Some (v, next, False)
+        TokHex neg mant exp trunc next ->
+          case hex-to-ieee-bits neg mant exp trunc 52 11 (wrapping-neg-i64 1023) of
+            (bits, ovf) -> Some (f64-from-bits bits, next, ovf)
+        TokDec s0 e0 _ has-us ->
+          let clean = if has-us then strip-dec-bytes buf s0 e0 False else bytes-slice buf s0 e0 in
+          let v = f64-from-decimal clean in
+          Some (v, e0, is-inf-f64 v 0)
+
+  -- | Parse a binary32 float prefix from buf[start..end), returning value, next index, and overflow flag.
+  parse-float32-prefix :: Bytes -> Nat -> Nat -> Option (F32, Nat, Bool)
+  parse-float32-prefix buf start end =
+    case scan-float-token buf start end of
+      None -> None
+      Some tok -> case tok of
+        TokSpecial v next -> Some (f64-to-f32 v, next, False)
+        TokHex neg mant exp trunc next ->
+          case hex-to-ieee-bits neg mant exp trunc 23 8 (wrapping-neg-i64 127) of
+            (bits, ovf) -> Some (f32-from-bits (wrapping-u64-to-u32 bits), next, ovf)
+        TokDec s0 e0 neg _ ->
+          let clean = strip-dec-bytes buf s0 e0 True in
+          let exact = parse-exact-dec-unsigned clean in
+          let sign-bit = if neg then (2147483648 :: U32) else 0 in
+          case exact of
+            ExactDec digs dp ->
+              if bytes-len digs == 0 then
+                Some (f32-from-bits sign-bit, e0, False)
+              else if dp > 40 then
+                Some (f32-from-bits (bit-or-u32 sign-bit 2139095040), e0, True)
+              else if dp < -47 then
+                Some (f32-from-bits sign-bit, e0, False)
+              else
+                let approx = bit-and-u32 (f32-bits (f64-to-f32 (f64-from-decimal clean))) 2147483647 in
+                case correct-f32-bits exact approx of
+                  (mag-bits, ovf) -> Some (f32-from-bits (bit-or-u32 sign-bit mag-bits), e0, ovf)
+
+  -- | Parse a binary64 float, returning ±Inf alongside StrconvRange on overflow.
+  parse-float64-with-clamp :: String -> (F64, Option StrconvError)
+  parse-float64-with-clamp s =
+    let buf = string-to-bytes s in
+    let len = bytes-len buf in
+    case parse-float64-prefix buf 0 len of
+      None -> (0, Some StrconvSyntax)
+      Some (v, next, ovf) ->
+        if next /= len then (0, Some StrconvSyntax)
+        else if ovf then (v, Some StrconvRange)
+        else (v, None)
+
+  -- | Parse a binary64 floating-point number (decimal, hexadecimal, NaN, or ±Inf/Infinity).
+  parse-float64 :: String -> Result StrconvError F64
+  parse-float64 s = case parse-float64-with-clamp s of
+    (v, None) -> Ok v
+    (_, Some e) -> Err e
+
+  -- | Parse a binary32 float, returning ±Inf alongside StrconvRange on overflow.
+  parse-float32-with-clamp :: String -> (F32, Option StrconvError)
+  parse-float32-with-clamp s =
+    let buf = string-to-bytes s in
+    let len = bytes-len buf in
+    case parse-float32-prefix buf 0 len of
+      None -> (0, Some StrconvSyntax)
+      Some (v, next, ovf) ->
+        if next /= len then (0, Some StrconvSyntax)
+        else if ovf then (v, Some StrconvRange)
+        else (v, None)
+
+  -- | Parse a binary32 floating-point number with exact single-rounding IEEE-754 semantics.
+  parse-float32 :: String -> Result StrconvError F32
+  parse-float32 s = case parse-float32-with-clamp s of
+    (v, None) -> Ok v
+    (_, Some e) -> Err e
+
+  -- ---------------------------------------------------------------------
+  -- Complex number parsing and formatting.
+  -- ---------------------------------------------------------------------
+
+  -- | Parse a 128-bit complex number (pair of F64), returning clamped components alongside StrconvRange on overflow.
+  parse-complex128-with-clamp :: String -> ((F64, F64), Option StrconvError)
+  parse-complex128-with-clamp s =
+    let buf = string-to-bytes s in
+    let len = bytes-len buf in
+    let parens = len >= 2 && bytes-get buf 0 == 40 && bytes-get buf (len - 1) == 41 in
+    let start = if parens then (1 :: Nat) else 0 in
+    let end = if parens && len >= 1 then len - 1 else len in
+    case parse-float64-prefix buf start end of
+      None -> ((0, 0), Some StrconvSyntax)
+      Some (re, pos, ovf1) ->
+        if pos == end then ((re, 0), if ovf1 then Some StrconvRange else None)
+        else if pos >= bytes-len buf then ((0, 0), Some StrconvSyntax)
+        else
+          let sep = bytes-get buf pos in
+          if sep == 105 then
+            if pos + 1 == end then ((0, re), if ovf1 then Some StrconvRange else None)
+            else ((0, 0), Some StrconvSyntax)
+          else if sep == 43 || sep == 45 then
+            let im-start = (if sep == 43 && pos + 1 < end && pos + 1 < bytes-len buf && bytes-get buf (pos + 1) /= 43 then pos + 1 else pos) in
+            case parse-float64-prefix buf im-start end of
+              None -> ((0, 0), Some StrconvSyntax)
+              Some (im, pos2, ovf2) ->
+                if pos2 + 1 == end && pos2 < bytes-len buf && bytes-get buf pos2 == 105 then
+                  ((re, im), if ovf1 || ovf2 then Some StrconvRange else None)
+                else ((0, 0), Some StrconvSyntax)
+          else ((0, 0), Some StrconvSyntax)
+
+  -- | Parse a 128-bit complex number of the form N, Ni, or N±Ni (optionally parenthesized).
+  parse-complex128 :: String -> Result StrconvError (F64, F64)
+  parse-complex128 s = case parse-complex128-with-clamp s of
+    (v, None) -> Ok v
+    (_, Some e) -> Err e
+
+  -- | Parse a 64-bit complex number (pair of F32), returning clamped components alongside StrconvRange on overflow.
+  parse-complex64-with-clamp :: String -> ((F32, F32), Option StrconvError)
+  parse-complex64-with-clamp s =
+    let buf = string-to-bytes s in
+    let len = bytes-len buf in
+    let parens = len >= 2 && bytes-get buf 0 == 40 && bytes-get buf (len - 1) == 41 in
+    let start = if parens then (1 :: Nat) else 0 in
+    let end = if parens && len >= 1 then len - 1 else len in
+    case parse-float32-prefix buf start end of
+      None -> ((0, 0), Some StrconvSyntax)
+      Some (re, pos, ovf1) ->
+        if pos == end then ((re, 0), if ovf1 then Some StrconvRange else None)
+        else if pos >= bytes-len buf then ((0, 0), Some StrconvSyntax)
+        else
+          let sep = bytes-get buf pos in
+          if sep == 105 then
+            if pos + 1 == end then ((0, re), if ovf1 then Some StrconvRange else None)
+            else ((0, 0), Some StrconvSyntax)
+          else if sep == 43 || sep == 45 then
+            let im-start = (if sep == 43 && pos + 1 < end && pos + 1 < bytes-len buf && bytes-get buf (pos + 1) /= 43 then pos + 1 else pos) in
+            case parse-float32-prefix buf im-start end of
+              None -> ((0, 0), Some StrconvSyntax)
+              Some (im, pos2, ovf2) ->
+                if pos2 + 1 == end && pos2 < bytes-len buf && bytes-get buf pos2 == 105 then
+                  ((re, im), if ovf1 || ovf2 then Some StrconvRange else None)
+                else ((0, 0), Some StrconvSyntax)
+          else ((0, 0), Some StrconvSyntax)
+
+  -- | Parse a 64-bit complex number of the form N, Ni, or N±Ni (optionally parenthesized).
+  parse-complex64 :: String -> Result StrconvError (F32, F32)
+  parse-complex64 s = case parse-complex64-with-clamp s of
+    (v, None) -> Ok v
+    (_, Some e) -> Err e
+
+  -- | Wrap formatted real and imaginary strings into "(a+bi)".
+  wrap-complex-strings :: String -> String -> String
+  wrap-complex-strings re-str im-str =
+    let im-bytes = string-to-bytes im-str in
+    let needs-plus = bytes-len im-bytes == 0 || (bytes-get im-bytes 0 /= 43 && bytes-get im-bytes 0 /= 45) in
+    let b0 = builder-add-byte 40 builder-new in
+    let b1 = builder-add-string re-str b0 in
+    let b2 = if needs-plus then builder-add-byte 43 b1 else b1 in
+    let b3 = builder-add-string im-str b2 in
+    let b4 = builder-add-two 105 41 b3 in
+    builder-run b4
+
+  -- | Format a 128-bit complex number (real, imag) as "(a+bi)".
+  format-complex128 :: (F64, F64) -> Char -> I64 -> Result StrconvError String
+  format-complex128 pair fmt prec = case pair of
+    (re, im) -> case format-float64 re fmt prec of
+      Err e -> Err e
+      Ok rs -> case format-float64 im fmt prec of
+        Err e -> Err e
+        Ok is -> Ok (wrap-complex-strings rs is)
+
+  -- | Format a 64-bit complex number (real, imag) as "(a+bi)".
+  format-complex64 :: (F32, F32) -> Char -> I64 -> Result StrconvError String
+  format-complex64 pair fmt prec = case pair of
+    (re, im) -> case format-float32 re fmt prec of
+      Err e -> Err e
+      Ok rs -> case format-float32 im fmt prec of
+        Err e -> Err e
+        Ok is -> Ok (wrap-complex-strings rs is)
+
+  -- ---------------------------------------------------------------------
+  -- Rune classification and quoting / unquoting.
+  -- ---------------------------------------------------------------------
+
+  -- | Report whether a Unicode scalar is printable (letters, marks, numbers, punctuation, symbols, and ASCII space).
+  is-print :: Char -> Bool
+  is-print c = unicode-is-print c
+
+  -- | Report whether a Unicode scalar is a Unicode graphic character (categories L, M, N, P, S, and Zs).
+  is-graphic :: Char -> Bool
+  is-graphic c = unicode-is-graphic c
+
+  -- | Printable predicate on a scalar code point as Nat.
+  is-print-nat :: Nat -> Bool
+  is-print-nat cp =
+    if cp <= 1114111 then unicode-is-print-code (wrapping-i64-to-i32 (nat-to-i64 cp))
+    else False
+
+  -- | Graphic predicate on a scalar code point as Nat.
+  is-graphic-nat :: Nat -> Bool
+  is-graphic-nat cp =
+    if cp <= 1114111 then unicode-is-graphic-code (wrapping-i64-to-i32 (nat-to-i64 cp))
+    else False
+
+  -- | Append `\xNN` escape for a single byte.
+  builder-add-hex2 :: Nat -> Builder -> Builder
+  builder-add-hex2 b acc =
+    let buf = bytes-new 4 in
+    let u0 = bytes-set buf 0 92 in
+    let u1 = bytes-set buf 1 120 in
+    let u2 = bytes-set buf 2 (hex-nibble-byte (nat-rem (nat-div b 16) 16) False) in
+    let u3 = bytes-set buf 3 (hex-nibble-byte (nat-rem b 16) False) in
+    builder-add-bytes buf acc
+
+  -- | Append `\uNNNN` escape for a BMP code point.
+  builder-add-hex4 :: Nat -> Builder -> Builder
+  builder-add-hex4 cp acc =
+    let buf = bytes-new 6 in
+    let u0 = bytes-set buf 0 92 in
+    let u1 = bytes-set buf 1 117 in
+    let u2 = bytes-set buf 2 (hex-nibble-byte (nat-rem (nat-div cp 4096) 16) False) in
+    let u3 = bytes-set buf 3 (hex-nibble-byte (nat-rem (nat-div cp 256) 16) False) in
+    let u4 = bytes-set buf 4 (hex-nibble-byte (nat-rem (nat-div cp 16) 16) False) in
+    let u5 = bytes-set buf 5 (hex-nibble-byte (nat-rem cp 16) False) in
+    builder-add-bytes buf acc
+
+  -- | Append `\UNNNNNNNN` escape for a supplementary code point.
+  builder-add-hex8 :: Nat -> Builder -> Builder
+  builder-add-hex8 cp acc =
+    let buf = bytes-new 10 in
+    let u0 = bytes-set buf 0 92 in
+    let u1 = bytes-set buf 1 85 in
+    let u2 = bytes-set buf 2 (hex-nibble-byte (nat-rem (nat-div cp 268435456) 16) False) in
+    let u3 = bytes-set buf 3 (hex-nibble-byte (nat-rem (nat-div cp 16777216) 16) False) in
+    let u4 = bytes-set buf 4 (hex-nibble-byte (nat-rem (nat-div cp 1048576) 16) False) in
+    let u5 = bytes-set buf 5 (hex-nibble-byte (nat-rem (nat-div cp 65536) 16) False) in
+    let u6 = bytes-set buf 6 (hex-nibble-byte (nat-rem (nat-div cp 4096) 16) False) in
+    let u7 = bytes-set buf 7 (hex-nibble-byte (nat-rem (nat-div cp 256) 16) False) in
+    let u8 = bytes-set buf 8 (hex-nibble-byte (nat-rem (nat-div cp 16) 16) False) in
+    let u9 = bytes-set buf 9 (hex-nibble-byte (nat-rem cp 16) False) in
+    builder-add-bytes buf acc
+
+  -- | Append one escaped scalar value to a Builder according to delimiter, ASCII-only, and graphic-only flags.
+  append-escaped-cp :: Nat -> InRange 0 255 Nat -> Bool -> Bool -> Builder -> Builder
+  append-escaped-cp cp delim ascii-only graphic-only acc =
+    if cp == delim || cp == 92 then
+      builder-add-two 92 (if cp < 256 then cp else 92) acc
+    else if ascii-only && cp < 128 && is-print-nat cp then
+      builder-add-byte cp acc
+    else if not ascii-only && (is-print-nat cp || (graphic-only && is-graphic-nat cp)) then
+      builder-add-utf8-cp cp acc
+    else if cp == 7 then builder-add-two 92 97 acc
+    else if cp == 8 then builder-add-two 92 98 acc
+    else if cp == 12 then builder-add-two 92 102 acc
+    else if cp == 10 then builder-add-two 92 110 acc
+    else if cp == 13 then builder-add-two 92 114 acc
+    else if cp == 9 then builder-add-two 92 116 acc
+    else if cp == 11 then builder-add-two 92 118 acc
+    else if cp < 32 || cp == 127 then builder-add-hex2 cp acc
+    else if cp < 65536 then builder-add-hex4 cp acc
+    else builder-add-hex8 cp acc
+
+  -- | Tail-recursive quoting loop over raw bytes, escaping invalid UTF-8 bytes as `\xNN`.
+  quote-bytes-loop :: Bytes -> Nat -> InRange 0 255 Nat -> Bool -> Bool -> Builder -> Builder
+  quote-bytes-loop buf i delim ascii-only graphic-only acc =
+    if i >= bytes-len buf then acc
+    else
+      let b0 = bytes-get buf i in
+      if b0 < 128 then
+        quote-bytes-loop buf (i + 1) delim ascii-only graphic-only (append-escaped-cp b0 delim ascii-only graphic-only acc)
+      else case utf8-at buf i of
+        Some (ch, width) ->
+          let cp = char-code ch in
+          quote-bytes-loop buf (i + width) delim ascii-only graphic-only (append-escaped-cp cp delim ascii-only graphic-only acc)
+        None ->
+          quote-bytes-loop buf (i + 1) delim ascii-only graphic-only (builder-add-hex2 b0 acc)
+
+  -- | Quote raw bytes into a double-quoted literal string.
+  quote-bytes-with :: Bytes -> Bool -> Bool -> String
+  quote-bytes-with buf ascii-only graphic-only =
+    let b0 = builder-add-byte 34 builder-new in
+    let b1 = quote-bytes-loop buf 0 34 ascii-only graphic-only b0 in
+    builder-run (builder-add-byte 34 b1)
+
+  -- | Return a double-quoted literal representing raw bytes, escaping control, non-printable, and invalid UTF-8 bytes.
+  quote-bytes :: Bytes -> String
+  quote-bytes buf = quote-bytes-with buf False False
+
+  -- | Return an ASCII-only double-quoted literal representing raw bytes.
+  quote-bytes-to-ascii :: Bytes -> String
+  quote-bytes-to-ascii buf = quote-bytes-with buf True False
+
+  -- | Return a double-quoted literal preserving Unicode graphic characters and escaping non-graphic or invalid bytes.
+  quote-bytes-to-graphic :: Bytes -> String
+  quote-bytes-to-graphic buf = quote-bytes-with buf False True
+
+  -- | Return a double-quoted string literal escaping control and non-printable characters.
+  quote :: String -> String
+  quote s = quote-bytes-with (string-to-bytes s) False False
+
+  -- | Return a double-quoted ASCII-only string literal escaping non-ASCII and non-printable characters.
+  quote-to-ascii :: String -> String
+  quote-to-ascii s = quote-bytes-with (string-to-bytes s) True False
+
+  -- | Return a double-quoted string literal preserving Unicode graphic characters and escaping non-graphic characters.
+  quote-to-graphic :: String -> String
+  quote-to-graphic s = quote-bytes-with (string-to-bytes s) False True
+
+  -- | Append the double-quoted literal of a string to a byte buffer.
+  append-quote :: Bytes -> String -> Bytes
+  append-quote dst s = append-raw-string dst (quote s)
+
+  -- | Append the ASCII-only double-quoted literal of a string to a byte buffer.
+  append-quote-to-ascii :: Bytes -> String -> Bytes
+  append-quote-to-ascii dst s = append-raw-string dst (quote-to-ascii s)
+
+  -- | Append the graphic-preserving double-quoted literal of a string to a byte buffer.
+  append-quote-to-graphic :: Bytes -> String -> Bytes
+  append-quote-to-graphic dst s = append-raw-string dst (quote-to-graphic s)
+
+  -- | Quote a single Unicode scalar into a single-quoted character literal.
+  quote-rune-with :: Char -> Bool -> Bool -> String
+  quote-rune-with c ascii-only graphic-only =
+    let b0 = builder-add-byte 39 builder-new in
+    let b1 = append-escaped-cp (char-code c) 39 ascii-only graphic-only b0 in
+    builder-run (builder-add-byte 39 b1)
+
+  -- | Return a single-quoted character literal representing a Unicode scalar.
+  quote-rune :: Char -> String
+  quote-rune c = quote-rune-with c False False
+
+  -- | Return an ASCII-only single-quoted character literal representing a Unicode scalar.
+  quote-rune-to-ascii :: Char -> String
+  quote-rune-to-ascii c = quote-rune-with c True False
+
+  -- | Return a single-quoted character literal preserving Unicode graphic scalars.
+  quote-rune-to-graphic :: Char -> String
+  quote-rune-to-graphic c = quote-rune-with c False True
+
+  -- | Append the single-quoted literal of a character to a byte buffer.
+  append-quote-rune :: Bytes -> Char -> Bytes
+  append-quote-rune dst c = append-raw-string dst (quote-rune c)
+
+  -- | Append the ASCII-only single-quoted literal of a character to a byte buffer.
+  append-quote-rune-to-ascii :: Bytes -> Char -> Bytes
+  append-quote-rune-to-ascii dst c = append-raw-string dst (quote-rune-to-ascii c)
+
+  -- | Append the graphic-preserving single-quoted literal of a character to a byte buffer.
+  append-quote-rune-to-graphic :: Bytes -> Char -> Bytes
+  append-quote-rune-to-graphic dst c = append-raw-string dst (quote-rune-to-graphic c)
+
+  -- | Report whether a string can be represented unchanged as a single-line backquoted literal without control characters other than tab.
+  can-backquote :: String -> Bool
+  can-backquote s =
+    let buf = string-to-bytes s in
+    can-backquote-loop buf 0
+
+  -- | Tail-recursive UTF-8 scan checking backquote eligibility.
+  can-backquote-loop :: Bytes -> Nat -> Bool
+  can-backquote-loop buf i =
+    if i >= bytes-len buf then True
+    else
+      let b0 = bytes-get buf i in
+      if b0 < 128 then
+        if (b0 < 32 && b0 /= 9) || b0 == 96 || b0 == 127 then False
+        else can-backquote-loop buf (i + 1)
+      else case utf8-at buf i of
+        None -> False
+        Some (ch, width) ->
+          if char-code ch == 65279 then False
+          else can-backquote-loop buf (i + width)
+
+  -- | Parse exactly `count` hexadecimal digits starting at `i` in `buf`.
+  parse-fixed-hex :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  parse-fixed-hex buf i count acc =
+    if count == 0 then Some acc
+    else if i >= bytes-len buf then None
+    else case hex-byte-val (bytes-get buf i) of
+      None -> None
+      Some d -> parse-fixed-hex buf (i + 1) (count - 1) (acc * 16 + d)
+
+  -- | Decode one escaped or raw character from `buf` starting at `i`, returning (codepoint, multibyte, next-index).
+  unquote-char-at :: Bytes -> Nat -> Nat -> Result StrconvError (Nat, Bool, Nat)
+  unquote-char-at buf i q =
+    if i >= bytes-len buf then Err StrconvSyntax
+    else
+      let b0 = bytes-get buf i in
+      if b0 == q && (q == 39 || q == 34) then Err StrconvSyntax
+      else if b0 >= 128 then
+        case utf8-at buf i of
+          Some (ch, w) -> Ok (char-code ch, True, i + w)
+          None -> Ok (65533, True, i + 1)
+      else if b0 /= 92 then
+        Ok (b0, False, i + 1)
+      else if i + 1 >= bytes-len buf then Err StrconvSyntax
+      else
+        let c = bytes-get buf (i + 1) in
+        let after = i + 2 in
+        if c == 97 then Ok (7, False, after)
+        else if c == 98 then Ok (8, False, after)
+        else if c == 102 then Ok (12, False, after)
+        else if c == 110 then Ok (10, False, after)
+        else if c == 114 then Ok (13, False, after)
+        else if c == 116 then Ok (9, False, after)
+        else if c == 118 then Ok (11, False, after)
+        else if c == 92 then Ok (92, False, after)
+        else if c == 39 || c == 34 then
+          if c == q then Ok (c, False, after)
+          else Err StrconvSyntax
+        else if c == 120 then
+          case parse-fixed-hex buf after 2 0 of
+            Some v -> Ok (v, False, after + 2)
+            None -> Err StrconvSyntax
+        else if c == 117 then
+          case parse-fixed-hex buf after 4 0 of
+            Some v ->
+              case char-from-code v of
+                Some _ -> Ok (v, True, after + 4)
+                None -> Err StrconvSyntax
+            None -> Err StrconvSyntax
+        else if c == 85 then
+          case parse-fixed-hex buf after 8 0 of
+            Some v ->
+              case char-from-code v of
+                Some _ -> Ok (v, True, after + 8)
+                None -> Err StrconvSyntax
+            None -> Err StrconvSyntax
+        else if c >= 48 && c <= 55 then
+          if after + 2 > bytes-len buf then Err StrconvSyntax
+          else
+            let c1 = bytes-get buf after in
+            let c2 = bytes-get buf (after + 1) in
+            if c1 < 48 || c1 > 55 || c2 < 48 || c2 > 55 then Err StrconvSyntax
+            else
+              let v = (c - 48) * 64 + (c1 - 48) * 8 + (c2 - 48) in
+              if v > 255 then Err StrconvSyntax
+              else Ok (v, False, after + 2)
+        else Err StrconvSyntax
+
+  -- | Decode the first character or byte escape in a quoted literal body.
+  -- Returns the decoded character, whether it requires multibyte UTF-8 encoding, and the remaining tail string.
+  unquote-char :: String -> Char -> Result StrconvError (Char, Bool, String)
+  unquote-char s quote-ch =
+    let buf = string-to-bytes s in
+    let q = char-code quote-ch in
+    case unquote-char-at buf 0 q of
+      Err e -> Err e
+      Ok (cp, mb, next) ->
+        case char-from-code cp of
+          None -> Err StrconvSyntax
+          Some ch ->
+            let tail-bytes = bytes-slice buf next (bytes-len buf) in
+            case string-from-bytes tail-bytes of
+              Some tail -> Ok (ch, mb, tail)
+              None -> Err StrconvSyntax
+
+  -- | Find the first occurrence of byte `needle` in `buf` at or after `i`.
+  find-byte-from :: Bytes -> Nat -> Nat -> Option Nat
+  find-byte-from buf i needle =
+    if i >= bytes-len buf then None
+    else if bytes-get buf i == needle then Some i
+    else find-byte-from buf (i + 1) needle
+
+  -- | Copy bytes in [start, end) while stripping carriage returns ('\r').
+  strip-cr-loop :: Bytes -> Nat -> Nat -> Builder -> Bytes
+  strip-cr-loop buf i end acc =
+    if i >= end || i >= bytes-len buf then builder-bytes acc
+    else
+      let c = bytes-get buf i in
+      if c == 13 then strip-cr-loop buf (i + 1) end acc
+      else strip-cr-loop buf (i + 1) end (builder-add-byte c acc)
+
+  -- | Parse a single-quoted, double-quoted, or backquoted prefix of `buf`, returning (unescaped-or-raw bytes, end-index).
+  unquote-prefix-core :: Bytes -> Bool -> Result StrconvError (Bytes, Nat)
+  unquote-prefix-core buf unescape =
+    let len = bytes-len buf in
+    if len < 2 then Err StrconvSyntax
+    else
+      let q = bytes-get buf 0 in
+      if q == 96 then
+        case find-byte-from buf 1 96 of
+          None -> Err StrconvSyntax
+          Some close-idx ->
+            let end = close-idx + 1 in
+            if not unescape then Ok (bytes-slice buf 0 end, end)
+            else Ok (strip-cr-loop buf 1 close-idx builder-new, end)
+      else if q == 34 || q == 39 then
+        unquote-quoted-loop buf 1 q unescape builder-new
+      else Err StrconvSyntax
+
+  -- | Tail-recursive loop scanning and optionally unescaping characters inside a single- or double-quoted literal.
+  unquote-quoted-loop :: Bytes -> Nat -> Nat -> Bool -> Builder -> Result StrconvError (Bytes, Nat)
+  unquote-quoted-loop buf i q unescape acc =
+    if i >= bytes-len buf then Err StrconvSyntax
+    else
+      let c = bytes-get buf i in
+      if c == q then
+        let end = i + 1 in
+        if unescape then Ok (builder-bytes acc, end)
+        else Ok (bytes-slice buf 0 end, end)
+      else if c == 10 then Err StrconvSyntax
+      else case unquote-char-at buf i q of
+        Err e -> Err e
+        Ok (cp, mb, next) ->
+          let next-acc = (if not unescape then acc else if cp < 128 || not mb then builder-add-byte (if cp < 256 then cp else 0) acc else builder-add-utf8-cp cp acc) in
+          if q == 39 then
+            if next < bytes-len buf && bytes-get buf next == 39 then
+              let end = next + 1 in
+              if unescape then Ok (builder-bytes next-acc, end)
+              else Ok (bytes-slice buf 0 end, end)
+            else Err StrconvSyntax
+          else unquote-quoted-loop buf next q unescape next-acc
+
+  -- | Return the verbatim quoted string literal at the prefix of `s`.
+  quoted-prefix :: String -> Result StrconvError String
+  quoted-prefix s =
+    let buf = string-to-bytes s in
+    case unquote-prefix-core buf False of
+      Err e -> Err e
+      Ok (out, _) ->
+        case string-from-bytes out of
+          Some text -> Ok text
+          None -> Err StrconvSyntax
+
+  -- | Interpret a single-quoted, double-quoted, or backquoted literal, returning its exact unescaped bytes.
+  unquote-bytes :: String -> Result StrconvError Bytes
+  unquote-bytes s =
+    let buf = string-to-bytes s in
+    case unquote-prefix-core buf True of
+      Err e -> Err e
+      Ok (out, end) ->
+        if end == bytes-len buf then Ok out
+        else Err StrconvSyntax
+
+  -- | Interpret a single-quoted, double-quoted, or backquoted literal as a UTF-8 string.
+  unquote :: String -> Result StrconvError String
+  unquote s = case unquote-bytes s of
+    Err e -> Err e
+    Ok raw ->
+      case string-from-bytes raw of
+        Some text -> Ok text
+        None -> Err StrconvSyntax

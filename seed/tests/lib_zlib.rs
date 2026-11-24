@@ -51,6 +51,8 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const ZLIB: &str = include_str!("../prelude/Text/Zlib.cinch");
+const FLATE: &str = include_str!("../prelude/Text/Flate.cinch");
+const BYTES_WORD: &str = include_str!("../prelude/Data/Bytes/Word.cinch");
 
 // ---------------------------------------------------------------- fixtures
 
@@ -255,6 +257,8 @@ fn path_lit(dir: &Path, name: &str) -> String {
 /// deeper than the prelude baseline.
 fn run_project(name: &str, dir: &Path, main_src: &str) -> i32 {
     write_fixture(dir, "Zlib.cinch", ZLIB.as_bytes());
+    write_fixture(dir, "Text.Flate.cinch", FLATE.as_bytes());
+    write_fixture(dir, "Data.Bytes.Word.cinch", BYTES_WORD.as_bytes());
     std::fs::write(dir.join("Main.cinch"), main_src).expect("write Main.cinch");
     let compiled = common::drive(Mode::Run, dir, "Main.cinch", None);
     match compiled {
@@ -970,6 +974,208 @@ fn gzip_run_encoder_matches_independent_decoder_and_selects_smaller_blocks() {
             assert!(encoded.len() < input.len() / 10);
         } else if name == "varied" {
             assert_eq!(encoded[10] & 7, 1);
+        }
+    }
+}
+
+#[test]
+fn deflate_compresses_and_supports_levels_and_stored() {
+    let dir = scratch("deflate_levels");
+    let words = words_text();
+    let rep = repetitive_bytes();
+    write_fixture(&dir, "words.txt", &words);
+    write_fixture(&dir, "rep.txt", &rep);
+
+    let preamble = PREAMBLE.replace("  import Text.Zlib", "  import Text.Flate\n  import Text.Zlib");
+    let body = format!(
+        r#"{preamble}
+  write-ok :: forall r. using (io :: Io r) => String -> Bytes ->{{IO r}} Bool
+  write-ok p b = case fs-write (path-from-string p) b of
+    Ok _ -> True
+    Err _ -> False
+
+  round-zlib :: Bytes -> Bytes -> Bool
+  round-zlib plain stream = case inflate stream of
+    Ok got -> bytes-same got plain
+    Err _ -> False
+
+  round-raw :: Bytes -> Bytes -> Bool
+  round-raw plain stream = case inflate-raw-at stream 0 of
+    Ok (got, used) -> bytes-same got plain && used == bytes-len stream
+    Err _ -> False
+
+  main :: Unit ->{{IO r}} Int
+  main unit = with (io = newIO ()) in
+    case read-bytes {words_p} of
+      None -> 1
+      Some words -> case read-bytes {rep_p} of
+        None -> 2
+        Some rep ->
+          let z-def = deflate words in
+          let z-best = deflate-level FlateBestCompression words in
+          let z-fast = deflate-level FlateBestSpeed words in
+          let z-l3 = deflate-level (FlateLevel 3) words in
+          let z-huff = deflate-level FlateHuffmanOnly words in
+          let z-nocomp = deflate-level FlateNoCompression words in
+          let z-bad = deflate-level (FlateLevel 99) words in
+          let z-stored = deflate-stored words in
+          let z-rep = deflate rep in
+          let r-def = deflate-raw words in
+          let r-best = deflate-raw-level FlateBestCompression words in
+          let r-stored = deflate-raw-stored words in
+          let ok-rt = round-zlib words z-def && round-zlib words z-best && round-zlib words z-fast && round-zlib words z-l3 && round-zlib words z-huff && round-zlib words z-nocomp && round-zlib words z-bad && round-zlib words z-stored && round-zlib rep z-rep && round-raw words r-def && round-raw words r-best && round-raw words r-stored in
+          let ok-ratio = bytes-len z-def < bytes-len words && bytes-len z-best < bytes-len words && bytes-len z-rep < bytes-len rep && bytes-len r-def < bytes-len words in
+          let w1 = write-ok {out_def} z-def in
+          let w2 = write-ok {out_best} z-best in
+          let w3 = write-ok {out_fast} z-fast in
+          let w4 = write-ok {out_l3} z-l3 in
+          let w5 = write-ok {out_nocomp} z-nocomp in
+          let w6 = write-ok {out_bad} z-bad in
+          let w7 = write-ok {out_stored} z-stored in
+          let w8 = write-ok {out_rep} z-rep in
+          let w9 = write-ok {out_raw} r-def in
+          let w10 = write-ok {out_raw_stored} r-stored in
+          let ok-w = w1 && w2 && w3 && w4 && w5 && w6 && w7 && w8 && w9 && w10 in
+          if not ok-rt then 3
+          else if not ok-ratio then 4
+          else if not ok-w then 5
+          else 0
+"#,
+        words_p = path_lit(&dir, "words.txt"),
+        rep_p = path_lit(&dir, "rep.txt"),
+        out_def = path_lit(&dir, "words-def.z"),
+        out_best = path_lit(&dir, "words-best.z"),
+        out_fast = path_lit(&dir, "words-fast.z"),
+        out_l3 = path_lit(&dir, "words-l3.z"),
+        out_nocomp = path_lit(&dir, "words-nocomp.z"),
+        out_bad = path_lit(&dir, "words-bad.z"),
+        out_stored = path_lit(&dir, "words-stored.z"),
+        out_rep = path_lit(&dir, "rep-def.z"),
+        out_raw = path_lit(&dir, "words-def.raw"),
+        out_raw_stored = path_lit(&dir, "words-stored.raw"),
+    );
+
+    assert_eq!(run_project("zlib-levels", &dir, &body), 0);
+
+    let z_def = std::fs::read(dir.join("words-def.z")).unwrap();
+    let z_best = std::fs::read(dir.join("words-best.z")).unwrap();
+    let z_fast = std::fs::read(dir.join("words-fast.z")).unwrap();
+    let z_l3 = std::fs::read(dir.join("words-l3.z")).unwrap();
+    let z_nocomp = std::fs::read(dir.join("words-nocomp.z")).unwrap();
+    let z_bad = std::fs::read(dir.join("words-bad.z")).unwrap();
+    let z_stored = std::fs::read(dir.join("words-stored.z")).unwrap();
+    let z_rep = std::fs::read(dir.join("rep-def.z")).unwrap();
+
+    // RFC 1950 CMF/FLG headers for each FLEVEL.
+    assert_eq!(&z_def[..2], &[0x78, 0x9C]);
+    assert_eq!(&z_best[..2], &[0x78, 0xDA]);
+    assert_eq!(&z_fast[..2], &[0x78, 0x01]);
+    assert_eq!(&z_l3[..2], &[0x78, 0x5E]);
+    assert_eq!(&z_nocomp[..2], &[0x78, 0x01]);
+    assert_eq!(&z_bad[..2], &[0x78, 0x01]);
+    assert_eq!(&z_stored[..2], &[0x78, 0x01]);
+    assert_eq!(block_type(&z_stored), 0);
+    assert_eq!(z_nocomp, z_stored);
+    assert_eq!(z_bad, z_stored);
+
+    // Real compression ratios.
+    assert!(z_def.len() < words.len() / 2, "expected real compression on words: {}/{}", z_def.len(), words.len());
+    assert!(z_rep.len() < rep.len() / 20, "expected strong compression on rep: {}/{}", z_rep.len(), rep.len());
+
+    if let Some(py) = py_path() {
+        for (name, expected) in [
+            ("words-def.z", words.as_slice()),
+            ("words-best.z", words.as_slice()),
+            ("words-fast.z", words.as_slice()),
+            ("words-l3.z", words.as_slice()),
+            ("words-nocomp.z", words.as_slice()),
+            ("words-bad.z", words.as_slice()),
+            ("words-stored.z", words.as_slice()),
+            ("rep-def.z", rep.as_slice()),
+        ] {
+            assert_eq!(py_decompress(&py, &dir.join(name)), expected, "python3 zlib.decompress failed on {name}");
+        }
+        for name in ["words-def.raw", "words-stored.raw"] {
+            let got = py_run(
+                &py,
+                "import zlib,sys; sys.stdout.buffer.write(zlib.decompress(open(sys.argv[1],'rb').read(), -15))",
+                b"",
+                &[&dir.join(name)],
+            );
+            assert_eq!(got, words, "python3 raw inflate failed on {name}");
+        }
+    }
+}
+
+#[test]
+fn gzip_compresses_and_supports_levels_and_stored() {
+    let dir = scratch("gzip_levels");
+    gzip_sources(&dir);
+    let words = words_text();
+    write_fixture(&dir, "words.txt", &words);
+
+    let preamble = PREAMBLE.replace("  import Text.Zlib", "  import Text.Flate\n  import Text.Zlib\n  import Text.Gzip");
+    let body = format!(
+        r#"{preamble}
+  write-ok :: forall r. using (io :: Io r) => String -> Bytes ->{{IO r}} Bool
+  write-ok p b = case fs-write (path-from-string p) b of
+    Ok _ -> True
+    Err _ -> False
+
+  round-gz :: Bytes -> Bytes -> Bool
+  round-gz plain gz = case gzip-decode gz of
+    Ok got -> bytes-same got plain
+    Err _ -> False
+
+  main :: Unit ->{{IO r}} Int
+  main unit = with (io = newIO ()) in
+    case read-bytes {words_p} of
+      None -> 1
+      Some words ->
+        let g-def = gzip-encode words in
+        let g-best = gzip-encode-level FlateBestCompression words in
+        let g-fast = gzip-encode-level FlateBestSpeed words in
+        let g-nocomp = gzip-encode-level FlateNoCompression words in
+        let g-stored = gzip-encode-stored words in
+        let ok-rt = round-gz words g-def && round-gz words g-best && round-gz words g-fast && round-gz words g-nocomp && round-gz words g-stored in
+        let ok-ratio = bytes-len g-def < bytes-len words && bytes-len g-best < bytes-len words in
+        let w1 = write-ok {out_def} g-def in
+        let w2 = write-ok {out_best} g-best in
+        let w3 = write-ok {out_fast} g-fast in
+        let w4 = write-ok {out_nocomp} g-nocomp in
+        let w5 = write-ok {out_stored} g-stored in
+        let ok-w = w1 && w2 && w3 && w4 && w5 in
+        if not ok-rt then 2
+        else if not ok-ratio then 3
+        else if not ok-w then 4
+        else 0
+"#,
+        words_p = path_lit(&dir, "words.txt"),
+        out_def = path_lit(&dir, "def.gz"),
+        out_best = path_lit(&dir, "best.gz"),
+        out_fast = path_lit(&dir, "fast.gz"),
+        out_nocomp = path_lit(&dir, "nocomp.gz"),
+        out_stored = path_lit(&dir, "stored.gz"),
+    );
+
+    assert_eq!(run_project("gzip-levels", &dir, &body), 0);
+
+    let g_def = std::fs::read(dir.join("def.gz")).unwrap();
+    let g_best = std::fs::read(dir.join("best.gz")).unwrap();
+    let g_stored = std::fs::read(dir.join("stored.gz")).unwrap();
+    assert!(g_def.len() < words.len() / 2, "expected real gzip compression: {}/{}", g_def.len(), words.len());
+    assert!(g_best.len() < words.len() / 2);
+    assert_eq!(g_stored[10] & 6, 0, "gzip-encode-stored must emit stored blocks");
+
+    if let Some(py) = py_path() {
+        for name in ["def.gz", "best.gz", "fast.gz", "nocomp.gz", "stored.gz"] {
+            let got = py_run(
+                &py,
+                "import gzip,sys; sys.stdout.buffer.write(gzip.decompress(open(sys.argv[1],'rb').read()))",
+                b"",
+                &[&dir.join(name)],
+            );
+            assert_eq!(got, words, "python3 gzip.decompress failed on {name}");
         }
     }
 }

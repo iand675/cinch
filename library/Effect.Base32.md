@@ -12,7 +12,7 @@ Import with `import Effect.Base32`. Selected exports may already be in Prelude.
 
 [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Base32](Text.Base32.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Base32](Effect.Base32.md), [Effect.Stream](Effect.Stream.md), [Text.Base32](Text.Base32.md).
+Non-embedded source closure: [Effect.Base32](Effect.Base32.md), [Effect.Stream](Effect.Stream.md), [Text.Base32](Text.Base32.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

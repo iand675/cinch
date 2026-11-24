@@ -328,8 +328,11 @@ fn split_call_path(ir: &str, start: &str, wanted: &str) -> Option<Vec<String>> {
                 if !after.starts_with('(') {
                     continue;
                 }
-                if callee.starts_with("Data.Bytes.View.")
-                    || callee.starts_with("Data.Bytes.Split.")
+                if callee.starts_with("Data.Bytes.")
+                    || callee.starts_with("Data.Wide.")
+                    || callee.starts_with("Data.Machine.")
+                    || callee.starts_with("cinch.runtime.")
+                    || callee.starts_with("cinch.prim.")
                     || callee.starts_with("Main.")
                 {
                     let mut next = path.clone();
@@ -387,16 +390,18 @@ fn split_full_public_pipelines_compile_for_wasm_arm_and_big_endian() {
             .unwrap();
         let file = directory.join(format!("{arch}.ll"));
         std::fs::write(&file, &ir).unwrap();
-        artifacts.push((triple, file, ir));
+        artifacts.push((triple, endian, file, ir));
     }
-    for (triple, file, ir) in artifacts {
+    for (triple, endian, file, ir) in artifacts {
         for callee in [
             "Data.Bytes.Split.split-step",
             "Data.Bytes.View.index-forward-blocks",
             "Data.Bytes.View.index-forward-tail",
-            "Data.Bytes.View.load-word.llvm",
-            "Data.Bytes.View.load-byte.llvm",
-            "Data.Bytes.View.matching-lanes.llvm",
+            "cinch.runtime.bytesLoadU128",
+            "cinch.runtime.bytesGetU8At",
+            "cinch.prim.simdU8x16CmpEq",
+            "cinch.prim.simdU8x16Movemask",
+            "cinch.prim.trailingZerosU32",
         ] {
             assert!(
                 split_call_path(&ir, "Main.main", callee).is_some(),
@@ -405,30 +410,33 @@ fn split_full_public_pipelines_compile_for_wasm_arm_and_big_endian() {
             );
         }
         for (start, end) in [
-            ("index-forward-blocks", "load-word.llvm"),
-            ("index-forward-blocks", "matching-lanes.llvm"),
-            ("index-forward-tail", "load-byte.llvm"),
+            ("Data.Bytes.View.index-forward-blocks", "cinch.runtime.bytesLoadU128"),
+            ("Data.Bytes.View.index-forward-blocks", "cinch.prim.simdU8x16CmpEq"),
+            ("Data.Bytes.View.index-forward-blocks", "cinch.prim.simdU8x16Movemask"),
+            ("Data.Bytes.View.index-forward-blocks", "cinch.prim.trailingZerosU32"),
+            ("Data.Bytes.View.index-forward-tail", "cinch.runtime.bytesGetU8At"),
         ] {
             assert!(
-                split_call_path(
-                    &ir,
-                    &format!("Data.Bytes.View.{start}"),
-                    &format!("Data.Bytes.View.{end}")
-                )
-                .is_some(),
+                split_call_path(&ir, start, end).is_some(),
                 "missing real worker path {start} -> {end}; retained {}",
                 file.display()
             );
         }
-        assert!(split_definition(&ir, "Data.Bytes.View.load-word.llvm")
-            .contains("load i64, ptr %at, align 1"));
-        assert!(split_definition(&ir, "Data.Bytes.View.load-byte.llvm")
-            .contains("load i8, ptr %at, align 1"));
+        let load128 = split_definition(&ir, "cinch.runtime.bytesLoadU128");
+        assert!(load128.contains("load i128") && load128.contains("align 1"));
+        if endian == "big" {
+            assert!(load128.contains("@llvm.bswap.i128"));
+        }
+        let load8 = split_definition(&ir, "cinch.runtime.bytesGetU8At");
+        assert!(load8.contains("load i8") && load8.contains("align 1"));
         assert!(
-            split_definition(&ir, "Data.Bytes.View.matching-lanes.llvm")
-                .contains("9187201950435737471")
-                && split_definition(&ir, "Data.Bytes.View.matching-lanes.llvm")
-                    .contains("-9187201950435737472")
+            split_definition(&ir, "cinch.prim.simdU8x16CmpEq").contains("icmp eq <16 x i8>")
+        );
+        assert!(
+            split_definition(&ir, "cinch.prim.simdU8x16Movemask").contains("bitcast <16 x i1>")
+        );
+        assert!(
+            split_definition(&ir, "cinch.prim.trailingZerosU32").contains("@llvm.cttz.i32")
         );
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),

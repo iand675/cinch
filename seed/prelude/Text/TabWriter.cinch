@@ -18,7 +18,6 @@ module Text.TabWriter where
 
   import Data.Bytes
   import Data.Bytes.Build
-  import Data.Bytes.Word
   import Data.List
   import Data.Machine
   import Data.Nat
@@ -210,27 +209,19 @@ module Text.TabWriter where
   -- | Count Unicode scalars: bytes that are not UTF-8 continuation bytes, eight at a time with SWAR.
   scalar-count :: Bytes -> Nat -> Nat -> Nat
   scalar-count bytes i acc =
-    if i + 8 <= bytes-len bytes then scalar-count bytes (i + 8) (acc + u64-to-nat (lead-bytes (bytes-read-le64 bytes i)))
+    if i + 8 <= bytes-len bytes then scalar-count bytes (i + 8) (acc + u32-to-nat (lead-bytes (bytes-load-le64 bytes i)))
     else if i < bytes-len bytes then
       let byte = bytes-get bytes i in
       scalar-count bytes (i + 1) (if byte >= 128 && byte < 192 then acc else acc + 1)
     else acc
 
-  -- | Convert a small machine count to a natural number.
-  u64-to-nat :: U64 -> Nat
-  u64-to-nat value = u8-to-nat (wrapping-u64-to-u8 value)
-
   -- | SWAR: the number of the eight bytes that are not continuation bytes (bit 7 set and bit 6 clear).
-  prim lead-bytes :: U64 -> U64 where
-    llvm {
-      %high = and i64 %0, -9187201950435737472
-      %inverse = xor i64 %0, -1
-      %six = shl i64 %inverse, 1
-      %continuation = and i64 %high, %six
-      %count = call i64 @llvm.ctpop.i64(i64 %continuation)
-      %value = sub i64 8, %count
-      ret i64 %value
-    }
+  lead-bytes :: U64 -> U32
+  lead-bytes w =
+    let high = bit-and-u64 w 0x8080808080808080 in
+    let six = wrapping-shl-u64 (bit-not-u64 w) 1 in
+    let continuation = bit-and-u64 high six in
+    wrapping-sub-u32 8 (count-ones-u64 continuation)
 
   -- | Terminate the current cell, appending it to the current line.
   finish-cell :: TabWriter -> Bool -> TabWriter

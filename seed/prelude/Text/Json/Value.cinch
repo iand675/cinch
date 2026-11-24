@@ -17,6 +17,7 @@ module Text.Json.Value where
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Wide
   import Text.Show
   import Data.Unicode.Kernel
 
@@ -799,78 +800,58 @@ module Text.Json.Value where
     let out = bytes-new size in let copied = bytes-copy-range out input 0 start size in out
     else bytes-new 0
 
-  -- | Retain a byte owner until an entire private raw traversal has returned.
-  hold-scan :: Bytes -> U64 -> U64
-  hold-scan input result = case bytes-len input of _ -> result
+  -- | Compute a 16-bit lane mask of bytes that fail the selected JSON scan mode.
+  bad-mask16 :: U128 -> U32 -> U32
+  bad-mask16 chunk mode =
+    if eq-u32 mode 0 then
+      let ws0 = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 32)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 9)) in
+      let ws1 = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 10)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 13)) in
+      bit-xor-u32 (simd-u8x16-movemask (bit-or-u128 ws0 ws1)) 65535
+    else if eq-u32 mode 1 then
+      let digits = simd-u8x16-cmplt (simd-u8x16-sub chunk (simd-u8x16-splat 48)) (simd-u8x16-splat 10) in
+      bit-xor-u32 (simd-u8x16-movemask digits) 65535
+    else if eq-u32 mode 2 then
+      let low = simd-u8x16-cmplt chunk (simd-u8x16-splat 32) in
+      let qs = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 34)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 92)) in
+      simd-u8x16-movemask (bit-or-u128 low qs)
+    else if eq-u32 mode 3 then
+      let bounds = bit-or-u128 (simd-u8x16-cmplt chunk (simd-u8x16-splat 32)) (simd-u8x16-cmpgt chunk (simd-u8x16-splat 127)) in
+      let qs = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 34)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 92)) in
+      simd-u8x16-movemask (bit-or-u128 bounds qs)
+    else if eq-u32 mode 4 then
+      let bounds = bit-or-u128 (simd-u8x16-cmplt chunk (simd-u8x16-splat 32)) (simd-u8x16-cmpgt chunk (simd-u8x16-splat 127)) in
+      let qs = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 34)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 92)) in
+      let lg = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 60)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 62)) in
+      let html = bit-or-u128 lg (simd-u8x16-cmpeq chunk (simd-u8x16-splat 38)) in
+      simd-u8x16-movemask (bit-or-u128 (bit-or-u128 bounds qs) html)
+    else
+      let lg = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 60)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 62)) in
+      let ae = bit-or-u128 (simd-u8x16-cmpeq chunk (simd-u8x16-splat 38)) (simd-u8x16-cmpeq chunk (simd-u8x16-splat 226)) in
+      simd-u8x16-movemask (bit-or-u128 lg ae)
 
-  -- | Classify sixteen bytes for whitespace, digit, string and HTML-escape traversals.
-  -- The caller proves the complete load interval and retains the owner; the kernel has no stores.
-  prim block16 :: I64 -> U32 -> U8 where
-    unsafe llvm {
-      %pointer = inttoptr i64 %0 to ptr
-      %bytes = load <16 x i8>, ptr %pointer, align 1
-      %space = icmp eq <16 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %tab = icmp eq <16 x i8> %bytes, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
-      %lf = icmp eq <16 x i8> %bytes, <i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10, i8 10>
-      %cr = icmp eq <16 x i8> %bytes, <i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13, i8 13>
-      %ws0 = or <16 x i1> %space, %tab
-      %ws1 = or <16 x i1> %lf, %cr
-      %ws = or <16 x i1> %ws0, %ws1
-      %d0 = icmp uge <16 x i8> %bytes, <i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48, i8 48>
-      %d1 = icmp ule <16 x i8> %bytes, <i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57, i8 57>
-      %digits = and <16 x i1> %d0, %d1
-      %quote = icmp ne <16 x i8> %bytes, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %slash = icmp ne <16 x i8> %bytes, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
-      %printable = icmp uge <16 x i8> %bytes, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %ascii = icmp ult <16 x i8> %bytes, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
-      %q0 = and <16 x i1> %quote, %slash
-      %ordinary = and <16 x i1> %q0, %printable
-      %asciiordinary = and <16 x i1> %ordinary, %ascii
-      %less = icmp ne <16 x i8> %bytes, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %greater = icmp ne <16 x i8> %bytes, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %amp = icmp ne <16 x i8> %bytes, <i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38, i8 38>
-      %e2 = icmp ne <16 x i8> %bytes, <i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30, i8 -30>
-      %h0 = and <16 x i1> %less, %greater
-      %htmlsafe = and <16 x i1> %h0, %amp
-      %quotehtml = and <16 x i1> %asciiordinary, %htmlsafe
-      %rawhtml = and <16 x i1> %htmlsafe, %e2
-      %m3 = icmp eq i32 %1, 3
-      %m4 = icmp eq i32 %1, 4
-      %h1 = select i1 %m4, <16 x i1> %quotehtml, <16 x i1> %rawhtml
-      %h2 = select i1 %m3, <16 x i1> %asciiordinary, <16 x i1> %h1
-      %m0 = icmp eq i32 %1, 0
-      %m1 = icmp eq i32 %1, 1
-      %m2 = icmp eq i32 %1, 2
-      %q1 = select i1 %m2, <16 x i1> %ordinary, <16 x i1> %h2
-      %q2 = select i1 %m1, <16 x i1> %digits, <16 x i1> %q1
-      %good = select i1 %m0, <16 x i1> %ws, <16 x i1> %q2
-      %mask = bitcast <16 x i1> %good to i16
-      %all = icmp eq i16 %mask, -1
-      %out = zext i1 %all to i8
-      ret i8 %out
-    }
+  -- | Traverse complete classified sixteen-byte SIMD blocks and stop at the exact failing lane.
+  skip-blocks :: Bytes -> I64 -> I64 -> U32 -> I64
+  skip-blocks input start at mode =
+    let n = bytes-len-i64 input in
+    if 16 <= n && 0 <= at then
+      let nn = nat-from-i64 n in
+      let ni = nat-from-i64 at in
+      if 16 <= nn && ni <= nn - 16 then
+        let mask = bad-mask16 (bytes-load-u128 input ni) mode in
+        if eq-u32 mask 0 then skip-blocks input start (wrapping-add-i64 at 16) mode
+        else wrapping-sub-i64 (wrapping-add-i64 at (u32-to-i64 (trailing-zeros-u32 mask))) start
+      else wrapping-sub-i64 at start
+    else wrapping-sub-i64 at start
 
-  -- | Traverse complete classified blocks using only machine counters in the hot loop.
-  skip-blocks :: I64 -> U64 -> U32 -> U64 -> U64
-  skip-blocks address remaining mode skipped =
-    if ge-u64 remaining 16 && eq-u8 (block16 address mode) 1 then
-      skip-blocks (wrapping-add-i64 address 16) (wrapping-sub-u64 remaining 16) mode (wrapping-add-u64 skipped 16)
-    else skipped
-
-  -- | Convert a machine distance exactly through unsigned halves outside the traversal.
-  scan-distance :: U64 -> Nat
-  scan-distance value =
-    let low = u32-to-nat (wrapping-u64-to-u32 value) in
-    let high = wrapping-u64-to-u32 (wrapping-shr-u64 value 32) in
-    if eq-u32 high 0 then low else u32-to-nat high * 4294967296 + low
-
-  -- | Establish a complete raw scan interval and retain its backing owner once around the loop.
+  -- | Establish a complete bounded SIMD scan interval and return the advanced byte offset.
   block-end :: Bytes -> Nat -> U32 -> Nat
   block-end input at mode = if at <= bytes-len input then
-    let remaining = bytes-len input - at in
-    let address = wrapping-add-i64 (bytes-data input) (nat-to-i64 at) in
-    let skipped = hold-scan input (skip-blocks address (wrapping-i64-to-u64 (nat-to-i64 remaining)) mode 0) in
-    let size = scan-distance skipped in if size <= remaining then at + size else at
+    let start = nat-to-i64 at in
+    let skipped = skip-blocks input start start mode in
+    if 0 <= skipped then
+      let size = nat-from-i64 skipped in
+      if size <= bytes-len input - at then at + size else at
+    else at
     else at
 
   -- | Recognize the four ASCII JSON whitespace bytes.
@@ -1379,9 +1360,14 @@ module Text.Json.Value where
   child-indexes :: Bool -> List Nat -> ChildIndexes
   child-indexes build children = if build then (case children of Nil -> NoChildren; Cons first rest -> Children (array-from-list (reverse children))) else NoChildren
 
+  -- | Invariant parse configuration carried across tail-recursive grammar steps.
+  data ParseCfg where
+    -- | Source bytes, tape-building flag and partial-state retention flag.
+    ParseCfg :: Bytes -> Bool -> Bool -> ParseCfg
+
   -- | Run strict grammar with optional tape construction and no partial result exposure.
   parse-run :: Bytes -> Bool -> ParseResult
-  parse-run input build = parse-loop input 0 Nil False 0 0 build False Nil
+  parse-run input build = parse-loop (ParseCfg input build False) 0 Nil False 0 0 Nil
 
   -- | Validate and snapshot one complete JSON document, preserving all original source spellings.
   json-document :: Bytes -> Result JsonError JsonDocument
@@ -1397,7 +1383,7 @@ module Text.Json.Value where
   json-scan-document :: Bytes -> JsonScanResult
   json-scan-document input =
     let owned = snapshot input 0 (bytes-len input) in
-    case parse-loop owned 0 Nil False 0 0 True True Nil of
+    case parse-loop (ParseCfg owned True True) 0 Nil False 0 0 Nil of
       DocumentValid document -> Scanned (json-document-value document) None
       DocumentPartial document error -> case document of Document bytes tape root -> Scanned (Value document root (Some error)) (Some error)
       ParseRefused error -> failed-scan owned error
@@ -1436,44 +1422,46 @@ module Text.Json.Value where
   parse-lex retain input at = if retain then json-lex-read-positioned LexIdle input at 0 True else json-lex-read LexIdle input at 0 True
 
   -- | Share the exact grammar while deciding only whether failure retains navigation state.
-  parse-loop :: Bytes -> Nat -> List ParseFrame -> Bool -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
-  parse-loop input at frames started depth index build retain events =
-    let next = if at < bytes-len input && white-byte (bytes-get input at) then run-end input at 0 else at in
-    if next >= bytes-len input then case frames of
-      Nil -> if started then if build then finish-tape input events else SyntaxValid at
-        else parse-stop input next next frames index build retain events StopGrammar (JsonSyntaxError next "unexpected end of JSON input")
-      Cons first rest -> parse-stop input next next frames index build retain events StopGrammar (JsonSyntaxError next "unexpected end of JSON input")
-    else let byte = bytes-get input next in case frames of
-      Nil -> if started then parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after top-level value")
-        else parse-value input next Nil depth index build retain events
-      Cons first rest -> case first of
-        Frame phase opening children -> case phase of
-          ArrayFirst -> if byte == 93 then close-array input next rest depth index build retain events children
-            else parse-value input next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index build retain events
-          ArrayNext -> parse-value input next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index build retain events
-          ArrayAfter -> if byte == 44 then parse-loop input (next + 1) (Cons (Frame ArrayNext opening children) rest) True depth index build retain events
-            else if byte == 93 then close-array input next rest depth index build retain events children
-            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 (if build then "after array element" else "after array value"))
-          ObjectFirst -> if byte == 125 then close-object input next rest depth index build retain events children
-            else if byte == 34 then parse-key input next rest opening children depth index build retain events
-            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "looking for beginning of object key string")
-          ObjectNext separator -> if byte == 34 then parse-key input next rest opening children depth index build retain events
-            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "looking for beginning of object key string")
-          ObjectColon -> if byte == 58 then parse-loop input (next + 1) (Cons (Frame ObjectValue opening children) rest) True depth index build retain events
-            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after object key")
-          ObjectValue -> parse-value input next (Cons (Frame ObjectAfter opening children) rest) depth index build retain events
-          ObjectAfter -> if byte == 44 then parse-loop input (next + 1) (Cons (Frame (ObjectNext next) opening children) rest) True depth index build retain events
-            else if byte == 125 then close-object input next rest depth index build retain events children
-            else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after object key:value pair")
+  parse-loop :: ParseCfg -> Nat -> List ParseFrame -> Bool -> Nat -> Nat -> List TapeEvent -> ParseResult
+  parse-loop cfg at frames started depth index events = case cfg of
+    ParseCfg input build retain ->
+      let next = if at < bytes-len input && white-byte (bytes-get input at) then run-end input at 0 else at in
+      if next >= bytes-len input then case frames of
+        Nil -> if started then if build then finish-tape input events else SyntaxValid at
+          else parse-stop input next next frames index build retain events StopGrammar (JsonSyntaxError next "unexpected end of JSON input")
+        Cons first rest -> parse-stop input next next frames index build retain events StopGrammar (JsonSyntaxError next "unexpected end of JSON input")
+      else let byte = bytes-get input next in case frames of
+        Nil -> if started then parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after top-level value")
+          else parse-value cfg next Nil depth index events
+        Cons first rest -> case first of
+          Frame phase opening children -> case phase of
+            ArrayFirst -> if byte == 93 then close-array cfg next rest depth index events children
+              else parse-value cfg next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index events
+            ArrayNext -> parse-value cfg next (Cons (Frame ArrayAfter opening (save-child build index children)) rest) depth index events
+            ArrayAfter -> if byte == 44 then parse-loop cfg (next + 1) (Cons (Frame ArrayNext opening children) rest) True depth index events
+              else if byte == 93 then close-array cfg next rest depth index events children
+              else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 (if build then "after array element" else "after array value"))
+            ObjectFirst -> if byte == 125 then close-object cfg next rest depth index events children
+              else if byte == 34 then parse-key cfg next rest opening children depth index events
+              else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "looking for beginning of object key string")
+            ObjectNext separator -> if byte == 34 then parse-key cfg next rest opening children depth index events
+              else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "looking for beginning of object key string")
+            ObjectColon -> if byte == 58 then parse-loop cfg (next + 1) (Cons (Frame ObjectValue opening children) rest) True depth index events
+              else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after object key")
+            ObjectValue -> parse-value cfg next (Cons (Frame ObjectAfter opening children) rest) depth index events
+            ObjectAfter -> if byte == 44 then parse-loop cfg (next + 1) (Cons (Frame (ObjectNext next) opening children) rest) True depth index events
+              else if byte == 125 then close-object cfg next rest depth index events children
+              else parse-stop input next next frames index build retain events StopGrammar (syntax-source input next 0 "after object key:value pair")
 
   -- | Retain only completed member names before their following value slot is entered.
-  parse-key :: Bytes -> Nat -> List ParseFrame -> Nat -> List Nat -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
-  parse-key input at rest opening children depth index build retain events = case parse-lex retain input at of
-    JsonLexToken token next ->
-      let saved = save-event build NKey index (json-lexeme-start token) (json-lexeme-end token) NoChildren events in
-      parse-loop input next (Cons (Frame ObjectColon opening (save-child build index children)) rest) True depth (advance-index build index) build retain saved
-    JsonLexFailure error next -> parse-stop input at next (Cons (Frame ObjectFirst opening children) rest) index build retain events StopKey error
-    other -> parse-stop input at (bytes-len input) (Cons (Frame ObjectFirst opening children) rest) index build retain events StopKey (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
+  parse-key :: ParseCfg -> Nat -> List ParseFrame -> Nat -> List Nat -> Nat -> Nat -> List TapeEvent -> ParseResult
+  parse-key cfg at rest opening children depth index events = case cfg of
+    ParseCfg input build retain -> case parse-lex retain input at of
+      JsonLexToken token next ->
+        let saved = save-event build NKey index (json-lexeme-start token) (json-lexeme-end token) NoChildren events in
+        parse-loop cfg next (Cons (Frame ObjectColon opening (save-child build index children)) rest) True depth (advance-index build index) saved
+      JsonLexFailure error next -> parse-stop input at next (Cons (Frame ObjectFirst opening children) rest) index build retain events StopKey error
+      other -> parse-stop input at (bytes-len input) (Cons (Frame ObjectFirst opening children) rest) index build retain events StopKey (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
 
   -- | Preserve the existing strict document reader's incomplete-number checkpoint adaptation.
   document-lex-error :: Bytes -> Nat -> Nat -> Bool -> JsonError -> JsonError
@@ -1487,34 +1475,37 @@ module Text.Json.Value where
     else error
 
   -- | Consume one scalar or opening container, sharing token validation and bounded scans.
-  parse-value :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> ParseResult
-  parse-value input at frames depth index build retain events = case parse-lex retain input at of
-    JsonLexFailure error next -> parse-stop input at next frames index build retain events StopValue (if retain then error else document-lex-error input at next build error)
-    JsonLexToken token next -> case token of
-      Lexeme tag start end -> case tag of
-        JsonLexNull -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NNull index start end NoChildren events)
-        JsonLexTrue -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NTrue index start end NoChildren events)
-        JsonLexFalse -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NFalse index start end NoChildren events)
-        JsonLexNumber -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NNumber index start end NoChildren events)
-        JsonLexString -> parse-loop input next frames True depth (advance-index build index) build retain (save-event build NString index start end NoChildren events)
-        JsonLexArrayStart -> if depth >= 10000 then parse-stop input start next frames index build retain events StopValue (token-error input token "exceeded max depth")
-          else parse-loop input next (Cons (Frame ArrayFirst index Nil) frames) True (depth + 1) (advance-index build index) build retain (save-event build NArray index start end NoChildren events)
-        JsonLexObjectStart -> if depth >= 10000 then parse-stop input start next frames index build retain events StopValue (token-error input token "exceeded max depth")
-          else parse-loop input next (Cons (Frame ObjectFirst index Nil) frames) True (depth + 1) (advance-index build index) build retain (save-event build NObject index start end NoChildren events)
-        other -> parse-stop input start next frames index build retain events StopValue (token-error input token "looking for beginning of value")
-    other -> parse-stop input at (bytes-len input) frames index build retain events StopValue (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
+  parse-value :: ParseCfg -> Nat -> List ParseFrame -> Nat -> Nat -> List TapeEvent -> ParseResult
+  parse-value cfg at frames depth index events = case cfg of
+    ParseCfg input build retain -> case parse-lex retain input at of
+      JsonLexFailure error next -> parse-stop input at next frames index build retain events StopValue (if retain then error else document-lex-error input at next build error)
+      JsonLexToken token next -> case token of
+        Lexeme tag start end -> case tag of
+          JsonLexNull -> parse-loop cfg next frames True depth (advance-index build index) (save-event build NNull index start end NoChildren events)
+          JsonLexTrue -> parse-loop cfg next frames True depth (advance-index build index) (save-event build NTrue index start end NoChildren events)
+          JsonLexFalse -> parse-loop cfg next frames True depth (advance-index build index) (save-event build NFalse index start end NoChildren events)
+          JsonLexNumber -> parse-loop cfg next frames True depth (advance-index build index) (save-event build NNumber index start end NoChildren events)
+          JsonLexString -> parse-loop cfg next frames True depth (advance-index build index) (save-event build NString index start end NoChildren events)
+          JsonLexArrayStart -> if depth >= 10000 then parse-stop input start next frames index build retain events StopValue (token-error input token "exceeded max depth")
+            else parse-loop cfg next (Cons (Frame ArrayFirst index Nil) frames) True (depth + 1) (advance-index build index) (save-event build NArray index start end NoChildren events)
+          JsonLexObjectStart -> if depth >= 10000 then parse-stop input start next frames index build retain events StopValue (token-error input token "exceeded max depth")
+            else parse-loop cfg next (Cons (Frame ObjectFirst index Nil) frames) True (depth + 1) (advance-index build index) (save-event build NObject index start end NoChildren events)
+          other -> parse-stop input start next frames index build retain events StopValue (token-error input token "looking for beginning of value")
+      other -> parse-stop input at (bytes-len input) frames index build retain events StopValue (JsonSyntaxError (bytes-len input) "unexpected end of JSON input")
 
   -- | Close one completely recognized array without retaining any partial marker.
-  close-array :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> List Nat -> ParseResult
-  close-array input at rest depth index build retain events children =
-    let saved = save-event build NArrayEnd index at (at + 1) (child-indexes build children) events in
-    if depth > 0 then parse-loop input (at + 1) rest True (depth - 1) (advance-index build index) build retain saved else ParseRefused (JsonValueError "array" "closing frame has no opening container")
+  close-array :: ParseCfg -> Nat -> List ParseFrame -> Nat -> Nat -> List TapeEvent -> List Nat -> ParseResult
+  close-array cfg at rest depth index events children = case cfg of
+    ParseCfg input build retain ->
+      let saved = save-event build NArrayEnd index at (at + 1) (child-indexes build children) events in
+      if depth > 0 then parse-loop cfg (at + 1) rest True (depth - 1) (advance-index build index) saved else ParseRefused (JsonValueError "array" "closing frame has no opening container")
 
   -- | Close one completely recognized object without retaining any partial marker.
-  close-object :: Bytes -> Nat -> List ParseFrame -> Nat -> Nat -> Bool -> Bool -> List TapeEvent -> List Nat -> ParseResult
-  close-object input at rest depth index build retain events children =
-    let saved = save-event build NObjectEnd index at (at + 1) (child-indexes build children) events in
-    if depth > 0 then parse-loop input (at + 1) rest True (depth - 1) (advance-index build index) build retain saved else ParseRefused (JsonValueError "object" "closing frame has no opening container")
+  close-object :: ParseCfg -> Nat -> List ParseFrame -> Nat -> Nat -> List TapeEvent -> List Nat -> ParseResult
+  close-object cfg at rest depth index events children = case cfg of
+    ParseCfg input build retain ->
+      let saved = save-event build NObjectEnd index at (at + 1) (child-indexes build children) events in
+      if depth > 0 then parse-loop cfg (at + 1) rest True (depth - 1) (advance-index build index) saved else ParseRefused (JsonValueError "object" "closing frame has no opening container")
 
   -- | Prepared partial frames, next tape index and immutable reversed events.
   data PartialBuild where
@@ -1723,46 +1714,31 @@ module Text.Json.Value where
     if begin < bytes-len input then numeric-int-from input begin negative 0 else numeric-int-refused input negative False
 
   -- | Reconstruct an IEEE binary64 payload without numeric approximation.
-  prim numeric-float-from-bits :: U64 -> F64 where
-    llvm {
-      %value = bitcast i64 %0 to double
-      ret double %value
-    }
+  numeric-float-from-bits :: U64 -> F64
+  numeric-float-from-bits bits = f64-from-bits bits
 
   -- | Round a retained hexadecimal prefix plus sticky suffix with defined zero, wide and midpoint cases.
-  prim numeric-hex-round :: U64 -> U32 -> U8 -> U64 where
-    llvm {
-      %nonzero = icmp ne i32 %1, 0
-      %below64 = icmp ult i32 %1, 64
-      %narrow = and i1 %nonzero, %below64
-      %safecount = select i1 %narrow, i32 %1, i32 1
-      %shift = zext i32 %safecount to i64
-      %quotient = lshr i64 %0, %shift
-      %unit = shl i64 1, %shift
-      %mask = sub i64 %unit, 1
-      %remainder = and i64 %0, %mask
-      %half = lshr i64 %unit, 1
-      %above = icmp ugt i64 %remainder, %half
-      %tie = icmp eq i64 %remainder, %half
-      %low = and i64 %quotient, 1
-      %odd = icmp ne i64 %low, 0
-      %sticky = icmp ne i8 %2, 0
-      %preferup = or i1 %odd, %sticky
-      %tieup = and i1 %tie, %preferup
-      %up = or i1 %above, %tieup
-      %increment = zext i1 %up to i64
-      %rounded = add i64 %quotient, %increment
-      %above64 = icmp ugt i64 %0, -9223372036854775808
-      %tie64 = icmp eq i64 %0, -9223372036854775808
-      %tieup64 = and i1 %tie64, %sticky
-      %up64 = or i1 %above64, %tieup64
-      %result64 = zext i1 %up64 to i64
-      %exact64 = icmp eq i32 %1, 64
-      %widevalue = select i1 %exact64, i64 %result64, i64 0
-      %shifted = select i1 %below64, i64 %rounded, i64 %widevalue
-      %result = select i1 %nonzero, i64 %shifted, i64 %0
-      ret i64 %result
-    }
+  numeric-hex-round :: U64 -> U32 -> U8 -> U64
+  numeric-hex-round prefix shift sticky-byte =
+    if eq-u32 shift 0 then prefix
+    else if lt-u32 shift 64 then
+      let quotient = wrapping-shr-u64 prefix shift in
+      let unit = wrapping-shl-u64 1 shift in
+      let mask = wrapping-sub-u64 unit 1 in
+      let remainder = bit-and-u64 prefix mask in
+      let half = wrapping-shr-u64 unit 1 in
+      let above = gt-u64 remainder half in
+      let tie = eq-u64 remainder half in
+      let odd = ne-u64 (bit-and-u64 quotient 1) 0 in
+      let sticky = ne-u8 sticky-byte 0 in
+      if above || (tie && (odd || sticky)) then wrapping-add-u64 quotient 1 else quotient
+    else if eq-u32 shift 64 then
+      let msb = wrapping-shl-u64 1 63 in
+      let above64 = gt-u64 prefix msb in
+      let tie64 = eq-u64 prefix msb in
+      let sticky = ne-u8 sticky-byte 0 in
+      if above64 || (tie64 && sticky) then 1 else 0
+    else 0
 
   -- | Compare one complete ASCII special spelling without Unicode case expansion.
   numeric-ascii-equal :: Bytes -> Nat -> String -> Bool

@@ -135,7 +135,7 @@ Observe the stable numeric selector associated with one case.
 
 Observe one standard case rule; out-of-range indices return None.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 572
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 560
 
 <a id="value-756e69636f64652d636173652d72616e67652d636f756e74"></a>
 
@@ -145,7 +145,7 @@ Observe one standard case rule; out-of-range indices return None.
 
 Count complete standard case range records without allocating their observations.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 581
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 569
 
 <a id="value-756e69636f64652d636173652d72616e67652d68696768"></a>
 
@@ -555,7 +555,7 @@ Return the numeric-order successor in a simple-fold cycle; invalid numbers remai
 
 Whether any override can affect ASCII, allowing bulk default ASCII mapping when false.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 609
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 597
 
 <a id="value-756e69636f64652d7370656369616c2d63617365"></a>
 
@@ -575,7 +575,7 @@ Construct scalar-preserving ordered custom rules, with identity rules overriding
 
 Count immutable override records without materializing their observations.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 553
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 541
 
 <a id="value-756e69636f64652d7370656369616c2d636173652d72616e67652d6174"></a>
 
@@ -585,7 +585,7 @@ Count immutable override records without materializing their observations.
 
 Observe one override record; out-of-range indices return None.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 566
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 554
 
 <a id="value-756e69636f64652d7370656369616c2d746f"></a>
 
@@ -595,7 +595,7 @@ Observe one override record; out-of-range indices return None.
 
 Apply one scalar-preserving locale override mapping to a valid character.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 549
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 537
 
 <a id="value-756e69636f64652d7370656369616c2d746f2d6c6f776572"></a>
 
@@ -605,7 +605,7 @@ Apply one scalar-preserving locale override mapping to a valid character.
 
 Apply scalar-preserving locale lowercase overrides before default casing.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 597
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 585
 
 <a id="value-756e69636f64652d7370656369616c2d746f2d6c6f7765722d636f6465"></a>
 
@@ -615,7 +615,7 @@ Apply scalar-preserving locale lowercase overrides before default casing.
 
 Apply locale lowercase overrides to a numeric code point, preserving invalid inputs.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 593
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 581
 
 <a id="value-756e69636f64652d7370656369616c2d746f2d7469746c65"></a>
 
@@ -625,7 +625,7 @@ Apply locale lowercase overrides to a numeric code point, preserving invalid inp
 
 Apply scalar-preserving locale titlecase overrides before default casing.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 605
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 593
 
 <a id="value-756e69636f64652d7370656369616c2d746f2d7469746c652d636f6465"></a>
 
@@ -635,7 +635,7 @@ Apply scalar-preserving locale titlecase overrides before default casing.
 
 Apply locale titlecase overrides to a numeric code point, preserving invalid inputs.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 601
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 589
 
 <a id="value-756e69636f64652d7370656369616c2d746f2d7570706572"></a>
 
@@ -645,7 +645,7 @@ Apply locale titlecase overrides to a numeric code point, preserving invalid inp
 
 Apply scalar-preserving locale uppercase overrides before default casing.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 589
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 577
 
 <a id="value-756e69636f64652d7370656369616c2d746f2d75707065722d636f6465"></a>
 
@@ -655,7 +655,7 @@ Apply scalar-preserving locale uppercase overrides before default casing.
 
 Apply locale uppercase overrides to a numeric code point, preserving invalid inputs.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 585
+[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 573
 
 <a id="value-756e69636f64652d746f"></a>
 
@@ -789,4 +789,4 @@ Patch edition of the immutable classification and mapping data.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Kernel.cinch`. Source SHA-256: `ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Kernel.cinch`. Source SHA-256: `ea234b1282e1f6e3e6bcee9b9d91fccb3d2bd74c9301c5c52bef6b9f0c0522d2`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -12,7 +12,7 @@ Import with `import Effect.Sha256`. Selected exports may already be in Prelude.
 
 [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Sha256](Text.Sha256.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Sha256](Effect.Sha256.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Sha256](Text.Sha256.md).
+Non-embedded source closure: [Effect.Sha256](Effect.Sha256.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Sha256](Text.Sha256.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

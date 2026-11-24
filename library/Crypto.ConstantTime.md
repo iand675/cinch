@@ -10,9 +10,9 @@ Import with `import Crypto.ConstantTime`. Selected exports may already be in Pre
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
+[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes.Word](Data.Bytes.Word.md).
+Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -35,7 +35,7 @@ processor/runtime capability and is not enabled by these operations.
 
 Public buffer dimensions cannot satisfy a complete operation.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 18
+[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 19
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ConstantTimeLengthMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">ConstantTime</span>.<span class="tok-constructor">ConstantTimeError</span>))</code></pre>
 
@@ -51,7 +51,7 @@ Public buffer dimensions cannot satisfy a complete operation.
 
 Compare two bytes without branching on their contents.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 25
+[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 26
 
 <a id="value-636f6e7374616e742d62797465732d657175616c"></a>
 
@@ -59,10 +59,10 @@ Compare two bytes without branching on their contents.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">constant-bytes-equal</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
 
-Compare equal-length buffers using complete SIMD blocks and an exact scalar tail.
+Compare equal-length buffers using complete 16-byte blocks and an exact scalar tail.
 Every byte is read even when an earlier byte differs; lengths are public.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 58
+[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 61
 
 <a id="value-636f6e7374616e742d636f7079"></a>
 
@@ -73,7 +73,7 @@ Every byte is read even when an earlier byte differs; lengths are public.
 Conditionally copy a complete source, preserving the destination for False.
 A length mismatch is returned before any byte is written.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 67
+[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 69
 
 <a id="value-636f6e7374616e742d6933322d657175616c"></a>
 
@@ -83,7 +83,7 @@ A length mismatch is returned before any byte is written.
 
 Compare signed 32-bit words without a content-dependent branch.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 33
+[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 30
 
 <a id="value-636f6e7374616e742d6c6573732d6f722d657175616c"></a>
 
@@ -93,7 +93,7 @@ Compare signed 32-bit words without a content-dependent branch.
 
 Compare nonnegative 31-bit values; invalid mathematical inputs are excluded by their types.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 41
+[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 34
 
 <a id="value-636f6e7374616e742d73656c656374"></a>
 
@@ -103,7 +103,7 @@ Compare nonnegative 31-bit values; invalid mathematical inputs are excluded by t
 
 Select the first word for True and the second for False without branching on the flag.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 45
+[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 54
 
 <a id="value-786f722d6279746573"></a>
 
@@ -114,8 +114,8 @@ Select the first word for True and the second for False without branching on the
 XOR the shorter input into the destination, returning the complete written length.
 A short destination is returned before any write; untouched trailing bytes remain unchanged.
 
-[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 75
+[Source](/reference-sources/Crypto.ConstantTime.cinch) · line 83
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/ConstantTime.cinch`. Source SHA-256: `f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/ConstantTime.cinch`. Source SHA-256: `698448407f9e0ff912ec4f0b515c7787efc7475bd0584d3229dfa5c105c5b9de`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

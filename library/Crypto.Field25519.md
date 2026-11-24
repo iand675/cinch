@@ -10,21 +10,21 @@ Import with `import Crypto.Field25519`. Selected exports may already be in Prelu
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Wide](Data.Wide.md).
+[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes.Word](Data.Bytes.Word.md).
+Non-embedded source closure: [Crypto.Field25519](Crypto.Field25519.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
 Constant-time arithmetic in the field of integers modulo 2^255 - 19, shared by X25519 and Ed25519.
 An element is five 51-bit limbs (little-endian radix 2^51). Each product
-column is one primitive that accumulates its five 64x64-bit products in a
-128-bit register, so a multiplication is five independent wide columns and
-one carry chain; additions and subtractions carry immediately, keeping every
-limb below 2^52 so the next product cannot overflow. Every operation is free
-of data-dependent branches and memory access: conditional swaps and
-selections use masks, inversion is a fixed addition chain, and comparisons
-reduce to the canonical encoding first.
+column accumulates its five 64x64-bit products in a 128-bit `U128` register,
+so a multiplication is five independent wide columns and one carry chain;
+additions and subtractions carry immediately, keeping every limb below 2^52
+so the next product cannot overflow. Every operation is free of
+data-dependent branches and memory access: conditional swaps and selections
+use masks, inversion is a fixed addition chain, and comparisons reduce to
+the canonical encoding first.
 
 </details>
 
@@ -38,7 +38,7 @@ reduce to the canonical encoding first.
 
 Limbs from least to most significant, radix 2^51.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 23
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 22
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Fe</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)))))</code></pre>
 
@@ -52,7 +52,7 @@ Limbs from least to most significant, radix 2^51.
 
 Sum with an immediate carry.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 57
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 56
 
 <a id="value-66652d657175616c"></a>
 
@@ -62,7 +62,7 @@ Sum with an immediate carry.
 
 One when the two values are equal modulo p, otherwise zero.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 377
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 272
 
 <a id="value-66652d66726f6d2d6279746573"></a>
 
@@ -72,7 +72,7 @@ One when the two values are equal modulo p, otherwise zero.
 
 Decode 32 little-endian bytes at an offset, ignoring the top bit. Out-of-range input reads as zero.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 314
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 209
 
 <a id="value-66652d66726f6d2d753634"></a>
 
@@ -82,7 +82,7 @@ Decode 32 little-endian bytes at an offset, ignoring the top bit. Out-of-range i
 
 A small element below 2^51.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 34
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 33
 
 <a id="value-66652d696e76657274"></a>
 
@@ -92,7 +92,7 @@ A small element below 2^51.
 
 Multiplicative inverse a^(p - 2) by the fixed addition chain; the inverse of zero is zero.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 286
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 181
 
 <a id="value-66652d69732d6e65676174697665"></a>
 
@@ -102,7 +102,7 @@ Multiplicative inverse a^(p - 2) by the fixed addition chain; the inverse of zer
 
 Whether the canonical value is odd (the sign used by point encodings).
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 366
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 261
 
 <a id="value-66652d69732d7a65726f"></a>
 
@@ -112,7 +112,7 @@ Whether the canonical value is odd (the sign used by point encodings).
 
 One when the value is zero modulo p, otherwise zero, computed without branching.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 370
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 265
 
 <a id="value-66652d6c696d6273"></a>
 
@@ -122,7 +122,7 @@ One when the value is zero modulo p, otherwise zero, computed without branching.
 
 The five limbs, for constant tables and tests.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 38
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 37
 
 <a id="value-66652d6d756c"></a>
 
@@ -132,7 +132,7 @@ The five limbs, for constant tables and tests.
 
 Product: five 128-bit columns, then one carry chain.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 76
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 75
 
 <a id="value-66652d6d756c2d736d616c6c"></a>
 
@@ -142,7 +142,7 @@ Product: five 128-bit columns, then one carry chain.
 
 Multiply by a constant below 2^13 (such as 121665): one carry chain over 128-bit limbs.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 252
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 152
 
 <a id="value-66652d6e6567"></a>
 
@@ -152,7 +152,7 @@ Multiply by a constant below 2^13 (such as 121665): one carry chain over 128-bit
 
 Negation.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 72
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 71
 
 <a id="value-66652d6f6e65"></a>
 
@@ -162,7 +162,7 @@ Negation.
 
 One.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 30
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 29
 
 <a id="value-66652d706f773232353233"></a>
 
@@ -172,7 +172,7 @@ One.
 
 a^((p - 5) / 8), used to compute square roots.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 290
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 185
 
 <a id="value-66652d73656c656374"></a>
 
@@ -182,7 +182,7 @@ a^((p - 5) / 8), used to compute square roots.
 
 Choose b when the low bit of choice is set and a otherwise, without branching.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 310
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 205
 
 <a id="value-66652d737175617265"></a>
 
@@ -190,9 +190,9 @@ Choose b when the low bit of choice is set and a otherwise, without branching.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fe-square</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Field25519</span>.<span class="tok-constructor">Fe</span>)</code></pre>
 
-Square (the general product with both operands equal; LLVM merges the symmetric terms).
+Square using symmetric cross-product doubling (15 wide multiplies instead of 25).
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 88
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 87
 
 <a id="value-66652d737562"></a>
 
@@ -202,7 +202,7 @@ Square (the general product with both operands equal; LLVM merges the symmetric 
 
 Difference, computed as a + 4p - b so no limb underflows, with an immediate carry.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 63
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 62
 
 <a id="value-66652d73776170"></a>
 
@@ -212,7 +212,7 @@ Difference, computed as a + 4p - b so no limb underflows, with an immediate carr
 
 Swap two elements when the low bit of choice is set, without branching.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 298
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 193
 
 <a id="value-66652d746f2d6279746573"></a>
 
@@ -222,7 +222,7 @@ Swap two elements when the low bit of choice is set, without branching.
 
 Encode the canonical value as 32 little-endian bytes in fresh storage.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 355
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 250
 
 <a id="value-66652d7a65726f"></a>
 
@@ -232,8 +232,8 @@ Encode the canonical value as 32 little-endian bytes in fresh storage.
 
 Zero.
 
-[Source](/reference-sources/Crypto.Field25519.cinch) · line 26
+[Source](/reference-sources/Crypto.Field25519.cinch) · line 25
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Field25519.cinch`. Source SHA-256: `bbbcd693d8fbf35589b30e4837955da8c04f69884a85a55d6d5f613a0e62609d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Field25519.cinch`. Source SHA-256: `c7b37219c021c73c1bc924e27660d55f8393b565364b26cd430b2255520547c3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

@@ -10,9 +10,9 @@ Import with `import Text.TextProto`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.TextProto](Text.TextProto.md).
+Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.TextProto](Text.TextProto.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -69,7 +69,7 @@ A malformed or truncated protocol element; offsets locate the offending line.
 Canonical form of a header name: "content-TYPE" becomes "Content-Type". A name containing a byte
 that is not a header token, or a space, is returned unchanged.
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 166
+[Source](/reference-sources/Text.TextProto.cinch) · line 173
 
 <a id="value-646f742d656e636f6465"></a>
 
@@ -80,7 +80,7 @@ that is not a header token, or a space, is returned unchanged.
 Dot-encode a body: a dot doubled at the start of each line, a lone LF expanded to CRLF, existing
 CRLF kept, and the body closed with CRLF (unless it already ended a line) and ".\r\n".
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 418
+[Source](/reference-sources/Text.TextProto.cinch) · line 472
 
 <a id="value-6865616465722d616464"></a>
 
@@ -171,7 +171,7 @@ An empty header.
 Read a single status line "ddd message" and check its code against an expected prefix (0 accepts any);
 a continuation line "ddd-message" is malformed here. Returns the code, message and next offset.
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 320
+[Source](/reference-sources/Text.TextProto.cinch) · line 374
 
 <a id="value-726561642d636f6e74696e7565642d6c696e65"></a>
 
@@ -182,7 +182,7 @@ a continuation line "ddd-message" is malformed here. Returns the code, message a
 Read a line and any continuation lines (beginning with space or tab), joined by single spaces,
 with surrounding whitespace removed.
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 250
+[Source](/reference-sources/Text.TextProto.cinch) · line 304
 
 <a id="value-726561642d646f742d6279746573"></a>
 
@@ -193,7 +193,7 @@ with surrounding whitespace removed.
 Decode a dot-encoded body up to the terminating ".\r\n" or ".\n": a leading dot is removed from each
 line, CRLF becomes LF, and a CR not followed by LF is kept. Returns the body and the offset after the terminator.
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 372
+[Source](/reference-sources/Text.TextProto.cinch) · line 426
 
 <a id="value-726561642d6c696e65"></a>
 
@@ -203,7 +203,7 @@ line, CRLF becomes LF, and a CR not followed by LF is kept. Returns the body and
 
 Read one line without its line ending (LF or CRLF); returns the line and the offset after the LF.
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 243
+[Source](/reference-sources/Text.TextProto.cinch) · line 297
 
 <a id="value-726561642d6d696d652d686561646572"></a>
 
@@ -213,7 +213,7 @@ Read one line without its line ending (LF or CRLF); returns the line and the off
 
 Read header lines up to and including the blank line that ends them.
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 265
+[Source](/reference-sources/Text.TextProto.cinch) · line 319
 
 <a id="value-726561642d726573706f6e7365"></a>
 
@@ -224,7 +224,7 @@ Read header lines up to and including the blank line that ends them.
 Read a possibly multi-line response: lines "ddd-text" continue it, and a line "ddd text" with the same
 code ends it; other lines inside are kept verbatim. Message lines are joined with LF.
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 332
+[Source](/reference-sources/Text.TextProto.cinch) · line 386
 
 <a id="value-72656e6465722d686561646572"></a>
 
@@ -234,7 +234,7 @@ code ends it; other lines inside are kept verbatim. Message lines are joined wit
 
 Render header fields as "Key: value\r\n" lines in order, followed by the blank line.
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 448
+[Source](/reference-sources/Text.TextProto.cinch) · line 502
 
 <a id="value-746578742d70726f746f2d6572726f722d6d657373616765"></a>
 
@@ -254,8 +254,8 @@ Render a text protocol error.
 
 Remove leading and trailing ASCII whitespace (space, tab, CR, LF).
 
-[Source](/reference-sources/Text.TextProto.cinch) · line 221
+[Source](/reference-sources/Text.TextProto.cinch) · line 275
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/TextProto.cinch`. Source SHA-256: `3bbe1d9e1cb3ceec6392119510c325ef7cac6357b3cd43a891cd7ce424c06a1b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Text/TextProto.cinch`. Source SHA-256: `1a6cee0680bfb10043fd09c373100c091c829f4f65c8e6fbc648bb7766a1373f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

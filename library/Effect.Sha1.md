@@ -12,7 +12,7 @@ Import with `import Effect.Sha1`. Selected exports may already be in Prelude.
 
 [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Sha1](Text.Sha1.md).
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Sha1](Effect.Sha1.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Sha1](Text.Sha1.md).
+Non-embedded source closure: [Effect.Sha1](Effect.Sha1.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Sha1](Text.Sha1.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

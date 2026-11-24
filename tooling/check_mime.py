@@ -162,15 +162,65 @@ def prepare(work: Path, vectors: Path, width: int = 32) -> tuple[dict[str, int],
     return {name: count for name, (_, count) in cases.items()}, ordered
 
 
-def build_fixture(work: Path, clang: str) -> dict:
-    """Compile the selected unmodified class/word-transform bodies and an independent scalar oracle."""
-    source = (work / 'Text.Mime.cinch').read_text()
-    classifier = re.search(r'prim classify-sixteen .*?llvm\s*\{(.*?)\}\s*when endian little', source, re.S)
-    copy = re.search(r'prim lower-eight .*?llvm\s*\{(.*?)\}', source, re.S)
-    if not classifier or not copy:
-        raise RuntimeError('missing actual selected classifier/copy bodies')
+def build_fixture(work: Path, clang: str, compiler: Path | None = None) -> dict:
+    """Compile the actual pure-Cinch Text.Mime SIMD classifier/lowercase kernels and independent scalar oracle."""
+    cinch = compiler or (ROOT / 'seed/target/release/cinch')
+    probe = work / '_fixture_probe'
+    probe.mkdir(parents=True, exist_ok=True)
+    for src_path in work.glob('*.cinch'):
+        shutil.copyfile(src_path, probe / src_path.name)
+    mime_path = probe / 'Text.Mime.cinch'
+    mime_src = mime_path.read_text()
+    if 'classify-sixteen-mask ::' not in mime_src or 'lower-sixteen ::' not in mime_src:
+        raise RuntimeError('missing actual selected pure-Cinch classifier/lowercase bodies')
+    mime_src = re.sub(r'^(\s*export\s+)', r'\1classify-sixteen-mask, lower-sixteen, ', mime_src, count=1, flags=re.M)
+    mime_path.write_text(mime_src)
+    (probe / 'Main.cinch').write_text(
+        '-- | Root pure-Cinch Text.Mime SIMD kernels for foreign-object oracle verification.\n'
+        'module Main where\n'
+        '  import Data.Bytes\n'
+        '  import Data.Machine\n'
+        '  import Data.Wide\n'
+        '  import Text.Mime\n'
+        '  -- | Non-inlinable wrapper around Text.Mime.classify-sixteen-mask.\n'
+        '  probe-classify :: U128 -> U8 -> I64 -> U32\n'
+        '  probe-classify v m k = if lt-i64 k 0 then probe-classify v m (wrapping-add-i64 k 1) else classify-sixteen-mask v m\n'
+        '  -- | Non-inlinable wrapper around Text.Mime.lower-sixteen.\n'
+        '  probe-lower :: U128 -> I64 -> U128\n'
+        '  probe-lower v k = if lt-i64 k 0 then probe-lower v (wrapping-add-i64 k 1) else lower-sixteen v\n'
+        '  -- | Keep both pure-Cinch SIMD kernels reachable in emitted LLVM IR.\n'
+        '  main :: Int\n'
+        '  main =\n'
+        '    let b = bytes-new 16 in\n'
+        '    let v = bytes-load-u128-at b 0 in\n'
+        '    let m = bytes-get-u8-at b 0 in\n'
+        '    int-from-i64 (wrapping-add-i64 (u32-to-i64 (probe-classify v m 0)) (wrapping-u64-to-i64 (wrapping-u128-to-u64 (probe-lower v 0))))\n'
+    )
+    raw_ir = probe / 'probe.ll'
+    run([str(cinch), 'emit-ir', str(probe / 'Main.cinch'), '-o', str(raw_ir)], probe, env={**os.environ, 'RUST_MIN_STACK': '67108864', 'CINCH_STACK_SIZE': '64M'})
+    ir = raw_ir.read_text()
+    ir = re.sub(r'^define (?!internal )', 'define internal ', ir, flags=re.M)
+    ir = re.sub(r'^@llvm\.global_ctors = .*\n?', '', ir, flags=re.M)
+    ir = re.sub(r'^(@(?:"[^"]+"|[A-Za-z0-9_.$#-]+) = )(?!private |internal |external |appending |unnamed_addr )', r'\1internal ', ir, flags=re.M)
+    ir = ir.replace('define internal i32 @main(', 'define internal i32 @__mime_probe_main(')
+    trampolines = (
+        '\ndefine i32 @mime_fixture_classify16(i64 %0, i64 %1, i8 %2) {\n'
+        '  %lo = zext i64 %0 to i128\n'
+        '  %hi = zext i64 %1 to i128\n'
+        '  %sh = shl i128 %hi, 64\n'
+        '  %v = or i128 %lo, %sh\n'
+        '  %r = call i32 @"Main.probe-classify"(i128 %v, i8 %2, i64 0)\n'
+        '  ret i32 %r\n'
+        '}\n'
+        'define i64 @mime_fixture_lower8(i64 %0) {\n'
+        '  %v = zext i64 %0 to i128\n'
+        '  %r = call i128 @"Main.probe-lower"(i128 %v, i64 0)\n'
+        '  %out = trunc i128 %r to i64\n'
+        '  ret i64 %out\n'
+        '}\n'
+    )
     kernel = work / 'kernels.ll'
-    kernel.write_text('define i32 @mime_fixture_classify16(i64 %0, i64 %1, i8 %2) {\n' + classifier.group(1) + '\n}\ndefine i64 @mime_fixture_lower8(i64 %0) {\n' + copy.group(1) + '\n}\n')
+    kernel.write_text(ir + trampolines)
     fixture = ROOT / 'tooling/data/mime-fixture.c'
     run([clang, '-O2', '-c', str(kernel), '-o', str(work / 'kernels.o')], work)
     run([clang, '-O2', '-fno-vectorize', '-fno-slp-vectorize', '-c', str(fixture), '-o', str(work / 'fixture.o')], work)

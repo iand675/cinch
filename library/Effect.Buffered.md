@@ -12,7 +12,7 @@ Import with `import Effect.Buffered`. Selected exports may already be in Prelude
 
 [Effect.Buffered.Reader](Effect.Buffered.Reader.md), [Effect.Buffered.Writer](Effect.Buffered.Writer.md).
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Buffered](Effect.Buffered.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md), [Effect.Buffered.Reader](Effect.Buffered.Reader.md), [Effect.Buffered.Writer](Effect.Buffered.Writer.md), [Effect.Stream](Effect.Stream.md).
+Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Effect.Buffered](Effect.Buffered.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md), [Effect.Buffered.Reader](Effect.Buffered.Reader.md), [Effect.Buffered.Writer](Effect.Buffered.Writer.md), [Effect.Stream](Effect.Stream.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 

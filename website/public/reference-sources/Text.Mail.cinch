@@ -22,6 +22,7 @@ module Text.Mail where
   import Data.String
   import Data.Time.Offset
   import Data.Time.Timestamp
+  import Data.Wide
   import Text.Mime
   import Text.TextProto
   import Text.Show (nat-to-string)
@@ -340,8 +341,9 @@ module Text.Mail where
   atom-end :: Bytes -> Nat -> Bool -> Result MailError Nat
   atom-end s i dot =
     if i + 16 <= bytes-len s then
-      (let k = hold s (atext-span (bytes-data s) (nat-to-i64 i) (if dot then (0 :: I64) else 46)) in
-      if k == 16 then atom-end s (i + 16) dot else atom-step s (i + i64-to-nat k) dot)
+      (let extra = if dot then (0 :: U8) else 46 in
+      let j = i64-to-nat (atext-span-end s (nat-to-i64 i) extra) in
+      atom-step s j dot)
     else atom-step s i dot
 
   -- | One byte (or UTF-8 sequence) of an atext run.
@@ -384,10 +386,7 @@ module Text.Mail where
   -- | The end of a run of ASCII qtext and white space: sixteen bytes per step, then single bytes.
   qtext-end :: Bytes -> Nat -> Nat
   qtext-end s i =
-    if i + 16 <= bytes-len s then
-      (let k = hold s (qtext-span (bytes-data s) (nat-to-i64 i) 0) in
-      if k == 16 then qtext-end s (i + 16) else i + i64-to-nat k)
-    else if i < bytes-len s && (qtext (at s i) || wsp (at s i)) then qtext-end s (i + 1)
+    if i < bytes-len s then i64-to-nat (qtext-span-end s (nat-to-i64 i))
     else i
 
   -- | A phrase: words (atoms, quoted strings or encoded words) with comments allowed between them.
@@ -786,87 +785,72 @@ module Text.Mail where
   cont :: Nat -> Bool
   cont b = b >= 128 && b <= 191
 
-  -- | Keep a buffer alive until a raw load has completed.
-  hold :: forall a. Bytes -> a -> a
-  hold b value = case bytes-len b of
-    _ -> value
-
   -- | A small machine count as a natural number.
   i64-to-nat :: I64 -> Nat
   i64-to-nat k = if 0 <= k then nat-from-i64 k else 0
 
+  -- | Advance past ASCII atext bytes sixteen bytes at a time, stopping at controls, space, DEL,
+  -- non-ASCII bytes, the RFC 5322 specials and one extra byte (the dot, or 0 for none).
+  atext-span-end :: Bytes -> I64 -> U8 -> I64
+  atext-span-end s i extra =
+    let n = bytes-len-i64 s in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let v = bytes-load-u128-at s i in
+          let s0 = simd-u8x16-cmpeq v (simd-u8x16-splat extra) in
+          let s1 = simd-u8x16-cmplt v (simd-u8x16-splat 33) in
+          let s2 = simd-u8x16-cmpgt v (simd-u8x16-splat 126) in
+          let sp0 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 40)) (simd-u8x16-cmpeq v (simd-u8x16-splat 41)) in
+          let sp1 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 60)) (simd-u8x16-cmpeq v (simd-u8x16-splat 62)) in
+          let sp2 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 91)) (simd-u8x16-cmpeq v (simd-u8x16-splat 93)) in
+          let sp3 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 58)) (simd-u8x16-cmpeq v (simd-u8x16-splat 59)) in
+          let sp4 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 64)) (simd-u8x16-cmpeq v (simd-u8x16-splat 92)) in
+          let sp5 = bit-or-u128 (simd-u8x16-cmpeq v (simd-u8x16-splat 44)) (simd-u8x16-cmpeq v (simd-u8x16-splat 34)) in
+          let specials = bit-or-u128 (bit-or-u128 (bit-or-u128 sp0 sp1) (bit-or-u128 sp2 sp3)) (bit-or-u128 sp4 sp5) in
+          let stop = bit-or-u128 (bit-or-u128 (bit-or-u128 s0 s1) s2) specials in
+          let mask = simd-u8x16-movemask stop in
+          if eq-u32 mask 0 then atext-span-end s (wrapping-add-i64 i 16) extra
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else i
+      else i
+    else i
 
-  -- | Leading ASCII atext bytes among the sixteen at base + offset (16 when all are). Stops at controls,
-  -- space, DEL, non-ASCII bytes, the RFC 5322 specials and one extra byte (the dot, or 0 for none). Lane
-  -- order is memory order on every target, and the first stop is an unsigned minimum over lane indices.
-  prim atext-span :: I64 -> I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %v = load <16 x i8>, ptr %at, align 1
-      %e8 = trunc i64 %2 to i8
-      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
-      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
-      %s0 = icmp eq <16 x i8> %v, %extra
-      %t1 = icmp ule <16 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %s1 = or <16 x i1> %s0, %t1
-      %t2 = icmp uge <16 x i8> %v, <i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127>
-      %s2 = or <16 x i1> %s1, %t2
-      %t3 = icmp eq <16 x i8> %v, <i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40, i8 40>
-      %s3 = or <16 x i1> %s2, %t3
-      %t4 = icmp eq <16 x i8> %v, <i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41, i8 41>
-      %s4 = or <16 x i1> %s3, %t4
-      %t5 = icmp eq <16 x i8> %v, <i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60, i8 60>
-      %s5 = or <16 x i1> %s4, %t5
-      %t6 = icmp eq <16 x i8> %v, <i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62, i8 62>
-      %s6 = or <16 x i1> %s5, %t6
-      %t7 = icmp eq <16 x i8> %v, <i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91, i8 91>
-      %s7 = or <16 x i1> %s6, %t7
-      %t8 = icmp eq <16 x i8> %v, <i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93, i8 93>
-      %s8 = or <16 x i1> %s7, %t8
-      %t9 = icmp eq <16 x i8> %v, <i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58, i8 58>
-      %s9 = or <16 x i1> %s8, %t9
-      %t10 = icmp eq <16 x i8> %v, <i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59, i8 59>
-      %s10 = or <16 x i1> %s9, %t10
-      %t11 = icmp eq <16 x i8> %v, <i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64, i8 64>
-      %s11 = or <16 x i1> %s10, %t11
-      %t12 = icmp eq <16 x i8> %v, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
-      %s12 = or <16 x i1> %s11, %t12
-      %t13 = icmp eq <16 x i8> %v, <i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44, i8 44>
-      %s13 = or <16 x i1> %s12, %t13
-      %t14 = icmp eq <16 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %s14 = or <16 x i1> %s13, %t14
-      %pick = select <16 x i1> %s14, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
-      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
-      %r = zext i8 %first to i64
-      ret i64 %r
-    }
+  -- | Advance past ASCII quoted-string text bytes (qtext, space or tab) sixteen bytes at a time
+  -- with a scalar tail. Stops at controls other than tab, DEL, non-ASCII bytes, quote and backslash.
+  qtext-span-end :: Bytes -> I64 -> I64
+  qtext-span-end s i =
+    let n = bytes-len-i64 s in
+    if 16 <= n && 0 <= i && i <= wrapping-sub-i64 n 16 then
+      let nn = nat-from-i64 n in
+      if 16 <= nn then
+        let lim = nn - 16 in
+        let ni = nat-from-i64 i in
+        if ni <= lim then
+          let v = bytes-load-u128-at s i in
+          let is-low = simd-u8x16-cmplt v (simd-u8x16-splat 32) in
+          let is-tab = simd-u8x16-cmpeq v (simd-u8x16-splat 9) in
+          let is-ctl = bit-and-u128 is-low (bit-not-u128 is-tab) in
+          let is-hi = simd-u8x16-cmpgt v (simd-u8x16-splat 126) in
+          let is-dq = simd-u8x16-cmpeq v (simd-u8x16-splat 34) in
+          let is-bs = simd-u8x16-cmpeq v (simd-u8x16-splat 92) in
+          let stop = bit-or-u128 (bit-or-u128 is-ctl is-hi) (bit-or-u128 is-dq is-bs) in
+          let mask = simd-u8x16-movemask stop in
+          if eq-u32 mask 0 then qtext-span-end s (wrapping-add-i64 i 16)
+          else wrapping-add-i64 i (u32-to-i64 (trailing-zeros-u32 mask))
+        else qtext-span-tail s i
+      else qtext-span-tail s i
+    else qtext-span-tail s i
 
-  -- | Leading ASCII quoted-string text bytes (qtext, space or tab) among the sixteen at base + offset (16 when
-  -- all are). Stops at controls other than tab, DEL, non-ASCII bytes, the quote, the backslash and one extra
-  -- byte (0 for none), found the same way as atext-span.
-  prim qtext-span :: I64 -> I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %v = load <16 x i8>, ptr %at, align 1
-      %e8 = trunc i64 %2 to i8
-      %e1 = insertelement <16 x i8> poison, i8 %e8, i64 0
-      %extra = shufflevector <16 x i8> %e1, <16 x i8> poison, <16 x i32> zeroinitializer
-      %s0 = icmp eq <16 x i8> %v, %extra
-      %low = icmp ult <16 x i8> %v, <i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32, i8 32>
-      %tab = icmp eq <16 x i8> %v, <i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9, i8 9>
-      %ntab = xor <16 x i1> %tab, <i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true, i1 true>
-      %ctl = and <16 x i1> %low, %ntab
-      %s1 = or <16 x i1> %s0, %ctl
-      %t2 = icmp uge <16 x i8> %v, <i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127, i8 127>
-      %s2 = or <16 x i1> %s1, %t2
-      %t3 = icmp eq <16 x i8> %v, <i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34, i8 34>
-      %s3 = or <16 x i1> %s2, %t3
-      %t4 = icmp eq <16 x i8> %v, <i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92, i8 92>
-      %s4 = or <16 x i1> %s3, %t4
-      %pick = select <16 x i1> %s4, <16 x i8> <i8 0, i8 1, i8 2, i8 3, i8 4, i8 5, i8 6, i8 7, i8 8, i8 9, i8 10, i8 11, i8 12, i8 13, i8 14, i8 15>, <16 x i8> <i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16, i8 16>
-      %first = call i8 @llvm.vector.reduce.umin.v16i8(<16 x i8> %pick)
-      %r = zext i8 %first to i64
-      ret i64 %r
-    }
+  -- | Scalar tail for ASCII quoted-string text bytes (qtext, space or tab).
+  qtext-span-tail :: Bytes -> I64 -> I64
+  qtext-span-tail s i =
+    if 0 <= i && i < bytes-len-i64 s then
+      let b = bytes-get-u8-at s i in
+      if (ge-u8 b 33 && le-u8 b 126 && ne-u8 b 34 && ne-u8 b 92) || eq-u8 b 32 || eq-u8 b 9 then
+        qtext-span-tail s (wrapping-add-i64 i 1)
+      else i
+    else i
