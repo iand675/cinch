@@ -2,17 +2,11 @@
 
 Mathematical nonnegative integers, exact arithmetic, checked preconditions, and admitted machine conversions.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Nat</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Nat/">View source</a><a href="/library/search/?q=%2BData.Nat">Search module</a><a href="/reference-sources/Data.Nat.cinch" download="Data.Nat.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Nat`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Semiring](Algebra.Semiring.md), [Data.Core](Data.Core.md), [Data.Enum](Data.Enum.md), [Data.Hash](Data.Hash.md).
 
-[Download exact module source](/reference-sources/Data.Nat.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Semiring](Algebra.Semiring.md), [Data.Core](Data.Core.md), [Data.Enum](Data.Enum.md), [Data.Hash](Data.Hash.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Nat: the mathematical natural numbers.
 
@@ -40,94 +34,72 @@ machine scalars keep their explicit overflow families and get no
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (16 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-checked-div">checked-div</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-div</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-checked-nat-from-i64">checked-nat-from-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-nat-from-i64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-checked-nat-to-i64">checked-nat-to-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-nat-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-checked-rem">checked-rem</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-rem</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-checked-sub">checked-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">checked-sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-add">nat-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-cmp">nat-cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-nat-div">nat-div</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-div</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-from-i64">nat-from-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-from-i64</strong> :: 0 &lt;= <span class="tok-variable">arg0</span> <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">arg0</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-from-int">nat-from-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-from-int</strong> :: 0 &lt;= <span class="tok-variable">arg0</span> <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">arg0</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-mul">nat-mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-mul</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-rem">nat-rem</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-rem</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">d</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> &lt; <span class="tok-variable">d</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-sub">nat-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-sub</strong> :: <span class="tok-variable">arg1</span> &lt;= <span class="tok-variable">arg0</span> <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-nat-to-i64">nat-to-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-to-i64</strong> :: <span class="tok-variable">arg0</span> &lt;= 9223372036854775807 <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">arg0</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-nat-to-int">nat-to-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nat-to-int</strong> :: (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> == <span class="tok-variable">n</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-saturating-sub">saturating-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">saturating-sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-636865636b65642d646976"></a>
-
-## `checked-div`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-div</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-checked-div">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-div</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-checked-div" title="Permalink">#</a><a href="/library/source/Data.Nat/#L64" title="View source at line 64">Source</a></span></div>
+<div class="doc-body">
 
 Division where a zero divisor is an ordinary input the caller
 handles: `None` exactly when `d` is zero. The decision is the
 divisor's evidence, so the division inside is the total one.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 64
+</div>
+</article>
 
-<a id="value-636865636b65642d6e61742d66726f6d2d693634"></a>
-
-## `checked-nat-from-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-nat-from-i64</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-checked-nat-from-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-nat-from-i64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-checked-nat-from-i64" title="Permalink">#</a><a href="/library/source/Data.Nat/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 The `I64` conversions where an out-of-range value is an ordinary
 input: `None` exactly then.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 87
+</div>
+</article>
 
-<a id="value-636865636b65642d6e61742d746f2d693634"></a>
+<article class="doc-entry" id="v-checked-nat-to-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-nat-to-i64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-checked-nat-to-i64" title="Permalink">#</a><a href="/library/source/Data.Nat/#L90" title="View source at line 90">Source</a></span></div>
+</article>
 
-## `checked-nat-to-i64`
+<article class="doc-entry" id="v-checked-rem">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-rem</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-checked-rem" title="Permalink">#</a><a href="/library/source/Data.Nat/#L69" title="View source at line 69">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-nat-to-i64</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Nat.cinch)
-
-<a id="value-636865636b65642d72656d"></a>
-
-## `checked-rem`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-rem</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Nat.cinch)
-
-<a id="value-636865636b65642d737562"></a>
-
-## `checked-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">checked-sub</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-checked-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">checked-sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-checked-sub" title="Permalink">#</a><a href="/library/source/Data.Nat/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
 
 Subtraction where `b > a` is an ordinary input the caller handles:
 `None` exactly then. The test is the subtraction's evidence.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 82
+</div>
+</article>
 
-<a id="value-6e61742d616464"></a>
-
-## `nat-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-add</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-nat-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-add" title="Permalink">#</a><a href="/library/source/Data.Nat/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-body">
 
 The mathematical `Nat` and `Int` (primitive types specification,
 section 1): boxed bignums, distinct from every machine scalar.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 38
+</div>
+</article>
 
-<a id="value-6e61742d636d70"></a>
+<article class="doc-entry" id="v-nat-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-nat-cmp" title="Permalink">#</a><a href="/library/source/Data.Nat/#L46" title="View source at line 46">Source</a></span></div>
+</article>
 
-## `nat-cmp`
+<article class="doc-entry" id="v-nat-div">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-div</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-div" title="Permalink">#</a><a href="/library/source/Data.Nat/#L42" title="View source at line 42">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-cmp</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Nat.cinch)
-
-<a id="value-6e61742d646976"></a>
-
-## `nat-div`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-div</span> :: (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
-
-[Source](/reference-sources/Data.Nat.cinch)
-
-<a id="value-6e61742d66726f6d2d693634"></a>
-
-## `nat-from-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-from-i64</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">I64</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">arg0</span>) <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-nat-from-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-from-i64</strong> :: 0 &lt;= <span class="tok-variable">arg0</span> <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">arg0</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-from-i64" title="Permalink">#</a><a href="/library/source/Data.Nat/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 The `I64` conversions keep the value (`n == x`), and each states
 the range it needs: a negative `I64` is no `Nat`, and a `Nat` past
@@ -136,108 +108,79 @@ the range it needs: a negative `I64` is no `Nat`, and a `Nat` past
 value may be out of range, `checked-nat-from-i64`/
 `checked-nat-to-i64` answer `None`.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 53
+</div>
+</article>
 
-<a id="value-6e61742d66726f6d2d696e74"></a>
+<article class="doc-entry" id="v-nat-from-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-from-int</strong> :: 0 &lt;= <span class="tok-variable">arg0</span> <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">arg0</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-from-int" title="Permalink">#</a><a href="/library/source/Data.Nat/#L59" title="View source at line 59">Source</a></span></div>
+</article>
 
-## `nat-from-int`
+<article class="doc-entry" id="v-nat-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-mul</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-mul" title="Permalink">#</a><a href="/library/source/Data.Nat/#L41" title="View source at line 41">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-from-int</span> :: <span class="tok-keyword">using</span> (<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Int</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">arg0</span>) <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Nat.cinch)
-
-<a id="value-6e61742d6d756c"></a>
-
-## `nat-mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-mul</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
-
-[Source](/reference-sources/Data.Nat.cinch)
-
-<a id="value-6e61742d72656d"></a>
-
-## `nat-rem`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-rem</span> :: (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">d</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">NonZero</span> <span class="tok-constructor">Nat</span>)) -&gt; (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;</span> <span class="tok-variable">d</span>) <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-nat-rem">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-rem</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">d</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-NonZero" title="Algebra.Arithmetic.NonZero">NonZero</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> &lt; <span class="tok-variable">d</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-rem" title="Permalink">#</a><a href="/library/source/Data.Nat/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 The remainder is below the divisor (`r < d`, a fact about each
 call's result: `let r = nat-rem v 256` knows `r < 256`).
 
-[Source](/reference-sources/Data.Nat.cinch) · line 45
+</div>
+</article>
 
-<a id="value-6e61742d737562"></a>
-
-## `nat-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-sub</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">arg0</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-nat-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-sub</strong> :: <span class="tok-variable">arg1</span> &lt;= <span class="tok-variable">arg0</span> <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-nat-sub" title="Permalink">#</a><a href="/library/source/Data.Nat/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
 
 The exact difference: the caller proves it is a `Nat`.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 40
+</div>
+</article>
 
-<a id="value-6e61742d746f2d693634"></a>
+<article class="doc-entry" id="v-nat-to-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-to-i64</strong> :: <span class="tok-variable">arg0</span> &lt;= 9223372036854775807 <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> == <span class="tok-variable">arg0</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-nat-to-i64" title="Permalink">#</a><a href="/library/source/Data.Nat/#L54" title="View source at line 54">Source</a></span></div>
+</article>
 
-## `nat-to-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-i64</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg0</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">9223372036854775807</span>) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-variable">refined</span> (<span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">arg0</span>) <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Nat.cinch)
-
-<a id="value-6e61742d746f2d696e74"></a>
-
-## `nat-to-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nat-to-int</span> :: ((<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">n</span>) <span class="tok-constructor">Int</span>))</code></pre>
+<article class="doc-entry" id="v-nat-to-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nat-to-int</strong> :: (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">refined</span> (<span class="tok-variable">cinch-result</span> == <span class="tok-variable">n</span>) <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-nat-to-int" title="Permalink">#</a><a href="/library/source/Data.Nat/#L58" title="View source at line 58">Source</a></span></div>
+<div class="doc-body">
 
 The `Int` conversions: every `Nat` is an `Int`, and a non-negative
 `Int` is a `Nat`, both keeping the value (no `I64` in between, so a
 value of any size converts).
 
-[Source](/reference-sources/Data.Nat.cinch) · line 58
+</div>
+</article>
 
-<a id="value-73617475726174696e672d737562"></a>
-
-## `saturating-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">saturating-sub</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-saturating-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">saturating-sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-saturating-sub" title="Permalink">#</a><a href="/library/source/Data.Nat/#L77" title="View source at line 77">Source</a></span></div>
+<div class="doc-body">
 
 Truncated subtraction ("monus", Rust's `saturating_sub`): `a - b`
 when `b <= a`, else `0`. Use it where clamping at zero is what the
 code means, not to silence the obligation of `-`.
 
-[Source](/reference-sources/Data.Nat.cinch) · line 77
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Nat.Add_Nat` | `Algebra.Arithmetic.Add Nat` | Implicit |
-| `Data.Nat.Div_Nat` | `Algebra.Arithmetic.Div Nat` | Implicit |
-| `Data.Nat.Enum_Nat` | `Data.Enum.Enum Nat` | Implicit |
-| `Data.Nat.Eq_Nat` | `Relation.Eq.Eq Nat` | Implicit |
-| `Data.Nat.Hash_Nat` | `Data.Hash.Hash Nat` | Implicit |
-| `Data.Nat.Mul_Nat` | `Algebra.Arithmetic.Mul Nat` | Implicit |
-| `Data.Nat.Ord_Nat` | `Relation.Ord.Ord Nat` | Implicit |
-| `Data.Nat.Rem_Nat` | `Algebra.Arithmetic.Rem Nat` | Implicit |
-| `Data.Nat.Semiring_Nat` | `Algebra.Semiring.Semiring Nat` | Implicit |
-| `Data.Nat.Sub_Nat` | `Algebra.Arithmetic.Sub Nat` | Implicit |
-
-**`Data.Nat.Enum_Nat`**: The enumeration of natural numbers (Data.Enum): codes are the
-values; `pred 0` and `to-enum` of a negative code are `None`
-(instances live with their type).
-**`Data.Nat.Hash_Nat`**: A `Nat` is its own bucket digest (identity hashing; instances
-live with their type).
-**`Data.Nat.Semiring_Nat`**: The semiring of natural numbers: addition and multiplication with
-their identities (see the header; instances live with their type).
-**`Data.Nat.Sub_Nat`**: `-` at `Nat` is the exact difference, so this instance states the
-precondition over the method's arguments: every direct `x - y`
-discharges `y <= x` (a numeral pair decides it, a branch fact or
-`Dec` evidence supplies it). The class is unchanged, so `-` at
-`Int` needs nothing; and since generic code over `Sub a` could
-apply `-` to anything, this dictionary is never passed to it.
+<ul class="doc-module-instances">
+<li id="i-Add_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Add_Nat</code></span></li>
+<li id="i-Div_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#c-Div" title="Algebra.Arithmetic.Div">Div</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Div_Nat</code></span></li>
+<li id="i-Enum_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Data.Enum/#c-Enum" title="Data.Enum.Enum">Enum</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Enum_Nat</code></span><div class="doc-child-prose">The enumeration of natural numbers (Data.Enum): codes are the values; pred 0 and to-enum of a negative code are None (instances live with their type).</div></li>
+<li id="i-Eq_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Eq_Nat</code></span></li>
+<li id="i-Hash_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Hash_Nat</code></span><div class="doc-child-prose">A Nat is its own bucket digest (identity hashing; instances live with their type).</div></li>
+<li id="i-Mul_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#c-Mul" title="Algebra.Arithmetic.Mul">Mul</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Mul_Nat</code></span></li>
+<li id="i-Ord_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Ord_Nat</code></span></li>
+<li id="i-Rem_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#c-Rem" title="Algebra.Arithmetic.Rem">Rem</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Rem_Nat</code></span></li>
+<li id="i-Semiring_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Semiring_Nat</code></span><div class="doc-child-prose">The semiring of natural numbers: addition and multiplication with their identities (see the header; instances live with their type).</div></li>
+<li id="i-Sub_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Sub_Nat</code></span><div class="doc-child-prose">- at Nat is the exact difference, so this instance states the precondition over the method's arguments: every direct x - y discharges y &lt;= x (a numeral pair decides it, a branch fact or Dec evidence supplies it).</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Nat.cinch`. Source SHA-256: `caed61b507f2cd957fb00d45ef663cee44f9fd56036054355079804a6f945afb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Nat.cinch`](/library/source/Data.Nat/). Source SHA-256: `caed61b507f2cd957fb00d45ef663cee44f9fd56036054355079804a6f945afb`.

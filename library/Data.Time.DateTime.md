@@ -2,19 +2,24 @@
 
 Civil date and wall-clock time pairs without a time zone.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.DateTime</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Time.DateTime/">View source</a><a href="/library/search/?q=%2BData.Time.DateTime">Search module</a><a href="/reference-sources/Data.Time.DateTime.cinch" download="Data.Time.DateTime.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Time.DateTime`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.DateTime.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Time.DateTime`: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Weekday](Data.Time.Weekday.md).
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
+cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
+cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
+cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
+```
 
-Non-embedded source closure: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Weekday](Data.Time.Weekday.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time.DateTime: a civil date and wall-clock time.
 
@@ -72,46 +77,46 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (31 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-DateTime">DateTime</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DateTime</strong></code></li><li><a class="syn-name" href="#v-add-days">add-days</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add-days</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-add-months-constrain">add-months-constrain</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add-months-constrain</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-add-seconds-nanos">add-seconds-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add-seconds-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-add-years-constrain">add-years-constrain</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add-years-constrain</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-cmp">cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-date-part">date-part</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-part</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-datetime">datetime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-day">day</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">day</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 31 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-day-of-year">day-of-year</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">day-of-year</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 366 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-diff-nanos">diff-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">diff-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-end-of-day">end-of-day</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">end-of-day</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-from-date">from-date</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-date</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-from-epoch-seconds-nanos-utc">from-epoch-seconds-nanos-utc</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-epoch-seconds-nanos-utc</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-hour">hour</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hour</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 23 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-max-datetime">max-datetime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">max-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-microsecond">microsecond</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">microsecond</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-millisecond">millisecond</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">millisecond</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-min-datetime">min-datetime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">min-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-minute">minute</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">minute</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 59 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-month">month</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">month</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 12 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-nanosecond">nanosecond</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nanosecond</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-second">second</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">second</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 59 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-start-of-day">start-of-day</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">start-of-day</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-subsec-nanosecond">subsec-nanosecond</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">subsec-nanosecond</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999999999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-time-part">time-part</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-part</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code></li><li><a class="syn-name" href="#v-to-epoch-seconds-nanos-utc">to-epoch-seconds-nanos-utc</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-epoch-seconds-nanos-utc</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>)</code></li><li><a class="syn-name" href="#v-weekday">weekday</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">weekday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-with-date">with-date</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">with-date</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-with-time">with-time</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">with-time</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-year">year</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">year</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> - 9999 9999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li></ul>
+</details>
 
-<a id="type-4461746554696d65"></a>
+# Types
 
-## `DateTime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">DateTime</span></code></pre>
+<article class="doc-entry" id="t-DateTime">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">DateTime</strong></code><span class="doc-sig-links"><a href="#t-DateTime" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L81" title="View source at line 81">Source</a></span></div>
+<div class="doc-body">
 
 The date and the time (header). Not exported.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 81
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.DateTime/#instances">Data.Time.DateTime</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.DateTime/#instances">Data.Time.DateTime</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6164642d64617973"></a>
-
-## `add-days`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-days</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)))</code></pre>
+<article class="doc-entry" id="v-add-days">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add-days</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-add-days" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L187" title="View source at line 187">Source</a></span></div>
+<div class="doc-body">
 
 `n` days later (earlier when negative), same time.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 187
+</div>
+</article>
 
-<a id="value-6164642d6d6f6e7468732d636f6e73747261696e"></a>
-
-## `add-months-constrain`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-months-constrain</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)))</code></pre>
+<article class="doc-entry" id="v-add-months-constrain">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add-months-constrain</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-add-months-constrain" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L194" title="View source at line 194">Source</a></span></div>
+<div class="doc-body">
 
 `n` months later, the day clamped to the target month's length
 (Temporal's "constrain"), same time.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 194
+</div>
+</article>
 
-<a id="value-6164642d7365636f6e64732d6e616e6f73"></a>
-
-## `add-seconds-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-seconds-nanos</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))))</code></pre>
+<article class="doc-entry" id="v-add-seconds-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add-seconds-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-add-seconds-nanos" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-body">
 
 Adds `secs` seconds and `nanos` nanoseconds, each signed and each
 any `I64`, carrying into the date. `None` when the date leaves the
@@ -120,69 +125,53 @@ for every pair of `I64`s; its overflow argument is there), and the
 whole-day carry it reports (within +-1.07e14) moves the date
 through `D.add-days`, whose sum is checked.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 180
+</div>
+</article>
 
-<a id="value-6164642d79656172732d636f6e73747261696e"></a>
-
-## `add-years-constrain`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-years-constrain</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)))</code></pre>
+<article class="doc-entry" id="v-add-years-constrain">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add-years-constrain</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-add-years-constrain" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L201" title="View source at line 201">Source</a></span></div>
+<div class="doc-body">
 
 `n` years later, 29 February clamped to 28 February where the
 target year is not a leap year, same time.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 201
+</div>
+</article>
 
-<a id="value-636d70"></a>
-
-## `cmp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
+<article class="doc-entry" id="v-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-cmp" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L258" title="View source at line 258">Source</a></span></div>
+<div class="doc-body">
 
 Order: lexicographic, date then time.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 258
+</div>
+</article>
 
-<a id="value-646174652d70617274"></a>
+<article class="doc-entry" id="v-date-part">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-part</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-date-part" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L96" title="View source at line 96">Source</a></span></div>
+</article>
 
-## `date-part`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-6461746574696d65"></a>
-
-## `datetime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))</code></pre>
+<article class="doc-entry" id="v-datetime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-datetime" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L89" title="View source at line 89">Source</a></span></div>
+<div class="doc-body">
 
 Construction and parts. Any `Date` and any `TimeOfDay` make a
 `DateTime`, so construction is total.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 89
+</div>
+</article>
 
-<a id="value-646179"></a>
+<article class="doc-entry" id="v-day">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">day</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 31 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-day" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L121" title="View source at line 121">Source</a></span></div>
+</article>
 
-## `day`
+<article class="doc-entry" id="v-day-of-year">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">day-of-year</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 366 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-day-of-year" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L127" title="View source at line 127">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">1</span> <span class="tok-number">31</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-6461792d6f662d79656172"></a>
-
-## `day-of-year`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">day-of-year</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">1</span> <span class="tok-number">366</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-646966662d6e616e6f73"></a>
-
-## `diff-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">diff-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">I128</span>))</code></pre>
+<article class="doc-entry" id="v-diff-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">diff-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-diff-nanos" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L212" title="View source at line 212">Source</a></span></div>
+<div class="doc-body">
 
 `diff-nanos start finish`: finish minus start in nanoseconds on
 the civil line (every day is 86400 seconds), negative when
@@ -191,34 +180,31 @@ the civil line (every day is 86400 seconds), negative when
 result is within +-6.4e20, which needs `I128` (it exceeds `I64`'s
 9.2e18) and is nowhere near wrapping it.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 212
+</div>
+</article>
 
-<a id="value-656e642d6f662d646179"></a>
-
-## `end-of-day`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">end-of-day</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)</code></pre>
+<article class="doc-entry" id="v-end-of-day">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">end-of-day</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-end-of-day" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L161" title="View source at line 161">Source</a></span></div>
+<div class="doc-body">
 
 The same date at 23:59:59.999999999, the last representable time
 of the civil day.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 161
+</div>
+</article>
 
-<a id="value-66726f6d2d64617465"></a>
-
-## `from-date`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-date</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)</code></pre>
+<article class="doc-entry" id="v-from-date">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-date</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-from-date" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L93" title="View source at line 93">Source</a></span></div>
+<div class="doc-body">
 
 The date at 00:00:00.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 93
+</div>
+</article>
 
-<a id="value-66726f6d2d65706f63682d7365636f6e64732d6e616e6f732d757463"></a>
-
-## `from-epoch-seconds-nanos-utc`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-epoch-seconds-nanos-utc</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)))</code></pre>
+<article class="doc-entry" id="v-from-epoch-seconds-nanos-utc">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-epoch-seconds-nanos-utc</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-from-epoch-seconds-nanos-utc" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L240" title="View source at line 240">Source</a></span></div>
+<div class="doc-body">
 
 The inverse. `None` when `nanos` is outside 0..=999999999 (the
 pair is not normalised) or the date leaves the range. The seconds
@@ -227,113 +213,70 @@ a remainder that is moved into 0..=86399, so nothing wraps, and
 the day count (within +-1.07e14) is refused by `D.from-epoch-days`
 when out of range.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 240
+</div>
+</article>
 
-<a id="value-686f7572"></a>
+<article class="doc-entry" id="v-hour">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hour</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 23 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-hour" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L130" title="View source at line 130">Source</a></span></div>
+</article>
 
-## `hour`
+<article class="doc-entry" id="v-max-datetime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-max-datetime" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L108" title="View source at line 108">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hour</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">23</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-microsecond">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">microsecond</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-microsecond" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L145" title="View source at line 145">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.DateTime.cinch)
+<article class="doc-entry" id="v-millisecond">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">millisecond</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-millisecond" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L142" title="View source at line 142">Source</a></span></div>
+</article>
 
-<a id="value-6d61782d6461746574696d65"></a>
-
-## `max-datetime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-datetime</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span></code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-6d6963726f7365636f6e64"></a>
-
-## `microsecond`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">microsecond</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">999</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-6d696c6c697365636f6e64"></a>
-
-## `millisecond`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">millisecond</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">999</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-6d696e2d6461746574696d65"></a>
-
-## `min-datetime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-datetime</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span></code></pre>
+<article class="doc-entry" id="v-min-datetime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">min-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-min-datetime" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L105" title="View source at line 105">Source</a></span></div>
+<div class="doc-body">
 
 -9999-01-01T00:00:00 and 9999-12-31T23:59:59.999999999.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 105
+</div>
+</article>
 
-<a id="value-6d696e757465"></a>
+<article class="doc-entry" id="v-minute">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">minute</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 59 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-minute" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L133" title="View source at line 133">Source</a></span></div>
+</article>
 
-## `minute`
+<article class="doc-entry" id="v-month">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">month</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 12 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-month" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L118" title="View source at line 118">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">minute</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">59</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-nanosecond">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nanosecond</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-nanosecond" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L148" title="View source at line 148">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.DateTime.cinch)
+<article class="doc-entry" id="v-second">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">second</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 59 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-second" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L136" title="View source at line 136">Source</a></span></div>
+</article>
 
-<a id="value-6d6f6e7468"></a>
-
-## `month`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">month</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">1</span> <span class="tok-number">12</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-6e616e6f7365636f6e64"></a>
-
-## `nanosecond`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nanosecond</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">999</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-7365636f6e64"></a>
-
-## `second`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">second</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">59</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-73746172742d6f662d646179"></a>
-
-## `start-of-day`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">start-of-day</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)</code></pre>
+<article class="doc-entry" id="v-start-of-day">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">start-of-day</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-start-of-day" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L156" title="View source at line 156">Source</a></span></div>
+<div class="doc-body">
 
 The same date at 00:00:00.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 156
+</div>
+</article>
 
-<a id="value-7375627365632d6e616e6f7365636f6e64"></a>
+<article class="doc-entry" id="v-subsec-nanosecond">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">subsec-nanosecond</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999999999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-subsec-nanosecond" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L139" title="View source at line 139">Source</a></span></div>
+</article>
 
-## `subsec-nanosecond`
+<article class="doc-entry" id="v-time-part">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-part</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code><span class="doc-sig-links"><a href="#v-time-part" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L100" title="View source at line 100">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">subsec-nanosecond</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">999999999</span> <span class="tok-constructor">I64</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-74696d652d70617274"></a>
-
-## `time-part`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-part</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-746f2d65706f63682d7365636f6e64732d6e616e6f732d757463"></a>
-
-## `to-epoch-seconds-nanos-utc`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-epoch-seconds-nanos-utc</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">I64</span>, <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-to-epoch-seconds-nanos-utc">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-epoch-seconds-nanos-utc</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-to-epoch-seconds-nanos-utc" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L228" title="View source at line 228">Source</a></span></div>
+<div class="doc-body">
 
 Whole seconds since 1970-01-01T00:00:00 reading the civil value as
 if it were UTC, floored, and the subsecond nanoseconds in
@@ -342,51 +285,39 @@ The seconds are `epoch-day * 86400 + second-of-day`, within
 +-3.8e11, so nothing wraps; the floor is automatic because the
 time of day is never negative.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 228
+</div>
+</article>
 
-<a id="value-7765656b646179"></a>
+<article class="doc-entry" id="v-weekday">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">weekday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-weekday" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L124" title="View source at line 124">Source</a></span></div>
+</article>
 
-## `weekday`
+<article class="doc-entry" id="v-with-date">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">with-date</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-with-date" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L164" title="View source at line 164">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">weekday</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>)</code></pre>
+<article class="doc-entry" id="v-with-time">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">with-time</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-with-time" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L167" title="View source at line 167">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-776974682d64617465"></a>
-
-## `with-date`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">with-date</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-776974682d74696d65"></a>
-
-## `with-time`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">with-time</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.DateTime.cinch)
-
-<a id="value-79656172"></a>
-
-## `year`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">year</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">-9999</span> <span class="tok-number">9999</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-year">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">year</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> - 9999 9999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-year" title="Permalink">#</a><a href="/library/source/Data.Time.DateTime/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 Fields, forwarded to the parts with their refined ranges.
 
-[Source](/reference-sources/Data.Time.DateTime.cinch) · line 115
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Time.DateTime.Eq_DateTime` | `Relation.Eq.Eq Data.Time.DateTime.DateTime` | Implicit |
-| `Data.Time.DateTime.Ord_DateTime` | `Relation.Ord.Ord Data.Time.DateTime.DateTime` | Implicit |
+<ul class="doc-module-instances">
+<li id="i-Eq_DateTime"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.DateTime.Eq_DateTime</code></span></li>
+<li id="i-Ord_DateTime"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.DateTime.Ord_DateTime</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/DateTime.cinch`. Source SHA-256: `777d7c3bf5a8ecc3ed4f5c357eadd07019d85f5a77898a1c163e1ca33c9619ce`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/DateTime.cinch`](/library/source/Data.Time.DateTime/). Source SHA-256: `777d7c3bf5a8ecc3ed4f5c357eadd07019d85f5a77898a1c163e1ca33c9619ce`.

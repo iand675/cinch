@@ -2,17 +2,11 @@
 
 The identity container and its generic abstraction instances.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Identity</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Identity/">View source</a><a href="/library/search/?q=%2BData.Identity">Search module</a><a href="/reference-sources/Data.Identity.cinch" download="Data.Identity.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Identity`. Selected exports may already be in Prelude.
+**Dependencies:** [Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md).
 
-[Download exact module source](/reference-sources/Data.Identity.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 The identity type: the universal visitor that changes nothing. It is
 the unit of the category family (the identity functor and the trivial
@@ -46,103 +40,95 @@ declarations), so no per-type operator stand-ins are defined here.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Identity">Identity</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Identity</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-ap-identity">ap-identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ap-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-bind-identity">bind-identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bind-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-join-identity">join-identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">join-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-lift-a2-identity">lift-a2-identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lift-a2-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">c</span></code></li><li><a class="syn-name" href="#v-map-identity">map-identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-pure-identity">pure-identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pure-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-run-identity">run-identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">run-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-4964656e74697479"></a>
+# Types
 
-## `Identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Identity</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Identity.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Identity</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="t-Identity">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Identity</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Identity" title="Permalink">#</a><a href="/library/source/Data.Identity/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Identity"><code><strong class="tok-constructor">Identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Identity/#instances">Data.Identity</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Identity/#instances">Data.Identity</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Identity/#instances">Data.Identity</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-61702d6964656e74697479"></a>
-
-## `ap-identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ap-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-ap-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ap-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-ap-identity" title="Permalink">#</a><a href="/library/source/Data.Identity/#L54" title="View source at line 54">Source</a></span></div>
+<div class="doc-body">
 
 Applicative body: apply a wrapped function to a wrapped value.
 
-[Source](/reference-sources/Data.Identity.cinch) · line 54
+</div>
+</article>
 
-<a id="value-62696e642d6964656e74697479"></a>
-
-## `bind-identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-bind-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bind-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-bind-identity" title="Permalink">#</a><a href="/library/source/Data.Identity/#L63" title="View source at line 63">Source</a></span></div>
+<div class="doc-body">
 
 Monad body: sequence a dependent computation.
 
-[Source](/reference-sources/Data.Identity.cinch) · line 63
+</div>
+</article>
 
-<a id="value-6a6f696e2d6964656e74697479"></a>
-
-## `join-identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">join-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-join-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">join-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-join-identity" title="Permalink">#</a><a href="/library/source/Data.Identity/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-body">
 
 Monad body: collapse one layer.
 
-[Source](/reference-sources/Data.Identity.cinch) · line 68
+</div>
+</article>
 
-<a id="value-6c6966742d61322d6964656e74697479"></a>
-
-## `lift-a2-identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lift-a2-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">c</span>))))</code></pre>
+<article class="doc-entry" id="v-lift-a2-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lift-a2-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#v-lift-a2-identity" title="Permalink">#</a><a href="/library/source/Data.Identity/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 Applicative body: lift a two-argument function.
 
-[Source](/reference-sources/Data.Identity.cinch) · line 59
+</div>
+</article>
 
-<a id="value-6d61702d6964656e74697479"></a>
-
-## `map-identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-map-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-map-identity" title="Permalink">#</a><a href="/library/source/Data.Identity/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 Functor body: map over the wrapped value.
 
-[Source](/reference-sources/Data.Identity.cinch) · line 45
+</div>
+</article>
 
-<a id="value-707572652d6964656e74697479"></a>
-
-## `pure-identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-pure-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pure-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-pure-identity" title="Permalink">#</a><a href="/library/source/Data.Identity/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 Applicative body.
 
-[Source](/reference-sources/Data.Identity.cinch) · line 50
+</div>
+</article>
 
-<a id="value-72756e2d6964656e74697479"></a>
-
-## `run-identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Identity</span>.<span class="tok-constructor">Identity</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-run-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">run-identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-run-identity" title="Permalink">#</a><a href="/library/source/Data.Identity/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
 
 Elimination: the wrapped value.
 
-[Source](/reference-sources/Data.Identity.cinch) · line 40
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Identity.Applicative_Identity` | `Category.Applicative.Applicative Data.Identity.Identity` | Implicit |
-| `Data.Identity.Functor_Identity` | `Category.Functor.Functor Data.Identity.Identity` | Implicit |
-| `Data.Identity.Monad_Identity` | `Category.Monad.Monad Data.Identity.Identity` | Implicit |
-
-**`Data.Identity.Functor_Identity`**: The class instances (instances live with their type), defined
-through the bodies above.
+<ul class="doc-module-instances">
+<li id="i-Applicative_Identity"><code><a class="doc-type-link tok-constructor" href="/library/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Identity.Applicative_Identity</code></span></li>
+<li id="i-Functor_Identity"><code><a class="doc-type-link tok-constructor" href="/library/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Identity.Functor_Identity</code></span><div class="doc-child-prose">The class instances (instances live with their type), defined through the bodies above.</div></li>
+<li id="i-Monad_Identity"><code><a class="doc-type-link tok-constructor" href="/library/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/library/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Identity.Monad_Identity</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Identity.cinch`. Source SHA-256: `2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Identity.cinch`](/library/source/Data.Identity/). Source SHA-256: `2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9`.

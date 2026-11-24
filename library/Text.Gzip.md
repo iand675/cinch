@@ -2,19 +2,24 @@
 
 Whole-buffer gzip member encoding, checked decompression and concatenated members.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Gzip</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Gzip/">View source</a><a href="/library/search/?q=%2BText.Gzip">Search module</a><a href="/reference-sources/Text.Gzip.cinch" download="Text.Gzip.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Gzip`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Text.Zlib](Text.Zlib.md).
 
-[Download exact module source](/reference-sources/Text.Gzip.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Gzip`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Gzip](Text.Gzip.md), [Text.Zlib](Text.Zlib.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Text.Zlib](Text.Zlib.md).
+```sh
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Gzip.cinch ./Text.Gzip.cinch
+cp seed/prelude/Text/Zlib.cinch ./Text.Zlib.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Gzip](Text.Gzip.md), [Text.Zlib](Text.Zlib.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Whole-buffer gzip members (RFC 1952). Decoding accepts stored, fixed and
 dynamic DEFLATE blocks and checks each member's header, CRC-32 and ISIZE.
@@ -23,71 +28,61 @@ fixed-Huffman run encoder with stored fallback.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (5 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-GzipError">GzipError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GzipError</strong></code></li><li><a class="syn-name" href="#v-gzip-decode">gzip-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gzip-decode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-gzip-decode-member">gzip-decode-member</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gzip-decode-member</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-gzip-encode">gzip-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gzip-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-gzip-encode-rle">gzip-encode-rle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gzip-encode-rle</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-477a69704572726f72"></a>
+# Types
 
-## `GzipError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">GzipError</span></code></pre>
+<article class="doc-entry" id="t-GzipError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">GzipError</strong></code><span class="doc-sig-links"><a href="#t-GzipError" title="Permalink">#</a><a href="/library/source/Text.Gzip/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
 
 Errors distinguish malformed framing, truncation, compressed data and trailer mismatches.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 19
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GzipInvalidHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GzipTruncated</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GzipInvalidDeflate</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GzipChecksumMismatch</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">GzipSizeMismatch</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-GzipInvalidHeader"><code><strong class="tok-constructor">GzipInvalidHeader</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a></code></li><li id="k-GzipTruncated"><code><strong class="tok-constructor">GzipTruncated</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a></code></li><li id="k-GzipInvalidDeflate"><code><strong class="tok-constructor">GzipInvalidDeflate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a></code></li><li id="k-GzipChecksumMismatch"><code><strong class="tok-constructor">GzipChecksumMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a></code></li><li id="k-GzipSizeMismatch"><code><strong class="tok-constructor">GzipSizeMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-677a69702d6465636f6465"></a>
-
-## `gzip-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gzip-decode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-gzip-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gzip-decode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gzip-decode" title="Permalink">#</a><a href="/library/source/Text.Gzip/#L109" title="View source at line 109">Source</a></span></div>
+<div class="doc-body">
 
 Decode a complete sequence of one or more members in order.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 109
+</div>
+</article>
 
-<a id="value-677a69702d6465636f64652d6d656d626572"></a>
-
-## `gzip-decode-member`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gzip-decode-member</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Gzip</span>.<span class="tok-constructor">GzipError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-gzip-decode-member">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gzip-decode-member</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Gzip/#t-GzipError" title="Text.Gzip.GzipError">GzipError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-gzip-decode-member" title="Permalink">#</a><a href="/library/source/Text.Gzip/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 Decode one member at an absolute byte position and return the next position.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 49
+</div>
+</article>
 
-<a id="value-677a69702d656e636f6465"></a>
-
-## `gzip-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gzip-encode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-gzip-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gzip-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gzip-encode" title="Permalink">#</a><a href="/library/source/Text.Gzip/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 Encode one member with no optional header fields.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 27
+</div>
+</article>
 
-<a id="value-677a69702d656e636f64652d726c65"></a>
-
-## `gzip-encode-rle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gzip-encode-rle</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-gzip-encode-rle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gzip-encode-rle</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-gzip-encode-rle" title="Permalink">#</a><a href="/library/source/Text.Gzip/#L32" title="View source at line 32">Source</a></span></div>
+<div class="doc-body">
 
 Encode runs using distance-one matches, falling back to stored blocks
 for data that would expand beyond the stored representation.
 
-[Source](/reference-sources/Text.Gzip.cinch) · line 32
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Gzip.cinch`. Source SHA-256: `a94c55457e743050595f6fdb22931c834ca66a352cb820372ecaba7728c8a403`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Gzip.cinch`](/library/source/Text.Gzip/). Source SHA-256: `a94c55457e743050595f6fdb22931c834ca66a352cb820372ecaba7728c8a403`.

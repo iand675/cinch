@@ -1,40 +1,35 @@
 # Artifacts, interfaces, stores, and incremental compilation
 
-Every compile writes three kinds of artifact beside your sources and one entry in a per-user cache. Knowing what each one is lets you answer the two questions that come up when a build misbehaves: which inputs decided this output, and why was it rebuilt.
+Every compilation writes three artifacts into `build/` beside the entry file and updates a content-addressed entry in a per-user package store. Understanding these artifacts lets you answer two operational questions directly: which inputs determined a build output, and why a module was rechecked or rebuilt.
 
-“Rebuilt” is the important word. The store is a cache with a write path and a strictly checked read path, and today only the write path is wired into the CLI, so a cache problem costs time and never changes what a program means.
+The package store is strictly advisory on the CLI compile path: it verifies and writes entries on every compile, while batch CLI invocations always check from source. Cache corruption therefore costs at most a rewrite and never alters program semantics.
 
-# What one compile writes
+# Build outputs
 
-`cinch check`, `build`, `run`, `emit-ir`, and `emit-object` all write into `build/` beside the entry file. For a project consisting of one line, `Main.cinch` containing `module Main where` and `main :: Int` returning `0`:
+`cinch check`, `emit-ir`, `emit-object`, `build`, and `run` all populate `build/` beside the entry source file (regardless of `-o`). For an entry module `Main.cinch`:
 
 ```text
 build/
-  Algebra.Arithmetic.cinchif     one interface per module in the closure
-  …
-  Data.Core.cinchif
-  …
-  Main.cinchif
-  Main.manifest.json             the build manifest for the entry
-  Main.stage.snap                captured compile-time inputs, one line each
-  …                              55 further .cinchif files, one per base module
+  Main.cpk               packed binary-indexed interface package for the module closure
+  Main.manifest.json     physical build, target, trust, and provenance record
+  Main.stage.snap        captured compile-time staging inputs (one record per line)
 ```
 
-The `build/` directory holds one interface for every module the compile reached, including the whole embedded base library. A one-line program produces 56 interfaces, because the closure is what was checked, not what was written.
+For `check`, `emit-ir`, `build`, and `run` targeting the same profile, these outputs are deterministic and rewritten on every invocation. The only file read back from a prior invocation is `<Entry>.stage.snap`, and only under `CINCH_STAGE_MODE=replay`.
 
-Every one of those files is rewritten on every invocation, and the bytes are identical across `check`, `emit-ir`, `build`, and `run` for the same target. Exactly one artifact is ever read back from a previous invocation: `<Entry>.stage.snap`, and only to supply recorded compile-time inputs to a replay build. Nothing in `build/` is used to skip typechecking.
-
-| Artifact | Contents | Consumer |
+| Artifact | Contents | Consumers |
 | --- | --- | --- |
-| `<Module>.cinchif` | The checked contract of one module | The next compile, `doc`, object admission |
-| `<Entry>.manifest.json` | The physical and provenance record of the whole build | Tools, audits, the JIT and native object admission |
-| `<Entry>.stage.snap` | The captured bytes of compile-time inputs | A `CINCH_STAGE_MODE=replay` build |
+| `<Entry>.cpk` | Packed `.cinchif` interface contracts for every module in the checked closure (user modules and the embedded base library), plus optional unfoldings when `--emit-interface-optimisations` or `emit-object` is active | Downstream packages, `cinch doc`, JIT, object admission |
+| `<Entry>.manifest.json` | Target profile, module contract hashes, assumptions, safety assertions, specialization report, staging log, and checked-vs-trusted lowering boundary | Build audits, tooling, native/JIT admission |
+| `<Entry>.stage.snap` | Recorded compile-time I/O captured inside `snapshot` blocks | Replay builds (`CINCH_STAGE_MODE=replay`) |
 
-# The interface file
+# Module interfaces (`.cinchif`) and `.cpk` packages
 
-A `.cinchif` is canonical JSON. This is the complete file for a module whose only declaration is `main :: Int` returning `0`:
+Each checked module has a canonical interface contract (`.cinchif`, schema version `10`, runtime ABI `10`). On disk, the compiler packs the entire checked closure into a single binary-indexed `<Entry>.cpk` archive (or `build/package.cpk` for installed packages and `interfaces.cpk` in the package store), avoiding per-module file sprawl while allowing consumers to borrow individual contracts and optional unfoldings without re-parsing JSON. Standalone `.cinchif` JSON documents use the same schema and are accepted by tools such as `cinch doc --iface`.
 
-```text
+Logically, one module's `.cinchif` contract has the following canonical JSON structure:
+
+```json
 {
   "abi": {
     "convention": "uniform-word, curried apply stub",
@@ -78,7 +73,7 @@ A `.cinchif` is canonical JSON. This is the complete file for a module whose onl
   "module": "Main",
   "must_use": [],
   "params": [],
-  "runtime_abi": 6,
+  "runtime_abi": 10,
   "schema": 10,
   "source_hash": "8502167534619123955",
   "units": [],
@@ -86,38 +81,42 @@ A `.cinchif` is canonical JSON. This is the complete file for a module whose onl
 }
 ```
 
-Field by field:
-
 | Field | Meaning |
 | --- | --- |
-| `schema` | Interface schema version, `10` in this compiler |
-| `runtime_abi` | Runtime ABI the interface was produced against, `6` |
-| `language` | Surface language version, `draft-0.2+amendments` |
-| `compiler` | `CARGO_PKG_VERSION` of the producing compiler |
-| `module` | The module's identity, dotted |
-| `source_hash` | FNV-1a 64 of the module's source text, as a decimal string |
-| `params` | Module parameters, for example `["S :: Api.Stepper"]` |
-| `imports` | One row per module this one was checked against, with that module's `iface_hash` |
-| `exports.values` | Each value's `scheme`, its emitted `symbol`, and its `total_body` if it has one |
-| `exports.types` | Each type's constructors, tags, and resolved schemes |
-| `exports.signatures` | Each class's methods, with `exports` visibility and any `laws` |
-| `exports.instances` | Each dictionary: `class`, `target`, `implicit`, method identities |
-| `abi` | Calling convention, layout rows, and symbol names |
-| `assumptions` | Primitives, foreign symbols, and declared assumptions the module relies on |
-| `total_body` | A closed, sorted first-order body graph, or `null` |
+| `schema` | Interface schema version (`10`). |
+| `runtime_abi` | Runtime ABI contract version (`10`). |
+| `language` | Surface language version (`draft-0.2+amendments`). |
+| `compiler` | Compiler package version (`0.1.0`). |
+| `module` | Dotted module identity. |
+| `source_hash` | 64-bit FNV-1a digest of the module's source text, formatted as a decimal string. |
+| `params` | Module parameters (for example `["S :: Api.Stepper"]`). |
+| `imports` | One entry per imported module recording the `iface_hash` it was checked against. |
+| `exports.values` | Exported value schemes, emitted symbol names, and `total_body` graphs where applicable. |
+| `exports.types` | Exported type constructors, tags, and resolved schemes. |
+| `exports.signatures` | Type classes, methods, visibility, and associated laws. |
+| `exports.instances` | Dictionary instances (`class`, `target`, `implicit`, method identities). |
+| `abi` | Calling convention, explicit layout entries, and exported symbol mappings. |
+| `assertions` | Verified safety assertions per definition (hashed into `iface_hash`). |
+| `assumptions` | Primitives, foreign symbols, and unverified declared assumptions the module depends on. |
+| `total_body` | Closed, sorted first-order body graph for supported monomorphic pure definitions, or `null`. |
 
-`source_hash` and `iface_hash` are 64-bit FNV-1a digests rendered as decimal strings, not cryptographic digests. `iface_hash` covers the contract projection, so an edit to a private helper body changes `source_hash` and leaves `iface_hash` alone. `total_body` is what makes a body usable by a consumer: it is emitted only for a supported monomorphic pure signature, and a consumer validates the defining root, the carriers, the scope, and the acyclicity before trusting it.
+## Contract hashing and interface chain verification
 
-The `imports` rows form a chain. `verify_chain` re-derives each imported interface's hash from the artifact set and refuses the build when a row does not match, so a stale interface cannot be mistaken for the checked one.
+`source_hash` and `iface_hash` are 64-bit FNV-1a digests rendered as decimal strings (used for change detection and consistency, not cryptographic authentication).
+
+- `source_hash` covers the full source text.
+- `iface_hash` covers only the exported contract projection (schemes, layouts, instances, verified assertions, and assumptions). Editing the body of a private helper changes `source_hash` while leaving `iface_hash` unchanged, so downstream dependents do not go stale.
+- `total_body` is emitted only for supported monomorphic pure signatures; consumers validate the defining root, carriers, scoping, and acyclicity before trusting it.
+- The `imports` array forms a hash-linked dependency chain. Before accepting a loaded artifact set, chain verification recomputes each imported module's `iface_hash` and rejects any mismatch or missing dependency so stale interfaces cannot silently mix.
 
 # The build manifest
 
-`<Entry>.manifest.json` is the physical record of the build: modules and their interface hashes, target features, assumptions, specialization results, staging inputs, data imports, trust level, and the checked-versus-trusted lowering split.
+`build/<Entry>.manifest.json` records the physical and provenance state of the whole build: target profile, data imports, staging metadata, safety assertions, specialization results, trust level, and the checked-versus-trusted lowering boundary.
 
-```text
+```json
 {
   "entry": "Main",
-  "runtime_abi": 1,
+  "runtime_abi": 10,
   "target": {
     "profile": "native64",
     "endian": "little",
@@ -133,53 +132,88 @@ The `imports` rows form a chain. `verify_chain` re-derives each imported interfa
     ]
   },
   "staging": {"compiler": "0.1.0", "generated": {}, "inputs": [], "mode": "refresh"},
-  "trust": {"level": 2, "name": "full-recheck", "rechecked": ["<builtin>.newIO", "<builtin>.toNat", "…"], "trusted": ["type preservation by construction", "effect-order preservation by construction"]},
+  "trust": {
+    "level": 2,
+    "name": "full-recheck",
+    "rechecked": ["<builtin>.newIO", "<builtin>.toNat"],
+    "trusted": ["type preservation by construction", "effect-order preservation by construction"]
+  },
   "lowering": {
-    "checked": ["core structure and scoping", "usage of %1/%aff parameters", "memo and demand sharing", "decision-point weights", "contract identity"],
+    "checked": [
+      "core structure and scoping",
+      "usage of %1/%aff parameters",
+      "memo and demand sharing",
+      "decision-point weights",
+      "contract identity"
+    ],
     "trusted": ["LLVM code generation", "the runtime and its instruction model"]
   },
-  "specialization": {"ran": true, "fuel": 8, "measure": 8, "discarded": [], "fused": [], "representation_unrecorded": 0, "representation_versions": ["<builtin>.vecStreamStep@R", "Algebra.Semigroup.combine-pairs@O", "…"]},
-  "wasm": {"artifact": "native", "canonical_abi": "none", "adapters": [], "required": [], "lowerings": ["tasks:os-thread"]},
+  "specialization": {
+    "ran": true,
+    "fuel": 8,
+    "measure": 8,
+    "discarded": [],
+    "fused": [],
+    "representation_unrecorded": 0,
+    "representation_versions": ["<builtin>.vecStreamStep@R", "Algebra.Semigroup.combine-pairs@O"]
+  },
+  "wasm": {
+    "artifact": "native",
+    "canonical_abi": "none",
+    "adapters": [],
+    "required": [],
+    "lowerings": ["tasks:os-thread"]
+  },
   "modules": [{"iface_hash": "13309812562950837481", "module": "Algebra.Arithmetic"}]
 }
 ```
 
-`runtime_abi` is `1` here while the interface carries `6`. They are different counters: the manifest's is the manifest schema, the interface's is the runtime contract. `trust.rechecked` lists the units this build actually rechecked, and `specialization.representation_versions` lists every specialized variant, with the class vector appended after `@` (`@R` raw, `@O` object, `@T` tagged object).
+In `specialization.representation_versions`, each specialized unit carries its representation class vector after `@`: `R` (raw word), `O` (object pointer), or `T` (tagged/boxed value).
 
 # The stage snapshot
 
-`<Entry>.stage.snap` has one tab-separated line per captured compile-time input, in six fields: kind, snapshot name, input name, content hash, whether the value is live or recorded, and the captured content with backslash escapes.
+`build/<Entry>.stage.snap` records compile-time external reads captured inside `snapshot` blocks (see [Staging and macros](14-staging-and-macros.md)). Each line is a six-column tab-separated record:
+
+```text
+<kind>	<snapshot-name>	<input-name>	<content-hash>	<recorded|live>	<escaped-content>
+```
+
+For example, reading `input.txt` containing `42\n` inside `snapshot "inputs"` records:
 
 ```text
 file	inputs	input.txt	3157674352912849835	recorded	42\n
 ```
 
-That line is a program that called `snapshot "inputs"` around a `readFile` of `input.txt` containing `42` and a newline. The snapshot name is the label the generator passed to `snapshot`; the input name is the file or subprocess. An empty file means the build captured nothing.
+An empty file indicates that the build captured no external staging inputs. Select the staging mode via `CINCH_STAGE_MODE`:
 
-The three stage modes are selected with `CINCH_STAGE_MODE`: `refresh` (the default) executes the reads and records them, `replay` uses the recorded values and refuses a missing input, and `live` performs current reads. `replay` after a `refresh` build still produces the same value when the input file has been deleted, which is the point of the file.
+| Mode | Behavior |
+| --- | --- |
+| `refresh` (default) | Executes compile-time reads and writes their captured values to `<Entry>.stage.snap`. |
+| `replay` | Reads captured values from `<Entry>.stage.snap` without touching the external file or process; fails if a requested input is missing from the snapshot. |
+| `live` | Performs live reads without replaying from disk. |
 
 # The package store
 
-The store is a per-user cache of compiled artifacts, keyed by content. It is advisory: deleting it costs time and nothing else.
+The package store is a per-user, content-keyed cache of compiled artifacts for the embedded base package. Deleting it is always safe.
 
-| Platform | Default root |
+| Platform / environment | Store root |
 | --- | --- |
-| Any, when `CINCH_STORE` is set | `$CINCH_STORE` |
+| `CINCH_STORE` set | `$CINCH_STORE` |
 | macOS | `$HOME/Library/Caches/cinch/store` |
-| Elsewhere with `XDG_CACHE_HOME` | `$XDG_CACHE_HOME/cinch/store` |
-| Elsewhere | `$HOME/.cache/cinch/store` |
+| Linux / Unix with `XDG_CACHE_HOME` | `$XDG_CACHE_HOME/cinch/store` |
+| Other | `$HOME/.cache/cinch/store` |
 
-An entry is `<root>/<package>/<version>/<key>/`, holding one artifact per module plus the entry manifest:
+Each entry lives at `<root>/<package>/<version>/<key>/`:
 
 ```text
-$HOME/Library/Caches/cinch/store/cinch-base/0.1.0/13085239440471859661/
-  Algebra.Arithmetic.cinchif
-  Algebra.Bits.cinchif
-  …
-  store.json
+<root>/cinch-base/0.1.0/<key>/
+  interfaces.cpk     checked contract package for the closure
+  store.json         entry manifest (schema 3)
 ```
 
-`store.json` records what the entry is:
+The store layout also reserves per-module `<Module>.o` (`object`) and `<Module>.ir` (`ir`) slots; the compile path currently writes `interface` (`interfaces.cpk`) entries only.
+
+`store.json` records the entry identity and per-module contract hashes:
 
 ```json
 {
@@ -193,60 +227,55 @@ $HOME/Library/Caches/cinch/store/cinch-base/0.1.0/13085239440471859661/
   ],
   "package": "cinch-base",
   "profile": "native64",
-  "runtime_abi": 6,
-  "store_schema": 2,
+  "runtime_abi": 10,
+  "store_schema": 3,
   "version": "0.1.0"
 }
 ```
 
-`kinds` lists the artifact kinds the entry holds per module: `interface` for `.cinchif`, `object` for `.o`, `ir` for the module's IR form. The layout admits all three, and today the compile path writes interfaces only.
+## Key derivation
 
-## How the key is computed
-
-The key is the 64-bit FNV-1a digest of a tab-separated, newline-terminated record set, rendered as a decimal string, over these fields in this order:
+The store key is the 64-bit FNV-1a digest (formatted as a decimal string) over a canonical tab-separated, newline-terminated record containing, in order:
 
 ```text
-package       the manifest's name
-version       the manifest's version
-manifest      FNV-1a of the manifest bytes as read
-iface_schema  the interface schema constant
-runtime_abi   the runtime ABI constant
-language      the language version string
-compiler      CARGO_PKG_VERSION
-profile       one line of target profile fields
-adapters      the WIT adapter set, rendered
-module        one row per module in the manifest's check order: name, path, facade-or-module
-source        one row per module: path, FNV-1a of its text
+package       package name from the manifest
+version       package version
+manifest      FNV-1a hash of the manifest bytes
+iface_schema  interface schema version (10)
+runtime_abi   runtime ABI version (10)
+language      surface language version
+compiler      compiler package version
+profile       rendered target profile fields
+adapters      rendered WIT adapter set
+module        one row per module in check order: name, path, facade/module kind
+source        one row per module: path, FNV-1a hash of its source text
 ```
 
-Because the manifest bytes and every module's text are inputs, editing a base module moves the key. Because `CARGO_PKG_VERSION` and the schema constants are inputs, a compiler release that changes either moves the key for every project. A change to compiler code that leaves all of those alone does **not** move the key, which the module documentation in `store.rs` names as a known limit of this stage: two builds of the compiler can legitimately produce different artifacts under one key.
+Any change to a module's source, the target profile, the WIT adapter set, or the compiler/schema version numbers produces a new key. Note one current limitation during compiler development: changing compiler internals without bumping the compiler version or schema constants leaves the key unchanged, so two development builds can legitimately produce different artifacts under the same key.
 
-## What the write path does
+## Write policy, atomic replacement, and `--rebuild`
 
-One of four outcomes, none of which fails a build:
+The store has two deliberately asymmetric paths:
 
-| Outcome | When |
+- **Write path (used by CLI compiles):** Never fails a build over cache state. Without `--rebuild`, the driver loads any existing entry for the key and compares it against the artifacts just produced. If the entry is missing, truncated, corrupt, or disagrees with the current compile, the driver stages a fresh set in `.{key}.{pid}.{seq}.staged`, removes the old directory, and swaps the staged directory in via an atomic rename. Concurrent readers therefore observe the old entry, the new entry, or nothing—never a partial mix.
+
+| Write outcome | Condition |
 | --- | --- |
-| `Wrote` | No entry existed for the key |
-| `Verified` | The entry existed and is exactly this compile's artifact set |
-| `Repaired` | The entry existed but was not this compile's set, and was rewritten |
-| `Skipped` | The compile's interfaces are not the embedded package's, so there is nothing to key |
+| `Wrote` | No entry existed for the key. |
+| `Verified` | An intact entry existed and matched the current compile byte-for-byte. |
+| `Repaired` | An entry existed but was corrupt, mismatched, or overridden by `--rebuild`, and was atomically replaced. |
+| `Skipped` | The compilation did not cover the embedded base package. |
 
-`Repaired` covers a truncated artifact, an aborted write, a different kind set, and an explicit `--rebuild`. It is not an error, because nothing was consumed: a corrupt entry never fails a build, and the next compile rewrites it from the artifacts in hand. The suite pins this: `seed/tests/package_store.rs` truncates a stored interface, reruns `cinch check`, and requires success plus byte-identical restoration.
+- **Load path (strict verification):** Validates the entry manifest, schema/ABI/compiler identity, every artifact's readability and content hash, and the interface import chain, returning a typed error (`Missing`, `Corrupt`, `KeyMismatch`, `IdentityMismatch`, `ArtifactUnreadable`, `HashMismatch`, `ChainBroken`, `Package`, `Io`) on any discrepancy.
 
-Two consequences follow, and both are worth knowing before you go looking for a cache problem:
+Two operational notes follow from this split:
 
-- `--rebuild` forces the entry to be rewritten even when it is intact and matches this compile. It is accepted by `check`, `build`, `run`, `emit-ir`, and `emit-object`.
+- **`--rebuild` forces an unconditional rewrite.** Accepted by `check`, `build`, `run`, `emit-ir`, and `emit-object`, it skips the equality comparison and atomically overwrites the store entry from the current compile.
+- **No CLI command skips typechecking via the store yet.** Checking installs the base library's elaborated state (schemes, instances, fixities) and codegen requires function bodies, whereas cached `.cpk` entries carry contract projections rather than full elaborated bodies. Store entries currently serve as verified build records rather than a warm-compile bypass.
 
-The write path does compare against the entry. Without `--rebuild` it calls `load` and then `agrees_with_compile`, and returns `Verified` only when the stored set is exactly the one this compile just produced. A load error is not a fault on this path: `write` swallows it and rewrites, which is why a corrupt entry never fails a build and never reaches you as a diagnostic. The named hard errors belong to `load` (`Missing`, `Corrupt`, `KeyMismatch`, `IdentityMismatch`, `ArtifactUnreadable`, `HashMismatch`, `ChainBroken`, `Package`, `Io`), and no CLI path consumes stored artifacts to skip checking, so no command can surface one. `seed/tests/package_store.rs` drives `load` directly.
+# Library objects and `--object-roots`
 
-A write stages the whole set in `.{key}.{pid}.{seq}.staged` inside the package directory, removes the previous entry directory, and swaps the staged one in with a single rename. A reader therefore sees the old set, the new set, or nothing, and never a mixture, which matters because two builds of the compiler can render the same sources differently under one key.
-
-Nothing is reused yet, and `store.rs` states why: a warm compile cannot skip the base library without its bodies, because the checker installs the family's checked state (schemes, instances, fixities) and codegen needs the family's functions, while an interface carries rendered contracts rather than that state. The entry is a verified record of what this compiler produced, not yet a substitute for producing it.
-
-# Objects and object roots
-
-`cinch emit-object` produces a library artifact: a native object, its LLVM text, and a physical ABI manifest. Starting from this file:
+`cinch emit-object` compiles a library module (one with no `main` entry point) into a relocatable native object, its LLVM IR text, and a physical ABI manifest:
 
 ```text
 module Library where
@@ -260,16 +289,9 @@ module Library where
 cinch emit-object Library.cinch
 ```
 
-```text
-Library.ll          10,288,671 bytes   the LLVM text
-Library.o            2,871,480 bytes   the native object
-Library.abi.json     1,903,945 bytes   the physical manifest
-build/                                the interfaces, manifest, and snapshot
-```
+This writes `Library.o`, `Library.ll`, `Library.abi.json`, and the standard `build/` directory. `Library.abi.json` records `schema`, `runtime_abi`, `target`, `word_size`, `endian`, `reclaim`, `escaped_descriptors`, `layout_entries`, `layout_words`, `types`, `constructors`, `units`, `dictionaries`, `method_families`, `interfaces`, `modules`, `ir_content_hash`, and `object_content_hash`.
 
-`Library.abi.json` carries `schema`, `runtime_abi`, `target`, `word_size`, `endian`, `reclaim`, `escaped_descriptors`, `layout_entries`, `layout_words`, `types`, `constructors`, `units`, `dictionaries`, `method_families`, `interfaces`, `modules`, `ir_content_hash`, and `object_content_hash`.
-
-Only reachable units are emitted. `choose` is polymorphic and nothing in the file reaches a concrete instance of it, so without a demand the object contains no `Library.choose` unit at all. A separately compiled consumer states what it needs in a roots file:
+Code generation emits only reachable monomorphic and specialized units. Because `choose` above is polymorphic and has no callers inside `Library.cinch`, `Library.o` contains no `Library.choose` symbol unless a consumer declares which concrete specializations it needs via a roots JSON file (`schema: 1`):
 
 ```json
 {"schema": 1, "units": [{"symbol": "Library.choose", "classes": "T"}]}
@@ -279,49 +301,53 @@ Only reachable units are emitted. `choose` is polymorphic and nothing in the fil
 cinch emit-object Library.cinch -o Library.o --object-roots roots.json
 ```
 
-The object now defines `Library.choose@T`, with `params` `["O", "T", "T"]`, result `T`, and closure accessor `Library.choose@T.object-closure`. Class letters are `R` (raw word), `O` (object pointer), and `T` (tagged/boxed). The three tables in the roots file are `units`, `dictionaries`, and `methods`, the last naming a class, a logical slot, and the method's own class vector.
+With that root, the emitted object defines `Library.choose@T` (parameters `["O", "T", "T"]`, result `T`, and closure accessor `Library.choose@T.object-closure`). Class letters in representation vectors are `R` (raw word), `O` (object pointer), and `T` (tagged/boxed value).
 
-| Malformed roots file | Diagnostic | Exit |
+A roots document may contain three arrays:
+
+- `units` — `{"symbol": "<Module.name>", "classes": "<R/O/T vector>"}`
+- `dictionaries` — `{"symbol": "<Module.Dict>", "classes": "<R/O/T vector>"}`
+- `methods` — `{"class": "<Module.Class>", "slot": <n>, "own": "<R/O/T vector>"}`
+
+Malformed roots files and invalid mode combinations are rejected explicitly:
+
+| Condition | Diagnostic | Exit |
 | --- | --- | --- |
+| Non-empty roots file passed outside `emit-object` (`check`, `emit-ir`, `build`, `run`) | `cinch: explicit object roots require emit-object mode` | 1 |
 | Unknown symbol | `cinch: unknown object unit root Library.nope` | 1 |
-| Bad class letter | `cinch: object root vectors contain only R/O/T` | 2 |
-| Wrong schema | `cinch: object roots require schema 1 and only units/dictionaries/methods arrays` | 2 |
+| Invalid class letter | `cinch: object root vectors contain only R/O/T` | 2 |
+| Wrong schema or unexpected keys | `cinch: object roots require schema 1 and only units/dictionaries/methods arrays` | 2 |
 
-`--object-roots` is accepted on the command line of any mode, but only `emit-object` uses it; a roots file passed to `check`, `build`, or `run` is parsed and then ignored.
+# Package objects (`--package-object`)
 
-# Package objects in a build
+An installed package pairs its compiled native object (`package.o`) with a package interface archive (`build/package.cpk`, falling back to `package.abi.json`) carrying its module list, execution kind, and `object_content_hash`.
 
-An installed package ships its own object and a package-level `.cinchif`. `build/package.cinchif` is the ABI manifest with three fields added, so a consumer reads one artifact instead of two:
-
-```json
-{"kind": "package-execution", "modules": ["Greet"], "object": "package.o", "object_content_hash": "15519496164294781924"}
-```
-
-`cinch build` and `cinch run` accept these objects with `--package-object`. The flag reads the object's `build/package.cinchif` (falling back to `package.abi.json`), checks that the object's bytes still hash to `object_content_hash`, and excludes the modules that object defines from the project's own emitted set.
-
-A tampered object is refused before linking:
+`cinch build` and `cinch run` accept precompiled package objects via `--package-object <path>`. Before linking, the driver verifies that the object file's bytes hash to the recorded `object_content_hash` and excludes the package's modules from the project's emitted unit set. A tampered or mismatched object is rejected before the linker runs:
 
 ```text
 cinch: vendor/acme/greet/0.1.0/package.o: object content hash does not match package.abi.json
 ```
 
-<span class="support-tag support-tag--partial">Partial</span> **linking a project against package objects.** The admission and exclusion steps work, and the link step does not yet produce a working binary for a project that uses the prelude. Excluding the package's modules leaves only the project's own modules in the emitted set, so base library symbols such as `Data.String.string-concat` and `<builtin>.newIO` are neither emitted nor supplied by an object, and `clang` fails with undefined symbols. The same project builds and runs with `cinch run ./Main.cinch`, which compiles the vendored sources together with the prelude.
+<span class="support-tag support-tag--partial">Partial</span> **Linking prelude-using projects against `--package-object`.** Admission, hash verification, and module exclusion are active, but linking a project that uses the Prelude against an external package object currently leaves base-library symbols (such as `Data.String.string-concat` and `<builtin>.newIO`) unresolved at link time. Until base-library package linking lands, compile vendored package sources together with the project via `cinch build` or `cinch run`.
 
 # Incremental compilation
 
-`incremental.rs` implements three layers over the same interfaces: an item graph with surface and body edges (`ItemGraph`), a persistent session with declaration-level dirty sets (`Session`), and a declaration-hash-keyed object cache for assembly (`Session::link_units`). A body-only change rechecks the changed declaration; a signature or contract change rechecks the dependents' closure. The report states `rechecked`, `retyped`, and `kept`, plus real timings per rebuild.
+The compiler includes a three-layer incremental engine used in-process by `cinch repl` and `cinch lsp`:
 
-Two limits are worth stating plainly. Codegen emits one LLVM module per program, so unit extraction for the object cache runs after a whole-program emission; the cache still keys, diffs, and assembles at declaration granularity and the assembly is verified against the emission. And there is no watch mode or session daemon in the CLI: `cinch build` compiles and exits, and an editor that uses the analysis API does not imply a persistent compiler process between shell invocations.
+1. **Item dependency graph:** Separates *surface edges* (signatures, layouts, instances, contract facts) from *body edges*. Editing a function body rechecks only that declaration; editing a signature or contract fact invalidates the transitive closure of dependents.
+2. **Persistent session:** Tracks declaration-level dirty sets across edits and reports `rechecked`, `retyped`, and `kept` modules along with per-rebuild timings.
+3. **Declaration-keyed object cache:** Caches and reassembles compiled units keyed by declaration content hashes.
 
-The [design note](../design/incremental-recompilation.md) records the goals and the remaining work, including per-unit emission. Latency claims in that note are targets, not measurements.
+Two boundaries apply today:
+
+- **Whole-program LLVM emission:** Code generation still emits a single LLVM module per program before extracting units for the object cache; per-unit LLVM emission is planned.
+- **No CLI watch daemon:** Batch commands (`cinch check`, `cinch build`, `cinch run`) always run once and exit. In-process incremental rechecking runs inside `cinch lsp` and `cinch repl`.
 
 # Diagnosing a stale build
 
-1. Re-run `cinch check`. Store entries cannot fail it, so a failure is a real source or interface problem.
-2. Read the interface chain. `verify_chain` reports `M was checked against X at HASH, but the loaded interface is HASH` when two interfaces disagree about a contract, and `M imports X, but no interface for it is in the artifact set` when one is absent.
-3. Compare `source_hash` in the `.cinchif` with the source you expect. A mismatch means the build directory is older than the source tree.
-4. Delete `build/` and recompile when in doubt. It is regenerated in full, and nothing else reads it.
-5. Delete the store entry, or pass `--rebuild`, when you suspect the cache. Both are always safe: the entry is keyed by content, compared against the current compile on every write, and never consumed in place of compiling.
-6. Keep test stores separate per checkout with `CINCH_STORE`. Cached artifacts record source paths, so a store written by another checkout can name paths that this one does not have.
-
-Implementation: `driver.rs` (`write_artifacts`), `interface.rs` (schema, hashing, `verify_chain`, `check_coherence`), `store.rs` (layout, key, write and load), `incremental.rs`, `specialize.rs` (`parse_object_roots`); suites: `incremental.rs`, `package_store.rs`, `canonical_artifacts.rs`, `interface_*`, `intrinsic_objects.rs`, `bootstrap_library_object.rs`.
+1. **Re-run `cinch check`.** Because the package store cannot fail a CLI compile, any failure from `cinch check` is a real source, import, or interface problem.
+2. **Inspect interface-chain errors.** Chain verification reports `M was checked against X at HASH, but the loaded interface is HASH` on a contract mismatch, and `M imports X, but no interface for it is in the artifact set` on a missing dependency.
+3. **Check `source_hash` vs. source text.** A mismatch indicates stale generated artifacts from an older source tree.
+4. **Remove `build/` and recompile.** Everything under `build/` is regenerated from source on the next invocation (except `.stage.snap` when replaying staged builds).
+5. **Pass `--rebuild` or clear the store entry.** Safe at any time; `--rebuild` overwrites the store entry atomically from the current compile.
+6. **Isolate stores across checkouts with `CINCH_STORE`.** Because stored keys and metadata include source paths, separate checkouts should use distinct `CINCH_STORE` roots when debugging cache behavior.

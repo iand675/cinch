@@ -2,19 +2,24 @@
 
 Typed readers for the system and monotonic clocks.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Time</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Time/">View source</a><a href="/library/search/?q=%2BEffect.Time">Search module</a><a href="/reference-sources/Effect.Time.cinch" download="Effect.Time.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Time`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Monotonic](Data.Time.Monotonic.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Effect.Clock](Effect.Clock.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Effect.Time.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Time`: [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Monotonic](Data.Time.Monotonic.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Effect.Time](Effect.Time.md).
 
-[Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Monotonic](Data.Time.Monotonic.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Effect.Clock](Effect.Clock.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
+cp seed/prelude/Data/Time/Monotonic.cinch ./Data.Time.Monotonic.cinch
+cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
+cp seed/prelude/Effect/Time.cinch ./Effect.Time.cinch
+```
 
-Non-embedded source closure: [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Monotonic](Data.Time.Monotonic.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Effect.Time](Effect.Time.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Time: the typed clock readers (design/datetime.md, layer L5,
 lane A).
@@ -80,183 +85,169 @@ system's vocabulary.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (15 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Deadline">Deadline</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Deadline</strong></code></li><li><a class="syn-name" href="#t-Timeout">Timeout</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Timeout</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-deadline-after">deadline-after</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deadline-after</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a></code></li><li><a class="syn-name" href="#v-deadline-at">deadline-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deadline-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a></code></li><li><a class="syn-name" href="#v-deadline-expired">deadline-expired</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deadline-expired</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-deadline-instant">deadline-instant</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deadline-instant</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code></li><li><a class="syn-name" href="#v-deadline-remaining">deadline-remaining</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deadline-remaining</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-elapsed-since">elapsed-since</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">elapsed-since</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-from-clock-duration">from-clock-duration</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-clock-duration</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-monotonic-now">monotonic-now</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">monotonic-now</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code></li><li><a class="syn-name" href="#v-now">now</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">now</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-sleep-for">sleep-for</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sleep-for</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-sleep-until">sleep-until</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sleep-until</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-timeout-after">timeout-after</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timeout-after</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <span class="tok-variable">a</span>) <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Async">Async</a> r, <a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Effect.Clock/#t-Timeout" title="Effect.Clock.Timeout">Timeout</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-to-clock-duration">to-clock-duration</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-clock-duration</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a></code></li></ul>
+</details>
 
-<a id="type-446561646c696e65"></a>
+# Types
 
-## `Deadline`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Deadline</span></code></pre>
+<article class="doc-entry" id="t-Deadline">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Deadline</strong></code><span class="doc-sig-links"><a href="#t-Deadline" title="Permalink">#</a><a href="/library/source/Effect.Time/#L149" title="View source at line 149">Source</a></span></div>
+<div class="doc-body">
 
 A point on the monotonic clock to finish by: the reading's `I64`
 nanosecond word, held directly (one object, not a box around a
 `Monotonic` box). The constructor is private; `deadline-at` and
 `deadline-instant` are its public spellings.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 149
+</div>
+</article>
 
-<a id="type-54696d656f7574"></a>
-
-## `Timeout`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Timeout</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Timeout">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Timeout</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Timeout" title="Permalink">#</a><a href="/library/source/Effect.Clock/#L88" title="View source at line 88">Source</a></span></div>
+<div class="doc-body">
 
 The outcome of a computation raced against its deadline: it
 finished (`Finished x`), or the deadline fired first and cancelled
 it (`TimedOut`).
 
-[Source](/reference-sources/Effect.Clock.cinch) · line 88
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TimedOut</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Finished</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TimedOut"><code><strong class="tok-constructor">TimedOut</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Clock/#t-Timeout" title="Effect.Clock.Timeout">Timeout</a> <span class="tok-variable">a</span></code></li><li id="k-Finished"><code><strong class="tok-constructor">Finished</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Clock/#t-Timeout" title="Effect.Clock.Timeout">Timeout</a> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-646561646c696e652d6166746572"></a>
-
-## `deadline-after`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deadline-after</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Deadline</span>)</code></pre>
+<article class="doc-entry" id="v-deadline-after">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deadline-after</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a></code><span class="doc-sig-links"><a href="#v-deadline-after" title="Permalink">#</a><a href="/library/source/Effect.Time/#L164" title="View source at line 164">Source</a></span></div>
+<div class="doc-body">
 
 The deadline `d` from now. Saturating: a `d` past the clock's
 `I64` range gives the farthest representable deadline (292 years
 from the origin), and a negative `d` one that has already passed.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 164
+</div>
+</article>
 
-<a id="value-646561646c696e652d6174"></a>
-
-## `deadline-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deadline-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Monotonic</span>.<span class="tok-constructor">Monotonic</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Deadline</span>)</code></pre>
+<article class="doc-entry" id="v-deadline-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deadline-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a></code><span class="doc-sig-links"><a href="#v-deadline-at" title="Permalink">#</a><a href="/library/source/Effect.Time/#L153" title="View source at line 153">Source</a></span></div>
+<div class="doc-body">
 
 The deadline at a known monotonic reading.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 153
+</div>
+</article>
 
-<a id="value-646561646c696e652d65787069726564"></a>
-
-## `deadline-expired`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deadline-expired</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Deadline</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-deadline-expired">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deadline-expired</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-deadline-expired" title="Permalink">#</a><a href="/library/source/Effect.Time/#L173" title="View source at line 173">Source</a></span></div>
+<div class="doc-body">
 
 Whether the deadline has been reached, read now.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 173
+</div>
+</article>
 
-<a id="value-646561646c696e652d696e7374616e74"></a>
-
-## `deadline-instant`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deadline-instant</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Deadline</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Monotonic</span>.<span class="tok-constructor">Monotonic</span>)</code></pre>
+<article class="doc-entry" id="v-deadline-instant">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deadline-instant</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code><span class="doc-sig-links"><a href="#v-deadline-instant" title="Permalink">#</a><a href="/library/source/Effect.Time/#L157" title="View source at line 157">Source</a></span></div>
+<div class="doc-body">
 
 The monotonic reading the deadline falls on.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 157
+</div>
+</article>
 
-<a id="value-646561646c696e652d72656d61696e696e67"></a>
-
-## `deadline-remaining`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deadline-remaining</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Deadline</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-deadline-remaining">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deadline-remaining</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-deadline-remaining" title="Permalink">#</a><a href="/library/source/Effect.Time/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-body">
 
 The time left, read now: positive before the deadline, zero on it,
 negative after it (`sleep-for` treats that as zero).
 
-[Source](/reference-sources/Effect.Time.cinch) · line 169
+</div>
+</article>
 
-<a id="value-656c61707365642d73696e6365"></a>
-
-## `elapsed-since`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">elapsed-since</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Monotonic</span>.<span class="tok-constructor">Monotonic</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-elapsed-since">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">elapsed-since</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-elapsed-since" title="Permalink">#</a><a href="/library/source/Effect.Time/#L107" title="View source at line 107">Source</a></span></div>
+<div class="doc-body">
 
 The time since the reading `start`, read now.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 107
+</div>
+</article>
 
-<a id="value-66726f6d2d636c6f636b2d6475726174696f6e"></a>
-
-## `from-clock-duration`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-clock-duration</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-from-clock-duration">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-clock-duration</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-from-clock-duration" title="Permalink">#</a><a href="/library/source/Effect.Time/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 Exact for every count within `I64` milliseconds; saturating at
 that bound for a larger `Nat`.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 132
+</div>
+</article>
 
-<a id="value-6d6f6e6f746f6e69632d6e6f77"></a>
-
-## `monotonic-now`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">monotonic-now</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Monotonic</span>.<span class="tok-constructor">Monotonic</span>)</code></pre>
+<article class="doc-entry" id="v-monotonic-now">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">monotonic-now</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code><span class="doc-sig-links"><a href="#v-monotonic-now" title="Permalink">#</a><a href="/library/source/Effect.Time/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-body">
 
 The monotonic clock: non-decreasing across calls in one process.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 103
+</div>
+</article>
 
-<a id="value-6e6f77"></a>
-
-## `now`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">now</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)</code></pre>
+<article class="doc-entry" id="v-now">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">now</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-now" title="Permalink">#</a><a href="/library/source/Effect.Time/#L99" title="View source at line 99">Source</a></span></div>
+<div class="doc-body">
 
 The wall clock: the current instant. It can step backwards or
 forwards when the system clock is set; measure with
 `monotonic-now`.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 99
+</div>
+</article>
 
-<a id="value-736c6565702d666f72"></a>
-
-## `sleep-for`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sleep-for</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+<article class="doc-entry" id="v-sleep-for">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sleep-for</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-sleep-for" title="Permalink">#</a><a href="/library/source/Effect.Time/#L138" title="View source at line 138">Source</a></span></div>
+<div class="doc-body">
 
 Suspend for at least `d`: rounded up to a whole millisecond, and
 zero milliseconds for a zero or negative `d` (never an error and
 never a negative sleep). Always a suspension point.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 138
+</div>
+</article>
 
-<a id="value-736c6565702d756e74696c"></a>
-
-## `sleep-until`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sleep-until</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Deadline</span> -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+<article class="doc-entry" id="v-sleep-until">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sleep-until</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Time/#t-Deadline" title="Effect.Time.Deadline">Deadline</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-sleep-until" title="Permalink">#</a><a href="/library/source/Effect.Time/#L178" title="View source at line 178">Source</a></span></div>
+<div class="doc-body">
 
 Suspend until the deadline (not at all, beyond the suspension
 point itself, when it has passed).
 
-[Source](/reference-sources/Effect.Time.cinch) · line 178
+</div>
+</article>
 
-<a id="value-74696d656f75742d6166746572"></a>
-
-## `timeout-after`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timeout-after</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>) %1 -&gt;{<span class="tok-constructor">Async</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Timeout</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-timeout-after">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timeout-after</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <span class="tok-variable">a</span>) <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Async">Async</a> r, <a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Effect.Clock/#t-Timeout" title="Effect.Clock.Timeout">Timeout</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-timeout-after" title="Permalink">#</a><a href="/library/source/Effect.Time/#L189" title="View source at line 189">Source</a></span></div>
+<div class="doc-body">
 
 `Effect.Clock.timeout` with the limit as a `Duration` (rounded up
 to a millisecond; zero for a negative one). The result type is
 `Effect.Clock`'s `Timeout` (`TimedOut`, `Finished`), re-exported
 from this module so a caller needs no `Effect.Clock` import.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 189
+</div>
+</article>
 
-<a id="value-746f2d636c6f636b2d6475726174696f6e"></a>
-
-## `to-clock-duration`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-clock-duration</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Clock</span>.<span class="tok-constructor">Duration</span>)</code></pre>
+<article class="doc-entry" id="v-to-clock-duration">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-clock-duration</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Clock/#t-Duration" title="Effect.Clock.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-to-clock-duration" title="Permalink">#</a><a href="/library/source/Effect.Time/#L127" title="View source at line 127">Source</a></span></div>
+<div class="doc-body">
 
 The millisecond `Effect.Clock.Duration` not shorter than `d`
 (rounded up to a millisecond, so a deadline is never early);
 saturating: zero for a negative `d`, `I64` milliseconds at most.
 
-[Source](/reference-sources/Effect.Time.cinch) · line 127
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Time.cinch`. Source SHA-256: `55fb18e3413088cd5db3e41302ae0984f1f0039c0e386ae8ca72e4e4fe7be4e4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Time.cinch`](/library/source/Effect.Time/). Source SHA-256: `55fb18e3413088cd5db3e41302ae0984f1f0039c0e386ae8ca72e4e4fe7be4e4`.

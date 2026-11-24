@@ -2,19 +2,24 @@
 
 Retained byte splitting, persistent producer traversals, shared pull cursors and line iteration.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Bytes.Split</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Bytes.Split/">View source</a><a href="/library/search/?q=%2BData.Bytes.Split">Search module</a><a href="/reference-sources/Data.Bytes.Split.cinch" download="Data.Bytes.Split.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Bytes.Split`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Producer](Data.Producer.md).
 
-[Download exact module source](/reference-sources/Data.Bytes.Split.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Bytes.Split`: [Data.Bytes.Split](Data.Bytes.Split.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Bytes.Word](Data.Bytes.Word.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Producer](Data.Producer.md).
+```sh
+cp seed/prelude/Data/Bytes/Split.cinch ./Data.Bytes.Split.cinch
+cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
+cp seed/prelude/Data/Bytes/View.cinch ./Data.Bytes.View.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Split](Data.Bytes.Split.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Bytes.Word](Data.Bytes.Word.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Retained byte splitting with explicit traversal factories, persistent producers and stateful pull cursors.
 Result views share input mutations and retain the complete original allocation.
@@ -22,288 +27,262 @@ Raw separators are observed at each step; compiled separators retain their stabl
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (27 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ByteSplitCursor">ByteSplitCursor</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteSplitCursor</strong></code></li><li><a class="syn-name" href="#t-ByteSplitFactory">ByteSplitFactory</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteSplitFactory</strong></code></li><li><a class="syn-name" href="#t-ByteSplitMode">ByteSplitMode</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteSplitMode</strong></code></li><li><a class="syn-name" href="#t-ByteSplitState">ByteSplitState</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteSplitState</strong></code></li><li><a class="syn-name" href="#v-byte-split-close">byte-split-close</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-split-close</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitCursor" title="Data.Bytes.Split.ByteSplitCursor">ByteSplitCursor</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-byte-split-cursor">byte-split-cursor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-split-cursor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitCursor" title="Data.Bytes.Split.ByteSplitCursor">ByteSplitCursor</a></code></li><li><a class="syn-name" href="#v-byte-split-next">byte-split-next</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-split-next</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitCursor" title="Data.Bytes.Split.ByteSplitCursor">ByteSplitCursor</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-split-producer">byte-split-producer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-split-producer</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-lines">byte-view-lines</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-lines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-lines-factory">byte-view-lines-factory</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-lines-factory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a></code></li><li><a class="syn-name" href="#v-byte-view-split">byte-view-split</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-split-after">byte-view-split-after</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split-after</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-split-after-limit">byte-view-split-after-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split-after-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-split-after-seq">byte-view-split-after-seq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split-after-seq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-split-factory">byte-view-split-factory</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split-factory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a></code></li><li><a class="syn-name" href="#v-byte-view-split-limit">byte-view-split-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-split-pattern">byte-view-split-pattern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-split-pattern-factory">byte-view-split-pattern-factory</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split-pattern-factory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a></code></li><li><a class="syn-name" href="#v-byte-view-split-seq">byte-view-split-seq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-split-seq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-lines">bytes-lines</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-lines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-split">bytes-split</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-split</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-split-after">bytes-split-after</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-split-after</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-split-after-limit">bytes-split-after-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-split-after-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-split-after-seq">bytes-split-after-seq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-split-after-seq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-split-factory">bytes-split-factory</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-split-factory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a></code></li><li><a class="syn-name" href="#v-bytes-split-limit">bytes-split-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-split-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-split-seq">bytes-split-seq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-split-seq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li></ul>
+</details>
 
-<a id="type-4279746553706c6974437572736f72"></a>
+# Types
 
-## `ByteSplitCursor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ByteSplitCursor</span></code></pre>
+<article class="doc-entry" id="t-ByteSplitCursor">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteSplitCursor</strong></code><span class="doc-sig-links"><a href="#t-ByteSplitCursor" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 A separately named stateful pull cursor; copied handles share progress and closure state.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 49
+</div>
+</article>
 
-<a id="type-4279746553706c6974466163746f7279"></a>
-
-## `ByteSplitFactory`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ByteSplitFactory</span></code></pre>
+<article class="doc-entry" id="t-ByteSplitFactory">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteSplitFactory</strong></code><span class="doc-sig-links"><a href="#t-ByteSplitFactory" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 An immutable traversal recipe retaining input, separator policy, limit and fragment placement.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 39
+</div>
+</article>
 
-<a id="type-4279746553706c69744d6f6465"></a>
-
-## `ByteSplitMode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ByteSplitMode</span></code></pre>
+<article class="doc-entry" id="t-ByteSplitMode">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteSplitMode</strong></code><span class="doc-sig-links"><a href="#t-ByteSplitMode" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 Whether a separator belongs to the preceding output fragment.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 25
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-SplitBefore"><code><strong class="tok-constructor">SplitBefore</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a></code></li><li id="k-SplitAfter"><code><strong class="tok-constructor">SplitAfter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SplitBefore</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SplitAfter</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitMode</span></code></pre>
-
-<a id="type-4279746553706c69745374617465"></a>
-
-## `ByteSplitState`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ByteSplitState</span></code></pre>
+<article class="doc-entry" id="t-ByteSplitState">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteSplitState</strong></code><span class="doc-sig-links"><a href="#t-ByteSplitState" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L44" title="View source at line 44">Source</a></span></div>
+<div class="doc-body">
 
 Explicit persistent producer progress; advancing returns a new state without mutating this value.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 44
+</div>
+</article>
 
 # Values
 
-<a id="value-627974652d73706c69742d636c6f7365"></a>
-
-## `byte-split-close`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-split-close</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitCursor</span> -&gt; <span class="tok-constructor">Unit</span>)</code></pre>
+<article class="doc-entry" id="v-byte-split-close">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-split-close</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitCursor" title="Data.Bytes.Split.ByteSplitCursor">ByteSplitCursor</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-byte-split-close" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L242" title="View source at line 242">Source</a></span></div>
+<div class="doc-body">
 
 Close a separately named pull cursor; later pulls return None without reading or searching input.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 242
+</div>
+</article>
 
-<a id="value-627974652d73706c69742d637572736f72"></a>
-
-## `byte-split-cursor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-split-cursor</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitFactory</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitCursor</span>)</code></pre>
+<article class="doc-entry" id="v-byte-split-cursor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-split-cursor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitCursor" title="Data.Bytes.Split.ByteSplitCursor">ByteSplitCursor</a></code><span class="doc-sig-links"><a href="#v-byte-split-cursor" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L226" title="View source at line 226">Source</a></span></div>
+<div class="doc-body">
 
 Begin a fresh stateful pull cursor without changing Producer replay semantics.
 Copied cursor handles share progress; raw separator and input contents remain live.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 226
+</div>
+</article>
 
-<a id="value-627974652d73706c69742d6e657874"></a>
-
-## `byte-split-next`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-split-next</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitCursor</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-split-next">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-split-next</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitCursor" title="Data.Bytes.Split.ByteSplitCursor">ByteSplitCursor</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-split-next" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L230" title="View source at line 230">Source</a></span></div>
+<div class="doc-body">
 
 Pull the next mutable alias, returning None after exhaustion or explicit closure on every later call.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 230
+</div>
+</article>
 
-<a id="value-627974652d73706c69742d70726f6475636572"></a>
-
-## `byte-split-producer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-split-producer</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitFactory</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-split-producer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-split-producer</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-split-producer" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L128" title="View source at line 128">Source</a></span></div>
+<div class="doc-body">
 
 Begin a fresh persistent producer traversal of a retained recipe.
 Replaying this Producer follows the existing explicit-state contract and reads current mutable bytes again.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 128
+</div>
+</article>
 
-<a id="value-627974652d766965772d6c696e6573"></a>
-
-## `byte-view-lines`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-lines</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-lines">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-lines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-lines" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L171" title="View source at line 171">Source</a></span></div>
+<div class="doc-body">
 
 Begin a fresh persistent LF-line traversal including line terminators.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 171
+</div>
+</article>
 
-<a id="value-627974652d766965772d6c696e65732d666163746f7279"></a>
-
-## `byte-view-lines-factory`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-lines-factory</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitFactory</span>)</code></pre>
+<article class="doc-entry" id="v-byte-view-lines-factory">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-lines-factory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a></code><span class="doc-sig-links"><a href="#v-byte-view-lines-factory" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 Create an LF-line recipe that includes terminators and omits a trailing empty fragment.
 CR bytes are preserved; an unterminated final line is returned intact.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 70
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c6974"></a>
-
-## `byte-view-split`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-split">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-split" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L143" title="View source at line 143">Source</a></span></div>
+<div class="doc-body">
 
 Split into mutable aliases around each nonoverlapping raw separator.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 143
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c69742d6166746572"></a>
-
-## `byte-view-split-after`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split-after</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-split-after">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split-after</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-split-after" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L147" title="View source at line 147">Source</a></span></div>
+<div class="doc-body">
 
 Split after each nonoverlapping raw separator, retaining it in the preceding alias.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 147
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c69742d61667465722d6c696d6974"></a>
-
-## `byte-view-split-after-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split-after-limit</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-split-after-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split-after-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-split-after-limit" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L155" title="View source at line 155">Source</a></span></div>
+<div class="doc-body">
 
 Split after separators with an explicit optional maximum and an unsplit final remainder.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 155
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c69742d61667465722d736571"></a>
-
-## `byte-view-split-after-seq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split-after-seq</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-split-after-seq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split-after-seq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-split-after-seq" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L163" title="View source at line 163">Source</a></span></div>
+<div class="doc-body">
 
 Begin a fresh persistent producer that includes each delimiter in its preceding fragment.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 163
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c69742d666163746f7279"></a>
-
-## `byte-view-split-factory`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split-factory</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitMode</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitFactory</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-split-factory">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split-factory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a></code><span class="doc-sig-links"><a href="#v-byte-view-split-factory" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 Create a reusable recipe without reading input or separator contents.
 None means unlimited; Some zero yields nothing; the final limited fragment is the unsplit remainder.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 55
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c69742d6c696d6974"></a>
-
-## `byte-view-split-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split-limit</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-split-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-split-limit" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L151" title="View source at line 151">Source</a></span></div>
+<div class="doc-body">
 
 Split with an explicit optional maximum and an unsplit final remainder.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 151
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c69742d7061747465726e"></a>
-
-## `byte-view-split-pattern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split-pattern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitMode</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))))</code></pre>
+<article class="doc-entry" id="v-byte-view-split-pattern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split-pattern</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-split-pattern" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 Materialize fragments using an explicitly stable compiled separator snapshot.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 167
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c69742d7061747465726e2d666163746f7279"></a>
-
-## `byte-view-split-pattern-factory`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split-pattern-factory</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitMode</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">BytePattern</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitFactory</span>))))</code></pre>
+<article class="doc-entry" id="v-byte-view-split-pattern-factory">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split-pattern-factory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-BytePattern" title="Data.Bytes.View.BytePattern">BytePattern</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a></code><span class="doc-sig-links"><a href="#v-byte-view-split-pattern-factory" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Create a recipe with an explicitly stable compiled separator; input bytes remain live aliases.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 65
+</div>
+</article>
 
-<a id="value-627974652d766965772d73706c69742d736571"></a>
-
-## `byte-view-split-seq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-split-seq</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-split-seq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-split-seq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-split-seq" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 Begin a fresh persistent raw-separator producer, observing input and delimiter changes at each step.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 159
+</div>
+</article>
 
-<a id="value-62797465732d6c696e6573"></a>
-
-## `bytes-lines`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-lines</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-lines">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-lines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-lines" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L199" title="View source at line 199">Source</a></span></div>
+<div class="doc-body">
 
 Begin a fresh persistent LF-line traversal over a complete fixed buffer.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 199
+</div>
+</article>
 
-<a id="value-62797465732d73706c6974"></a>
-
-## `bytes-split`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-split</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-split">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-split</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-split" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L175" title="View source at line 175">Source</a></span></div>
+<div class="doc-body">
 
 Split complete fixed buffers into retained mutable input aliases.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 175
+</div>
+</article>
 
-<a id="value-62797465732d73706c69742d6166746572"></a>
-
-## `bytes-split-after`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-split-after</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-split-after">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-split-after</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-split-after" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L179" title="View source at line 179">Source</a></span></div>
+<div class="doc-body">
 
 Split complete fixed buffers after each raw delimiter.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 179
+</div>
+</article>
 
-<a id="value-62797465732d73706c69742d61667465722d6c696d6974"></a>
-
-## `bytes-split-after-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-split-after-limit</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-bytes-split-after-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-split-after-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-split-after-limit" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L187" title="View source at line 187">Source</a></span></div>
+<div class="doc-body">
 
 Split complete fixed buffers after delimiters with an explicit optional maximum.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 187
+</div>
+</article>
 
-<a id="value-62797465732d73706c69742d61667465722d736571"></a>
-
-## `bytes-split-after-seq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-split-after-seq</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-split-after-seq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-split-after-seq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-split-after-seq" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L195" title="View source at line 195">Source</a></span></div>
+<div class="doc-body">
 
 Begin a fresh persistent delimiter-including traversal over complete fixed buffers.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 195
+</div>
+</article>
 
-<a id="value-62797465732d73706c69742d666163746f7279"></a>
-
-## `bytes-split-factory`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-split-factory</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitMode</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitFactory</span>))))</code></pre>
+<article class="doc-entry" id="v-bytes-split-factory">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-split-factory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitMode" title="Data.Bytes.Split.ByteSplitMode">ByteSplitMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitFactory" title="Data.Bytes.Split.ByteSplitFactory">ByteSplitFactory</a></code><span class="doc-sig-links"><a href="#v-bytes-split-factory" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 Retain complete input and separator owners in a fresh raw-separator traversal recipe.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 59
+</div>
+</article>
 
-<a id="value-62797465732d73706c69742d6c696d6974"></a>
-
-## `bytes-split-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-split-limit</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))))</code></pre>
+<article class="doc-entry" id="v-bytes-split-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-split-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-split-limit" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L183" title="View source at line 183">Source</a></span></div>
+<div class="doc-body">
 
 Split complete fixed buffers with an explicit optional maximum.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 183
+</div>
+</article>
 
-<a id="value-62797465732d73706c69742d736571"></a>
-
-## `bytes-split-seq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-split-seq</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Split</span>.<span class="tok-constructor">ByteSplitState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-split-seq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-split-seq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Split/#t-ByteSplitState" title="Data.Bytes.Split.ByteSplitState">ByteSplitState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-split-seq" title="Permalink">#</a><a href="/library/source/Data.Bytes.Split/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 Begin a fresh persistent traversal over complete input and raw separator buffers.
 
-[Source](/reference-sources/Data.Bytes.Split.cinch) · line 191
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Split.cinch`. Source SHA-256: `2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Split.cinch`](/library/source/Data.Bytes.Split/). Source SHA-256: `2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d`.

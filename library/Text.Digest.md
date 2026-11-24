@@ -2,19 +2,21 @@
 
 Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Digest</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Digest/">View source</a><a href="/library/search/?q=%2BText.Digest">Search module</a><a href="/reference-sources/Text.Digest.cinch" download="Text.Digest.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Digest`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Text.Digest.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Digest`: [Text.Digest](Text.Digest.md).
 
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Text/Digest.cinch ./Text.Digest.cinch
+```
 
-Non-embedded source closure: [Text.Digest](Text.Digest.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Digest: content identity and message authentication over the
 runtime's digest primitives.
@@ -81,107 +83,96 @@ Named refusals (boundaries this module deliberately does not cross):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Digest">Digest</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Digest</strong></code></li><li><a class="syn-name" href="#v-digest-bytes">digest-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">digest-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-digest-hex">digest-hex</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">digest-hex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-digest-length">digest-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">digest-length</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-digest-name">digest-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">digest-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-digest-string">digest-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">digest-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hmac-sha256">hmac-sha256</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hmac-sha256</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-hmac-sha256-hex">hmac-sha256-hex</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hmac-sha256-hex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-446967657374"></a>
+# Types
 
-## `Digest`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Digest</span></code></pre>
+<article class="doc-entry" id="t-Digest">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Digest</strong></code><span class="doc-sig-links"><a href="#t-Digest" title="Permalink">#</a><a href="/library/source/Text.Digest/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 Which algorithm computes the digest. The selector is live: two
 different values disagree on the same input (digest-bytes is the
 algorithm's own output, the module does not normalize it).
 
-[Source](/reference-sources/Text.Digest.cinch) · line 87
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha256</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha512</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestSha1</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DigestMd5</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-DigestSha256"><code><strong class="tok-constructor">DigestSha256</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a></code></li><li id="k-DigestSha512"><code><strong class="tok-constructor">DigestSha512</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a></code></li><li id="k-DigestSha1"><code><strong class="tok-constructor">DigestSha1</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a></code></li><li id="k-DigestMd5"><code><strong class="tok-constructor">DigestMd5</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6469676573742d6279746573"></a>
-
-## `digest-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-digest-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">digest-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-digest-bytes" title="Permalink">#</a><a href="/library/source/Text.Digest/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-body">
 
 The digest of `b` under the named algorithm: content identity, the
 algorithm's own output width (see `digest-length`).
 
-[Source](/reference-sources/Text.Digest.cinch) · line 104
+</div>
+</article>
 
-<a id="value-6469676573742d686578"></a>
-
-## `digest-hex`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-hex</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-digest-hex">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">digest-hex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-digest-hex" title="Permalink">#</a><a href="/library/source/Text.Digest/#L117" title="View source at line 117">Source</a></span></div>
+<div class="doc-body">
 
 The digest of `b` as lower-case hex, two characters per byte (2N
 characters for an N-byte digest).
 
-[Source](/reference-sources/Text.Digest.cinch) · line 117
+</div>
+</article>
 
-<a id="value-6469676573742d6c656e677468"></a>
-
-## `digest-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-length</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-digest-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">digest-length</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-digest-length" title="Permalink">#</a><a href="/library/source/Text.Digest/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-body">
 
 The digest's width in bytes: the length of `digest-bytes`' result
 (so `2 * digest-length d` is the length of `digest-hex`'s).
 
-[Source](/reference-sources/Text.Digest.cinch) · line 131
+</div>
+</article>
 
-<a id="value-6469676573742d6e616d65"></a>
-
-## `digest-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-digest-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">digest-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-digest-name" title="Permalink">#</a><a href="/library/source/Text.Digest/#L122" title="View source at line 122">Source</a></span></div>
+<div class="doc-body">
 
 The algorithm's conventional name (`"sha256"` ...), the accessor a
 report or filename keys on.
 
-[Source](/reference-sources/Text.Digest.cinch) · line 122
+</div>
+</article>
 
-<a id="value-6469676573742d737472696e67"></a>
-
-## `digest-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-string</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Digest</span>.<span class="tok-constructor">Digest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-digest-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">digest-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Digest/#t-Digest" title="Text.Digest.Digest">Digest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-digest-string" title="Permalink">#</a><a href="/library/source/Text.Digest/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-body">
 
 The digest of `s`' UTF-8 encoding (the encode-then-digest law).
 
-[Source](/reference-sources/Text.Digest.cinch) · line 112
+</div>
+</article>
 
-<a id="value-686d61632d736861323536"></a>
-
-## `hmac-sha256`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hmac-sha256</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-hmac-sha256">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hmac-sha256</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-hmac-sha256" title="Permalink">#</a><a href="/library/source/Text.Digest/#L141" title="View source at line 141">Source</a></span></div>
+<div class="doc-body">
 
 HMAC-SHA-256 (RFC 2104) over `message` under `key`: AUTHENTICATION,
 distinct from the plain digests above. The key's bytes are the
 secret; the result is a 32-byte buffer.
 
-[Source](/reference-sources/Text.Digest.cinch) · line 141
+</div>
+</article>
 
-<a id="value-686d61632d7368613235362d686578"></a>
-
-## `hmac-sha256-hex`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hmac-sha256-hex</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-hmac-sha256-hex">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hmac-sha256-hex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-hmac-sha256-hex" title="Permalink">#</a><a href="/library/source/Text.Digest/#L146" title="View source at line 146">Source</a></span></div>
+<div class="doc-body">
 
 The HMAC-SHA-256 tag as lower-case hex (the same rendering as
 `digest-hex`, 64 characters).
 
-[Source](/reference-sources/Text.Digest.cinch) · line 146
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Digest.cinch`. Source SHA-256: `0a0fafd50f72b5471dde4879ac287f4f3d6a7b752619b66ce9ac8a477b543442`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Digest.cinch`](/library/source/Text.Digest/). Source SHA-256: `0a0fafd50f72b5471dde4879ac287f4f3d6a7b752619b66ce9ac8a477b543442`.

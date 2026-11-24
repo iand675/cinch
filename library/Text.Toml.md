@@ -2,19 +2,22 @@
 
 The module's supported TOML parsing/rendering surface and explicit unsupported/malformed cases.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Toml</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Toml/">View source</a><a href="/library/search/?q=%2BText.Toml">Search module</a><a href="/reference-sources/Text.Toml.cinch" download="Text.Toml.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Toml`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Scan](Text.Scan.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Toml.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Toml`: [Text.Scan](Text.Scan.md), [Text.Toml](Text.Toml.md).
 
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Scan](Text.Scan.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Text/Scan.cinch ./Text.Scan.cinch
+cp seed/prelude/Text/Toml.cinch ./Text.Toml.cinch
+```
 
-Non-embedded source closure: [Text.Scan](Text.Scan.md), [Text.Toml](Text.Toml.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Toml: TOML 1.0 text to `Json` values and back, as a subset.
 
@@ -85,13 +88,15 @@ family over the same `Json` shape, and it follows D88's runtime
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-TomlError">TomlError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TomlError</strong></code></li><li><a class="syn-name" href="#v-toml-parse">toml-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">toml-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Toml/#t-TomlError" title="Text.Toml.TomlError">TomlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-toml-print">toml-print</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">toml-print</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Toml/#t-TomlError" title="Text.Toml.TomlError">TomlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-546f6d6c4572726f72"></a>
+# Types
 
-## `TomlError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TomlError</span></code></pre>
+<article class="doc-entry" id="t-TomlError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TomlError</strong></code><span class="doc-sig-links"><a href="#t-TomlError" title="Permalink">#</a><a href="/library/source/Text.Toml/#L100" title="View source at line 100">Source</a></span></div>
+<div class="doc-body">
 
 A lexical or grammatical failure: the source line it stands at plus
 a human message.
@@ -100,37 +105,26 @@ An out-of-scope date-time or time value (the line it started on).
 A value TOML cannot spell: `JNull`, or a non-table document root,
 with the reason.
 
-[Source](/reference-sources/Text.Toml.cinch) · line 100
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlDuplicateKey</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlDateTime</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TomlNotRepresentable</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TomlSyntax"><code><strong class="tok-constructor">TomlSyntax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Toml/#t-TomlError" title="Text.Toml.TomlError">TomlError</a></code></li><li id="k-TomlDuplicateKey"><code><strong class="tok-constructor">TomlDuplicateKey</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Toml/#t-TomlError" title="Text.Toml.TomlError">TomlError</a></code></li><li id="k-TomlDateTime"><code><strong class="tok-constructor">TomlDateTime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Toml/#t-TomlError" title="Text.Toml.TomlError">TomlError</a></code></li><li id="k-TomlNotRepresentable"><code><strong class="tok-constructor">TomlNotRepresentable</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Toml/#t-TomlError" title="Text.Toml.TomlError">TomlError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-746f6d6c2d7061727365"></a>
+<article class="doc-entry" id="v-toml-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">toml-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Toml/#t-TomlError" title="Text.Toml.TomlError">TomlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-toml-parse" title="Permalink">#</a><a href="/library/source/Text.Toml/#L1128" title="View source at line 1128">Source</a></span></div>
+</article>
 
-## `toml-parse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">toml-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))</code></pre>
-
-[Source](/reference-sources/Text.Toml.cinch)
-
-<a id="value-746f6d6c2d7072696e74"></a>
-
-## `toml-print`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">toml-print</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Toml</span>.<span class="tok-constructor">TomlError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-toml-print">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">toml-print</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Toml/#t-TomlError" title="Text.Toml.TomlError">TomlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-toml-print" title="Permalink">#</a><a href="/library/source/Text.Toml/#L1140" title="View source at line 1140">Source</a></span></div>
+<div class="doc-body">
 
 Printing (total, deterministic; emission order stated in the
 header).
 
-[Source](/reference-sources/Text.Toml.cinch) · line 1140
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Toml.cinch`. Source SHA-256: `a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Toml.cinch`](/library/source/Text.Toml/). Source SHA-256: `a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce`.

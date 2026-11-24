@@ -117,6 +117,6 @@ repository = 'https://github.com/iand675/cinch'
 for file in [root/'index.html',root/'downloads/index.html',root/'packages/index.html']:
     assert repository in page(file).links
     assert '/downloads/' in page(file).links and '/packages/' in page(file).links
-for file in (root/'tutorials').rglob('*.html'):
+for file in (root/'learn').rglob('*.html'):
     assert repository in page(file).links and '/downloads/' in page(file).links and '/packages/' in page(file).links
 print(f'Checked {len(pages)} package/download pages, {links} local links, catalogue routes, nightly download wiring, and shared navigation.')

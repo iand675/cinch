@@ -2,19 +2,21 @@
 
 Matrix construction, shape checks, indexing, transformation, and arithmetic operations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Matrix</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Matrix/">View source</a><a href="/library/search/?q=%2BData.Matrix">Search module</a><a href="/reference-sources/Data.Matrix.cinch" download="Data.Matrix.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Matrix`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Data.Matrix.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Matrix`: [Data.Matrix](Data.Matrix.md).
 
-[Data.Bool](Data.Bool.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+```sh
+cp seed/prelude/Data/Matrix.cinch ./Data.Matrix.cinch
+```
 
-Non-embedded source closure: [Data.Matrix](Data.Matrix.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Matrix: dense `F64` matrices, dimensions checked at every
 operation.
@@ -67,176 +69,118 @@ Named refusals (boundaries this module deliberately does not cross):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (17 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Matrix">Matrix</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Matrix</strong></code></li><li><a class="syn-name" href="#t-MatrixError">MatrixError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MatrixError</strong></code></li><li><a class="syn-name" href="#v-add">add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code></li><li><a class="syn-name" href="#v-at">at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-cols">cols</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cols</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-determinant">determinant</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">determinant</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-equals">equals</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">equals</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-equals-within">equals-within</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">equals-within</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-identity">identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">identity</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code></li><li><a class="syn-name" href="#v-matrix">matrix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">matrix</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code></li><li><a class="syn-name" href="#v-mul">mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mul</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code></li><li><a class="syn-name" href="#v-mul-vector">mul-vector</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mul-vector</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>)</code></li><li><a class="syn-name" href="#v-rows">rows</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rows</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-scale">scale</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scale</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code></li><li><a class="syn-name" href="#v-sub">sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code></li><li><a class="syn-name" href="#v-to-string">to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-transpose">transpose</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">transpose</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code></li></ul>
+</details>
 
-<a id="type-4d6174726978"></a>
+# Types
 
-## `Matrix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Matrix</span></code></pre>
+<article class="doc-entry" id="t-Matrix">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Matrix</strong></code><span class="doc-sig-links"><a href="#t-Matrix" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 The dense matrix: the dimensions and the row-major rows. The
 constructor is module-private (the ragged invariant lives at
 `matrix`, so no other value can exist ragged).
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 65
+</div>
+</article>
 
-<a id="type-4d61747269784572726f72"></a>
-
-## `MatrixError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MatrixError</span></code></pre>
+<article class="doc-entry" id="t-MatrixError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MatrixError</strong></code><span class="doc-sig-links"><a href="#t-MatrixError" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 The named errors; every shape violation is one of these, never a
 wrong-shaped result.
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 70
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RaggedRows</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>)))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DimensionMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>))))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">VectorMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IndexOutOfRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>))))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotSquare</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-RaggedRows"><code><strong class="tok-constructor">RaggedRows</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a></code></li><li id="k-DimensionMismatch"><code><strong class="tok-constructor">DimensionMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a></code></li><li id="k-VectorMismatch"><code><strong class="tok-constructor">VectorMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a></code></li><li id="k-IndexOutOfRange"><code><strong class="tok-constructor">IndexOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a></code></li><li id="k-NotSquare"><code><strong class="tok-constructor">NotSquare</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-616464"></a>
+<article class="doc-entry" id="v-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code><span class="doc-sig-links"><a href="#v-add" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L205" title="View source at line 205">Source</a></span></div>
+</article>
 
-## `add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-6174"></a>
-
-## `at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">F64</span>))))</code></pre>
+<article class="doc-entry" id="v-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-at" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-body">
 
 The cell, or a named `IndexOutOfRange`. Both indices are
 zero-based; the guard makes `row-of`/`element-of` total so their
 fallback is never observed.
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 180
+</div>
+</article>
 
-<a id="value-636f6c73"></a>
+<article class="doc-entry" id="v-cols">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cols</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-cols" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L91" title="View source at line 91">Source</a></span></div>
+</article>
 
-## `cols`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cols</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-64657465726d696e616e74"></a>
-
-## `determinant`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">determinant</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">F64</span>))</code></pre>
+<article class="doc-entry" id="v-determinant">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">determinant</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-determinant" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L275" title="View source at line 275">Source</a></span></div>
+<div class="doc-body">
 
 Cofactor expansion along the first row (see the header: O(n!) time,
 each minor rebuild O(n^2)). A non-square matrix is refused before
 any expansion.
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 275
+</div>
+</article>
 
-<a id="value-657175616c73"></a>
+<article class="doc-entry" id="v-equals">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">equals</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-equals" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L317" title="View source at line 317">Source</a></span></div>
+</article>
 
-## `equals`
+<article class="doc-entry" id="v-equals-within">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">equals-within</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-equals-within" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L344" title="View source at line 344">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">equals</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">identity</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code><span class="doc-sig-links"><a href="#v-identity" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L260" title="View source at line 260">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-657175616c732d77697468696e"></a>
-
-## `equals-within`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">equals-within</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-6964656e74697479"></a>
-
-## `identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">identity</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-6d6174726978"></a>
-
-## `matrix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">matrix</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>))</code></pre>
+<article class="doc-entry" id="v-matrix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">matrix</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code><span class="doc-sig-links"><a href="#v-matrix" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L162" title="View source at line 162">Source</a></span></div>
+<div class="doc-body">
 
 Construct a matrix from its rows: the first row fixes the width
 and every later row must match it. Ragged input is refused here,
 before any value exists, so `at`/`rows`/`cols` never see a ragged
 matrix. An empty row list is the 0x0 matrix.
 
-[Source](/reference-sources/Data.Matrix.cinch) · line 162
+</div>
+</article>
 
-<a id="value-6d756c"></a>
+<article class="doc-entry" id="v-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mul</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code><span class="doc-sig-links"><a href="#v-mul" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L239" title="View source at line 239">Source</a></span></div>
+</article>
 
-## `mul`
+<article class="doc-entry" id="v-mul-vector">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mul-vector</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>)</code><span class="doc-sig-links"><a href="#v-mul-vector" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L250" title="View source at line 250">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)))</code></pre>
+<article class="doc-entry" id="v-rows">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rows</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-rows" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L87" title="View source at line 87">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Matrix.cinch)
+<article class="doc-entry" id="v-scale">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scale</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code><span class="doc-sig-links"><a href="#v-scale" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L217" title="View source at line 217">Source</a></span></div>
+</article>
 
-<a id="value-6d756c2d766563746f72"></a>
+<article class="doc-entry" id="v-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-MatrixError" title="Data.Matrix.MatrixError">MatrixError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code><span class="doc-sig-links"><a href="#v-sub" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L211" title="View source at line 211">Source</a></span></div>
+</article>
 
-## `mul-vector`
+<article class="doc-entry" id="v-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-to-string" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L398" title="View source at line 398">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul-vector</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">F64</span>))))</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-726f7773"></a>
-
-## `rows`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rows</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-7363616c65"></a>
-
-## `scale`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scale</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>))</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-737562"></a>
-
-## `sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">MatrixError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-746f2d737472696e67"></a>
-
-## `to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
-
-<a id="value-7472616e73706f7365"></a>
-
-## `transpose`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">transpose</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Matrix</span>.<span class="tok-constructor">Matrix</span>)</code></pre>
-
-[Source](/reference-sources/Data.Matrix.cinch)
+<article class="doc-entry" id="v-transpose">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">transpose</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code><span class="doc-sig-links"><a href="#v-transpose" title="Permalink">#</a><a href="/library/source/Data.Matrix/#L256" title="View source at line 256">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Matrix.cinch`. Source SHA-256: `1c0d2056a1a83186275ef0506d0df7d884ffb167771c00609e076874c88d6688`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Matrix.cinch`](/library/source/Data.Matrix/). Source SHA-256: `1c0d2056a1a83186275ef0506d0df7d884ffb167771c00609e076874c88d6688`.

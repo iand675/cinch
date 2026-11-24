@@ -2,19 +2,21 @@
 
 Coverage collection/reporting utilities with explicit runtime and source metadata.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Coverage</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Coverage/">View source</a><a href="/library/search/?q=%2BEffect.Coverage">Search module</a><a href="/reference-sources/Effect.Coverage.cinch" download="Effect.Coverage.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Coverage`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.List](Data.List.md), [Data.Map](Data.Map.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Effect.Coverage.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Coverage`: [Effect.Coverage](Effect.Coverage.md).
 
-[Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.List](Data.List.md), [Data.Map](Data.Map.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Effect/Coverage.cinch ./Effect.Coverage.cinch
+```
 
-Non-embedded source closure: [Effect.Coverage](Effect.Coverage.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Coverage: the coverage recorder (Ruby's `Coverage`, the
 recorder half).
@@ -93,77 +95,73 @@ NAMED REFUSALS (boundaries this module deliberately does not cross):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (7 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Coverage">Coverage</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Coverage</strong></code></li><li><a class="syn-name" href="#v-coverage-counts">coverage-counts</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">coverage-counts</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-coverage-hit">coverage-hit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">coverage-hit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a></code></li><li><a class="syn-name" href="#v-coverage-merge">coverage-merge</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">coverage-merge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a></code></li><li><a class="syn-name" href="#v-coverage-new">coverage-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">coverage-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a></code></li><li><a class="syn-name" href="#v-coverage-report">coverage-report</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">coverage-report</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-coverage-total">coverage-total</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">coverage-total</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-<a id="type-436f766572616765"></a>
+# Types
 
-## `Coverage`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Coverage</span></code></pre>
+<article class="doc-entry" id="t-Coverage">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Coverage</strong></code><span class="doc-sig-links"><a href="#t-Coverage" title="Permalink">#</a><a href="/library/source/Effect.Coverage/#L93" title="View source at line 93">Source</a></span></div>
+<div class="doc-body">
 
 The recorder: hit counts keyed by site label. The tree is the
 `Data.Map` ordered map, so a hit is a lookup plus an insert and
 `coverage-counts` is the map's in-order walk.
 
-[Source](/reference-sources/Effect.Coverage.cinch) · line 93
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Coverage</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">Map</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Coverage"><code><strong class="tok-constructor">Coverage</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Map/#t-Map" title="Data.Map.Map">Map</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-636f7665726167652d636f756e7473"></a>
-
-## `coverage-counts`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-counts</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-coverage-counts">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">coverage-counts</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-coverage-counts" title="Permalink">#</a><a href="/library/source/Effect.Coverage/#L116" title="View source at line 116">Source</a></span></div>
+<div class="doc-body">
 
 Every site with its count, in ascending label order: the in-order
 walk of the search tree, so the order is byte-wise on the label
 (the `Ord String` the map is built over), independent of the order
 the hits arrived in.
 
-[Source](/reference-sources/Effect.Coverage.cinch) · line 116
+</div>
+</article>
 
-<a id="value-636f7665726167652d686974"></a>
-
-## `coverage-hit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-hit</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span>))</code></pre>
+<article class="doc-entry" id="v-coverage-hit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">coverage-hit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a></code><span class="doc-sig-links"><a href="#v-coverage-hit" title="Permalink">#</a><a href="/library/source/Effect.Coverage/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-body">
 
 Record one hit at `site`: the counter goes up by one, and a site
 not seen before starts at one. This is the one call a generated
 instrumentation makes per instrumented site.
 
-[Source](/reference-sources/Effect.Coverage.cinch) · line 103
+</div>
+</article>
 
-<a id="value-636f7665726167652d6d65726765"></a>
-
-## `coverage-merge`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-merge</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span>))</code></pre>
+<article class="doc-entry" id="v-coverage-merge">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">coverage-merge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a></code><span class="doc-sig-links"><a href="#v-coverage-merge" title="Permalink">#</a><a href="/library/source/Effect.Coverage/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 Combine two recorders: the counts at equal labels add, and a label
 present in only one side keeps its count. The identity element is
 `coverage-new` and the operation is associative (the header's law
 shape; the test checks both over sample recorders).
 
-[Source](/reference-sources/Effect.Coverage.cinch) · line 159
+</div>
+</article>
 
-<a id="value-636f7665726167652d6e6577"></a>
-
-## `coverage-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-new</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span></code></pre>
+<article class="doc-entry" id="v-coverage-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">coverage-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a></code><span class="doc-sig-links"><a href="#v-coverage-new" title="Permalink">#</a><a href="/library/source/Effect.Coverage/#L97" title="View source at line 97">Source</a></span></div>
+<div class="doc-body">
 
 A recorder with no hits (the merge identity).
 
-[Source](/reference-sources/Effect.Coverage.cinch) · line 97
+</div>
+</article>
 
-<a id="value-636f7665726167652d7265706f7274"></a>
-
-## `coverage-report`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-report</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-coverage-report">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">coverage-report</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-coverage-report" title="Permalink">#</a><a href="/library/source/Effect.Coverage/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 The report: one line per site, `label` TAB count NEWLINE, then a
 final `total` TAB total NEWLINE. An empty recorder is the total
@@ -171,18 +169,18 @@ line alone (`total\t0\n`), with no site lines.
 The lines are combined once by `mconcat` (String's is one buffer);
 nesting `<>` would re-copy the rest of the report at every site.
 
-[Source](/reference-sources/Effect.Coverage.cinch) · line 140
+</div>
+</article>
 
-<a id="value-636f7665726167652d746f74616c"></a>
-
-## `coverage-total`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">coverage-total</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Coverage</span>.<span class="tok-constructor">Coverage</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-coverage-total">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">coverage-total</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Coverage/#t-Coverage" title="Effect.Coverage.Coverage">Coverage</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-coverage-total" title="Permalink">#</a><a href="/library/source/Effect.Coverage/#L126" title="View source at line 126">Source</a></span></div>
+<div class="doc-body">
 
 The sum of every count: the number of hits recorded.
 
-[Source](/reference-sources/Effect.Coverage.cinch) · line 126
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Coverage.cinch`. Source SHA-256: `b915528a23ac1a11bf8d7223ba1fbf87c1cc1bfd19ce2e38a0e59a1f8858ef62`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Coverage.cinch`](/library/source/Effect.Coverage/). Source SHA-256: `b915528a23ac1a11bf8d7223ba1fbf87c1cc1bfd19ce2e38a0e59a1f8858ef62`.

@@ -2,19 +2,24 @@
 
 Hexadecimal encoding writers, decoding readers and formatted dump sinks with explicit continuations and sticky errors.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Hex</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Hex/">View source</a><a href="/library/search/?q=%2BEffect.Hex">Search module</a><a href="/reference-sources/Effect.Hex.cinch" download="Effect.Hex.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Hex`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Hex](Text.Hex.md).
 
-[Download exact module source](/reference-sources/Effect.Hex.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Hex`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Hex](Effect.Hex.md), [Effect.Stream](Effect.Stream.md), [Text.Hex](Text.Hex.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Hex](Text.Hex.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Effect/Hex.cinch ./Effect.Hex.cinch
+cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
+cp seed/prelude/Text/Hex.cinch ./Text.Hex.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Hex](Effect.Hex.md), [Effect.Stream](Effect.Stream.md), [Text.Hex](Text.Hex.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Hexadecimal encoding writers, decoding readers and formatted dump sinks.
 Every operation returns its advanced continuation, including after failure.
@@ -25,126 +30,119 @@ No adapter closes or flushes its underlying descriptor or sink.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (11 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-HexDumper">HexDumper</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HexDumper</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#t-HexWriter">HexWriter</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HexWriter</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-hex-dump-finish">hex-dump-finish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-dump-finish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-hex-dump-write">hex-dump-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-dump-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-hex-dumper">hex-dumper</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-dumper</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-hex-dumper-sink">hex-dumper-sink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-dumper-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-hex-encoding-writer">hex-encoding-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-encoding-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-hex-reader">hex-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-hex-write">hex-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexWriter" title="Effect.Hex.HexWriter">HexWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexWriter" title="Effect.Hex.HexWriter">HexWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-hex-writer">hex-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexWriter" title="Effect.Hex.HexWriter">HexWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-hex-writer-sink">hex-writer-sink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">hex-writer-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexWriter" title="Effect.Hex.HexWriter">HexWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li></ul>
+</details>
 
-<a id="type-48657844756d706572"></a>
+# Types
 
-## `HexDumper`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HexDumper</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-HexDumper">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HexDumper</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-HexDumper" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-body">
 
 A formatted dump continuation with at most fifteen pending input bytes.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 123
+</div>
+</article>
 
-<a id="type-486578577269746572"></a>
-
-## `HexWriter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HexWriter</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-HexWriter">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HexWriter</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-HexWriter" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 An explicitly advanced hexadecimal encoding sink with sticky failure state.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 23
+</div>
+</article>
 
 # Values
 
-<a id="value-6865782d64756d702d66696e697368"></a>
-
-## `hex-dump-finish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-dump-finish</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexDumper</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Unit</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexDumper</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-hex-dump-finish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-dump-finish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-hex-dump-finish" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 Flush the final partial row and retain a finished handle. This operation is idempotent.
 It does not flush or close the underlying sink; inspect that sink separately when needed.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 167
+</div>
+</article>
 
-<a id="value-6865782d64756d702d7772697465"></a>
-
-## `hex-dump-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-dump-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexDumper</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexDumper</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-hex-dump-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-dump-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-hex-dump-write" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L144" title="View source at line 144">Source</a></span></div>
+<div class="doc-body">
 
 Emit completed rows and snapshot the unfinished tail. Report accepted input bytes on success.
 Finished handles reject writes with StreamClosed; output failures preserve their advanced sink.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 144
+</div>
+</article>
 
-<a id="value-6865782d64756d706572"></a>
-
-## `hex-dumper`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-dumper</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexDumper</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-hex-dumper">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-dumper</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-hex-dumper" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 Begin a hexadecimal dump whose first row starts at offset zero.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 132
+</div>
+</article>
 
-<a id="value-6865782d64756d7065722d73696e6b"></a>
-
-## `hex-dumper-sink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-dumper-sink</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexDumper</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-hex-dumper-sink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-dumper-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexDumper" title="Effect.Hex.HexDumper">HexDumper</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-hex-dumper-sink" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L136" title="View source at line 136">Source</a></span></div>
+<div class="doc-body">
 
 Inspect output already accepted by the underlying dump sink, including after errors or finish.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 136
+</div>
+</article>
 
-<a id="value-6865782d656e636f64696e672d777269746572"></a>
-
-## `hex-encoding-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-encoding-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-hex-encoding-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-encoding-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-hex-encoding-writer" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 Expose an encoding sink through the generic byte-writer protocol for composition.
 Use the explicit HexWriter interface when the advanced underlying sink must be inspected.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 50
+</div>
+</article>
 
-<a id="value-6865782d726561646572"></a>
-
-## `hex-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-hex-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-reader</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-hex-reader" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 Decode a source in bounded 4096-byte input chunks, accepting either hexadecimal case.
 Completed bytes precede any error. Zero reads do not advance the source; an unmatched
 final digit reports StreamUnexpectedEnd 2 1. Invalid offsets count original input bytes.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 87
+</div>
+</article>
 
-<a id="value-6865782d7772697465"></a>
-
-## `hex-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexWriter</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-hex-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexWriter" title="Effect.Hex.HexWriter">HexWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexWriter" title="Effect.Hex.HexWriter">HexWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-hex-write" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 Write all encoded output, retrying short writes, and report accepted input bytes.
 On error the returned writer preserves the advanced sink and will not replay output.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 41
+</div>
+</article>
 
-<a id="value-6865782d777269746572"></a>
-
-## `hex-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-hex-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexWriter" title="Effect.Hex.HexWriter">HexWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-hex-writer" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 Begin writing lowercase hexadecimal bytes to a sink. No final flush is required.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 30
+</div>
+</article>
 
-<a id="value-6865782d7772697465722d73696e6b"></a>
-
-## `hex-writer-sink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hex-writer-sink</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Hex</span>.<span class="tok-constructor">HexWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-hex-writer-sink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hex-writer-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Hex/#t-HexWriter" title="Effect.Hex.HexWriter">HexWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-hex-writer-sink" title="Permalink">#</a><a href="/library/source/Effect.Hex/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 Inspect the advanced underlying sink, including after a failed encoded write.
 
-[Source](/reference-sources/Effect.Hex.cinch) · line 34
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Hex.cinch`. Source SHA-256: `e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Hex.cinch`](/library/source/Effect.Hex/). Source SHA-256: `e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b`.

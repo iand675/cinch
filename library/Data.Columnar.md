@@ -2,95 +2,66 @@
 
 Columnar leaves over typed arrays, zipped into nested pairs that share their buffers. A length mismatch is None.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Columnar</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Columnar/">View source</a><a href="/library/search/?q=%2BData.Columnar">Search module</a><a href="/reference-sources/Data.Columnar.cinch" download="Data.Columnar.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Columnar`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Array](Data.Array.md), [Data.Core](Data.Core.md).
 
-[Download exact module source](/reference-sources/Data.Columnar.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Columnar`: [Data.Array](Data.Array.md), [Data.Columnar](Data.Columnar.md).
 
-[Data.Array](Data.Array.md), [Data.Core](Data.Core.md).
+```sh
+cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
+cp seed/prelude/Data/Columnar.cinch ./Data.Columnar.cinch
+```
 
-Non-embedded source closure: [Data.Array](Data.Array.md), [Data.Columnar](Data.Columnar.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 A leaf is one typed array. Zip composes any number of heterogeneous
 columns as nested pairs, sharing their buffers. Length mismatch is None.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-columnar-array">columnar-array</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">columnar-array</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-columnar-column">columnar-column</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">columnar-column</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-columnar-columns">columnar-columns</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">columnar-columns</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-columnar-get">columnar-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">columnar-get</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-columnar-left">columnar-left</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">columnar-left</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-columnar-right">columnar-right</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">columnar-right</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span>)</code></li><li><a class="syn-name" href="#v-columnar-rows">columnar-rows</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">columnar-rows</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-columnar-zip">columnar-zip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">columnar-zip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>))</code></li></ul>
+</details>
 
 # Values
 
-<a id="value-636f6c756d6e61722d6172726179"></a>
+<article class="doc-entry" id="v-columnar-array">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-array</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-columnar-array" title="Permalink">#</a><a href="/library/source/Data.Columnar/#L17" title="View source at line 17">Source</a></span></div>
+</article>
 
-## `columnar-array`
+<article class="doc-entry" id="v-columnar-column">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-column</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-columnar-column" title="Permalink">#</a><a href="/library/source/Data.Columnar/#L8" title="View source at line 8">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-array</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-columnar-columns">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-columns</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-columnar-columns" title="Permalink">#</a><a href="/library/source/Data.Columnar/#L11" title="View source at line 11">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Columnar.cinch)
+<article class="doc-entry" id="v-columnar-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-get</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-columnar-get" title="Permalink">#</a><a href="/library/source/Data.Columnar/#L12" title="View source at line 12">Source</a></span></div>
+</article>
 
-<a id="value-636f6c756d6e61722d636f6c756d6e"></a>
+<article class="doc-entry" id="v-columnar-left">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-left</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-columnar-left" title="Permalink">#</a><a href="/library/source/Data.Columnar/#L15" title="View source at line 15">Source</a></span></div>
+</article>
 
-## `columnar-column`
+<article class="doc-entry" id="v-columnar-right">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-right</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span>)</code><span class="doc-sig-links"><a href="#v-columnar-right" title="Permalink">#</a><a href="/library/source/Data.Columnar/#L16" title="View source at line 16">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-column</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-columnar-rows">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-rows</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-columnar-rows" title="Permalink">#</a><a href="/library/source/Data.Columnar/#L10" title="View source at line 10">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Columnar.cinch)
-
-<a id="value-636f6c756d6e61722d636f6c756d6e73"></a>
-
-## `columnar-columns`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-columns</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Columnar.cinch)
-
-<a id="value-636f6c756d6e61722d676574"></a>
-
-## `columnar-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Columnar.cinch)
-
-<a id="value-636f6c756d6e61722d6c656674"></a>
-
-## `columnar-left`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-left</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Columnar.cinch)
-
-<a id="value-636f6c756d6e61722d7269676874"></a>
-
-## `columnar-right`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-right</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Columnar.cinch)
-
-<a id="value-636f6c756d6e61722d726f7773"></a>
-
-## `columnar-rows`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-rows</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Columnar.cinch)
-
-<a id="value-636f6c756d6e61722d7a6970"></a>
-
-## `columnar-zip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">columnar-zip</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)))))</code></pre>
-
-[Source](/reference-sources/Data.Columnar.cinch)
+<article class="doc-entry" id="v-columnar-zip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-zip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>))</code><span class="doc-sig-links"><a href="#v-columnar-zip" title="Permalink">#</a><a href="/library/source/Data.Columnar/#L9" title="View source at line 9">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Columnar.cinch`. Source SHA-256: `20bf82a9abeddc35eb4abd3c3c6a91d9ee66b40d18848eb40ab674552bbc6506`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Columnar.cinch`](/library/source/Data.Columnar/). Source SHA-256: `20bf82a9abeddc35eb4abd3c3c6a91d9ee66b40d18848eb40ab674552bbc6506`.

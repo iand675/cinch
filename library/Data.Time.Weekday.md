@@ -2,19 +2,21 @@
 
 The seven days of the week with ordering and offset arithmetic.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Weekday</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Time.Weekday/">View source</a><a href="/library/search/?q=%2BData.Time.Weekday">Search module</a><a href="/reference-sources/Data.Time.Weekday.cinch" download="Data.Time.Weekday.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Time.Weekday`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.Weekday.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Time.Weekday`: [Data.Time.Weekday](Data.Time.Weekday.md).
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
+```
 
-Non-embedded source closure: [Data.Time.Weekday](Data.Time.Weekday.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time.Weekday: the seven days of the week.
 
@@ -61,197 +63,153 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (17 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Weekday">Weekday</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Weekday</strong></code></li><li><a class="syn-name" href="#v-add-days">add-days</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add-days</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-cmp">cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-days-since">days-since</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">days-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-days-until">days-until</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">days-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-from-monday-one">from-monday-one</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-monday-one</strong> :: (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 7 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-from-monday-one-checked">from-monday-one-checked</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-monday-one-checked</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-from-monday-zero">from-monday-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-monday-zero</strong> :: (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 6 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-from-monday-zero-checked">from-monday-zero-checked</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-monday-zero-checked</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-from-sunday-zero">from-sunday-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-sunday-zero</strong> :: (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 6 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-from-sunday-zero-checked">from-sunday-zero-checked</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-sunday-zero-checked</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-is-weekend">is-weekend</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-weekend</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-next">next</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">next</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-previous">previous</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">previous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li><a class="syn-name" href="#v-to-monday-one">to-monday-one</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-monday-one</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 7 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-to-monday-zero">to-monday-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-monday-zero</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 6 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-to-sunday-zero">to-sunday-zero</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-sunday-zero</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 6 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li></ul>
+</details>
 
-<a id="type-5765656b646179"></a>
+# Types
 
-## `Weekday`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Weekday</span></code></pre>
-
-[Source](/reference-sources/Data.Time.Weekday.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Monday</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Tuesday</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Wednesday</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Thursday</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Friday</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Saturday</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Sunday</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span></code></pre>
+<article class="doc-entry" id="t-Weekday">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Weekday</strong></code><span class="doc-sig-links"><a href="#t-Weekday" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L60" title="View source at line 60">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Monday"><code><strong class="tok-constructor">Monday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li id="k-Tuesday"><code><strong class="tok-constructor">Tuesday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li id="k-Wednesday"><code><strong class="tok-constructor">Wednesday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li id="k-Thursday"><code><strong class="tok-constructor">Thursday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li id="k-Friday"><code><strong class="tok-constructor">Friday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li id="k-Saturday"><code><strong class="tok-constructor">Saturday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li><li id="k-Sunday"><code><strong class="tok-constructor">Sunday</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.Weekday/#instances">Data.Time.Weekday</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.Weekday/#instances">Data.Time.Weekday</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6164642d64617973"></a>
-
-## `add-days`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add-days</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>))</code></pre>
+<article class="doc-entry" id="v-add-days">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add-days</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-add-days" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-body">
 
 `n` days after `d` (before it for a negative `n`), for every
 `I64`. Overflow argument: `n` is first reduced to its truncated
 remainder modulo 7, in -6..=6; adding the weekday's offset (0..=6)
 and 7 gives 1..=19, so the wrapping additions never wrap.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 180
+</div>
+</article>
 
-<a id="value-636d70"></a>
-
-## `cmp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
+<article class="doc-entry" id="v-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-cmp" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 The ISO order: Monday first, Sunday last.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 205
+</div>
+</article>
 
-<a id="value-646179732d73696e6365"></a>
-
-## `days-since`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">days-since</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-days-since">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">days-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-days-since" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L195" title="View source at line 195">Source</a></span></div>
+<div class="doc-body">
 
 The backward distance from `a` to `b`, in 0..=6: the number of
 times `previous` must be applied to `a` to reach `b`.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 195
+</div>
+</article>
 
-<a id="value-646179732d756e74696c"></a>
-
-## `days-until`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">days-until</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-days-until">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">days-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-days-until" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-body">
 
 The forward distance from `a` to `b`, in 0..=6: the number of
 times `next` must be applied to `a` to reach `b`. Both offsets
 are in 0..=6, so the difference is in -6..=6 and nothing wraps.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 188
+</div>
+</article>
 
-<a id="value-66726f6d2d6d6f6e6461792d6f6e65"></a>
-
-## `from-monday-one`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-monday-one</span> :: ((<span class="tok-variable">n</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">1</span> <span class="tok-number">7</span> <span class="tok-constructor">I64</span>)) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>)</code></pre>
+<article class="doc-entry" id="v-from-monday-one">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-monday-one</strong> :: (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 7 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-from-monday-one" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 Total over the refined argument: the last arm is the range's last
 value (7), not an impossible case.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 108
+</div>
+</article>
 
-<a id="value-66726f6d2d6d6f6e6461792d6f6e652d636865636b6564"></a>
-
-## `from-monday-one-checked`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-monday-one-checked</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>))</code></pre>
+<article class="doc-entry" id="v-from-monday-one-checked">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-monday-one-checked</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-from-monday-one-checked" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 The readers for an unrefined `I64`: `None` exactly outside the
 numbering's range.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 140
+</div>
+</article>
 
-<a id="value-66726f6d2d6d6f6e6461792d7a65726f"></a>
+<article class="doc-entry" id="v-from-monday-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-monday-zero</strong> :: (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 6 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-from-monday-zero" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L118" title="View source at line 118">Source</a></span></div>
+</article>
 
-## `from-monday-zero`
+<article class="doc-entry" id="v-from-monday-zero-checked">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-monday-zero-checked</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-from-monday-zero-checked" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L144" title="View source at line 144">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-monday-zero</span> :: ((<span class="tok-variable">n</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">6</span> <span class="tok-constructor">I64</span>)) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>)</code></pre>
+<article class="doc-entry" id="v-from-sunday-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-sunday-zero</strong> :: (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 6 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-from-sunday-zero" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L128" title="View source at line 128">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Weekday.cinch)
+<article class="doc-entry" id="v-from-sunday-zero-checked">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-sunday-zero-checked</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-from-sunday-zero-checked" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L148" title="View source at line 148">Source</a></span></div>
+</article>
 
-<a id="value-66726f6d2d6d6f6e6461792d7a65726f2d636865636b6564"></a>
+<article class="doc-entry" id="v-is-weekend">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-weekend</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-weekend" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L198" title="View source at line 198">Source</a></span></div>
+</article>
 
-## `from-monday-zero-checked`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-monday-zero-checked</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Weekday.cinch)
-
-<a id="value-66726f6d2d73756e6461792d7a65726f"></a>
-
-## `from-sunday-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-sunday-zero</span> :: ((<span class="tok-variable">n</span> :: (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">6</span> <span class="tok-constructor">I64</span>)) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Weekday.cinch)
-
-<a id="value-66726f6d2d73756e6461792d7a65726f2d636865636b6564"></a>
-
-## `from-sunday-zero-checked`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-sunday-zero-checked</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Weekday.cinch)
-
-<a id="value-69732d7765656b656e64"></a>
-
-## `is-weekend`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-weekend</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Weekday.cinch)
-
-<a id="value-6e657874"></a>
-
-## `next`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">next</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>)</code></pre>
+<article class="doc-entry" id="v-next">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">next</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-next" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L156" title="View source at line 156">Source</a></span></div>
+<div class="doc-body">
 
 The cycle.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 156
+</div>
+</article>
 
-<a id="value-70726576696f7573"></a>
+<article class="doc-entry" id="v-previous">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">previous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code><span class="doc-sig-links"><a href="#v-previous" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L166" title="View source at line 166">Source</a></span></div>
+</article>
 
-## `previous`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">previous</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Weekday.cinch)
-
-<a id="value-746f2d6d6f6e6461792d6f6e65"></a>
-
-## `to-monday-one`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-monday-one</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">1</span> <span class="tok-number">7</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-to-monday-one">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-monday-one</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 1 7 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-to-monday-one" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L74" title="View source at line 74">Source</a></span></div>
+<div class="doc-body">
 
 ISO 8601: Monday = 1 .. Sunday = 7.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 74
+</div>
+</article>
 
-<a id="value-746f2d6d6f6e6461792d7a65726f"></a>
-
-## `to-monday-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-monday-zero</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">6</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-to-monday-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-monday-zero</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 6 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-to-monday-zero" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L85" title="View source at line 85">Source</a></span></div>
+<div class="doc-body">
 
 Monday = 0 .. Sunday = 6: the days elapsed since Monday.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 85
+</div>
+</article>
 
-<a id="value-746f2d73756e6461792d7a65726f"></a>
-
-## `to-sunday-zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-sunday-zero</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Weekday</span>.<span class="tok-constructor">Weekday</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">6</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-to-sunday-zero">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-sunday-zero</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 6 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-to-sunday-zero" title="Permalink">#</a><a href="/library/source/Data.Time.Weekday/#L96" title="View source at line 96">Source</a></span></div>
+<div class="doc-body">
 
 C's `tm_wday`: Sunday = 0 .. Saturday = 6.
 
-[Source](/reference-sources/Data.Time.Weekday.cinch) · line 96
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Time.Weekday.Eq_Weekday` | `Relation.Eq.Eq Data.Time.Weekday.Weekday` | Implicit |
-| `Data.Time.Weekday.Ord_Weekday` | `Relation.Ord.Ord Data.Time.Weekday.Weekday` | Implicit |
+<ul class="doc-module-instances">
+<li id="i-Eq_Weekday"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Weekday.Eq_Weekday</code></span></li>
+<li id="i-Ord_Weekday"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Weekday.Ord_Weekday</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/Weekday.cinch`. Source SHA-256: `5f0d65473156ec4f948989a0a1bf99b155c644495f8d29da28f5b31e0e6ddaf8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Weekday.cinch`](/library/source/Data.Time.Weekday/). Source SHA-256: `5f0d65473156ec4f948989a0a1bf99b155c644495f8d29da28f5b31e0e6ddaf8`.

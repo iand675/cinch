@@ -2,19 +2,22 @@
 
 Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.QuotedPrintable</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.QuotedPrintable/">View source</a><a href="/library/search/?q=%2BText.QuotedPrintable">Search module</a><a href="/reference-sources/Text.QuotedPrintable.cinch" download="Text.QuotedPrintable.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.QuotedPrintable`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.QuotedPrintable.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.QuotedPrintable`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
 
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/QuotedPrintable.cinch ./Text.QuotedPrintable.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Quoted-printable byte codecs with explicit newline modes and continuation state.
 Text mode normalizes CR, LF and CRLF to CRLF; binary mode escapes them.
@@ -26,276 +29,244 @@ escapes as literals; precise errors retain the successfully decoded prefix.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (24 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-QuotedPrintableDecoder">QuotedPrintableDecoder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableDecoder</strong></code></li><li><a class="syn-name" href="#t-QuotedPrintableEncoder">QuotedPrintableEncoder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableEncoder</strong></code></li><li><a class="syn-name" href="#t-QuotedPrintableError">QuotedPrintableError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableError</strong></code></li><li><a class="syn-name" href="#t-QuotedPrintableMode">QuotedPrintableMode</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableMode</strong></code></li><li><a class="syn-name" href="#v-quoted-printable-decode-bytes">quoted-printable-decode-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-quoted-printable-decode-prefix">quoted-printable-decode-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decode-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a>)</code></li><li><a class="syn-name" href="#v-quoted-printable-decoder">quoted-printable-decoder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a></code></li><li><a class="syn-name" href="#v-quoted-printable-decoder-capacity">quoted-printable-decoder-capacity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-capacity</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-quoted-printable-decoder-end">quoted-printable-decoder-end</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a>)</code></li><li><a class="syn-name" href="#v-quoted-printable-decoder-error">quoted-printable-decoder-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a></code></li><li><a class="syn-name" href="#v-quoted-printable-decoder-feed">quoted-printable-decoder-feed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a>))</code></li><li><a class="syn-name" href="#v-quoted-printable-decoder-finish">quoted-printable-decoder-finish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a>)</code></li><li><a class="syn-name" href="#v-quoted-printable-decoder-position">quoted-printable-decoder-position</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-position</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-quoted-printable-encode">quoted-printable-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quoted-printable-encode-bytes">quoted-printable-encode-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-quoted-printable-encoder">quoted-printable-encoder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a></code></li><li><a class="syn-name" href="#v-quoted-printable-encoder-events">quoted-printable-encoder-events</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-events</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>), <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a>)</code></li><li><a class="syn-name" href="#v-quoted-printable-encoder-feed">quoted-printable-encoder-feed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a>)</code></li><li><a class="syn-name" href="#v-quoted-printable-encoder-finish">quoted-printable-encoder-finish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-quoted-printable-encoder-finish-events">quoted-printable-encoder-finish-events</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-finish-events</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-quoted-printable-encoder-mode">quoted-printable-encoder-mode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a></code></li><li><a class="syn-name" href="#v-quoted-printable-encoder-policy">quoted-printable-encoder-policy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-policy</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a></code></li><li><a class="syn-name" href="#v-quoted-printable-error-message">quoted-printable-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-quoted-printable-error-offset">quoted-printable-error-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-<a id="type-51756f7465645072696e7461626c654465636f646572"></a>
+# Types
 
-## `QuotedPrintableDecoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">QuotedPrintableDecoder</span></code></pre>
+<article class="doc-entry" id="t-QuotedPrintableDecoder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableDecoder</strong></code><span class="doc-sig-links"><a href="#t-QuotedPrintableDecoder" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L320" title="View source at line 320">Source</a></span></div>
+<div class="doc-body">
 
 Immutable decoder continuation owning its unfinished physical-line snapshot.
 Feed results count consumed input separately from the failure's precise offset.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 320
+</div>
+</article>
 
-<a id="type-51756f7465645072696e7461626c65456e636f646572"></a>
-
-## `QuotedPrintableEncoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">QuotedPrintableEncoder</span></code></pre>
+<article class="doc-entry" id="t-QuotedPrintableEncoder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableEncoder</strong></code><span class="doc-sig-links"><a href="#t-QuotedPrintableEncoder" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 Immutable encoding continuation. Feeds clone its private line before writing.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 47
+</div>
+</article>
 
-<a id="type-51756f7465645072696e7461626c654572726f72"></a>
-
-## `QuotedPrintableError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">QuotedPrintableError</span></code></pre>
+<article class="doc-entry" id="t-QuotedPrintableError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableError</strong></code><span class="doc-sig-links"><a href="#t-QuotedPrintableError" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L264" title="View source at line 264">Source</a></span></div>
+<div class="doc-body">
 
 Malformed input or an overlong physical line. Prefix APIs retain all
 decoded bytes preceding the failure; offsets count original input bytes.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 264
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-QuotedPrintableInvalidByte"><code><strong class="tok-constructor">QuotedPrintableInvalidByte</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 255 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a></code></li><li id="k-QuotedPrintableInvalidHex"><code><strong class="tok-constructor">QuotedPrintableInvalidHex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 255 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a></code></li><li id="k-QuotedPrintableIncompleteEscape"><code><strong class="tok-constructor">QuotedPrintableIncompleteEscape</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a></code></li><li id="k-QuotedPrintableInvalidSoftBreak"><code><strong class="tok-constructor">QuotedPrintableInvalidSoftBreak</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a></code></li><li id="k-QuotedPrintableLineTooLong"><code><strong class="tok-constructor">QuotedPrintableLineTooLong</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableInvalidByte</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableInvalidHex</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableIncompleteEscape</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableInvalidSoftBreak</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableLineTooLong</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>)</code></pre>
-
-<a id="type-51756f7465645072696e7461626c654d6f6465"></a>
-
-## `QuotedPrintableMode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">QuotedPrintableMode</span></code></pre>
+<article class="doc-entry" id="t-QuotedPrintableMode">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableMode</strong></code><span class="doc-sig-links"><a href="#t-QuotedPrintableMode" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 Newline policy for subsequent input; mode changes preserve pending bytes and CR carry.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 37
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableText</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableBinary</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-QuotedPrintableText"><code><strong class="tok-constructor">QuotedPrintableText</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a></code></li><li id="k-QuotedPrintableBinary"><code><strong class="tok-constructor">QuotedPrintableBinary</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f64652d6279746573"></a>
-
-## `quoted-printable-decode-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decode-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-decode-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-decode-bytes" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L553" title="View source at line 553">Source</a></span></div>
+<div class="doc-body">
 
 Return fresh decoded bytes or the first failure under the decoder
 acceptance rules. Lowercase hex and malformed non-newline escapes are accepted.
 Use decode-prefix when the successfully decoded bytes before an error matter.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 553
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f64652d707265666978"></a>
-
-## `quoted-printable-decode-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decode-prefix</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>)))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-decode-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decode-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-decode-prefix" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L544" title="View source at line 544">Source</a></span></div>
+<div class="doc-body">
 
 Decode a complete buffer to fresh bytes and an optional first error.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 544
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f646572"></a>
-
-## `quoted-printable-decoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decoder</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableDecoder</span></code></pre>
+<article class="doc-entry" id="v-quoted-printable-decoder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-decoder" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L330" title="View source at line 330">Source</a></span></div>
+<div class="doc-body">
 
 Begin independent decoding with original offsets starting at zero.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 330
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d6361706163697479"></a>
-
-## `quoted-printable-decoder-capacity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decoder-capacity</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableDecoder</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-quoted-printable-decoder-capacity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-capacity</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-decoder-capacity" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L340" title="View source at line 340">Source</a></span></div>
+<div class="doc-body">
 
 Number of bytes that may be fetched without reading past the decoder's
 current physical-line buffer capacity. Failed decoders request no input.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 340
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d656e64"></a>
-
-## `quoted-printable-decoder-end`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decoder-end</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableDecoder</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>))))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-decoder-end">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-decoder-end" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L533" title="View source at line 533">Source</a></span></div>
+<div class="doc-body">
 
 End an unfinished physical line, distinguishing genuine EOF from an
 interrupted source. A codec error may supersede a pending source failure.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 533
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d6572726f72"></a>
-
-## `quoted-printable-decoder-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decoder-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableDecoder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-decoder-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-decoder-error" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L334" title="View source at line 334">Source</a></span></div>
+<div class="doc-body">
 
 Observe the first sticky codec failure without advancing the continuation.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 334
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d66656564"></a>
-
-## `quoted-printable-decoder-feed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decoder-feed</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableDecoder</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableDecoder</span>))))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-decoder-feed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a>))</code><span class="doc-sig-links"><a href="#v-quoted-printable-decoder-feed" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L525" title="View source at line 525">Source</a></span></div>
+<div class="doc-body">
 
 Decode complete physical lines from a feed, returning fresh prefix bytes,
 the consumed input count, and an advanced immutable continuation. Input after
 a terminal error remains unconsumed; previously returned buffers never alias state.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 525
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d66696e697368"></a>
-
-## `quoted-printable-decoder-finish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decoder-finish</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableDecoder</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span>)))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-decoder-finish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-decoder-finish" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L540" title="View source at line 540">Source</a></span></div>
+<div class="doc-body">
 
 Finish at genuine EOF, preserving decoded prefix bytes before a final error.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 540
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6465636f6465722d706f736974696f6e"></a>
-
-## `quoted-printable-decoder-position`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-decoder-position</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableDecoder</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-quoted-printable-decoder-position">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-decoder-position</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableDecoder" title="Text.QuotedPrintable.QuotedPrintableDecoder">QuotedPrintableDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-decoder-position" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L347" title="View source at line 347">Source</a></span></div>
+<div class="doc-body">
 
 Original input bytes consumed so far, including the unfinished physical line.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 347
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f6465"></a>
-
-## `quoted-printable-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-encode" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L257" title="View source at line 257">Source</a></span></div>
+<div class="doc-body">
 
 Encode a complete buffer as ASCII text; all possible input bytes are representable.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 257
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f64652d6279746573"></a>
-
-## `quoted-printable-encode-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encode-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encode-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-encode-bytes" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L252" title="View source at line 252">Source</a></span></div>
+<div class="doc-body">
 
 Encode a complete buffer as fresh ASCII bytes using an explicit newline policy.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 252
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f646572"></a>
-
-## `quoted-printable-encoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encoder</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span>)</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encoder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-encoder" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 Begin encoding with empty line state under an explicit newline policy.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 57
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f6465722d6576656e7473"></a>
-
-## `quoted-printable-encoder-events`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encoder-events</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Bytes</span>)), <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span>)))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encoder-events">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-events</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>), <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-encoder-events" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 Encode a feed as complete sink-write events and an advanced continuation.
 Each event carries the input prefix reportable if its sink write fails.
 No event or retained state aliases the caller's mutable input.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 205
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f6465722d66656564"></a>
-
-## `quoted-printable-encoder-feed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encoder-feed</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span>)))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encoder-feed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-encoder-feed" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L243" title="View source at line 243">Source</a></span></div>
+<div class="doc-body">
 
 Encode complete lines from one feed and retain only the unfinished private line.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 243
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f6465722d66696e697368"></a>
-
-## `quoted-printable-encoder-finish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encoder-finish</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encoder-finish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-encoder-finish" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L248" title="View source at line 248">Source</a></span></div>
+<div class="doc-body">
 
 Finish an immutable continuation and return the independent final encoded bytes.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 248
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f6465722d66696e6973682d6576656e7473"></a>
-
-## `quoted-printable-encoder-finish-events`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encoder-finish-events</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encoder-finish-events">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-finish-events</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-encoder-finish-events" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L212" title="View source at line 212">Source</a></span></div>
+<div class="doc-body">
 
 Flush the final line as fresh events, quoting its last space or tab.
 The zero-length final event records a logical flush; byte streams may
 treat it as an inert empty write under their existing protocol.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 212
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f6465722d6d6f6465"></a>
-
-## `quoted-printable-encoder-mode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encoder-mode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encoder-mode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-encoder-mode" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Change the policy for later feeds without flushing or changing pending input.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 61
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d656e636f6465722d706f6c696379"></a>
-
-## `quoted-printable-encoder-policy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-encoder-policy</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableEncoder</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span>)</code></pre>
+<article class="doc-entry" id="v-quoted-printable-encoder-policy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-encoder-policy</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableEncoder" title="Text.QuotedPrintable.QuotedPrintableEncoder">QuotedPrintableEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-encoder-policy" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 Observe the policy used for subsequent feeds without advancing or copying state.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 66
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6572726f722d6d657373616765"></a>
-
-## `quoted-printable-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-quoted-printable-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-error-message" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L304" title="View source at line 304">Source</a></span></div>
+<div class="doc-body">
 
 Human-readable diagnostics preserving the exact offending byte or transport suffix.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 304
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d6572726f722d6f6666736574"></a>
-
-## `quoted-printable-error-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-error-offset</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-quoted-printable-error-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableError" title="Text.QuotedPrintable.QuotedPrintableError">QuotedPrintableError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-error-offset" title="Permalink">#</a><a href="/library/source/Text.QuotedPrintable/#L277" title="View source at line 277">Source</a></span></div>
+<div class="doc-body">
 
 The absolute original input position associated with a codec failure.
 
-[Source](/reference-sources/Text.QuotedPrintable.cinch) · line 277
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/QuotedPrintable.cinch`. Source SHA-256: `ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/QuotedPrintable.cinch`](/library/source/Text.QuotedPrintable/). Source SHA-256: `ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00`.

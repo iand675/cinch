@@ -2,19 +2,21 @@
 
 The RC4 stream cipher as a persistent keystream state, for legacy data only.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.Rc4</code></div><div class="doc-mod-bar-links"><a href="/library/source/Crypto.Rc4/">View source</a><a href="/library/search/?q=%2BCrypto.Rc4">Search module</a><a href="/reference-sources/Crypto.Rc4.cinch" download="Crypto.Rc4.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Crypto.Rc4`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Crypto.Rc4.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Crypto.Rc4`: [Crypto.Rc4](Crypto.Rc4.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Crypto/Rc4.cinch ./Crypto.Rc4.cinch
+```
 
-Non-embedded source closure: [Crypto.Rc4](Crypto.Rc4.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 The RC4 stream cipher, for interoperation with legacy formats only.
 RC4's keystream is biased and the cipher is broken for confidentiality
@@ -25,64 +27,61 @@ permutation, so earlier streams remain usable and replay the same keystream.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (5 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Rc4">Rc4</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rc4</strong></code></li><li><a class="syn-name" href="#t-Rc4Error">Rc4Error</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rc4Error</strong></code></li><li><a class="syn-name" href="#v-rc4-error-message">rc4-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rc4-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4Error" title="Crypto.Rc4.Rc4Error">Rc4Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-rc4-new">rc4-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rc4-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4Error" title="Crypto.Rc4.Rc4Error">Rc4Error</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4" title="Crypto.Rc4.Rc4">Rc4</a></code></li><li><a class="syn-name" href="#v-rc4-xor">rc4-xor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rc4-xor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4" title="Crypto.Rc4.Rc4">Rc4</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4" title="Crypto.Rc4.Rc4">Rc4</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code></li></ul>
+</details>
 
-<a id="type-526334"></a>
+# Types
 
-## `Rc4`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rc4</span></code></pre>
+<article class="doc-entry" id="t-Rc4">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rc4</strong></code><span class="doc-sig-links"><a href="#t-Rc4" title="Permalink">#</a><a href="/library/source/Crypto.Rc4/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 Private fields in the order listed above.
 
-[Source](/reference-sources/Crypto.Rc4.cinch) · line 30
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Rc4"><code><strong class="tok-constructor">Rc4</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4" title="Crypto.Rc4.Rc4">Rc4</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rc4</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Rc4</span>.<span class="tok-constructor">Rc4</span>)))</code></pre>
-
-<a id="type-5263344572726f72"></a>
-
-## `Rc4Error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rc4Error</span></code></pre>
+<article class="doc-entry" id="t-Rc4Error">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rc4Error</strong></code><span class="doc-sig-links"><a href="#t-Rc4Error" title="Permalink">#</a><a href="/library/source/Crypto.Rc4/#L19" title="View source at line 19">Source</a></span></div>
+<div class="doc-body">
 
 A key outside 1 to 256 bytes; its length.
 
-[Source](/reference-sources/Crypto.Rc4.cinch) · line 19
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Rc4InvalidKeySize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Rc4</span>.<span class="tok-constructor">Rc4Error</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Rc4InvalidKeySize"><code><strong class="tok-constructor">Rc4InvalidKeySize</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4Error" title="Crypto.Rc4.Rc4Error">Rc4Error</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-7263342d6572726f722d6d657373616765"></a>
-
-## `rc4-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rc4-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Rc4</span>.<span class="tok-constructor">Rc4Error</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-rc4-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rc4-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4Error" title="Crypto.Rc4.Rc4Error">Rc4Error</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-rc4-error-message" title="Permalink">#</a><a href="/library/source/Crypto.Rc4/#L24" title="View source at line 24">Source</a></span></div>
+<div class="doc-body">
 
 Render an error.
 
-[Source](/reference-sources/Crypto.Rc4.cinch) · line 24
+</div>
+</article>
 
-<a id="value-7263342d6e6577"></a>
-
-## `rc4-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rc4-new</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Rc4</span>.<span class="tok-constructor">Rc4Error</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Rc4</span>.<span class="tok-constructor">Rc4</span>))</code></pre>
+<article class="doc-entry" id="v-rc4-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rc4-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4Error" title="Crypto.Rc4.Rc4Error">Rc4Error</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4" title="Crypto.Rc4.Rc4">Rc4</a></code><span class="doc-sig-links"><a href="#v-rc4-new" title="Permalink">#</a><a href="/library/source/Crypto.Rc4/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-body">
 
 Key a stream with 1 to 256 key bytes (the key-scheduling algorithm).
 
-[Source](/reference-sources/Crypto.Rc4.cinch) · line 33
+</div>
+</article>
 
-<a id="value-7263342d786f72"></a>
-
-## `rc4-xor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rc4-xor</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Rc4</span>.<span class="tok-constructor">Rc4</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Rc4</span>.<span class="tok-constructor">Rc4</span>, <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-rc4-xor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rc4-xor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4" title="Crypto.Rc4.Rc4">Rc4</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Crypto.Rc4/#t-Rc4" title="Crypto.Rc4.Rc4">Rc4</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-rc4-xor" title="Permalink">#</a><a href="/library/source/Crypto.Rc4/#L71" title="View source at line 71">Source</a></span></div>
+<div class="doc-body">
 
 XOR the input with the next keystream bytes, returning the advanced stream and the output.
 
-[Source](/reference-sources/Crypto.Rc4.cinch) · line 71
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Rc4.cinch`. Source SHA-256: `625745d9d911990be9c7d9f1efb7fcc21077b0b44fe9cdaef20c5052cefbf1e7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Rc4.cinch`](/library/source/Crypto.Rc4/). Source SHA-256: `625745d9d911990be9c7d9f1efb7fcc21077b0b44fe9cdaef20c5052cefbf1e7`.

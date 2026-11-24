@@ -2,19 +2,23 @@
 
 SHA-1 for legacy interoperability, with a four-lane SIMD schedule, persistent states and checked binary checkpoints.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Sha1</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Sha1/">View source</a><a href="/library/search/?q=%2BText.Sha1">Search module</a><a href="/reference-sources/Text.Sha1.cinch" download="Text.Sha1.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Sha1`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
 
-[Download exact module source](/reference-sources/Text.Sha1.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Sha1`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha1](Text.Sha1.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
+cp seed/prelude/Text/Sha1.cinch ./Text.Sha1.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha1](Text.Sha1.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 SHA-1 digests, persistent streaming states and binary checkpoints.
 SHA-1 is broken for collision resistance: use it only to interoperate with
@@ -27,177 +31,162 @@ checkpoint words use network order; byte counts wrap at 64 bits.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (16 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Sha1State">Sha1State</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Sha1State</strong></code></li><li><a class="syn-name" href="#t-Sha1StateError">Sha1StateError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Sha1StateError</strong></code></li><li><a class="syn-name" href="#v-sha1-block-size">sha1-block-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-sha1-size">sha1-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-sha1-state">sha1-state</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a></code></li><li><a class="syn-name" href="#v-sha1-state-append">sha1-state-append</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-append</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-sha1-state-append-save">sha1-state-append-save</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-append-save</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-sha1-state-block-size">sha1-state-block-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-sha1-state-error-message">sha1-state-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1StateError" title="Text.Sha1.Sha1StateError">Sha1StateError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-sha1-state-load">sha1-state-load</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-load</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1StateError" title="Text.Sha1.Sha1StateError">Sha1StateError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a></code></li><li><a class="syn-name" href="#v-sha1-state-reset">sha1-state-reset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-reset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a></code></li><li><a class="syn-name" href="#v-sha1-state-save">sha1-state-save</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-save</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-sha1-state-size">sha1-state-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-sha1-state-sum">sha1-state-sum</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-sha1-state-update">sha1-state-update</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-state-update</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a></code></li><li><a class="syn-name" href="#v-sha1-sum">sha1-sum</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha1-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-536861315374617465"></a>
+# Types
 
-## `Sha1State`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Sha1State</span></code></pre>
+<article class="doc-entry" id="t-Sha1State">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Sha1State</strong></code><span class="doc-sig-links"><a href="#t-Sha1State" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-body">
 
 An immutable wrapping byte count, copied partial block and chaining value.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 38
+</div>
+</article>
 
-<a id="type-5368613153746174654572726f72"></a>
-
-## `Sha1StateError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Sha1StateError</span></code></pre>
+<article class="doc-entry" id="t-Sha1StateError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Sha1StateError</strong></code><span class="doc-sig-links"><a href="#t-Sha1StateError" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L211" title="View source at line 211">Source</a></span></div>
+<div class="doc-body">
 
 A checkpoint's identifier or exact byte length is invalid.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 211
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidSha1StateIdentifier</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1StateError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidSha1StateSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1StateError</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-InvalidSha1StateIdentifier"><code><strong class="tok-constructor">InvalidSha1StateIdentifier</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1StateError" title="Text.Sha1.Sha1StateError">Sha1StateError</a></code></li><li id="k-InvalidSha1StateSize"><code><strong class="tok-constructor">InvalidSha1StateSize</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1StateError" title="Text.Sha1.Sha1StateError">Sha1StateError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-736861312d626c6f636b2d73697a65"></a>
-
-## `sha1-block-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-block-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-sha1-block-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-sha1-block-size" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L29" title="View source at line 29">Source</a></span></div>
+<div class="doc-body">
 
 Compression block size in bytes, always 64.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 29
+</div>
+</article>
 
-<a id="value-736861312d73697a65"></a>
-
-## `sha1-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-sha1-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-sha1-size" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 Digest size in bytes, always 20.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 25
+</div>
+</article>
 
-<a id="value-736861312d7374617465"></a>
-
-## `sha1-state`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span></code></pre>
+<article class="doc-entry" id="v-sha1-state">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a></code><span class="doc-sig-links"><a href="#v-sha1-state" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 Initial state with no pending bytes.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 47
+</div>
+</article>
 
-<a id="value-736861312d73746174652d617070656e64"></a>
-
-## `sha1-state-append`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-append</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-sha1-state-append">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-append</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-sha1-state-append" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 Append the digest to a copied prefix, preserving the state and caller buffer.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 191
+</div>
+</article>
 
-<a id="value-736861312d73746174652d617070656e642d73617665"></a>
-
-## `sha1-state-append-save`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-append-save</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-sha1-state-append-save">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-append-save</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-sha1-state-append-save" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L207" title="View source at line 207">Source</a></span></div>
+<div class="doc-body">
 
 Append the complete checkpoint to a copied prefix without mutating either input.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 207
+</div>
+</article>
 
-<a id="value-736861312d73746174652d626c6f636b2d73697a65"></a>
-
-## `sha1-state-block-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-block-size</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-sha1-state-block-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-block-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-sha1-state-block-size" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L152" title="View source at line 152">Source</a></span></div>
+<div class="doc-body">
 
 Compression block size in bytes, always 64.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 152
+</div>
+</article>
 
-<a id="value-736861312d73746174652d6572726f722d6d657373616765"></a>
-
-## `sha1-state-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1StateError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-sha1-state-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1StateError" title="Text.Sha1.Sha1StateError">Sha1StateError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-sha1-state-error-message" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L218" title="View source at line 218">Source</a></span></div>
+<div class="doc-body">
 
 Render identifier errors or complete required and actual checkpoint byte lengths.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 218
+</div>
+</article>
 
-<a id="value-736861312d73746174652d6c6f6164"></a>
-
-## `sha1-state-load`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-load</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1StateError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span>))</code></pre>
+<article class="doc-entry" id="v-sha1-state-load">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-load</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1StateError" title="Text.Sha1.Sha1StateError">Sha1StateError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a></code><span class="doc-sig-links"><a href="#v-sha1-state-load" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L229" title="View source at line 229">Source</a></span></div>
+<div class="doc-body">
 
 Restore every chaining and count bit, copying only the live partial block into private storage.
 Identifier checks precede exact-size checks; unused tail bytes are ignored and saved as zeros.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 229
+</div>
+</article>
 
-<a id="value-736861312d73746174652d7265736574"></a>
-
-## `sha1-state-reset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-reset</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span>)</code></pre>
+<article class="doc-entry" id="v-sha1-state-reset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-reset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a></code><span class="doc-sig-links"><a href="#v-sha1-state-reset" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L144" title="View source at line 144">Source</a></span></div>
+<div class="doc-body">
 
 Return the initial state, preserving the supplied state.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 144
+</div>
+</article>
 
-<a id="value-736861312d73746174652d73617665"></a>
-
-## `sha1-state-save`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-save</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-sha1-state-save">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-save</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-sha1-state-save" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L196" title="View source at line 196">Source</a></span></div>
+<div class="doc-body">
 
 Return 96 checkpoint bytes: ASCII sha, version byte 1, chaining words, zero-padded tail and count.
 Every numeric field uses network order.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 196
+</div>
+</article>
 
-<a id="value-736861312d73746174652d73697a65"></a>
-
-## `sha1-state-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-size</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-sha1-state-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-sha1-state-size" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L148" title="View source at line 148">Source</a></span></div>
+<div class="doc-body">
 
 Digest size in bytes, always 20.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 148
+</div>
+</article>
 
-<a id="value-736861312d73746174652d73756d"></a>
-
-## `sha1-state-sum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-sum</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-sha1-state-sum">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-sha1-state-sum" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L186" title="View source at line 186">Source</a></span></div>
+<div class="doc-body">
 
 Return the network-order digest in fresh storage without changing the state.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 186
+</div>
+</article>
 
-<a id="value-736861312d73746174652d757064617465"></a>
-
-## `sha1-state-update`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-state-update</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha1</span>.<span class="tok-constructor">Sha1State</span>))</code></pre>
+<article class="doc-entry" id="v-sha1-state-update">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-state-update</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha1/#t-Sha1State" title="Text.Sha1.Sha1State">Sha1State</a></code><span class="doc-sig-links"><a href="#v-sha1-state-update" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Consume a complete chunk without mutating any previous state or retaining the input buffer.
 Empty chunks preserve the supplied state. Counts use explicit unsigned 64-bit wrapping.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 61
+</div>
+</article>
 
-<a id="value-736861312d73756d"></a>
-
-## `sha1-sum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha1-sum</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-sha1-sum">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha1-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-sha1-sum" title="Permalink">#</a><a href="/library/source/Text.Sha1/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 Compute a fresh 20-byte network-order digest of a complete input.
 
-[Source](/reference-sources/Text.Sha1.cinch) · line 51
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Sha1.cinch`. Source SHA-256: `7c4c6ab9c67ff50be3b4273fd01b709a4ad61b5a0943835f38b438f1142ea095`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Sha1.cinch`](/library/source/Text.Sha1/). Source SHA-256: `7c4c6ab9c67ff50be3b4273fd01b709a4ad61b5a0943835f38b438f1142ea095`.

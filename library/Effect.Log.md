@@ -2,19 +2,21 @@
 
 Structured log operations and records with runtime capability/effect accounting.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Log</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Log/">View source</a><a href="/library/search/?q=%2BEffect.Log">Search module</a><a href="/reference-sources/Effect.Log.cinch" download="Effect.Log.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Log`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Json](Data.Json.md), [Data.List](Data.List.md).
 
-[Download exact module source](/reference-sources/Effect.Log.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Log`: [Effect.Log](Effect.Log.md).
 
-[Data.Json](Data.Json.md), [Data.List](Data.List.md).
+```sh
+cp seed/prelude/Effect/Log.cinch ./Effect.Log.cinch
+```
 
-Non-embedded source closure: [Effect.Log](Effect.Log.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Log: the `Log r` signal vocabulary (the P32 observability
 rows): log levels, metric kinds, the `log`/`metric` effect
@@ -40,182 +42,119 @@ the contract `Text.Otlp` exports over the wire (OTLP/JSON).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (21 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-LogLevel">LogLevel</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LogLevel</strong></code></li><li><a class="syn-name" href="#t-MetricKind">MetricKind</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MetricKind</strong></code></li><li><a class="syn-name" href="#v-arr">arr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">arr</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-counter">counter</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">counter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code></li><li><a class="syn-name" href="#v-debug">debug</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">debug</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code></li><li><a class="syn-name" href="#v-error">error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code></li><li><a class="syn-name" href="#v-fields">fields</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fields</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-flag">flag</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flag</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-gauge">gauge</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">gauge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code></li><li><a class="syn-name" href="#v-histogram">histogram</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">histogram</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code></li><li><a class="syn-name" href="#v-info">info</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">info</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code></li><li><a class="syn-name" href="#v-level-name">level-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">level-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-log">log</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">log</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span>{<span class="tok-constructor">Log</span> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-log-record">log-record</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">log-record</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-metric">metric</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">metric</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span>{<span class="tok-constructor">Log</span> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-metric-kind-name">metric-kind-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">metric-kind-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-metric-record">metric-record</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">metric-record</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-no-fields">no-fields</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">no-fields</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-num">num</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">num</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-str">str</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">str</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-warn">warn</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">warn</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code></li></ul>
+</details>
 
-<a id="type-4c6f674c6576656c"></a>
+# Types
 
-## `LogLevel`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LogLevel</span></code></pre>
+<article class="doc-entry" id="t-LogLevel">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LogLevel</strong></code><span class="doc-sig-links"><a href="#t-LogLevel" title="Permalink">#</a><a href="/library/source/Effect.Log/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
 
 The level of a log record. The lowercase values (`info` and
 friends) are the DX spelling at a `log` call; the constructors
 surface (D308) for handler clauses that match on them.
 
-[Source](/reference-sources/Effect.Log.cinch) · line 36
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Debug"><code><strong class="tok-constructor">Debug</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code></li><li id="k-Info"><code><strong class="tok-constructor">Info</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code></li><li id="k-Warn"><code><strong class="tok-constructor">Warn</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code></li><li id="k-Error"><code><strong class="tok-constructor">Error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Debug</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Info</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Warn</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Error</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
-
-<a id="type-4d65747269634b696e64"></a>
-
-## `MetricKind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MetricKind</span></code></pre>
+<article class="doc-entry" id="t-MetricKind">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MetricKind</strong></code><span class="doc-sig-links"><a href="#t-MetricKind" title="Permalink">#</a><a href="/library/source/Effect.Log/#L67" title="View source at line 67">Source</a></span></div>
+<div class="doc-body">
 
 The instrument family of a metric record: a counter accumulates
 deltas, a gauge carries the latest reading, a histogram observes
 values into buckets. The lowercase values are the DX spelling at a
 `metric` call.
 
-[Source](/reference-sources/Effect.Log.cinch) · line 67
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Counter</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Gauge</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Histogram</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Counter"><code><strong class="tok-constructor">Counter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code></li><li id="k-Gauge"><code><strong class="tok-constructor">Gauge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code></li><li id="k-Histogram"><code><strong class="tok-constructor">Histogram</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-617272"></a>
+<article class="doc-entry" id="v-arr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">arr</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-arr" title="Permalink">#</a><a href="/library/source/Effect.Log/#L117" title="View source at line 117">Source</a></span></div>
+</article>
 
-## `arr`
+<article class="doc-entry" id="v-counter">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">counter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code><span class="doc-sig-links"><a href="#v-counter" title="Permalink">#</a><a href="/library/source/Effect.Log/#L72" title="View source at line 72">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">arr</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
+<article class="doc-entry" id="v-debug">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">debug</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code><span class="doc-sig-links"><a href="#v-debug" title="Permalink">#</a><a href="/library/source/Effect.Log/#L42" title="View source at line 42">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Effect.Log.cinch)
+<article class="doc-entry" id="v-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code><span class="doc-sig-links"><a href="#v-error" title="Permalink">#</a><a href="/library/source/Effect.Log/#L51" title="View source at line 51">Source</a></span></div>
+</article>
 
-<a id="value-636f756e746572"></a>
+<article class="doc-entry" id="v-fields">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fields</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-fields" title="Permalink">#</a><a href="/library/source/Effect.Log/#L102" title="View source at line 102">Source</a></span></div>
+</article>
 
-## `counter`
+<article class="doc-entry" id="v-flag">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flag</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-flag" title="Permalink">#</a><a href="/library/source/Effect.Log/#L114" title="View source at line 114">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">counter</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
+<article class="doc-entry" id="v-gauge">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">gauge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code><span class="doc-sig-links"><a href="#v-gauge" title="Permalink">#</a><a href="/library/source/Effect.Log/#L75" title="View source at line 75">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Effect.Log.cinch)
+<article class="doc-entry" id="v-histogram">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">histogram</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a></code><span class="doc-sig-links"><a href="#v-histogram" title="Permalink">#</a><a href="/library/source/Effect.Log/#L78" title="View source at line 78">Source</a></span></div>
+</article>
 
-<a id="value-6465627567"></a>
+<article class="doc-entry" id="v-info">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">info</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code><span class="doc-sig-links"><a href="#v-info" title="Permalink">#</a><a href="/library/source/Effect.Log/#L45" title="View source at line 45">Source</a></span></div>
+</article>
 
-## `debug`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">debug</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-6572726f72"></a>
-
-## `error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">error</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-6669656c6473"></a>
-
-## `fields`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fields</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-666c6167"></a>
-
-## `flag`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flag</span> :: (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-6761756765"></a>
-
-## `gauge`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">gauge</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-686973746f6772616d"></a>
-
-## `histogram`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">histogram</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span></code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-696e666f"></a>
-
-## `info`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">info</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-6c6576656c2d6e616d65"></a>
-
-## `level-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">level-name</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-level-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">level-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-level-name" title="Permalink">#</a><a href="/library/source/Effect.Log/#L56" title="View source at line 56">Source</a></span></div>
+<div class="doc-body">
 
 The level's text in a record (`"debug"`, `"info"`, `"warn"`,
 `"error"`).
 
-[Source](/reference-sources/Effect.Log.cinch) · line 56
+</div>
+</article>
 
-<a id="value-6c6f67"></a>
+<article class="doc-entry" id="v-log">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span>{<span class="tok-constructor">Log</span> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-log" title="Permalink">#</a><a href="/library/source/Effect.Log/" title="View source">Source</a></span></div>
+</article>
 
-## `log`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Log</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-6c6f672d7265636f7264"></a>
-
-## `log-record`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">log-record</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
+<article class="doc-entry" id="v-log-record">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">log-record</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-log-record" title="Permalink">#</a><a href="/library/source/Effect.Log/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-body">
 
 A log record: `{"level": ..., "message": ..., "fields": ...}`.
 
-[Source](/reference-sources/Effect.Log.cinch) · line 123
+</div>
+</article>
 
-<a id="value-6d6574726963"></a>
+<article class="doc-entry" id="v-metric">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">metric</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span>{<span class="tok-constructor">Log</span> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-metric" title="Permalink">#</a><a href="/library/source/Effect.Log/" title="View source">Source</a></span></div>
+</article>
 
-## `metric`
+<article class="doc-entry" id="v-metric-kind-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">metric-kind-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-metric-kind-name" title="Permalink">#</a><a href="/library/source/Effect.Log/#L81" title="View source at line 81">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span> . (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt;{<span class="tok-constructor">Log</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))))</code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-6d65747269632d6b696e642d6e616d65"></a>
-
-## `metric-kind-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric-kind-name</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-6d65747269632d7265636f7264"></a>
-
-## `metric-record`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">metric-record</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">MetricKind</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))))</code></pre>
+<article class="doc-entry" id="v-metric-record">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">metric-record</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-MetricKind" title="Effect.Log.MetricKind">MetricKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-metric-record" title="Permalink">#</a><a href="/library/source/Effect.Log/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-body">
 
 A metric record: `{"metric": ..., "name": ..., "value": ...,
 "fields": ...}`.
 
-[Source](/reference-sources/Effect.Log.cinch) · line 131
+</div>
+</article>
 
-<a id="value-6e6f2d6669656c6473"></a>
-
-## `no-fields`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">no-fields</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span></code></pre>
+<article class="doc-entry" id="v-no-fields">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">no-fields</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-no-fields" title="Permalink">#</a><a href="/library/source/Effect.Log/#L99" title="View source at line 99">Source</a></span></div>
+<div class="doc-body">
 
 The field payload of a record: a `Json` object. `no-fields` is the
 empty payload; `fields` builds one from its pairs (the DX shape:
@@ -223,32 +162,21 @@ empty payload; `fields` builds one from its pairs (the DX shape:
 `str` and `flag` are the scalar spellings; `arr` is a `Json`
 array.
 
-[Source](/reference-sources/Effect.Log.cinch) · line 99
+</div>
+</article>
 
-<a id="value-6e756d"></a>
+<article class="doc-entry" id="v-num">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">num</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-num" title="Permalink">#</a><a href="/library/source/Effect.Log/#L108" title="View source at line 108">Source</a></span></div>
+</article>
 
-## `num`
+<article class="doc-entry" id="v-str">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">str</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-str" title="Permalink">#</a><a href="/library/source/Effect.Log/#L111" title="View source at line 111">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">num</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-737472"></a>
-
-## `str`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">str</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
-
-<a id="value-7761726e"></a>
-
-## `warn`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">warn</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Log</span>.<span class="tok-constructor">LogLevel</span></code></pre>
-
-[Source](/reference-sources/Effect.Log.cinch)
+<article class="doc-entry" id="v-warn">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">warn</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code><span class="doc-sig-links"><a href="#v-warn" title="Permalink">#</a><a href="/library/source/Effect.Log/#L48" title="View source at line 48">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Log.cinch`. Source SHA-256: `c32dae495122e7b3963d8fa2fd19fab81031f29093493080206d0191e7db09ed`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Log.cinch`](/library/source/Effect.Log/). Source SHA-256: `c32dae495122e7b3963d8fa2fd19fab81031f29093493080206d0191e7db09ed`.

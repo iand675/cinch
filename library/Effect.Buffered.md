@@ -2,19 +2,30 @@
 
 Buffered input and output components with explicit independent advanced handles.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Buffered</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Buffered/">View source</a><a href="/library/search/?q=%2BEffect.Buffered">Search module</a><a href="/reference-sources/Effect.Buffered.cinch" download="Effect.Buffered.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Buffered`. Selected exports may already be in Prelude.
+**Dependencies:** [Effect.Buffered.Reader](Effect.Buffered.Reader.md), [Effect.Buffered.Writer](Effect.Buffered.Writer.md).
 
-[Download exact module source](/reference-sources/Effect.Buffered.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (10 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Buffered`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Buffered](Effect.Buffered.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md), [Effect.Buffered.Reader](Effect.Buffered.Reader.md), [Effect.Buffered.Writer](Effect.Buffered.Writer.md), [Effect.Stream](Effect.Stream.md).
 
-[Effect.Buffered.Reader](Effect.Buffered.Reader.md), [Effect.Buffered.Writer](Effect.Buffered.Writer.md).
+```sh
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Effect/Buffered.cinch ./Effect.Buffered.cinch
+cp seed/prelude/Effect/Buffered/Core.cinch ./Effect.Buffered.Core.cinch
+cp seed/prelude/Effect/Buffered/Internal/Cell.cinch ./Effect.Buffered.Internal.Cell.cinch
+cp seed/prelude/Effect/Buffered/Internal/Scan.cinch ./Effect.Buffered.Internal.Scan.cinch
+cp seed/prelude/Effect/Buffered/Reader.cinch ./Effect.Buffered.Reader.cinch
+cp seed/prelude/Effect/Buffered/Writer.cinch ./Effect.Buffered.Writer.cinch
+cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Buffered](Effect.Buffered.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md), [Effect.Buffered.Reader](Effect.Buffered.Reader.md), [Effect.Buffered.Writer](Effect.Buffered.Writer.md), [Effect.Stream](Effect.Stream.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Buffered input and output components with explicit independent advanced handles.
 Reading and writing preserve each other's state. Apply a component operation,
@@ -22,70 +33,68 @@ then install its returned component to continue through the combined handle.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (6 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-BufferedReadWriter">BufferedReadWriter</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BufferedReadWriter</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-buffered-read-writer">buffered-read-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Reader/#t-BufferedReader" title="Effect.Buffered.Reader.BufferedReader">BufferedReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Writer/#t-BufferedWriter" title="Effect.Buffered.Writer.BufferedWriter">BufferedWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-buffered-read-writer-reader">buffered-read-writer-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer-reader</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Reader/#t-BufferedReader" title="Effect.Buffered.Reader.BufferedReader">BufferedReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-buffered-read-writer-with-reader">buffered-read-writer-with-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer-with-reader</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Reader/#t-BufferedReader" title="Effect.Buffered.Reader.BufferedReader">BufferedReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-buffered-read-writer-with-writer">buffered-read-writer-with-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer-with-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Writer/#t-BufferedWriter" title="Effect.Buffered.Writer.BufferedWriter">BufferedWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-buffered-read-writer-writer">buffered-read-writer-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Writer/#t-BufferedWriter" title="Effect.Buffered.Writer.BufferedWriter">BufferedWriter</a> <span class="tok-variable">r</span></code></li></ul>
+</details>
 
-<a id="type-427566666572656452656164577269746572"></a>
+# Types
 
-## `BufferedReadWriter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BufferedReadWriter</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-BufferedReadWriter">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BufferedReadWriter</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-BufferedReadWriter" title="Permalink">#</a><a href="/library/source/Effect.Buffered/#L13" title="View source at line 13">Source</a></span></div>
+<div class="doc-body">
 
 A paired reader and writer over the same I/O region, with no implicit flushing or read-ahead coupling.
 
-[Source](/reference-sources/Effect.Buffered.cinch) · line 13
+</div>
+</article>
 
 # Values
 
-<a id="value-62756666657265642d726561642d777269746572"></a>
-
-## `buffered-read-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">buffered-read-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Reader</span>.<span class="tok-constructor">BufferedReader</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Writer</span>.<span class="tok-constructor">BufferedWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">BufferedReadWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-buffered-read-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Reader/#t-BufferedReader" title="Effect.Buffered.Reader.BufferedReader">BufferedReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Writer/#t-BufferedWriter" title="Effect.Buffered.Writer.BufferedWriter">BufferedWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-buffered-read-writer" title="Permalink">#</a><a href="/library/source/Effect.Buffered/#L18" title="View source at line 18">Source</a></span></div>
+<div class="doc-body">
 
 Pair existing buffered components without reading, writing or flushing either one.
 
-[Source](/reference-sources/Effect.Buffered.cinch) · line 18
+</div>
+</article>
 
-<a id="value-62756666657265642d726561642d7772697465722d726561646572"></a>
-
-## `buffered-read-writer-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">buffered-read-writer-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">BufferedReadWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Reader</span>.<span class="tok-constructor">BufferedReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-buffered-read-writer-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer-reader</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Reader/#t-BufferedReader" title="Effect.Buffered.Reader.BufferedReader">BufferedReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-buffered-read-writer-reader" title="Permalink">#</a><a href="/library/source/Effect.Buffered/#L22" title="View source at line 22">Source</a></span></div>
+<div class="doc-body">
 
 Observe the current reader component; continue with the advanced reader returned by its next operation.
 
-[Source](/reference-sources/Effect.Buffered.cinch) · line 22
+</div>
+</article>
 
-<a id="value-62756666657265642d726561642d7772697465722d776974682d726561646572"></a>
-
-## `buffered-read-writer-with-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">buffered-read-writer-with-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">BufferedReadWriter</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Reader</span>.<span class="tok-constructor">BufferedReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">BufferedReadWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-buffered-read-writer-with-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer-with-reader</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Reader/#t-BufferedReader" title="Effect.Buffered.Reader.BufferedReader">BufferedReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-buffered-read-writer-with-reader" title="Permalink">#</a><a href="/library/source/Effect.Buffered/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 Install an advanced reader while preserving the independently advancing writer.
 
-[Source](/reference-sources/Effect.Buffered.cinch) · line 30
+</div>
+</article>
 
-<a id="value-62756666657265642d726561642d7772697465722d776974682d777269746572"></a>
-
-## `buffered-read-writer-with-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">buffered-read-writer-with-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">BufferedReadWriter</span> <span class="tok-variable">r</span>) -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Writer</span>.<span class="tok-constructor">BufferedWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">BufferedReadWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-buffered-read-writer-with-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer-with-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Writer/#t-BufferedWriter" title="Effect.Buffered.Writer.BufferedWriter">BufferedWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-buffered-read-writer-with-writer" title="Permalink">#</a><a href="/library/source/Effect.Buffered/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 Install an advanced writer while preserving unread input, source errors and reader history.
 
-[Source](/reference-sources/Effect.Buffered.cinch) · line 34
+</div>
+</article>
 
-<a id="value-62756666657265642d726561642d7772697465722d777269746572"></a>
-
-## `buffered-read-writer-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">buffered-read-writer-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">BufferedReadWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Buffered</span>.<span class="tok-constructor">Writer</span>.<span class="tok-constructor">BufferedWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-buffered-read-writer-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">buffered-read-writer-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered/#t-BufferedReadWriter" title="Effect.Buffered.BufferedReadWriter">BufferedReadWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Buffered.Writer/#t-BufferedWriter" title="Effect.Buffered.Writer.BufferedWriter">BufferedWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-buffered-read-writer-writer" title="Permalink">#</a><a href="/library/source/Effect.Buffered/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-body">
 
 Observe the current writer component without performing I/O or implicitly flushing buffered bytes.
 
-[Source](/reference-sources/Effect.Buffered.cinch) · line 26
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Buffered.cinch`. Source SHA-256: `a9669f4c6996da84707ead19c237498e0b043fcac8dc1e4cc945ccaecff22054`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Buffered.cinch`](/library/source/Effect.Buffered/). Source SHA-256: `a9669f4c6996da84707ead19c237498e0b043fcac8dc1e4cc945ccaecff22054`.

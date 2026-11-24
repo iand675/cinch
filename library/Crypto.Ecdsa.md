@@ -2,19 +2,27 @@
 
 Deterministic (RFC 6979) and hedged P-256 ECDSA signatures in raw and DER form with strict verification.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.Ecdsa</code></div><div class="doc-mod-bar-links"><a href="/library/source/Crypto.Ecdsa/">View source</a><a href="/library/search/?q=%2BCrypto.Ecdsa">Search module</a><a href="/reference-sources/Crypto.Ecdsa.cinch" download="Crypto.Ecdsa.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Crypto.Ecdsa`. Selected exports may already be in Prelude.
+**Dependencies:** [Crypto.Hmac](Crypto.Hmac.md), [Crypto.P256](Crypto.P256.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Crypto.Ecdsa.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (7 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Crypto.Ecdsa`: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Ecdsa](Crypto.Ecdsa.md), [Crypto.Hmac](Crypto.Hmac.md), [Crypto.P256](Crypto.P256.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Digest](Text.Digest.md).
 
-[Crypto.Hmac](Crypto.Hmac.md), [Crypto.P256](Crypto.P256.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+```sh
+cp seed/prelude/Crypto/ConstantTime.cinch ./Crypto.ConstantTime.cinch
+cp seed/prelude/Crypto/Ecdsa.cinch ./Crypto.Ecdsa.cinch
+cp seed/prelude/Crypto/Hmac.cinch ./Crypto.Hmac.cinch
+cp seed/prelude/Crypto/P256.cinch ./Crypto.P256.cinch
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Digest.cinch ./Text.Digest.cinch
+```
 
-Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Ecdsa](Crypto.Ecdsa.md), [Crypto.Hmac](Crypto.Hmac.md), [Crypto.P256](Crypto.P256.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Digest](Text.Digest.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 ECDSA signatures over P-256 (FIPS 186-5), with deterministic nonces (RFC 6979) and DER encoding.
 A signature over a message digest is the pair (r, s): r is the x-coordinate
@@ -28,102 +36,96 @@ Verification checks both values are in [1, n - 1] and that the x-coordinate of
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (9 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-EcdsaError">EcdsaError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">EcdsaError</strong></code></li><li><a class="syn-name" href="#v-ecdsa-error-message">ecdsa-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ecdsa-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-ecdsa-rfc6979-nonce">ecdsa-rfc6979-nonce</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ecdsa-rfc6979-nonce</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code></li><li><a class="syn-name" href="#v-ecdsa-sign">ecdsa-sign</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ecdsa-sign</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ecdsa-sign-der">ecdsa-sign-der</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ecdsa-sign-der</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ecdsa-sign-der-hedged">ecdsa-sign-der-hedged</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ecdsa-sign-der-hedged</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ecdsa-sign-hedged">ecdsa-sign-hedged</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ecdsa-sign-hedged</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-ecdsa-verify">ecdsa-verify</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ecdsa-verify</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ecdsa-verify-der">ecdsa-verify-der</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ecdsa-verify-der</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li></ul>
+</details>
 
-<a id="type-45636473614572726f72"></a>
+# Types
 
-## `EcdsaError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">EcdsaError</span></code></pre>
+<article class="doc-entry" id="t-EcdsaError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">EcdsaError</strong></code><span class="doc-sig-links"><a href="#t-EcdsaError" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 A signature that cannot be produced or parsed.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 25
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EcdsaInvalidSignature</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ecdsa</span>.<span class="tok-constructor">EcdsaError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-EcdsaInvalidSignature"><code><strong class="tok-constructor">EcdsaInvalidSignature</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-65636473612d6572726f722d6d657373616765"></a>
-
-## `ecdsa-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ecdsa-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ecdsa</span>.<span class="tok-constructor">EcdsaError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-ecdsa-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ecdsa-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-ecdsa-error-message" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 Render an error.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 30
+</div>
+</article>
 
-<a id="value-65636473612d726663363937392d6e6f6e6365"></a>
-
-## `ecdsa-rfc6979-nonce`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ecdsa-rfc6979-nonce</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256Scalar</span>)))</code></pre>
+<article class="doc-entry" id="v-ecdsa-rfc6979-nonce">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ecdsa-rfc6979-nonce</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256Scalar" title="Crypto.P256.P256Scalar">P256Scalar</a></code><span class="doc-sig-links"><a href="#v-ecdsa-rfc6979-nonce" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L78" title="View source at line 78">Source</a></span></div>
+<div class="doc-body">
 
 The RFC 6979 nonce for a key and digest with HMAC-SHA-256, with optional extra entropy appended to the seed.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 78
+</div>
+</article>
 
-<a id="value-65636473612d7369676e"></a>
-
-## `ecdsa-sign`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ecdsa-sign</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ecdsa</span>.<span class="tok-constructor">EcdsaError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-ecdsa-sign">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ecdsa-sign</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ecdsa-sign" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 Sign a digest with a deterministic RFC 6979 nonce: 64 bytes r || s.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 34
+</div>
+</article>
 
-<a id="value-65636473612d7369676e2d646572"></a>
-
-## `ecdsa-sign-der`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ecdsa-sign-der</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ecdsa</span>.<span class="tok-constructor">EcdsaError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-ecdsa-sign-der">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ecdsa-sign-der</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ecdsa-sign-der" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 Sign and DER-encode: SEQUENCE { INTEGER r, INTEGER s }.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 66
+</div>
+</article>
 
-<a id="value-65636473612d7369676e2d6465722d686564676564"></a>
-
-## `ecdsa-sign-der-hedged`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ecdsa-sign-der-hedged</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ecdsa</span>.<span class="tok-constructor">EcdsaError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-ecdsa-sign-der-hedged">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ecdsa-sign-der-hedged</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ecdsa-sign-der-hedged" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 Hedged signing, DER-encoded.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 70
+</div>
+</article>
 
-<a id="value-65636473612d7369676e2d686564676564"></a>
-
-## `ecdsa-sign-hedged`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ecdsa-sign-hedged</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PrivateKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Ecdsa</span>.<span class="tok-constructor">EcdsaError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-ecdsa-sign-hedged">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ecdsa-sign-hedged</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PrivateKey" title="Crypto.P256.P256PrivateKey">P256PrivateKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.Ecdsa/#t-EcdsaError" title="Crypto.Ecdsa.EcdsaError">EcdsaError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ecdsa-sign-hedged" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-body">
 
 Sign with the RFC 6979 nonce hedged by extra entropy (section 3.6); empty entropy gives ecdsa-sign.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 38
+</div>
+</article>
 
-<a id="value-65636473612d766572696679"></a>
-
-## `ecdsa-verify`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ecdsa-verify</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-ecdsa-verify">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ecdsa-verify</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ecdsa-verify" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 Verify a 64-byte r || s signature over a digest.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 51
+</div>
+</article>
 
-<a id="value-65636473612d7665726966792d646572"></a>
-
-## `ecdsa-verify-der`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ecdsa-verify-der</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">P256</span>.<span class="tok-constructor">P256PublicKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-ecdsa-verify-der">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ecdsa-verify-der</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.P256/#t-P256PublicKey" title="Crypto.P256.P256PublicKey">P256PublicKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ecdsa-verify-der" title="Permalink">#</a><a href="/library/source/Crypto.Ecdsa/#L74" title="View source at line 74">Source</a></span></div>
+<div class="doc-body">
 
 Verify a DER signature; any encoding that is not strict DER fails.
 
-[Source](/reference-sources/Crypto.Ecdsa.cinch) · line 74
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Ecdsa.cinch`. Source SHA-256: `6f15ab42fb1c78de630051e078c31260bdc5b3aa416ac90423471f79e171ffa1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Ecdsa.cinch`](/library/source/Crypto.Ecdsa/). Source SHA-256: `6f15ab42fb1c78de630051e078c31260bdc5b3aa416ac90423471f79e171ffa1`.

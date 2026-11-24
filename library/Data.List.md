@@ -2,17 +2,11 @@
 
 Finite strict lists: construction, transformation, filtering, splitting, searching, folds, and collection instances.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.List</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.List/">View source</a><a href="/library/search/?q=%2BData.List">Search module</a><a href="/reference-sources/Data.List.cinch" download="Data.List.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.List`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Category.Traversable](Category.Traversable.md), [Data.Core](Data.Core.md), [Data.FromList](Data.FromList.md), [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.List.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Category.Traversable](Category.Traversable.md), [Data.Core](Data.Core.md), [Data.FromList](Data.FromList.md), [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.List: the inductive list: `Nil` or `Cons x xs`.
 
@@ -43,137 +37,122 @@ the name here, which is the `map` situation over again.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (42 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-List">List</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">List</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-break">break</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">break</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-cycle">cycle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cycle</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-drop">drop</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">drop</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-elem-index">elem-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">elem-index</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-find">find</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">find</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-find-index">find-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">find-index</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-fold-left1">fold-left1</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fold-left1</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-fold-right1">fold-right1</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fold-right1</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-foldr">foldr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">foldr</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-group-by">group-by</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">group-by</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-head">head</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">head</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-init">init</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">init</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-intercalate">intercalate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">intercalate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-intersperse">intersperse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">intersperse</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-is-empty">is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-iterate">iterate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">iterate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-last">last</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">last</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-length">length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">length</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-list-length">list-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">list-length</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-lookup">lookup</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lookup</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">v</span></code></li><li><a class="syn-name" href="#v-map">map</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-nth">nth</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nth</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-nub">nub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">nub</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-partition">partition</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">partition</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-replicate">replicate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">replicate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-reverse">reverse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">reverse</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-scanl">scanl</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scanl</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-scanr">scanr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scanr</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-sort">sort</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sort</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-sort-by">sort-by</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sort-by</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-span">span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-split-at">split-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">split-at</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-subsequences">subsequences</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">subsequences</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-sum-list">sum-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sum-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">add</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tail">tail</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tail</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-take">take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-transpose">transpose</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">transpose</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-unfold">unfold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unfold</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-unzip">unzip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unzip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span>)</code></li><li><a class="syn-name" href="#v-zip">zip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)</code></li><li><a class="syn-name" href="#v-zip-with">zip-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-with</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">c</span></code></li></ul>
+</details>
 
-<a id="type-4c697374"></a>
+# Types
 
-## `List`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">List</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Core.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Nil</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cons</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="t-List">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">List</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-List" title="Permalink">#</a><a href="/library/source/Data.Core/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Nil"><code><strong class="tok-constructor">Nil</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li id="k-Cons"><code><strong class="tok-constructor">Cons</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (9)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span>) <span class="tok-variable">e</span></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.List/#instances">Data.List</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-627265616b"></a>
-
-## `break`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">break</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>), (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-break">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">break</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-break" title="Permalink">#</a><a href="/library/source/Data.List/#L220" title="View source at line 220">Source</a></span></div>
+<div class="doc-body">
 
 The longest prefix whose elements do NOT satisfy `p`, and the rest.
 Written out rather than spelled `span` of a negated predicate:
 `not` lives in `Data.Bool`, which is checked after this module.
 
-[Source](/reference-sources/Data.List.cinch) · line 220
+</div>
+</article>
 
-<a id="value-6379636c65"></a>
-
-## `cycle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cycle</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-cycle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cycle</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-cycle" title="Permalink">#</a><a href="/library/source/Data.List/#L299" title="View source at line 299">Source</a></span></div>
+<div class="doc-body">
 
 The list repeated `n` times. `base`'s `cycle` on an empty list
 never returns; here the empty list stays empty, because every
 list-producing walk in this language must end.
 
-[Source](/reference-sources/Data.List.cinch) · line 299
+</div>
+</article>
 
-<a id="value-64726f70"></a>
-
-## `drop`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">drop</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-drop">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">drop</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-drop" title="Permalink">#</a><a href="/library/source/Data.List/#L107" title="View source at line 107">Source</a></span></div>
+<div class="doc-body">
 
 Everything but the first `n` elements.
 
-[Source](/reference-sources/Data.List.cinch) · line 107
+</div>
+</article>
 
-<a id="value-656c656d2d696e646578"></a>
-
-## `elem-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">elem-index</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-elem-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">elem-index</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-elem-index" title="Permalink">#</a><a href="/library/source/Data.List/#L263" title="View source at line 263">Source</a></span></div>
+<div class="doc-body">
 
 The position of the first element equal to `x` (`None` when
 absent).
 
-[Source](/reference-sources/Data.List.cinch) · line 263
+</div>
+</article>
 
-<a id="value-66696e64"></a>
-
-## `find`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-find">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">find</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-find" title="Permalink">#</a><a href="/library/source/Data.List/#L240" title="View source at line 240">Source</a></span></div>
+<div class="doc-body">
 
 The first element `p` accepts (`None` when none does).
 
-[Source](/reference-sources/Data.List.cinch) · line 240
+</div>
+</article>
 
-<a id="value-66696e642d696e646578"></a>
-
-## `find-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find-index</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-find-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">find-index</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-find-index" title="Permalink">#</a><a href="/library/source/Data.List/#L250" title="View source at line 250">Source</a></span></div>
+<div class="doc-body">
 
 The position of the first element `p` accepts (`None` when none
 does). The position is a `Nat`: it counts from zero, so it cannot
 be negative.
 
-[Source](/reference-sources/Data.List.cinch) · line 250
+</div>
+</article>
 
-<a id="value-666f6c642d6c65667431"></a>
-
-## `fold-left1`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fold-left1</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-fold-left1">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fold-left1</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-fold-left1" title="Permalink">#</a><a href="/library/source/Data.List/#L330" title="View source at line 330">Source</a></span></div>
+<div class="doc-body">
 
 The left fold seeded with the first element, so an empty list has
 nothing to return (`None`; `base`'s `foldl1` faults).
 
-[Source](/reference-sources/Data.List.cinch) · line 330
+</div>
+</article>
 
-<a id="value-666f6c642d726967687431"></a>
-
-## `fold-right1`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fold-right1</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-fold-right1">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fold-right1</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-fold-right1" title="Permalink">#</a><a href="/library/source/Data.List/#L343" title="View source at line 343">Source</a></span></div>
+<div class="doc-body">
 
 The right fold seeded with the first element (`None` on an empty
 list).
 
-[Source](/reference-sources/Data.List.cinch) · line 343
+</div>
+</article>
 
-<a id="value-666f6c6472"></a>
+<article class="doc-entry" id="v-foldr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">foldr</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-foldr" title="Permalink">#</a><a href="/library/source/Data.List/#L68" title="View source at line 68">Source</a></span></div>
+</article>
 
-## `foldr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">foldr</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
-
-[Source](/reference-sources/Data.List.cinch)
-
-<a id="value-67726f75702d6279"></a>
-
-## `group-by`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">group-by</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-group-by">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">group-by</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-group-by" title="Permalink">#</a><a href="/library/source/Data.List/#L428" title="View source at line 428">Source</a></span></div>
+<div class="doc-body">
 
 The runs of adjacent elements the `same` test groups together: a
 run starts at an element and grows while `same` holds of that
 element and the next candidate, so `same` is the same-group test
 rather than an equality (`base`'s `groupBy`).
 
-[Source](/reference-sources/Data.List.cinch) · line 428
+</div>
+</article>
 
-<a id="value-68656164"></a>
-
-## `head`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">head</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-head">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">head</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-head" title="Permalink">#</a><a href="/library/source/Data.List/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 The partial projections of a list: the first element, everything
 but the first, the last element, and everything but the last. Each
@@ -181,21 +160,16 @@ reports the empty list as `None` (the prelude's partiality
 convention: a partial accessor returns `Option`, never a fault).
 `head` is `nth 0` spelled for the reader.
 
-[Source](/reference-sources/Data.List.cinch) · line 140
+</div>
+</article>
 
-<a id="value-696e6974"></a>
+<article class="doc-entry" id="v-init">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">init</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-init" title="Permalink">#</a><a href="/library/source/Data.List/#L157" title="View source at line 157">Source</a></span></div>
+</article>
 
-## `init`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">init</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.List.cinch)
-
-<a id="value-696e74657263616c617465"></a>
-
-## `intercalate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">intercalate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-intercalate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">intercalate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-intercalate" title="Permalink">#</a><a href="/library/source/Data.List/#L454" title="View source at line 454">Source</a></span></div>
+<div class="doc-body">
 
 The lists joined with `sep` between them (`base`'s `intercalate`,
 which is `concat` of `intersperse sep`); `Nil` and a singleton come
@@ -204,220 +178,191 @@ than `Category.Foldable`'s class-level `concat`: this is a list
 operation, its join is four lines, and a home needs no class
 constraint to concatenate its own type.
 
-[Source](/reference-sources/Data.List.cinch) · line 454
+</div>
+</article>
 
-<a id="value-696e746572737065727365"></a>
-
-## `intersperse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">intersperse</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-intersperse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">intersperse</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-intersperse" title="Permalink">#</a><a href="/library/source/Data.List/#L437" title="View source at line 437">Source</a></span></div>
+<div class="doc-body">
 
 `sep` between the elements, one separator fewer than the list has
 elements, so `Nil` and a singleton come back unchanged (`base`'s
 `intersperse`).
 
-[Source](/reference-sources/Data.List.cinch) · line 437
+</div>
+</article>
 
-<a id="value-69732d656d707479"></a>
+<article class="doc-entry" id="v-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-is-empty" title="Permalink">#</a><a href="/library/source/Data.List/#L130" title="View source at line 130">Source</a></span></div>
+</article>
 
-## `is-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.List.cinch)
-
-<a id="value-69746572617465"></a>
-
-## `iterate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">iterate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-iterate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">iterate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-iterate" title="Permalink">#</a><a href="/library/source/Data.List/#L281" title="View source at line 281">Source</a></span></div>
+<div class="doc-body">
 
 The enumeration `x, f x, f (f x), ...` cut to `n` elements. The
 bound is what keeps the walk total (`base`'s `iterate` is
 infinite).
 
-[Source](/reference-sources/Data.List.cinch) · line 281
+</div>
+</article>
 
-<a id="value-6c617374"></a>
+<article class="doc-entry" id="v-last">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">last</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-last" title="Permalink">#</a><a href="/library/source/Data.List/#L150" title="View source at line 150">Source</a></span></div>
+</article>
 
-## `last`
+<article class="doc-entry" id="v-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">length</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-length" title="Permalink">#</a><a href="/library/source/Data.List/#L73" title="View source at line 73">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">last</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.List.cinch)
-
-<a id="value-6c656e677468"></a>
-
-## `length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Int</span>)</code></pre>
-
-[Source](/reference-sources/Data.List.cinch)
-
-<a id="value-6c6973742d6c656e677468"></a>
-
-## `list-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">list-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-list-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">list-length</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-list-length" title="Permalink">#</a><a href="/library/source/Data.List/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
 
 The same count as a `Nat`, for the indexing and sizing arithmetic
 that works in `Nat` (`take`/`drop`/`nth` below, offsets, widths).
 `length` stays `Int` because the prelude surface has always
 returned `Int` there.
 
-[Source](/reference-sources/Data.List.cinch) · line 82
+</div>
+</article>
 
-<a id="value-6c6f6f6b7570"></a>
-
-## `lookup`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lookup</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">k</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">v</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">k</span>) =&gt; (<span class="tok-variable">k</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">v</span>)))</code></pre>
+<article class="doc-entry" id="v-lookup">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lookup</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">k</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">k</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">k</span>, <span class="tok-variable">v</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-lookup" title="Permalink">#</a><a href="/library/source/Data.List/#L270" title="View source at line 270">Source</a></span></div>
+<div class="doc-body">
 
 The value paired with `key`: the first pair whose key matches wins,
 so a repeated key keeps the earliest value (`None` when absent).
 `lookup` is the association-list read `Data.Map`/`Data.HashMap`
 build their trees over.
 
-[Source](/reference-sources/Data.List.cinch) · line 270
+</div>
+</article>
 
-<a id="value-6d6170"></a>
-
-## `map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-map">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-map" title="Permalink">#</a><a href="/library/source/Data.List/#L63" title="View source at line 63">Source</a></span></div>
+<div class="doc-body">
 
 `List`, `Nil` and `Cons` are declared in `Data.Core` and re-exported
 here (that module's header says why: `Data.List` and `Data.Option`
 name each other in signatures, so neither can be checked first).
 This home carries the type's instance family and its operations.
 
-[Source](/reference-sources/Data.List.cinch) · line 63
+</div>
+</article>
 
-<a id="value-6e7468"></a>
-
-## `nth`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nth</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-nth">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nth</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-nth" title="Permalink">#</a><a href="/library/source/Data.List/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 The element at index `n` (`None` past the end).
 
-[Source](/reference-sources/Data.List.cinch) · line 115
+</div>
+</article>
 
-<a id="value-6e7562"></a>
-
-## `nub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">nub</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Eq</span>.<span class="tok-constructor">Eq</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-nub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">nub</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">eq</span> :: <a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-nub" title="Permalink">#</a><a href="/library/source/Data.List/#L466" title="View source at line 466">Source</a></span></div>
+<div class="doc-body">
 
 The list with later duplicates removed, keeping the first
 occurrence of each element (`base`'s `nub`; the `Eq` constraint is
 what decides sameness).
 
-[Source](/reference-sources/Data.List.cinch) · line 466
+</div>
+</article>
 
-<a id="value-706172746974696f6e"></a>
-
-## `partition`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">partition</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>), (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-partition">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">partition</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-partition" title="Permalink">#</a><a href="/library/source/Data.List/#L230" title="View source at line 230">Source</a></span></div>
+<div class="doc-body">
 
 The elements that satisfy `p` and the ones that do not, each in
 input order (so the two results interleave back into the input).
 
-[Source](/reference-sources/Data.List.cinch) · line 230
+</div>
+</article>
 
-<a id="value-7265706c6963617465"></a>
-
-## `replicate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">replicate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-replicate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">replicate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-replicate" title="Permalink">#</a><a href="/library/source/Data.List/#L125" title="View source at line 125">Source</a></span></div>
+<div class="doc-body">
 
 `x` repeated `n` times.
 
-[Source](/reference-sources/Data.List.cinch) · line 125
+</div>
+</article>
 
-<a id="value-72657665727365"></a>
-
-## `reverse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">reverse</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-reverse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">reverse</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-reverse" title="Permalink">#</a><a href="/library/source/Data.List/#L90" title="View source at line 90">Source</a></span></div>
+<div class="doc-body">
 
 Reversal (the accumulator is the reverse built so far, so the walk
 is linear; `reverse-into` is the private twin every accumulator
 walk here shares).
 
-[Source](/reference-sources/Data.List.cinch) · line 90
+</div>
+</article>
 
-<a id="value-7363616e6c"></a>
-
-## `scanl`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scanl</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">b</span>))))</code></pre>
+<article class="doc-entry" id="v-scanl">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scanl</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-scanl" title="Permalink">#</a><a href="/library/source/Data.List/#L308" title="View source at line 308">Source</a></span></div>
+<div class="doc-body">
 
 The successive reductions from the left, the seed first: `scanl f z
 xs` has one element more than `xs` (`base`'s `scanl`).
 
-[Source](/reference-sources/Data.List.cinch) · line 308
+</div>
+</article>
 
-<a id="value-7363616e72"></a>
-
-## `scanr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scanr</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">b</span>))))</code></pre>
+<article class="doc-entry" id="v-scanr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scanr</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-scanr" title="Permalink">#</a><a href="/library/source/Data.List/#L315" title="View source at line 315">Source</a></span></div>
+<div class="doc-body">
 
 The successive reductions from the right: the first element is the
 whole fold and the seed is last (`base`'s `scanr`).
 
-[Source](/reference-sources/Data.List.cinch) · line 315
+</div>
+</article>
 
-<a id="value-736f7274"></a>
-
-## `sort`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sort</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <span class="tok-constructor">Relation</span>.<span class="tok-constructor">Ord</span>.<span class="tok-constructor">Ord</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-sort">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sort</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ord</span> :: <a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-sort" title="Permalink">#</a><a href="/library/source/Data.List/#L411" title="View source at line 411">Source</a></span></div>
+<div class="doc-body">
 
 The list in ascending order under `Ord` (a stable merge sort).
 
-[Source](/reference-sources/Data.List.cinch) · line 411
+</div>
+</article>
 
-<a id="value-736f72742d6279"></a>
-
-## `sort-by`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sort-by</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-sort-by">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sort-by</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-sort-by" title="Permalink">#</a><a href="/library/source/Data.List/#L382" title="View source at line 382">Source</a></span></div>
+<div class="doc-body">
 
 Merge sort under a three-way comparator. Stable: the left element
 is kept unless the right one compares strictly before it, so equal
 elements stay in their input order (`base`'s `sortBy`).
 
-[Source](/reference-sources/Data.List.cinch) · line 382
+</div>
+</article>
 
-<a id="value-7370616e"></a>
-
-## `span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>), (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-span" title="Permalink">#</a><a href="/library/source/Data.List/#L209" title="View source at line 209">Source</a></span></div>
+<div class="doc-body">
 
 The longest prefix whose elements satisfy `p`, and the rest.
 
-[Source](/reference-sources/Data.List.cinch) · line 209
+</div>
+</article>
 
-<a id="value-73706c69742d6174"></a>
-
-## `split-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">split-at</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>), (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-split-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">split-at</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-split-at" title="Permalink">#</a><a href="/library/source/Data.List/#L200" title="View source at line 200">Source</a></span></div>
+<div class="doc-body">
 
 The first `n` elements and the rest; the split clamps at the end,
 so `split-at n` of a shorter list is the whole list and `Nil`.
 
-[Source](/reference-sources/Data.List.cinch) · line 200
+</div>
+</article>
 
-<a id="value-73756273657175656e636573"></a>
-
-## `subsequences`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">subsequences</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-subsequences">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">subsequences</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-subsequences" title="Permalink">#</a><a href="/library/source/Data.List/#L484" title="View source at line 484">Source</a></span></div>
+<div class="doc-body">
 
 Every subsequence, the empty one first, in `base`'s order:
 `subsequences [a, b]` is `[[], [a], [b], [a, b]]`. The count is
@@ -425,39 +370,29 @@ Every subsequence, the empty one first, in `base`'s order:
 here whose result can dwarf its input; it still ends, because the
 input does.
 
-[Source](/reference-sources/Data.List.cinch) · line 484
+</div>
+</article>
 
-<a id="value-73756d2d6c697374"></a>
+<article class="doc-entry" id="v-sum-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sum-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">add</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#c-Add" title="Algebra.Arithmetic.Add">Add</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-sum-list" title="Permalink">#</a><a href="/library/source/Data.List/#L501" title="View source at line 501">Source</a></span></div>
+</article>
 
-## `sum-list`
+<article class="doc-entry" id="v-tail">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tail</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tail" title="Permalink">#</a><a href="/library/source/Data.List/#L145" title="View source at line 145">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sum-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">add</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Add</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.List.cinch)
-
-<a id="value-7461696c"></a>
-
-## `tail`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tail</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.List.cinch)
-
-<a id="value-74616b65"></a>
-
-## `take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-take" title="Permalink">#</a><a href="/library/source/Data.List/#L99" title="View source at line 99">Source</a></span></div>
+<div class="doc-body">
 
 The first `n` elements (fewer when the list is shorter).
 
-[Source](/reference-sources/Data.List.cinch) · line 99
+</div>
+</article>
 
-<a id="value-7472616e73706f7365"></a>
-
-## `transpose`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">transpose</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-transpose">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">transpose</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-transpose" title="Permalink">#</a><a href="/library/source/Data.List/#L360" title="View source at line 360">Source</a></span></div>
+<div class="doc-body">
 
 The transpose of a ragged list of lists: round k is the k-th
 element of every row that still has one, so a short row contributes
@@ -466,84 +401,66 @@ longest input row (`base`'s `transpose`). A rectangular `Matrix`
 record keeps its own row-level helper; this is the general list
 operation.
 
-[Source](/reference-sources/Data.List.cinch) · line 360
+</div>
+</article>
 
-<a id="value-756e666f6c64"></a>
-
-## `unfold`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unfold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>))) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-unfold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unfold</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-unfold" title="Permalink">#</a><a href="/library/source/Data.List/#L290" title="View source at line 290">Source</a></span></div>
+<div class="doc-body">
 
 The unfolding: `f` either yields the next element together with the
 next seed, or stops. `base` spells this `unfoldr`; the `r` suffix
 is historical (the walk is not a right fold), so the name here is
 the plain one.
 
-[Source](/reference-sources/Data.List.cinch) · line 290
+</div>
+</article>
 
-<a id="value-756e7a6970"></a>
-
-## `unzip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unzip</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>), (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-unzip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unzip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span>)</code><span class="doc-sig-links"><a href="#v-unzip" title="Permalink">#</a><a href="/library/source/Data.List/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 The inverse of `zip`: the first components and the second
 components, each in order.
 
-[Source](/reference-sources/Data.List.cinch) · line 191
+</div>
+</article>
 
-<a id="value-7a6970"></a>
-
-## `zip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>))))</code></pre>
+<article class="doc-entry" id="v-zip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>)</code><span class="doc-sig-links"><a href="#v-zip" title="Permalink">#</a><a href="/library/source/Data.List/#L174" title="View source at line 174">Source</a></span></div>
+<div class="doc-body">
 
 Pairing, truncated at the shorter side (so a length mismatch
 shortens the result, never faults).
 
-[Source](/reference-sources/Data.List.cinch) · line 174
+</div>
+</article>
 
-<a id="value-7a69702d77697468"></a>
-
-## `zip-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-with</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">b</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">c</span>))))</code></pre>
+<article class="doc-entry" id="v-zip-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-with</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#v-zip-with" title="Permalink">#</a><a href="/library/source/Data.List/#L182" title="View source at line 182">Source</a></span></div>
+<div class="doc-body">
 
 `zip` with the pair built by `f`, truncated the same way.
 
-[Source](/reference-sources/Data.List.cinch) · line 182
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.List.Alternative_List` | `Category.Alternative.Alternative Data.Core.List` | Implicit |
-| `Data.List.Applicative_List` | `Category.Applicative.Applicative Data.Core.List` | Implicit |
-| `Data.List.Foldable_List` | `Category.Foldable.Foldable Data.Core.List` | Implicit |
-| `Data.List.FromList_List` | `Data.FromList.FromList (Data.Core.List e) e` | Implicit |
-| `Data.List.Functor_List` | `Category.Functor.Functor Data.Core.List` | Implicit |
-| `Data.List.Monad_List` | `Category.Monad.Monad Data.Core.List` | Implicit |
-| `Data.List.Monoid_List` | `Algebra.Monoid.Monoid (Data.Core.List t)` | Implicit |
-| `Data.List.Semigroup_List` | `Algebra.Semigroup.Semigroup (Data.Core.List t)` | Implicit |
-| `Data.List.Traversable_List` | `Category.Traversable.Traversable Data.Core.List` | Implicit |
-
-**`Data.List.Alternative_List`**: Choice is concatenation (moved from Category.Alternative).
-**`Data.List.Applicative_List`**: `pure` is the singleton list; `<*>` applies every function to
-every value in order (the list of all results; moved from
-Category.Applicative).
-**`Data.List.Foldable_List`**: The list fold (moved from Category.Foldable).
-**`Data.List.Functor_List`**: Functor: map over every element (moved from Category.Functor).
-**`Data.List.Monad_List`**: Bind is flatMap: every element's continuation result, in order
-(moved from Category.Monad).
-**`Data.List.Monoid_List`**: Monoid under append; the empty list is the identity (moved from
-Algebra.Monoid).
-**`Data.List.Semigroup_List`**: Semigroup under append: associative because list concatenation is
-(moved from Algebra.Semigroup at the prelude split).
-**`Data.List.Traversable_List`**: Left-to-right; the whole list rebuilds under one `f` (moved from
-Category.Traversable).
+<ul class="doc-module-instances">
+<li id="i-Alternative_List"><code><a class="doc-type-link tok-constructor" href="/library/Category.Alternative/#c-Alternative" title="Category.Alternative.Alternative">Alternative</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">Implicit · <code>Data.List.Alternative_List</code></span><div class="doc-child-prose">Choice is concatenation (moved from Category.Alternative).</div></li>
+<li id="i-Applicative_List"><code><a class="doc-type-link tok-constructor" href="/library/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">Implicit · <code>Data.List.Applicative_List</code></span><div class="doc-child-prose">pure is the singleton list; &lt;&gt; applies every function to every value in order (the list of all results; moved from Category.Applicative).</div></li>
+<li id="i-Foldable_List"><code><a class="doc-type-link tok-constructor" href="/library/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">Implicit · <code>Data.List.Foldable_List</code></span><div class="doc-child-prose">The list fold (moved from Category.Foldable).</div></li>
+<li id="i-FromList_List"><code><a class="doc-type-link tok-constructor" href="/library/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">e</span>) <span class="tok-variable">e</span></code> <span class="doc-inst-meta">Implicit · <code>Data.List.FromList_List</code></span></li>
+<li id="i-Functor_List"><code><a class="doc-type-link tok-constructor" href="/library/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">Implicit · <code>Data.List.Functor_List</code></span><div class="doc-child-prose">Functor: map over every element (moved from Category.Functor).</div></li>
+<li id="i-Monad_List"><code><a class="doc-type-link tok-constructor" href="/library/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">Implicit · <code>Data.List.Monad_List</code></span><div class="doc-child-prose">Bind is flatMap: every element's continuation result, in order (moved from Category.Monad).</div></li>
+<li id="i-Monoid_List"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.List.Monoid_List</code></span><div class="doc-child-prose">Monoid under append; the empty list is the identity (moved from Algebra.Monoid).</div></li>
+<li id="i-Semigroup_List"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.List.Semigroup_List</code></span><div class="doc-child-prose">Semigroup under append: associative because list concatenation is (moved from Algebra.Semigroup at the prelude split).</div></li>
+<li id="i-Traversable_List"><code><a class="doc-type-link tok-constructor" href="/library/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">Implicit · <code>Data.List.Traversable_List</code></span><div class="doc-child-prose">Left-to-right; the whole list rebuilds under one f (moved from Category.Traversable).</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/List.cinch`. Source SHA-256: `f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/List.cinch`](/library/source/Data.List/). Source SHA-256: `f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d`.

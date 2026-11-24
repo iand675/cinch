@@ -1,450 +1,156 @@
-# Cinch bootstrap compiler
+# Cinch bootstrap compiler (`seed/`)
 
-The [standard library coverage against Go](../design/stdlib-parity-go.md)
-tracks implemented equivalents, compatibility tests, and remaining work.
+`seed/` is the Rust implementation of the Cinch compiler. It serves two roles in this repository:
 
-A first compiler for the language designed in this repository. The surface
-syntax is the draft 0.2 grammar in
-[`specifications/surface-syntax-and-grammar.md`](../specifications/surface-syntax-and-grammar.md);
-the static and dynamic goals are
-[`specifications/core-language-specification.md`](../specifications/core-language-specification.md).
-The language is named **Cinch** (renamed from its working name on
-2026-10-27; the prose and identifier sweeps landed together). Every
-identifier carries the name: the `cinch` CLI and crate, the reserved
-`cinch.prim.*`/`cinch.runtime.*` namespaces, `.cinch` sources,
-`.cinchif` compiled interfaces, `cinch_*` runtime externs, the
-`cinchruntime` staticlib, and the `CINCH_*` environment variables.
+1. **Stage 0 bootstrap seed** for the self-hosted Cinch compiler in [`compiler/`](../compiler/README.md).
+2. **Host runtime and embedded base provider**, owning the `cinchruntime` static/shared library (`seed/runtime/`), the embedded `prelude/` source family (`cinch-base`, 55 modules), and the development CLI (`cinch`).
 
-This is a bootstrap slice: a small, honest subset implemented end to end
-(source text to native executable) so the design can be exercised and
-iterated on. It is not milestone 1 of the implementation plan in
-[`design/open-decisions-and-implementation-plan.md`](../design/open-decisions-and-implementation-plan.md);
-the dependent core is still ahead of us.
+The compiler targets the surface syntax in [`specifications/surface-syntax-and-grammar.md`](../specifications/surface-syntax-and-grammar.md) and the static/dynamic semantics in [`specifications/core-language-specification.md`](../specifications/core-language-specification.md). Both `seed/` and `compiler/` currently speak **interface schema 10** and **runtime ABI 10**.
 
 ## Toolchain
 
-The [devenv](https://devenv.sh) shell supplies Rust, LLVM, Tree-sitter and
-Node. Cargo generates the parser during the build. Outside the shell, put
-the `tree-sitter` CLI and its JavaScript runtime on PATH or set
-`TREE_SITTER` to the path of the CLI.
+The [devenv](https://devenv.sh) shell supplies Rust, LLVM, `clang`, Tree-sitter, and Node. Cargo builds the Tree-sitter parser automatically; outside the shell, ensure `tree-sitter` and Node are on `PATH` (or set `TREE_SITTER`). Set `CINCH_CLANG` to override the `clang` binary used for compilation and linking.
 
 ```sh
-devenv shell        # rustc, cargo, clang, llvm
+devenv shell        # rustc, cargo, clang, llvm, tree-sitter
+cinch-test          # cargo test
+```
+
+### Compilation
+
+```sh
 cinch check examples/compiler/fib.cinch
-cinch run examples/compiler/fib.cinch
+cinch run examples/compiler/fib.cinch [args...]
 cinch emit-ir examples/compiler/fib.cinch -o fib.ll
 cinch build examples/compiler/fib.cinch -o fib
-cinch-test       # cargo test
-cinch doc extract seed/prelude/Data/Option.cinch --legacy -o /tmp/option.cinchdoc
-cinch doc render seed/prelude/Data/Option.cinch --legacy
-cinch repl
-cinch pkg add alice/library@0.1.0 --registry http://127.0.0.1:8787
-cinch pkg publish --registry http://127.0.0.1:8787 --project . --token "$CINCH_REGISTRY_TOKEN"
-cinch pkg verify --project .
-cinch pkg verify --slsa --project .
+cinch build Library.cinch --shared -o libLibrary.so
 ```
 
-`cinch pkg add` fetches a registry release or reads a local source, writes it
-under the project's `vendor/` tree, checks it into interfaces, emits
-`package.o` and its ABI manifest, and updates `.cinchlock`. Registry
-dependencies resolve to one version per name by fixed-point intersection and
-accept `--token` for private releases.
+- `check`, `build`, and `emit-ir` write compiled interfaces (`build/<module>.cinchif`) and a packed interface closure (`build/<entry>.cpk`).
+- `--target <triple>` supports five triples: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, and `wasm32-unknown-unknown`. `check` and `emit-ir` work for all five directly; cross-target `build` requires `--runtime-archive <path>`.
+- `--shared` emits a self-contained native shared library with load-time runtime initialization (replacing the output atomically on link success); `--native-object` links additional native objects or archives.
+- `cinch core emit|verify|diff` inspects, verifies, and diffs the serialized Core IR consumed by code generation.
+- `cinch repl` starts the interactive terminal/line REPL; `cinch lsp` runs the stdio Language Server Protocol server.
+
+### Packages
 
 ```sh
+cinch pkg add alice/library@0.1.0 --registry http://127.0.0.1:8787
 cinch pkg add ./libs/bytes --project .
-cinch pkg add --path ./libs/bytes --project .
-cinch pkg add /repos/bytes --git-rev "$(git -C /repos/bytes rev-parse HEAD)" --project .
-cinch pkg add --git https://example/bytes --git-rev v1.2.0 --project .
-cinch pkg install --project .          # install the project .cinchpkg dependencies
-cinch pkg install --project . --locked # refuse any lock rewrite
+cinch pkg add --git https://example.org/bytes --git-rev v1.2.0 --project .
+cinch pkg install --project . [--locked]
+cinch pkg info acme/watch [--target TRIPLE] [--target-version VERSION]
+cinch pkg verify [--slsa] --project .
+cinch pkg publish --registry http://127.0.0.1:8787 --project . --token "$CINCH_REGISTRY_TOKEN"
 ```
 
-A path package's own `source: "path"` entries resolve relative to its own
-directory, and `source: "git"` entries are cloned at their `rev`. Path and git
-identity is the content root over the canonical manifest and the sorted source
-hashes; the version string is a selection hint that only names the vendor
-directory. `.cinchlock` records `package_id` as that content root and
-`source.kind` as `path` or `git` with the authored path, URL, and revision.
-Git checkouts are cached under `CINCH_STORE/git-packages/`, keyed by URL and
-revision; the cache is never trusted as identity. A registry release that
-declares a path or git dependency is rejected, because registry metadata cannot
-carry a usable local source.
+`cinch pkg add` and `install` resolve registry, `path`, and `git` dependencies into a single closure (using fixed-point range intersection for registry releases), vendor sources under `vendor/`, compile `package.o`, `package.abi.json`, and `build/package.cinchif`, and pin content-addressed SHA-256 package identities in `.cinchlock`. Git checkouts are cached under `$CINCH_STORE/git-packages/`. `verify --slsa` checks local integrity and unsigned SLSA Build Level 1 provenance. See [`reference/29-package-management.md`](../reference/29-package-management.md).
 
-`publish` uploads `.cinchpkg` with its module files and an unsigned L1 SLSA
-provenance attestation. `verify` rechecks lock identity, source hashes, object
-hash, and interfaces locally; `verify --slsa` checks the recorded L1 provenance
-subject and build fields. Client-side L2 builder roots and VSA issuance remain
-absent.
+### Documentation
 
-`CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
-it to the nix clang).
+```sh
+cinch doc extract seed/prelude/Data/Option.cinch --legacy -o /tmp/option.cinchdoc
+cinch doc render seed/prelude/Data/Option.cinch --legacy
+cinch doc html seed/prelude --out-dir build/docs
+cinch doc test seed/prelude
+cinch doc markdown README.md
+```
 
-The optional embedded ORC backend is built with the `jit` feature:
+`cinch doc` extracts canonical `.cinchdoc` JSON, renders Markdown and HTML, indexes and searches symbols, executes doc-test blocks, and applies Tree-sitter syntax highlighting (`tooling/tree-sitter-cinch`) to Cinch code fences.
+
+### JIT
+
+Build with the optional `jit` Cargo feature (requires LLVM ORC C headers/libraries; select `llvm-config` with `CINCH_LLVM_CONFIG`):
 
 ```sh
 cargo build --features jit --bin cinch
 cinch jit examples/compiler/fib.cinch
-cinch jit --package-object vendor/acme/top/0.1.0/package.o --package-dependency vendor/acme/base/0.1.0/package.o --call Top.answer
+cinch jit --package-object vendor/acme/top/0.1.0/package.o \
+          --package-dependency vendor/acme/base/0.1.0/package.o \
+          --call Top.answer
 ```
 
-`cinch jit` compiles the checked program to LLVM IR and executes its `main`
-through LLVM's C LLJIT API. The backend loads the runtime shared library, so
-JIT'd code resolves the same `cinch_*` boundary as a native build, and installs
-the program's layout table before the entry runs. It requires LLVM with the C
-ORC headers and library; `CINCH_LLVM_CONFIG` selects the `llvm-config` binary.
-The feature is off by default, so the ordinary compiler build does not depend on
-LLVM.
+`cinch jit` compiles to LLVM IR and runs `main` (or a zero-arity `--call` symbol from prebuilt package objects) in-process through LLVM's LLJIT API against the shared `cinchruntime` library.
 
-On macOS and Linux, use a staged native frontend and its prebuilt base:
+On macOS and Linux, `cinch jit --native-stage` drives a staged self-hosted compiler with a cached prebuilt base package (optionally staying resident with `--serve`, waiting for one empty line per rebuild on stdin and reporting `cinch jit: status N` on stderr):
 
 ```sh
 cinch jit --native-stage build/bootstrap/stage3 Main.cinch -- arg1
 cinch jit --native-stage build/bootstrap/stage3 --serve Main.cinch -- arg1
 ```
 
-The first command runs once and returns the program's exit status. In serve
-mode, wait for `cinch jit: ready` on stderr, then send one empty line per
-build and run. Each request ends with `cinch jit: status N` on stderr. Close
-stdin to stop the session. The program runs in a separate child process on
-each request, inherits stdout and stderr, and reads from an empty stdin in
-serve mode.
+### C++ interop
 
-The session retains the admitted `base.cpk` and compiled base object. It
-reuses machine code when the frontend returns identical LLVM IR. Restart
-the session after changing the compiler or base package. Use
-`--runtime LIBRARY` to select a shared runtime that matches the stage.
-
-A regular `check`, `build`, or LLVM emission writes `build/<entry>.cpk`
-with the checked interface closure. The package can also carry unfoldings
-for separate compilation. Rebuild old interface artifacts from source.
-
-`cinch jit --package-object package.o --package-dependency dep.o --call Top.answer`
-loads an installed package object and its separately produced dependency
-objects. Each object validates its package execution interface
-(`build/package.cpk`), object bytes, and physical inventory. Dependency objects are added first;
-the root object registers the combined layout prefix (and reclamation, when
-recorded), and the CLI prints one zero-arity unit. Package objects define only
-their own modules and primitive helpers; they do not bundle dependency modules.
-A symbol the manifest does not define, or one with a nonzero arity, is refused.
-This is object-level cross-object linkage in JIT. Native `build` and `run` also
-accept `--package-object`; their emitted IR contains only the project modules
-and declarations for the object's modules, and the link adds the object.
-
-`cinch doc` is the documentation-comment front end. It parses `.cinchdoc`
-canonical JSON, looks up symbols, indexes a source tree, runs `cinch test`
-blocks, and renders Markdown. Cinch code fences in rendered output are
-highlighted by the grammar in `tooling/tree-sitter-cinch`; `--plain` keeps
-fenced code, and `cinch doc markdown` applies the same highlighting to an
-arbitrary Markdown stream.
-
-`cinch emit-object Library.cinch -o library.o` emits a library dependency
-object, its LLVM text (`library.ll`) and physical ABI (`library.abi.json`).
-The object includes the checked dependency closure. It has no process entry
-and does not register a layout table. A consumer must supply `__apply` and
-register one combined table containing the exact recorded layout prefix
-before calling library code. See
-[the object linkage contract](../design/runtime-object-linkage.md).
-Use `--object-roots roots.json` to request concrete generic function, dictionary
-and method variants needed by a separate consumer. The manifest records the
-actual class method slot families used by the resulting object.
-
-Ordinary `build` and `run` do not consume these objects yet. A project build
-still checks and compiles every vendored dependency source, so its IR defines
-the same units as the dependency object: an installed object carries its whole
-checked closure, including the embedded prelude, and every one of those units
-is also emitted by the project. Linking both therefore fails on duplicate
-symbols. A correct build-time consumer needs three things the Rust frontend
-does not have today. First, lowering that excludes consumed units and declares
-them from the physical manifest, materializing their first-class values through
-the `<unit>.object-closure` accessor instead of the `.clo` storage that is
-internal to the object. Second, a layout seed that preserves the manifest's
-recorded table prefix before any consumer descriptor is allocated. Third,
-admission of the object bytes, the interface closure, the target profile, the
-method slot plan, and the concrete representation variants a consumer demands.
-The driver also has no interface-only checker: a check always reads module
-sources, so consumed modules cannot simply be dropped from the project. The
-self-hosted stage compiler consumes bundles through its own
-`--interfaces`/`--objects` path; that consumer is not wired into the Rust
-development CLI.
-
-The Cinch stage compiler consumes a matching bundle through
-`--emit-ir --interfaces MANIFEST --objects CONFIG SOURCE IR`. Admission checks
-artifact SHA256 identities, exact configured ABI and checked interfaces, then
-emission preserves the provider's layout prefix and actual method slot plan.
-This flag belongs to the Cinch stage CLI; the Rust development CLI uses the
-subcommands above. The stage driver builds and links its pinned library bundle
-automatically, without routing compiler implementation sources through Rust.
-
-## Pipeline
-
+```sh
+cinch cxx bindings.json --out-dir DIR
+cinch cxx build bindings.json --out-dir DIR [--godot-cpp DIR]
 ```
+
+`cinch cxx` generates direct no-unwind native symbol imports as well as C++17 C-ABI shims for owned opaque classes (with linear destructor checking), borrowed methods, and scalar functions. `cinch cxx build` compiles C exports, Cinch-implemented C++ classes (fields, constructors/destructors, virtual overrides), and optional Godot GDExtensions. See [`examples/cxx/README.md`](../examples/cxx/README.md), [`examples/cxx/exports/README.md`](../examples/cxx/exports/README.md), and [`examples/godot/README.md`](../examples/godot/README.md).
+
+### Library objects
+
+Two separate object-linkage mechanisms exist:
+
+- **Installed package objects (`--package-object`):** `cinch build`, `cinch run`, and `cinch jit` accept `--package-object <path>` to link an installed package object produced by `cinch pkg`. The compiler validates the object's execution interface (`build/package.cpk` / `.cinchif`), emits external declarations instead of re-emitting the package's modules, and links the object directly. Without `--package-object`, `cinch build` and `cinch run` compile vendored source files into the project directly.
+- **Standalone library objects (`emit-object`):** `cinch emit-object Library.cinch -o library.o [--object-roots roots.json]` emits a closed library object (`library.o`), its LLVM text (`library.ll`), physical ABI manifest (`library.abi.json`), and packed interfaces (`.cpk`) with concrete generic/dictionary roots requested by a consumer. The self-hosted stage compiler consumes these bundles via `--interfaces MANIFEST --objects CONFIG`. See [`design/runtime-object-linkage.md`](../design/runtime-object-linkage.md).
+
+## Compilation pipeline
+
+```text
 source -> lexer -> layout -> parser (+ fixity pass) -> checker/elaborator
-       -> core IR -> LLVM IR text -> clang -> executable
+       -> Core IR -> RC / ownership verification -> simplifier & specialization
+       -> stack/escape analysis -> LLVM IR text -> clang -> native executable / .so / .o
 ```
 
-The backend emits LLVM IR text and drives `clang`; keeping LLVM out of
-process keeps the nix toolchain simple while the backend is still moving.
-The closure and dictionary ABI is documented in `src/core.rs`.
+Emitting LLVM IR text and invoking `clang` keeps LLVM out of the default Rust dependency graph while still enabling full LLVM optimization (`--opt-level 0..3`) and cross-target IR emission. The Core IR and runtime closure/dictionary ABI are documented in `seed/src/core.rs`.
 
-## What is implemented
+## Implemented language and compiler features
 
-- **Array primitives (Native, ABI6 candidate)**: opaque `Array a`,
-  row-major `Tensor a`, and composable heterogeneous `Columnar row`;
-  checked reads, persistent updates, shape validation, packed scalar
-  buffers, and counted object/bignum elements. The explicit source modules
-  are `Data.Array`, `Data.Array.Packed`, `Data.Tensor` and `Data.Columnar`.
-  See [array semantics and the self-hosting integration boundary](../design/arrays.md).
-  The pinned ABI5 Cinch compiler does not yet implement these operations.
-- **Layout syntax** per the draft 0.2 rules (`where`, `of`, `let`, `in`,
-  explicit-brace shielding, tab rejection, nested `{- -}` comments).
-- **Declarations**: `module`, `import` (prelude only), `data`, `record`
-  (single-constructor products with named fields), `signature`,
-  `instance` / `implicit instance`, value signatures, equations (including
-  `where` blocks), `fixity`, `foreign import ccall` for compiler
-  intrinsics.
-- **Terms**: variables and qualified names, constructors, integer literals,
-  `()`, tuple and list literals (`[e1, e2]` desugars to prelude `Cons`
-  chains), application, lambdas, `let ... in` (with irrefutable tuple
-  destructuring), `if`, `case` (with nested constructor, tuple, list,
-  literal and record patterns, and guards `p | e -> e`), record
-  construction `R { x = e, ... }` and projection `e.x`, type ascription,
-  infix chains with a real fixity pass (precedence 0-9, associativity,
-  non-associative operators, `$`), prefix negation.
-- **Types**: `Int` and `Nat` (mathematical, bignum-backed), the machine
-  scalars `I8`-`I64`, `U8`-`U64`, `F32`, `F64`, `Char`, `Usize`, `Isize`,
-  `Bytes`, `Bool`, `Unit`, algebraic data types with parameters,
-  structural tuple types `(T1, ..., Tn)` (decision D1 in
-  `CONFORMANCE.md`: this extends the draft EBNF type grammar), arrows,
-  `forall`, `using (...) =>` constraints. Bidirectional checking with
-  unification; this draft does not silently generalize, so top-level
-  signatures state their quantifiers. Integer literals are unbounded
-  decimal digit strings elaborated against their expected type (decision
-  D10).
-- **Type classes as the module stack**: `signature` declares a class,
-  `instance` implements one, `implicit instance` enables unique dictionary
-  resolution. Constraints elaborate to explicit dictionary parameters;
-  methods elaborate to dictionary projection and application, with real
-  dictionary passing at runtime. Operators (`+`, `==`, ...) are ordinary
-  method names with declared fixities; the compiler has no builtin
-  operators. The prelude is ordinary source (`prelude/Prelude.cinch`) layered
-  as `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Neg`, with `Nat`/`Int`, machine
-  scalar and `Bool` instances and generic helpers (`map`, `foldr`,
-  `sumList`, ...).
-- **Deferral and memoization** (laziness and reclamation specification):
-  affine thunks (`delay`/`force`, a thunk is a closure over `Unit`), `~ name
-  = term` memo bindings in `let` and `where` blocks (one memo group per
-  block, per-call lifetime in `where`, demand-on-first-use), `demand`, and
-  the black-hole rule: `Eval r` effect labels per memo region, enforced by
-  row lacks constraints, discharged at scope end, with `BlackHole` (exit 70)
-  as defense in depth at the runtime boundary.
-- **Hindley-Milner style inference with row typing**: unification with
-  occurs check, let-generalization under the value restriction (locals may
-  be polymorphic; top-level signatures stay explicit per the draft),
-  effect rows as row-typed parts of function and thunk types (row
-  metavariables, extension through tails, structural unification), and
-  effect honesty: a body's performed effects must match its declared row.
-- **Ownership, multiplicities, and regions** (core spec sections 3 and 7):
-  `%0`/`%1`/`%aff`/`%many` usage checking with path-sensitive counts
-  (disjoint projection places split, repeated places stack), the `Copy`
-  class (`Share` alias; structural, non-extensible) with `copyOut`,
-  `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
-  uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
-  most once; unannotated thunks default `%aff`).
-- **Wasm and components** (webassembly and wasi specification): the
-  wasm32 artifact profile with target-keyed widths and feature
-  admission, the WIT subset parser with canonical-ABI component adapters
-  (the codec case asserted exactly; `BoundaryError`/`DecodeError`
-  adapter vocabulary), `WasiStream`/`WasiFuture` with degraded
-  observations (never the productive codata `Stream`), a cooperative
-  task backend preserving the memory model, and `eval : Code a -> a`
-  over a build-time-reified runtime evaluator.
-- **Runtime evolution** (runtime evolution specification): `upgrade`
-  declarations with field-change classification and checked migrations,
-  migration-free record views recording schema compatibility evidence in
-  the interface, and the versioned dispatch runtime (code retention with
-  live-frame counts, complete-update-set activation gating, no resuming
-  old code over new state, target compatibility before reachability),
-  with transparent JIT tiering and consumption-safe deopt riding the
-  same machinery.
-- **Concurrency** (concurrency specification): structured scopes with
-  `spawn` and linear task handles (dropping cannot silently detach),
-  n-ary `joinAllOrCancel` with first-failure-cancels and full
-  acknowledgment awaiting, cooperative cancellation observed at defined
-  points, task captures under the share-or-transfer discipline,
-  `Blocking` foreigns on dedicated task threads with effect accounting,
-  and the `Io r` runtime wired to real operations (`ioWrite`/`ioRead`/
-  `ioSleep`/`pollCancel`) over the Rust runtime's threads.
-- **FFI** (foreign function interface specification): real `foreign
-  import`/`export ccall` with layout-checked binding contracts in the
-  interface metadata and honest effect rows; `opaque` types, `RawPtr`
-  and ownership roles with the deallocator rule and no integer-to-pointer
-  roles; boundary and runtime field access over recorded `repr` layouts
-  (packed fields marshal byte-exact); and the schema-introspection
-  vocabulary (`SchemaSnapshot`, `introspectConsistently`,
-  `CodecGenerator.derive`) over the subprocess capability.
-- **Rewrites, optimizer, and target profiles** (modules spec sections 5,
-  6, 13; platform spec): `rewrite`/`target rewrite` declarations with
-  `justify` checking (kernel evidence or `signature` law methods,
-  recorded in the assumptions when undischarged; effectful rules
-  rejected; definitional equality never extended), the optimizer with
-  preservation discipline (barrier rules, residual recheck, map fusion
-  preserving values and effect order with the blocker named when fusion
-  stops, weight reconciliation with the case-merge rescale), fuel/whistle
-  driving bounds in target profiles with the specialization report, and
-  target capability evidence (`Available`) with replaceable SIMD
-  dispatch and the checked/trusted lowering split in the manifest.
-- **Attribute annotations** (attribute annotations specification): the
-  `#[...]` system across declarations, fields, clauses, alternatives,
-  guards, `if` branches, and field types; branch weights `#[weight(n)]`
-  with the `cold`/`likely`/`unlikely` wrappers (2000/1/0),
-  all-or-nothing reporting, and LLVM `branch_weights` emission; inline
-  hints including `#[noinline]`; and `repr(C)`/`transparent`/`align`/
-  `packed`/`uN` with layout facts in the interface ABI table and the
-  packed-borrow safety rule. Semantic attributes enter the contract
-  projection; hints never do.
-- **Staging and metaprogramming** (modules spec sections 7-11):
-  multi-module source files, `stage` declarations with typed quotations
-  `[||]`, splices `$()`, and `quoteDecls` over a compile-time
-  interpreter, `generate do` with capability-refined stage I/O (file and
-  subprocess), snapshot/replay build identity with redacted secrets,
-  hygienic token-tree macros with expansion provenance, macro-owned
-  attribute names, and stage scheduling with cycle diagnostics.
-- **Guarded codata** (core spec section 9): `codata` declarations as
-  delayed-observation records, `corec` with structural productivity
-  checking (unguarded recursion rejected naming the call), `Later` as a
-  logical modality distinct from `Thunk` under a usage-multiplicity rule
-  (a `Later` binder is `%1`/`%aff` only), and productivity-loss typing
-  for unguarded codata producers (`Diverge` on the last arrow).
-- **Dependent core** (core spec sections 1-5, 8): stratified universes
-  (`Type 0 : Type 1 : ...`, `Prop`; `Type : Type` never admitted),
-  dependent function and pair types, kind-aware conversion checking
-  (terminating by construction, no delta), implicit arguments with
-  `forall` classification, indexed families (`Vec`/`Fin`/`Dec` builtins
-  plus general user families) with index-equation matching and
-  index-aware coverage, `spec`/`proof` with structural totality and
-  erasure (no runtime slots for proofs or indices), `refl`/`congr` with
-  proof irrelevance, and `decide` with the five obligation statuses.
-  Positivity checking covers all inductive definitions.
-- **Effects, capabilities, and sequencing** (runtime capabilities spec):
-  effect rows with region-argument label unification, the handler
-  calculus (`handle ... with`, one-shot `resume`, lexical operation
-  dispatch, effect-typed handlers), `do` notation with direct/`Result`/
-  `Option` sequencing providers (class-method `pure`/`bind`), runtime
-  capabilities (`using (io :: Io r)`, `with (io = ...) in`, `@{...}`,
-  `newIO`) with lexical-only solving and runtime identity `r` scoping.
-- **Codegen**: uniform word representation (immediates for machine words/
-  `Bool`/`Unit`, boxed blocks for ADTs and the bignum/`Bytes` types,
-  closure records for functions and dictionaries), generic curried
-  application through an apply stub (so partial application,
-  over-application and closures all work), pattern matching to `switch`,
-  recursion, and a C `main` returning `main :: Int` as the process exit
-  code (through the exit adapter, decision D12).
+- **Syntax & modules:** indentation layout (`where`, `of`, `let`, `in`, explicit braces, nested `{- -}` comments), multi-file `import`/`export` with selective lists and re-exports, `.cinchif` and `.cpk` compiled interfaces, fixity resolution, `data`, `record`, `signature`, `instance` / `implicit instance`, `upgrade`, `stage`, `rewrite`, `prim`, `foreign import`/`export ccall`, and `letrec` recursive binding groups.
+- **Types & dependent core:** stratified universes (`Type 0 : Type 1 : ...`, `Prop`), bidirectional type checking with Hindley-Milner local let-generalization, rank-N polymorphism, dependent functions and pairs (`Sigma`), indexed inductive families (`Vec`, `Fin`, `Dec`, user families) with positivity and index-aware coverage, `spec`/`proof` totality and erasure, `refl`/`congr`, `decide`, and refinement types.
+- **Primitive types & arrays:** arbitrary-precision mathematical `Int` and `Nat` (tagged immediates + bignums), explicit machine scalars (`I8`..`I64`, `U8`..`U64`, `F32`, `F64`, `Char`, `Usize`, `Isize`), immutable `String` and mutable `Bytes`, interned `Sym`, and native `Array a`, `Tensor a`, and `Columnar row` (`Data.Array`, `Data.Array.Packed`, `Data.Tensor`, `Data.Columnar`).
+- **Effects, capabilities & laziness:** row-typed effects with handlers (`handle ... with`, one-shot `resume`), `do` notation, lexically scoped capabilities (`using (io :: Io r)`, `with (io = ...) in`, `newIO`), affine thunks (`delay`/`force`), memo bindings (`~ x = e`) with `Eval r` black-hole checking, and guarded `codata`/`corec`/`Later`.
+- **Ownership, reclamation & layout:** `%0`/`%1`/`%aff`/`%many` multiplicities, structural `Copy`, `Ref r a`/`Mut r a` region borrows, automatic RC insertion with reuse and frame/stack allocation, `#[repr(C|packed|align|transparent|unboxed|uN)]`, `#[unpack]`/`#[nounpack]`, `#[byval]`/`#[sret]`, and safety assertions (`#[no-alloc]`, `#[alloc("once")]`, `jpl` profile).
+- **Concurrency, FFI, staging & Wasm:** structured `spawn` with linear task handles, `joinAllOrCancel`, cooperative cancellation, typed C/C++ FFI, compile-time `stage`/`generate do` with quotations `[||]` and splices `$()`, hygienic macros, `rewrite ... justify`, `wasm32` target profiles, and WIT component adapters.
 
-## What is deliberately not implemented yet
+## Known deliberate boundaries
 
-Rejected with an explicit error naming the form:
+- **Rigid-index constructor matches:** matching a constructor directly on a family applied to rigid indices is rejected; dispatch through `decide` or computed indices instead.
+- **No irrefutable `~p` argument patterns:** `~` is reserved for memo bindings (`~ x = e`), which bind plain variables.
+- **No local `forall`/`using` signatures:** polymorphic or constrained helpers must be top-level declarations.
+- **No superclass entailment bundles:** functions list each required class constraint explicitly (`using (add :: Add a, mul :: Mul a) => ...`).
+- **Handler-vtable specialization:** cross-function specialization of concrete effect handler vtables is not yet implemented.
 
-- A constructor match against a family applied to rigid indices (decision
-  D35: the error names the index equation; dispatch through `decide` or
-  computed indices instead). This is a design boundary, not a gap.
-- Handler-vtable specialization (the P13 follow-up; blocked on
-  propagating concrete vtables across function boundaries).
-- `~` irrefutable patterns in function argument positions (Haskell's
-  `~p`); memo binding bodies support only variable patterns. Symbol
-  operators like `~>` remain available.
-- Local signatures with `forall`/`using`; recursive `let` bindings
-  (the P19 guarded `letrec` lands the latter).
-- Superclass bundles: a class constraint does not entail other classes;
-  functions state each constraint they use (`using (add :: Add a, mul :: Mul a) => ...`).
+## Repository layout
 
-Semantics notes for the slice:
-
-- `Int` and `Nat` are mathematical (bignum-backed via the Rust
-  `cinchruntime`); machine types are separate and explicit (primitive types
-  specification). Division/remainder takes a `NonZero` divisor (a numeral
-  is decided at compile time), so it never faults; `Nat`
-  subtraction below zero and `Bytes` bounds faults exit 71.
-- Top-level functions are monomorphic in their runtime code only in the
-  sense that values are uniform words; polymorphism is real (type variables
-  are erased, dictionaries are passed).
-- Matching is source-order with fall-through (equations and `case` alike);
-  equations after a catch-all are ignored. An uncovered constructor, `Bool`
-  or tuple branch is a compile error naming what is missing. A match that
-  runs out at runtime (integer literal patterns without a catch-all, or
-  every applicable row failing its guard) takes the runtime fault path
-  (exit 70): the fallback is never a word, because a word would crash on
-  boxed result types. A row's guard is a `Bool` expression in the row's
-  scope and its effects join the enclosing performed scope. A row's
-  patterns bind each variable at most once.
-
-## Layout
-
-```
+```text
 seed/
   Cargo.toml
-  prelude/Prelude.cinch     the facade: the implicit surface and its re-exports
-  prelude/cinch-base.cinchpkg  the base package's modules and check order (data)
-  prelude/Data/Core.cinch   the inductive types the home modules re-export
+  prelude/
+    Prelude.cinch             default prelude facade and re-exports
+    cinch-base.cinchpkg       base package manifest (55 modules, check order)
+    Data/Core.cinch           core inductive types re-exported by home modules
+  runtime/                    cinchruntime staticlib + cdylib (heap, RC, bignums, IO, tasks)
   src/
-    lexer.rs               tokens and lexical rules
-    layout.rs              indentation to { ; }
-    parser.rs              EBNF subset + fixity pass
-    ast.rs                 surface syntax
-    check.rs               types, unification, elaboration
-    check_terms.rs         term checking and pattern-match compilation
-    check_decls.rs         declarations and program assembly
-    known.rs               the library types and classes the compiler names, by identity
-    spelling.rs            how a diagnostic writes a nominal name
-    core.rs                core IR and the runtime ABI
-    codegen.rs             LLVM IR text
-    store.rs               the content-keyed artifact cache
-    driver.rs              CLI pipeline
-  tests/integration.rs     compile and run programs, assert exit codes
+    lexer.rs, layout.rs       lexical analysis and indentation layout
+    parser.rs, ast.rs         surface grammar, fixity pass, AST
+    check.rs                  type inference, unification, elaboration
+    check_terms.rs            term elaboration, letrec, pattern-match compilation
+    check_decls.rs            declarations, repr layouts, program assembly
+    known.rs, spelling.rs     known nominal identities and diagnostic formatting
+    core.rs, rc.rs            Core IR, RC insertion, ownership verification
+    specialize.rs, codegen.rs representation specialization, LLVM IR emission
+    interface.rs, store.rs    schema 10 interfaces (.cinchif/.cpk) and content store
+    driver.rs, main.rs        compilation pipeline and CLI dispatch
+    repl.rs, repl_tui.rs      interactive REPL (line loop and TUI)
+    lsp.rs, analysis.rs       stdio LSP server and shared analysis layer
+    pkg.rs, cinchdoc.rs       package manager and documentation tooling
+    jit.rs, native_jit.rs     optional LLVM ORC JIT and native-stage runner
+    cxx/                      C++ binding generator and native export builder
+  tests/                      integration, runtime, FFI, LSP, REPL, and bootstrap suites
 ```
 
-## Roadmap
+## Status and roadmap
 
-Everything through P28 (refinement types) is landed, including the
-P19 surface DX batch, the P20 safety assertions, P18's `prim`
-declarations with inline target IR, P16's core requirements, and the
-P21-P24 tooling (REPL, language server, tree-sitter/editor
-integrations, interned symbols). Remaining before close: the P15
-conformance sweep (SPEC-MAPPING upkeep, the approved D175 facade
-trim, example 03's gate), the P28 lattice continuation (D256-D261:
-compound predicates, predicate-level instances, narrowings,
-`forget`, refinement obligations in `using` contexts), D46 `Name`
-completion, and `Data.Enum` + range syntax.
-
-Scheduled later: **P29, Blaze-style uber-fast recompilation**
-(design/incremental-recompilation.md): REAPER-style on-demand
-dependency graphs, an INCR-style persistent session with
-function-level recompilation and type-checking confined to the
-reachability closure of changed contracts, and LINK-style object
-caching on declaration-level hashes. The compiler's content-addressed
-artifacts, contract-only `iface_hash`, and `.cinchif` dependency chain
-are the starting advantages; the acceptance is latency (unchanged
-rebuild cost grows with graph traversal only) and a cache that is
-advisory, never load-bearing.
-
-## Native C++
-
-`cinch cxx bindings.json --out-dir DIR` supports exact native symbol imports
-with full FFI signatures and no generated C++ shim. It also generates opaque
-owned class bindings, constructors, borrowed methods, consuming destructors,
-and scalar function imports through C++17 C ABI shims. See the [runnable example and binding
-format](../examples/cxx/README.md). Destruction is explicit and checked by the
-existing linear ownership rules. Direct imports require a no-unwind ABI contract;
-shim calls catch exceptions and terminate.
-
-`cinch cxx build bindings.json --out-dir DIR` generates and builds C exports
-and native C++ classes implemented in Cinch, including instance fields,
-constructor/destructor hooks, inherited calls, and virtual overrides. It also
-builds a Godot GDExtension when the specification enables `godot`.
-See the [C/C++ host example](../examples/cxx/exports/README.md) and
-[Godot example](../examples/godot/README.md) for supported types and setup.
-
-`cinch build Library.cinch --shared -o libLibrary.so` emits a self-contained
-native shared library with load-time runtime initialization. `--native-object`
-adds an explicit object/archive to `build` or `run`. Linux shared libraries
-keep their runtime symbols private; successful links replace the output
-atomically so editors can keep using an already loaded library.
+For the full feature support matrix and current implementation roadmap, see [`reference/16-support-and-roadmap.md`](../reference/16-support-and-roadmap.md). Standard library coverage against Go is tracked in [`design/stdlib-parity-go.md`](../design/stdlib-parity-go.md), and self-hosting progress is tracked in [`compiler/README.md`](../compiler/README.md) and [`compiler/CHECKPOINT.md`](../compiler/CHECKPOINT.md).

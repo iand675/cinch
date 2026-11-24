@@ -2,19 +2,22 @@
 
 Exact bounded byte scans shared by buffered input and token splitters.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Buffered.Internal.Scan</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Buffered.Internal.Scan/">View source</a><a href="/library/search/?q=%2BEffect.Buffered.Internal.Scan">Search module</a><a href="/reference-sources/Effect.Buffered.Internal.Scan.cinch" download="Effect.Buffered.Internal.Scan.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Buffered.Internal.Scan`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
 
-[Download exact module source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Buffered.Internal.Scan`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Effect/Buffered/Internal/Scan.cinch ./Effect.Buffered.Internal.Scan.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Exact bounded byte scans shared by buffered input and token splitters.
 Complete eight-byte words use lane comparisons; scalar fringes never read
@@ -22,42 +25,39 @@ before the requested start or after the half-open end of the owned span.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-ascii-spaces">ascii-spaces</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ascii-spaces</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ascii-word">ascii-word</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ascii-word</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-find-byte">find-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">find-byte</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-61736369692d737061636573"></a>
-
-## `ascii-spaces`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ascii-spaces</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-ascii-spaces">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ascii-spaces</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ascii-spaces" title="Permalink">#</a><a href="/library/source/Effect.Buffered.Internal.Scan/#L74" title="View source at line 74">Source</a></span></div>
+<div class="doc-body">
 
 Advance past ASCII whitespace in a bounded span, returning an absolute endpoint; invalid bounds leave the offset unchanged.
 
-[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 74
+</div>
+</article>
 
-<a id="value-61736369692d776f7264"></a>
-
-## `ascii-word`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ascii-word</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-ascii-word">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ascii-word</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ascii-word" title="Permalink">#</a><a href="/library/source/Effect.Buffered.Internal.Scan/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 Advance past ASCII non-whitespace bytes, stopping before Unicode fringes for scalar decoding.
 
-[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 83
+</div>
+</article>
 
-<a id="value-66696e642d62797465"></a>
-
-## `find-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">find-byte</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">U8</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))))</code></pre>
+<article class="doc-entry" id="v-find-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">find-byte</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-find-byte" title="Permalink">#</a><a href="/library/source/Effect.Buffered.Internal.Scan/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Find a byte in a checked half-open owner span, returning its absolute offset or None for absence or invalid bounds.
 
-[Source](/reference-sources/Effect.Buffered.Internal.Scan.cinch) · line 61
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Buffered/Internal/Scan.cinch`. Source SHA-256: `027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Buffered/Internal/Scan.cinch`](/library/source/Effect.Buffered.Internal.Scan/). Source SHA-256: `027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e`.

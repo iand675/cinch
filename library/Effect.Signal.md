@@ -2,19 +2,21 @@
 
 Operating-system signal vocabulary and runtime operations with explicit error/effect handling.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Signal</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Signal/">View source</a><a href="/library/search/?q=%2BEffect.Signal">Search module</a><a href="/reference-sources/Effect.Signal.cinch" download="Effect.Signal.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Signal`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Result](Data.Result.md).
 
-[Download exact module source](/reference-sources/Effect.Signal.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Signal`: [Effect.Signal](Effect.Signal.md).
 
-[Data.Result](Data.Result.md).
+```sh
+cp seed/prelude/Effect/Signal.cinch ./Effect.Signal.cinch
+```
 
-Non-embedded source closure: [Effect.Signal](Effect.Signal.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Signal: POSIX signal delivery, the safe subset of Ruby's
 `Signal` (P34, the platform layer; design/stdlib-parity-ruby.md's
@@ -95,82 +97,69 @@ system's vocabulary.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (5 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Signal">Signal</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Signal</strong></code></li><li><a class="syn-name" href="#t-SignalError">SignalError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">SignalError</strong></code></li><li><a class="syn-name" href="#v-signal-number">signal-number</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">signal-number</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-signal-probe">signal-probe</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">signal-probe</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-SignalError" title="Effect.Signal.SignalError">SignalError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-signal-send">signal-send</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">signal-send</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-SignalError" title="Effect.Signal.SignalError">SignalError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-<a id="type-5369676e616c"></a>
+# Types
 
-## `Signal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Signal</span></code></pre>
+<article class="doc-entry" id="t-Signal">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Signal</strong></code><span class="doc-sig-links"><a href="#t-Signal" title="Permalink">#</a><a href="/library/source/Effect.Signal/#L90" title="View source at line 90">Source</a></span></div>
+<div class="doc-body">
 
 A signal this module will send. The set is the portable core: the
 four signals whose numbers agree on Darwin and Linux plus
 `SigNone`, the zero signal (the existence and permission probe the
 kernel delivers to nothing).
 
-[Source](/reference-sources/Effect.Signal.cinch) · line 90
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-SigNone"><code><strong class="tok-constructor">SigNone</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a></code></li><li id="k-SigHup"><code><strong class="tok-constructor">SigHup</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a></code></li><li id="k-SigInt"><code><strong class="tok-constructor">SigInt</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a></code></li><li id="k-SigKill"><code><strong class="tok-constructor">SigKill</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a></code></li><li id="k-SigTerm"><code><strong class="tok-constructor">SigTerm</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigNone</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigHup</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigInt</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigKill</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SigTerm</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span></code></pre>
-
-<a id="type-5369676e616c4572726f72"></a>
-
-## `SignalError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">SignalError</span></code></pre>
+<article class="doc-entry" id="t-SignalError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">SignalError</strong></code><span class="doc-sig-links"><a href="#t-SignalError" title="Permalink">#</a><a href="/library/source/Effect.Signal/#L98" title="View source at line 98">Source</a></span></div>
+<div class="doc-body">
 
 Why a delivery did not happen.
 
-[Source](/reference-sources/Effect.Signal.cinch) · line 98
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignalNotDelivered</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">SignalError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SignalInvalidNumber</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">SignalError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-SignalNotDelivered"><code><strong class="tok-constructor">SignalNotDelivered</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-SignalError" title="Effect.Signal.SignalError">SignalError</a></code></li><li id="k-SignalInvalidNumber"><code><strong class="tok-constructor">SignalInvalidNumber</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-SignalError" title="Effect.Signal.SignalError">SignalError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-7369676e616c2d6e756d626572"></a>
-
-## `signal-number`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-number</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-signal-number">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">signal-number</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-signal-number" title="Permalink">#</a><a href="/library/source/Effect.Signal/#L109" title="View source at line 109">Source</a></span></div>
+<div class="doc-body">
 
 The host's POSIX number for a signal (the table is the host's;
 see the header).
 
-[Source](/reference-sources/Effect.Signal.cinch) · line 109
+</div>
+</article>
 
-<a id="value-7369676e616c2d70726f6265"></a>
-
-## `signal-probe`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-probe</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">SignalError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-signal-probe">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">signal-probe</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-SignalError" title="Effect.Signal.SignalError">SignalError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-signal-probe" title="Permalink">#</a><a href="/library/source/Effect.Signal/#L141" title="View source at line 141">Source</a></span></div>
+<div class="doc-body">
 
 Probe `pid` without delivering anything (the zero signal): `Ok ()`
 when the process exists and the caller may signal it, the named
 error otherwise. This is the one form that earns its place: it is
 how a caller checks the target before a real delivery.
 
-[Source](/reference-sources/Effect.Signal.cinch) · line 141
+</div>
+</article>
 
-<a id="value-7369676e616c2d73656e64"></a>
-
-## `signal-send`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">signal-send</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">Signal</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Signal</span>.<span class="tok-constructor">SignalError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-signal-send">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">signal-send</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-Signal" title="Effect.Signal.Signal">Signal</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Signal/#t-SignalError" title="Effect.Signal.SignalError">SignalError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-signal-send" title="Permalink">#</a><a href="/library/source/Effect.Signal/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 Deliver `sig` to `pid` (pid first, then the signal): the named
 error on any failure, `Ok ()` when the kernel accepted it.
 
-[Source](/reference-sources/Effect.Signal.cinch) · line 132
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Signal.cinch`. Source SHA-256: `e64e11d90a176c3f9f3dfe07e218ac54b086a1beab27ae54009f98dde9fc2724`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Signal.cinch`](/library/source/Effect.Signal/). Source SHA-256: `e64e11d90a176c3f9f3dfe07e218ac54b086a1beab27ae54009f98dde9fc2724`.

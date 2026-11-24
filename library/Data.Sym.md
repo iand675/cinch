@@ -2,17 +2,11 @@
 
 Interned symbols with identity equality, deterministic spelling order, and String conversions.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Sym</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Sym/">View source</a><a href="/library/search/?q=%2BData.Sym">Search module</a><a href="/reference-sources/Data.Sym.cinch" download="Data.Sym.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Sym`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Hash](Data.Hash.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Data.Sym.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Bytes](Data.Bytes.md), [Data.Hash](Data.Hash.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Sym: interned symbols.
 
@@ -35,61 +29,36 @@ runtime cells).
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-intern">intern</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">intern</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a></code></li><li><a class="syn-name" href="#v-sym-name">sym-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sym-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-696e7465726e"></a>
-
-## `intern`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">intern</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Sym</span>)</code></pre>
+<article class="doc-entry" id="v-intern">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">intern</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a></code><span class="doc-sig-links"><a href="#v-intern" title="Permalink">#</a><a href="/library/source/Data.Sym/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 The prelude surface of section 9.
 
-[Source](/reference-sources/Data.Sym.cinch) · line 39
+</div>
+</article>
 
-<a id="value-73796d2d6e616d65"></a>
-
-## `sym-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sym-name</span> :: (<span class="tok-constructor">Sym</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.Sym.cinch)
+<article class="doc-entry" id="v-sym-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sym-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-sym-name" title="Permalink">#</a><a href="/library/source/Data.Sym/#L42" title="View source at line 42">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Sym.Eq_Sym` | `Relation.Eq.Eq Sym` | Implicit |
-| `Data.Sym.Hash_Sym` | `Data.Hash.Hash Sym` | Implicit |
-| `Data.Sym.Ord_Sym` | `Relation.Ord.Ord Sym` | Implicit |
-| `Data.Sym.Show_Sym` | `Text.Show.Show Sym` | Implicit |
-
-**`Data.Sym.Eq_Sym`**: `Eq` is identity: the same interned cell (section 9).
-**`Data.Sym.Hash_Sym`**: The digest is the interned name's bytes through the `Bytes`
-instance (Data.Bytes owns the fold), read straight off the
-intrinsic layer with no `String` in between. Interning keys on the
-name, so two names equal under `Eq` are the same cell and hash
-alike (the `Hash` law), and the digest never reads a cell address,
-so it is deterministic across runs exactly as `Ord` is.
-
-The cell's own word would be the stronger answer (identity is
-already the `Eq`), but nothing here exposes a handle as data: the
-type has no C counterpart and no `Sym`-to-word conversion exists,
-and inventing one to hash by address would buy only the weaker
-property (addresses are not reproducible across runs).
-`symName` hands out a fresh buffer per call, so a hash allocates
-once.
-**`Data.Sym.Ord_Sym`**: `Ord` is lexicographic by name: `symCmp`'s immediate against 0
-(the `natCmp`/`intCmp` reading), never the cell addresses.
-**`Data.Sym.Show_Sym`**: `Show` prints `'foo` (section 9): the tick is `char-string '\''`
-(raw ASCII 39), the name renders as itself.
+<ul class="doc-module-instances">
+<li id="i-Eq_Sym"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Sym.Eq_Sym</code></span><div class="doc-child-prose">Eq is identity: the same interned cell (section 9).</div></li>
+<li id="i-Hash_Sym"><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Sym.Hash_Sym</code></span><div class="doc-child-prose">The digest is the interned name's bytes through the Bytes instance (Data.Bytes owns the fold), read straight off the intrinsic layer with no String in between.</div></li>
+<li id="i-Ord_Sym"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Sym.Ord_Sym</code></span><div class="doc-child-prose">Ord is lexicographic by name: symCmp's immediate against 0 (the natCmp/intCmp reading), never the cell addresses.</div></li>
+<li id="i-Show_Sym"><code><a class="doc-type-link tok-constructor" href="/library/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Sym.Show_Sym</code></span><div class="doc-child-prose">Show prints 'foo (section 9): the tick is char-string '\'' (raw ASCII 39), the name renders as itself.</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Sym.cinch`. Source SHA-256: `ec8210224881ab65802a4ced9f56847e943254dedc7f335f93021be984a32ec4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Sym.cinch`](/library/source/Data.Sym/). Source SHA-256: `ec8210224881ab65802a4ced9f56847e943254dedc7f335f93021be984a32ec4`.

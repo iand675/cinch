@@ -2,13 +2,9 @@
 
 Zero/one and additive/multiplicative structure, with its law vocabulary.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Algebra.Semiring</code></div><div class="doc-mod-bar-links"><a href="/library/source/Algebra.Semiring/">View source</a><a href="/library/search/?q=%2BAlgebra.Semiring">Search module</a><a href="/reference-sources/Algebra.Semiring.cinch" download="Algebra.Semiring.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Algebra.Semiring`. Selected exports may already be in Prelude.
-
-[Download exact module source](/reference-sources/Algebra.Semiring.cinch) · [How library modules are loaded](00-index.md)
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Algebra.Semiring: the two monoids of a ring-like carrier.
 
@@ -43,50 +39,20 @@ Data.Int, beside their other instances.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (5 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-Semiring">Semiring</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Semiring</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Semiring-zero">zero</a><code class="syn-sig"><strong class="tok-variable">zero</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Semiring-one">one</a><code class="syn-sig"><strong class="tok-variable">one</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Semiring-add">add</a><code class="syn-sig"><strong class="tok-variable">add</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Semiring-mul">mul</a><code class="syn-sig"><strong class="tok-variable">mul</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-53656d6972696e67"></a>
-
-## `Semiring`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Algebra.Semiring.cinch)
-
-<a id="method-53656d6972696e672e7a65726f"></a>
-
-## `Semiring.zero`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zero</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semiring</span>.<span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
-
-
-
-<a id="method-53656d6972696e672e6f6e65"></a>
-
-## `Semiring.one`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">one</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semiring</span>.<span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
-
-
-
-<a id="method-53656d6972696e672e616464"></a>
-
-## `Semiring.add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semiring</span>.<span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-53656d6972696e672e6d756c"></a>
-
-## `Semiring.mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Semiring</span>.<span class="tok-constructor">Semiring</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-
+<article class="doc-entry" id="c-Semiring">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Semiring</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Semiring" title="Permalink">#</a><a href="/library/source/Algebra.Semiring/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Semiring-zero"><div class="doc-method-row"><code><strong class="tok-variable">zero</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Semiring-zero" title="Permalink">#</a><a href="/library/source/Algebra.Semiring/#L36">Source</a></span></div></li><li id="m-Semiring-one"><div class="doc-method-row"><code><strong class="tok-variable">one</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Semiring-one" title="Permalink">#</a><a href="/library/source/Algebra.Semiring/#L37">Source</a></span></div></li><li id="m-Semiring-add"><div class="doc-method-row"><code><strong class="tok-variable">add</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Semiring-add" title="Permalink">#</a><a href="/library/source/Algebra.Semiring/#L38">Source</a></span></div></li><li id="m-Semiring-mul"><div class="doc-method-row"><code><strong class="tok-variable">mul</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Semiring-mul" title="Permalink">#</a><a href="/library/source/Algebra.Semiring/#L39">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Nat/#instances">Data.Nat</a></span></li></ul></details>
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Algebra/Semiring.cinch`. Source SHA-256: `9294495f17cdabec65d1e264550d5f3a02ba0456b6ebb95b9a2e36401d14b0d7`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Algebra/Semiring.cinch`](/library/source/Algebra.Semiring/). Source SHA-256: `9294495f17cdabec65d1e264550d5f3a02ba0456b6ebb95b9a2e36401d14b0d7`.

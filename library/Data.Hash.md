@@ -2,13 +2,9 @@
 
 Hashing vocabulary and admitted hash implementations for keys.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Hash</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Hash/">View source</a><a href="/library/search/?q=%2BData.Hash">Search module</a><a href="/reference-sources/Data.Hash.cinch" download="Data.Hash.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Hash`. Selected exports may already be in Prelude.
-
-[Download exact module source](/reference-sources/Data.Hash.cinch) · [How library modules are loaded](00-index.md)
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Hash: the hashing class.
 
@@ -37,26 +33,20 @@ module order.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-Hash">Hash</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Hash</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Hash-hash">hash</a><code class="syn-sig"><strong class="tok-variable">hash</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-48617368"></a>
-
-## `Hash`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Hash</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Data.Hash.cinch)
-
-<a id="method-486173682e68617368"></a>
-
-## `Hash.hash`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">hash</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Hash</span>.<span class="tok-constructor">Hash</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-
+<article class="doc-entry" id="c-Hash">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Hash</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Hash" title="Permalink">#</a><a href="/library/source/Data.Hash/#L29" title="View source at line 29">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Hash-hash"><div class="doc-method-row"><code><strong class="tok-variable">hash</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#m-Hash-hash" title="Permalink">#</a><a href="/library/source/Data.Hash/#L30">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (10)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Bytes/#instances">Data.Bytes</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Char/#instances">Data.Char</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Int/#instances">Data.Int</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Nat/#instances">Data.Nat</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.String/#instances">Data.String</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Sym/#instances">Data.Sym</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Uuid/#instances">Data.Uuid</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <span class="tok-constructor">MimeKey</span></code> <span class="doc-inst-meta">implicit · <a href="/library/Text.Mime/#instances">Text.Mime</a></span></li></ul></details>
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Hash.cinch`. Source SHA-256: `c80d835dfc4224d8eca8375d24058a77034087077186e85f10b2ba48b1fcc991`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Hash.cinch`](/library/source/Data.Hash/). Source SHA-256: `c80d835dfc4224d8eca8375d24058a77034087077186e85f10b2ba48b1fcc991`.

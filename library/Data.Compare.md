@@ -2,19 +2,21 @@
 
 Explicit scalar comparison policies, NaN-aware floating orders, and first non-default selection.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Compare</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Compare/">View source</a><a href="/library/search/?q=%2BData.Compare">Search module</a><a href="/reference-sources/Data.Compare.cinch" download="Data.Compare.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Compare`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Char](Data.Char.md), [Data.Core](Data.Core.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Data.Compare.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Compare`: [Data.Compare](Data.Compare.md).
 
-[Data.Char](Data.Char.md), [Data.Core](Data.Core.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.String](Data.String.md).
+```sh
+cp seed/prelude/Data/Compare.cinch ./Data.Compare.cinch
+```
 
-Non-embedded source closure: [Data.Compare](Data.Compare.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Three-way comparison and first non-default selection with explicit policies.
 Compare supplies an order without implying Relation.Eq or Relation.Ord.
@@ -24,208 +26,146 @@ value and its equality test; custom types choose these explicitly.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (12 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-Compare">Compare</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Compare</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Compare-compare">compare</a><code class="syn-sig"><strong class="tok-variable">compare</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#c-Default">Default</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Default</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Default-default-value">default-value</a><code class="syn-sig"><strong class="tok-variable">default-value</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Default-is-default">is-default</a><code class="syn-sig"><strong class="tok-variable">is-default</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-compare-f32">compare-f32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">compare-f32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-compare-f64">compare-f64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">compare-f64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-first-non-default">first-non-default</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">first-non-default</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">defaults</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-first-non-default-by">first-non-default-by</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">first-non-default-by</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-less">less</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">less</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ordered</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-less-f32">less-f32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">less-f32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-less-f64">less-f64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">less-f64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-436f6d70617265"></a>
-
-## `Compare`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Compare</span> <span class="tok-variable">a</span></code></pre>
+<article class="doc-entry" id="c-Compare">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Compare</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Compare" title="Permalink">#</a><a href="/library/source/Data.Compare/#L22" title="View source at line 22">Source</a></span></div>
+<div class="doc-body">
 
 A three-way order. Instances must be reflexive, antisymmetric and transitive.
 Equivalent values need not have identical representations or an Eq instance.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 22
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Compare-compare"><div class="doc-method-row"><code><strong class="tok-variable">compare</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#m-Compare-compare" title="Permalink">#</a><a href="/library/source/Data.Compare/#L24">Source</a></span></div><div class="doc-child-prose">Return LT, EQ or GT according to this capability's explicit value order.</div></li></ul></div>
+<details class="doc-instances"><summary>Instances (16)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="method-436f6d706172652e636f6d70617265"></a>
-
-## `Compare.compare`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">compare</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Compare</span>.<span class="tok-constructor">Compare</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
-
-Return LT, EQ or GT according to this capability's explicit value order.
-
-<a id="class-44656661756c74"></a>
-
-## `Default`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Default</span> <span class="tok-variable">a</span></code></pre>
+<article class="doc-entry" id="c-Default">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Default</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Default" title="Permalink">#</a><a href="/library/source/Data.Compare/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
 
 A distinguished default value and the predicate recognizing its equivalents.
 The predicate must recognize default-value. Floating zeros are equivalent;
 NaNs are non-default. Instances do not imply global equality or ordering.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 36
-
-<a id="method-44656661756c742e64656661756c742d76616c7565"></a>
-
-## `Default.default-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">default-value</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Compare</span>.<span class="tok-constructor">Default</span> <span class="tok-variable">a</span>) =&gt; <span class="tok-variable">a</span></code></pre>
-
-The result when every candidate is default or the candidate list is empty.
-
-<a id="method-44656661756c742e69732d64656661756c74"></a>
-
-## `Default.is-default`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">is-default</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Compare</span>.<span class="tok-constructor">Default</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-Whether a candidate equals this capability's distinguished default.
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Default-default-value"><div class="doc-method-row"><code><strong class="tok-variable">default-value</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Default-default-value" title="Permalink">#</a><a href="/library/source/Data.Compare/#L38">Source</a></span></div><div class="doc-child-prose">The result when every candidate is default or the candidate list is empty.</div></li><li id="m-Default-is-default"><div class="doc-method-row"><code><strong class="tok-variable">is-default</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#m-Default-is-default" title="Permalink">#</a><a href="/library/source/Data.Compare/#L40">Source</a></span></div><div class="doc-child-prose">Whether a candidate equals this capability's distinguished default.</div></li></ul></div>
+<details class="doc-instances"><summary>Instances (18)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Compare/#instances">Data.Compare</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-636f6d706172652d663332"></a>
-
-## `compare-f32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">compare-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
+<article class="doc-entry" id="v-compare-f32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">compare-f32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-compare-f32" title="Permalink">#</a><a href="/library/source/Data.Compare/#L56" title="View source at line 56">Source</a></span></div>
+<div class="doc-body">
 
 Compare F32 values with NaNs first, all NaNs equivalent, and signed zeros equivalent.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 56
+</div>
+</article>
 
-<a id="value-636f6d706172652d663634"></a>
-
-## `compare-f64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">compare-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
+<article class="doc-entry" id="v-compare-f64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">compare-f64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-compare-f64" title="Permalink">#</a><a href="/library/source/Data.Compare/#L71" title="View source at line 71">Source</a></span></div>
+<div class="doc-body">
 
 Compare F64 values with NaNs first, all NaNs equivalent, and signed zeros equivalent.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 71
+</div>
+</article>
 
-<a id="value-66697273742d6e6f6e2d64656661756c74"></a>
-
-## `first-non-default`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">first-non-default</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">defaults</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Compare</span>.<span class="tok-constructor">Default</span> <span class="tok-variable">a</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-first-non-default">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">first-non-default</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">defaults</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-first-non-default" title="Permalink">#</a><a href="/library/source/Data.Compare/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 Return the first non-default candidate unchanged, or default-value.
 The walk stops at that candidate. An all-default list returns the canonical
 default, so a list containing only floating negative zeros returns positive zero.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 45
+</div>
+</article>
 
-<a id="value-66697273742d6e6f6e2d64656661756c742d6279"></a>
-
-## `first-non-default-by`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">first-non-default-by</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-first-non-default-by">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">first-non-default-by</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-first-non-default-by" title="Permalink">#</a><a href="/library/source/Data.Compare/#L50" title="View source at line 50">Source</a></span></div>
+<div class="doc-body">
 
 Select with an explicit fallback and default predicate, without typeclass
 constraints. The predicate runs left to right until the first False result.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 50
+</div>
+</article>
 
-<a id="value-6c657373"></a>
-
-## `less`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">less</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">ordered</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Compare</span>.<span class="tok-constructor">Compare</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-less">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">less</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">ordered</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-less" title="Permalink">#</a><a href="/library/source/Data.Compare/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 Test strict precedence in the supplied order. Equivalent values return False.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 27
+</div>
+</article>
 
-<a id="value-6c6573732d663332"></a>
-
-## `less-f32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">less-f32</span> :: (<span class="tok-constructor">F32</span> -&gt; (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-less-f32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">less-f32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-less-f32" title="Permalink">#</a><a href="/library/source/Data.Compare/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Strict F32 precedence with NaNs first and signed zeros equivalent.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 65
+</div>
+</article>
 
-<a id="value-6c6573732d663634"></a>
-
-## `less-f64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">less-f64</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-less-f64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">less-f64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-less-f64" title="Permalink">#</a><a href="/library/source/Data.Compare/#L80" title="View source at line 80">Source</a></span></div>
+<div class="doc-body">
 
 Strict F64 precedence with NaNs first and signed zeros equivalent.
 
-[Source](/reference-sources/Data.Compare.cinch) · line 80
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Compare.Compare_Char` | `Data.Compare.Compare Char` | Implicit |
-| `Data.Compare.Compare_F32` | `Data.Compare.Compare F32` | Implicit |
-| `Data.Compare.Compare_F64` | `Data.Compare.Compare F64` | Implicit |
-| `Data.Compare.Compare_I16` | `Data.Compare.Compare I16` | Implicit |
-| `Data.Compare.Compare_I32` | `Data.Compare.Compare I32` | Implicit |
-| `Data.Compare.Compare_I64` | `Data.Compare.Compare I64` | Implicit |
-| `Data.Compare.Compare_I8` | `Data.Compare.Compare I8` | Implicit |
-| `Data.Compare.Compare_Int` | `Data.Compare.Compare Int` | Implicit |
-| `Data.Compare.Compare_Isize` | `Data.Compare.Compare Isize` | Implicit |
-| `Data.Compare.Compare_Nat` | `Data.Compare.Compare Nat` | Implicit |
-| `Data.Compare.Compare_String` | `Data.Compare.Compare Data.String.String` | Implicit |
-| `Data.Compare.Compare_U16` | `Data.Compare.Compare U16` | Implicit |
-| `Data.Compare.Compare_U32` | `Data.Compare.Compare U32` | Implicit |
-| `Data.Compare.Compare_U64` | `Data.Compare.Compare U64` | Implicit |
-| `Data.Compare.Compare_U8` | `Data.Compare.Compare U8` | Implicit |
-| `Data.Compare.Compare_Usize` | `Data.Compare.Compare Usize` | Implicit |
-| `Data.Compare.Default_Bool` | `Data.Compare.Default Bool` | Implicit |
-| `Data.Compare.Default_Char` | `Data.Compare.Default Char` | Implicit |
-| `Data.Compare.Default_F32` | `Data.Compare.Default F32` | Implicit |
-| `Data.Compare.Default_F64` | `Data.Compare.Default F64` | Implicit |
-| `Data.Compare.Default_I16` | `Data.Compare.Default I16` | Implicit |
-| `Data.Compare.Default_I32` | `Data.Compare.Default I32` | Implicit |
-| `Data.Compare.Default_I64` | `Data.Compare.Default I64` | Implicit |
-| `Data.Compare.Default_I8` | `Data.Compare.Default I8` | Implicit |
-| `Data.Compare.Default_Int` | `Data.Compare.Default Int` | Implicit |
-| `Data.Compare.Default_Isize` | `Data.Compare.Default Isize` | Implicit |
-| `Data.Compare.Default_Nat` | `Data.Compare.Default Nat` | Implicit |
-| `Data.Compare.Default_String` | `Data.Compare.Default Data.String.String` | Implicit |
-| `Data.Compare.Default_U16` | `Data.Compare.Default U16` | Implicit |
-| `Data.Compare.Default_U32` | `Data.Compare.Default U32` | Implicit |
-| `Data.Compare.Default_U64` | `Data.Compare.Default U64` | Implicit |
-| `Data.Compare.Default_U8` | `Data.Compare.Default U8` | Implicit |
-| `Data.Compare.Default_Unit` | `Data.Compare.Default Unit` | Implicit |
-| `Data.Compare.Default_Usize` | `Data.Compare.Default Usize` | Implicit |
-
-**`Data.Compare.Compare_Char`**: The explicit value order for Char.
-**`Data.Compare.Compare_F32`**: The explicit NaN-first order for F32.
-**`Data.Compare.Compare_F64`**: The explicit NaN-first order for F64.
-**`Data.Compare.Compare_I16`**: The explicit value order for I16.
-**`Data.Compare.Compare_I32`**: The explicit value order for I32.
-**`Data.Compare.Compare_I64`**: The explicit value order for I64.
-**`Data.Compare.Compare_I8`**: The explicit value order for I8.
-**`Data.Compare.Compare_Int`**: The explicit value order for Int.
-**`Data.Compare.Compare_Isize`**: The explicit value order for Isize.
-**`Data.Compare.Compare_Nat`**: The explicit value order for Nat.
-**`Data.Compare.Compare_String`**: The explicit value order for String.
-**`Data.Compare.Compare_U16`**: The explicit value order for U16.
-**`Data.Compare.Compare_U32`**: The explicit value order for U32.
-**`Data.Compare.Compare_U64`**: The explicit value order for U64.
-**`Data.Compare.Compare_U8`**: The explicit value order for U8.
-**`Data.Compare.Compare_Usize`**: The explicit value order for Usize.
-**`Data.Compare.Default_Bool`**: The distinguished value default for Bool.
-**`Data.Compare.Default_Char`**: The canonical zero default for Char.
-**`Data.Compare.Default_F32`**: The canonical zero default for F32.
-**`Data.Compare.Default_F64`**: The canonical zero default for F64.
-**`Data.Compare.Default_I16`**: The canonical zero default for I16.
-**`Data.Compare.Default_I32`**: The canonical zero default for I32.
-**`Data.Compare.Default_I64`**: The canonical zero default for I64.
-**`Data.Compare.Default_I8`**: The canonical zero default for I8.
-**`Data.Compare.Default_Int`**: The canonical zero default for Int.
-**`Data.Compare.Default_Isize`**: The canonical zero default for Isize.
-**`Data.Compare.Default_Nat`**: The canonical zero default for Nat.
-**`Data.Compare.Default_String`**: The empty string default for String.
-**`Data.Compare.Default_U16`**: The canonical zero default for U16.
-**`Data.Compare.Default_U32`**: The canonical zero default for U32.
-**`Data.Compare.Default_U64`**: The canonical zero default for U64.
-**`Data.Compare.Default_U8`**: The canonical zero default for U8.
-**`Data.Compare.Default_Unit`**: The distinguished value default for Unit.
-**`Data.Compare.Default_Usize`**: The canonical zero default for Usize.
+<ul class="doc-module-instances">
+<li id="i-Compare_Char"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_Char</code></span><div class="doc-child-prose">The explicit value order for Char.</div></li>
+<li id="i-Compare_F32"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_F32</code></span><div class="doc-child-prose">The explicit NaN-first order for F32.</div></li>
+<li id="i-Compare_F64"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_F64</code></span><div class="doc-child-prose">The explicit NaN-first order for F64.</div></li>
+<li id="i-Compare_I16"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_I16</code></span><div class="doc-child-prose">The explicit value order for I16.</div></li>
+<li id="i-Compare_I32"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_I32</code></span><div class="doc-child-prose">The explicit value order for I32.</div></li>
+<li id="i-Compare_I64"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_I64</code></span><div class="doc-child-prose">The explicit value order for I64.</div></li>
+<li id="i-Compare_I8"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_I8</code></span><div class="doc-child-prose">The explicit value order for I8.</div></li>
+<li id="i-Compare_Int"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_Int</code></span><div class="doc-child-prose">The explicit value order for Int.</div></li>
+<li id="i-Compare_Isize"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_Isize</code></span><div class="doc-child-prose">The explicit value order for Isize.</div></li>
+<li id="i-Compare_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_Nat</code></span><div class="doc-child-prose">The explicit value order for Nat.</div></li>
+<li id="i-Compare_String"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_String</code></span><div class="doc-child-prose">The explicit value order for String.</div></li>
+<li id="i-Compare_U16"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_U16</code></span><div class="doc-child-prose">The explicit value order for U16.</div></li>
+<li id="i-Compare_U32"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_U32</code></span><div class="doc-child-prose">The explicit value order for U32.</div></li>
+<li id="i-Compare_U64"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_U64</code></span><div class="doc-child-prose">The explicit value order for U64.</div></li>
+<li id="i-Compare_U8"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_U8</code></span><div class="doc-child-prose">The explicit value order for U8.</div></li>
+<li id="i-Compare_Usize"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Compare" title="Data.Compare.Compare">Compare</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Compare_Usize</code></span><div class="doc-child-prose">The explicit value order for Usize.</div></li>
+<li id="i-Default_Bool"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Bool</code></span><div class="doc-child-prose">The distinguished value default for Bool.</div></li>
+<li id="i-Default_Char"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Char</code></span><div class="doc-child-prose">The canonical zero default for Char.</div></li>
+<li id="i-Default_F32"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_F32</code></span><div class="doc-child-prose">The canonical zero default for F32.</div></li>
+<li id="i-Default_F64"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_F64</code></span><div class="doc-child-prose">The canonical zero default for F64.</div></li>
+<li id="i-Default_I16"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I16">I16</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_I16</code></span><div class="doc-child-prose">The canonical zero default for I16.</div></li>
+<li id="i-Default_I32"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_I32</code></span><div class="doc-child-prose">The canonical zero default for I32.</div></li>
+<li id="i-Default_I64"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_I64</code></span><div class="doc-child-prose">The canonical zero default for I64.</div></li>
+<li id="i-Default_I8"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I8">I8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_I8</code></span><div class="doc-child-prose">The canonical zero default for I8.</div></li>
+<li id="i-Default_Int"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Int</code></span><div class="doc-child-prose">The canonical zero default for Int.</div></li>
+<li id="i-Default_Isize"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="Isize">Isize</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Isize</code></span><div class="doc-child-prose">The canonical zero default for Isize.</div></li>
+<li id="i-Default_Nat"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Nat</code></span><div class="doc-child-prose">The canonical zero default for Nat.</div></li>
+<li id="i-Default_String"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_String</code></span><div class="doc-child-prose">The empty string default for String.</div></li>
+<li id="i-Default_U16"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_U16</code></span><div class="doc-child-prose">The canonical zero default for U16.</div></li>
+<li id="i-Default_U32"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_U32</code></span><div class="doc-child-prose">The canonical zero default for U32.</div></li>
+<li id="i-Default_U64"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_U64</code></span><div class="doc-child-prose">The canonical zero default for U64.</div></li>
+<li id="i-Default_U8"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_U8</code></span><div class="doc-child-prose">The canonical zero default for U8.</div></li>
+<li id="i-Default_Unit"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Unit</code></span><div class="doc-child-prose">The distinguished value default for Unit.</div></li>
+<li id="i-Default_Usize"><code><a class="doc-type-link tok-constructor" href="/library/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Usize</code></span><div class="doc-child-prose">The canonical zero default for Usize.</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Compare.cinch`. Source SHA-256: `2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Compare.cinch`](/library/source/Data.Compare/). Source SHA-256: `2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb`.

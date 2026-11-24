@@ -2,19 +2,28 @@
 
 Pseudorandom sources seeded from operating-system entropy.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Rand</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Rand/">View source</a><a href="/library/search/?q=%2BEffect.Rand">Search module</a><a href="/reference-sources/Effect.Rand.cinch" download="Effect.Rand.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Rand`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Rand](Data.Rand.md), [Data.Result](Data.Result.md), [Effect.Random](Effect.Random.md).
 
-[Download exact module source](/reference-sources/Effect.Rand.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (8 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Rand`: [Data.Array](Data.Array.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.Rand](Data.Rand.md), [Effect.Rand](Effect.Rand.md), [Effect.Random](Effect.Random.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Rand](Data.Rand.md), [Data.Result](Data.Result.md), [Effect.Random](Effect.Random.md).
+```sh
+cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Data/ChaCha8.cinch ./Data.ChaCha8.cinch
+cp seed/prelude/Data/Float.cinch ./Data.Float.cinch
+cp seed/prelude/Data/Rand.cinch ./Data.Rand.cinch
+cp seed/prelude/Effect/Rand.cinch ./Effect.Rand.cinch
+cp seed/prelude/Effect/Random.cinch ./Effect.Random.cinch
+```
 
-Non-embedded source closure: [Data.Array](Data.Array.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.Rand](Data.Rand.md), [Effect.Rand](Effect.Rand.md), [Effect.Random](Effect.Random.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Pseudorandom sources seeded from the operating system: the effectful entry to Data.Rand.
 
@@ -25,33 +34,31 @@ hard to predict from earlier outputs.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-random-chacha8">random-chacha8</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">random-chacha8</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.ChaCha8/#t-ChaCha8Error" title="Data.ChaCha8.ChaCha8Error">ChaCha8Error</a> <a class="doc-type-link tok-constructor" href="/library/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code></li><li><a class="syn-name" href="#v-random-pcg">random-pcg</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">random-pcg</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-72616e646f6d2d63686163686138"></a>
-
-## `random-chacha8`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-chacha8</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">ChaCha8</span>.<span class="tok-constructor">ChaCha8Error</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">ChaCha8</span>.<span class="tok-constructor">ChaCha8</span>))</code></pre>
+<article class="doc-entry" id="v-random-chacha8">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">random-chacha8</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.ChaCha8/#t-ChaCha8Error" title="Data.ChaCha8.ChaCha8Error">ChaCha8Error</a> <a class="doc-type-link tok-constructor" href="/library/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code><span class="doc-sig-links"><a href="#v-random-chacha8" title="Permalink">#</a><a href="/library/source/Effect.Rand/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
 
 A ChaCha8 generator seeded with 256 bits of operating-system entropy (the seed always has the required
 32 bytes, so the result is Ok whenever the entropy source answers).
 
-[Source](/reference-sources/Effect.Rand.cinch) · line 28
+</div>
+</article>
 
-<a id="value-72616e646f6d2d706367"></a>
-
-## `random-pcg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">random-pcg</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span>)</code></pre>
+<article class="doc-entry" id="v-random-pcg">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">random-pcg</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code><span class="doc-sig-links"><a href="#v-random-pcg" title="Permalink">#</a><a href="/library/source/Effect.Rand/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 A PCG generator seeded with 128 bits of operating-system entropy.
 
-[Source](/reference-sources/Effect.Rand.cinch) · line 23
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Rand.cinch`. Source SHA-256: `1849a085f5e7c61bd4d30491b389f120737eeaee6049ff0839e428e717b7efdf`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Rand.cinch`](/library/source/Effect.Rand/). Source SHA-256: `1849a085f5e7c61bd4d30491b389f120737eeaee6049ff0839e428e717b7efdf`.

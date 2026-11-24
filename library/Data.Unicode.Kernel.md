@@ -2,19 +2,23 @@
 
 Unicode scalar and numeric classification, simple case mappings, fold cycles and checked locale overrides.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Unicode.Kernel</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Unicode.Kernel/">View source</a><a href="/library/search/?q=%2BData.Unicode.Kernel">Search module</a><a href="/reference-sources/Data.Unicode.Kernel.cinch" download="Data.Unicode.Kernel.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Unicode.Kernel`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
 
-[Download exact module source](/reference-sources/Data.Unicode.Kernel.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Unicode.Kernel`: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
+cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Unicode 17.0.0 scalar classification, simple casing and simple-fold cycles.
 This numeric core has no direct String dependency. Character APIs operate on
@@ -25,768 +29,683 @@ simple folding walks canonical numeric-order equivalence cycles.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (74 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-UnicodeCase">UnicodeCase</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeCase</strong></code></li><li><a class="syn-name" href="#t-UnicodeCaseError">UnicodeCaseError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeCaseError</strong></code></li><li><a class="syn-name" href="#t-UnicodeCaseRange">UnicodeCaseRange</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeCaseRange</strong></code></li><li><a class="syn-name" href="#t-UnicodeSpecialCase">UnicodeSpecialCase</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeSpecialCase</strong></code></li><li><a class="syn-name" href="#v-unicode-azeri-case">unicode-azeri-case</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-azeri-case</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a></code></li><li><a class="syn-name" href="#v-unicode-case-count">unicode-case-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-case-error-index">unicode-case-error-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-error-index</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-unicode-case-index">unicode-case-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-index</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-case-range-at">unicode-case-range-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a></code></li><li><a class="syn-name" href="#v-unicode-case-range-count">unicode-case-range-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-unicode-case-range-high">unicode-case-range-high</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-high</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-case-range-low">unicode-case-range-low</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-low</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-case-range-lower">unicode-case-range-lower</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-case-range-title">unicode-case-range-title</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-title</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-case-range-upper">unicode-case-range-upper</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-upper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-equal-fold">unicode-equal-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-equal-fold</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-equal-fold-code">unicode-equal-fold-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-equal-fold-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-control">unicode-is-control</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-control</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-control-code">unicode-is-control-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-control-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-digit">unicode-is-digit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-digit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-digit-code">unicode-is-digit-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-digit-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-graphic">unicode-is-graphic</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-graphic-code">unicode-is-graphic-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-graphic-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-letter">unicode-is-letter</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-letter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-letter-code">unicode-is-letter-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-letter-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-lower">unicode-is-lower</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-lower-code">unicode-is-lower-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-lower-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-mark">unicode-is-mark</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-mark</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-mark-code">unicode-is-mark-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-mark-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-number">unicode-is-number</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-number</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-number-code">unicode-is-number-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-number-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-print">unicode-is-print</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-print</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-print-code">unicode-is-print-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-print-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-punct">unicode-is-punct</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-punct</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-punct-code">unicode-is-punct-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-punct-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-scalar-code">unicode-is-scalar-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-scalar-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-space">unicode-is-space</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-space</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-space-code">unicode-is-space-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-space-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-symbol">unicode-is-symbol</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-symbol</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-symbol-code">unicode-is-symbol-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-symbol-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-title">unicode-is-title</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-title</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-title-code">unicode-is-title-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-title-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-upper">unicode-is-upper</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-upper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-upper-code">unicode-is-upper-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-upper-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-max-ascii">unicode-max-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-max-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-max-codepoint">unicode-max-codepoint</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-max-codepoint</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-max-latin1">unicode-max-latin1</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-max-latin1</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-replacement">unicode-replacement</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-replacement</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-simple-fold">unicode-simple-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-simple-fold</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-simple-fold-code">unicode-simple-fold-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-simple-fold-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-special-affects-ascii">unicode-special-affects-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-affects-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-special-case">unicode-special-case</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-case</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a></code></li><li><a class="syn-name" href="#v-unicode-special-case-count">unicode-special-case-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-case-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-unicode-special-case-range-at">unicode-special-case-range-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-case-range-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a></code></li><li><a class="syn-name" href="#v-unicode-special-to">unicode-special-to</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-to</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-special-to-lower">unicode-special-to-lower</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-special-to-lower-code">unicode-special-to-lower-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-lower-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-special-to-title">unicode-special-to-title</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-title</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-special-to-title-code">unicode-special-to-title-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-title-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-special-to-upper">unicode-special-to-upper</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-upper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-special-to-upper-code">unicode-special-to-upper-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-upper-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-to">unicode-to</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-to</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-to-code">unicode-to-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-to-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-to-lower">unicode-to-lower</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-to-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-to-lower-code">unicode-to-lower-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-to-lower-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-to-title">unicode-to-title</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-to-title</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-to-title-code">unicode-to-title-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-to-title-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-to-upper">unicode-to-upper</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-to-upper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code></li><li><a class="syn-name" href="#v-unicode-to-upper-code">unicode-to-upper-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-to-upper-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-turkish-case">unicode-turkish-case</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-turkish-case</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a></code></li><li><a class="syn-name" href="#v-unicode-upper-lower">unicode-upper-lower</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-upper-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code></li><li><a class="syn-name" href="#v-unicode-version-major">unicode-version-major</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-version-major</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-version-minor">unicode-version-minor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-version-minor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-version-patch">unicode-version-patch</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-version-patch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li></ul>
+</details>
 
-<a id="type-556e69636f646543617365"></a>
+# Types
 
-## `UnicodeCase`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnicodeCase</span></code></pre>
+<article class="doc-entry" id="t-UnicodeCase">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeCase</strong></code><span class="doc-sig-links"><a href="#t-UnicodeCase" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 One of the three simple, single-scalar case mappings.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 69
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-UnicodeUpper"><code><strong class="tok-constructor">UnicodeUpper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a></code></li><li id="k-UnicodeLower"><code><strong class="tok-constructor">UnicodeLower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a></code></li><li id="k-UnicodeTitle"><code><strong class="tok-constructor">UnicodeTitle</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeUpper</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCase</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeLower</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCase</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeTitle</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCase</span></code></pre>
-
-<a id="type-556e69636f6465436173654572726f72"></a>
-
-## `UnicodeCaseError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnicodeCaseError</span></code></pre>
+<article class="doc-entry" id="t-UnicodeCaseError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeCaseError</strong></code><span class="doc-sig-links"><a href="#t-UnicodeCaseError" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L370" title="View source at line 370">Source</a></span></div>
+<div class="doc-body">
 
 A precise invalid custom-case rule, carrying its zero-based rule index.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 370
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-UnicodeCaseInvalidBounds"><code><strong class="tok-constructor">UnicodeCaseInvalidBounds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a></code></li><li id="k-UnicodeCaseInvalidOrder"><code><strong class="tok-constructor">UnicodeCaseInvalidOrder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a></code></li><li id="k-UnicodeCaseInvalidMapping"><code><strong class="tok-constructor">UnicodeCaseInvalidMapping</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a></code></li><li id="k-UnicodeCaseInvalidAlternating"><code><strong class="tok-constructor">UnicodeCaseInvalidAlternating</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a></code></li><li id="k-UnicodeCaseTooManyRules"><code><strong class="tok-constructor">UnicodeCaseTooManyRules</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeCaseInvalidBounds</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeCaseInvalidOrder</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeCaseInvalidMapping</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeCaseInvalidAlternating</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeCaseTooManyRules</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseError</span>)</code></pre>
-
-<a id="type-556e69636f64654361736552616e6765"></a>
-
-## `UnicodeCaseRange`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnicodeCaseRange</span></code></pre>
+<article class="doc-entry" id="t-UnicodeCaseRange">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeCaseRange</strong></code><span class="doc-sig-links"><a href="#t-UnicodeCaseRange" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L345" title="View source at line 345">Source</a></span></div>
+<div class="doc-body">
 
 A complete inclusive simple-case rule with signed upper, lower and title deltas.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 345
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MkUnicodeCaseRange"><code><strong class="tok-constructor">MkUnicodeCaseRange</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkUnicodeCaseRange</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span>)))))</code></pre>
-
-<a id="type-556e69636f64655370656369616c43617365"></a>
-
-## `UnicodeSpecialCase`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnicodeSpecialCase</span></code></pre>
+<article class="doc-entry" id="t-UnicodeSpecialCase">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeSpecialCase</strong></code><span class="doc-sig-links"><a href="#t-UnicodeSpecialCase" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L392" title="View source at line 392">Source</a></span></div>
+<div class="doc-body">
 
 An immutable locale override set; explicit identity deltas suppress default mappings.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 392
+</div>
+</article>
 
 # Values
 
-<a id="value-756e69636f64652d617a6572692d63617365"></a>
-
-## `unicode-azeri-case`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-azeri-case</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span></code></pre>
+<article class="doc-entry" id="v-unicode-azeri-case">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-azeri-case</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a></code><span class="doc-sig-links"><a href="#v-unicode-azeri-case" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L403" title="View source at line 403">Source</a></span></div>
+<div class="doc-body">
 
 Azerbaijani simple-case overrides, sharing the immutable Turkic rules.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 403
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d636f756e74"></a>
-
-## `unicode-case-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-count</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-unicode-case-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-case-count" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L78" title="View source at line 78">Source</a></span></div>
+<div class="doc-body">
 
 Number of independent simple-case mapping selectors.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 78
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d6572726f722d696e646578"></a>
-
-## `unicode-case-error-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-error-index</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-case-error-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-error-index</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-unicode-case-error-index" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L383" title="View source at line 383">Source</a></span></div>
+<div class="doc-body">
 
 Observe the zero-based index of an invalid custom-case rule.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 383
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d696e646578"></a>
-
-## `unicode-case-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-index</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCase</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-case-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-index</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-case-index" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
 
 Observe the stable numeric selector associated with one case.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 82
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d72616e67652d6174"></a>
-
-## `unicode-case-range-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-range-at</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-case-range-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a></code><span class="doc-sig-links"><a href="#v-unicode-case-range-at" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L572" title="View source at line 572">Source</a></span></div>
+<div class="doc-body">
 
 Observe one standard case rule; out-of-range indices return None.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 572
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d72616e67652d636f756e74"></a>
-
-## `unicode-case-range-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-range-count</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-unicode-case-range-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-unicode-case-range-count" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L581" title="View source at line 581">Source</a></span></div>
+<div class="doc-body">
 
 Count complete standard case range records without allocating their observations.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 581
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d72616e67652d68696768"></a>
-
-## `unicode-case-range-high`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-range-high</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-case-range-high">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-high</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-case-range-high" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L354" title="View source at line 354">Source</a></span></div>
+<div class="doc-body">
 
 The upper inclusive source code point of a case rule.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 354
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d72616e67652d6c6f77"></a>
-
-## `unicode-case-range-low`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-range-low</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-case-range-low">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-low</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-case-range-low" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L350" title="View source at line 350">Source</a></span></div>
+<div class="doc-body">
 
 The lower inclusive source code point of a case rule.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 350
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d72616e67652d6c6f776572"></a>
-
-## `unicode-case-range-lower`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-range-lower</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-case-range-lower">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-case-range-lower" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L362" title="View source at line 362">Source</a></span></div>
+<div class="doc-body">
 
 The signed lowercase delta, or the alternating-case sentinel.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 362
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d72616e67652d7469746c65"></a>
-
-## `unicode-case-range-title`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-range-title</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-case-range-title">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-title</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-case-range-title" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L366" title="View source at line 366">Source</a></span></div>
+<div class="doc-body">
 
 The signed titlecase delta, or the alternating-case sentinel.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 366
+</div>
+</article>
 
-<a id="value-756e69636f64652d636173652d72616e67652d7570706572"></a>
-
-## `unicode-case-range-upper`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-case-range-upper</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-case-range-upper">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-case-range-upper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-case-range-upper" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L358" title="View source at line 358">Source</a></span></div>
+<div class="doc-body">
 
 The signed uppercase delta, or the alternating-case sentinel.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 358
+</div>
+</article>
 
-<a id="value-756e69636f64652d657175616c2d666f6c64"></a>
-
-## `unicode-equal-fold`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-equal-fold</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-equal-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-equal-fold</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-equal-fold" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L210" title="View source at line 210">Source</a></span></div>
+<div class="doc-body">
 
 Test whether two scalars belong to the same simple-fold cycle.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 210
+</div>
+</article>
 
-<a id="value-756e69636f64652d657175616c2d666f6c642d636f6465"></a>
-
-## `unicode-equal-fold-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-equal-fold-code</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-equal-fold-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-equal-fold-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-equal-fold-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L204" title="View source at line 204">Source</a></span></div>
+<div class="doc-body">
 
 Test numeric simple-fold equivalence; identical invalid inputs compare equal.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 204
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d636f6e74726f6c"></a>
-
-## `unicode-is-control`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-control</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-control">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-control</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-control" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L218" title="View source at line 218">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode control class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 218
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d636f6e74726f6c2d636f6465"></a>
-
-## `unicode-is-control-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-control-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-control-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-control-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-control-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L214" title="View source at line 214">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode control class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 214
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6469676974"></a>
-
-## `unicode-is-digit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-digit</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-digit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-digit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-digit" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L226" title="View source at line 226">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode digit class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 226
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d64696769742d636f6465"></a>
-
-## `unicode-is-digit-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-digit-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-digit-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-digit-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-digit-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L222" title="View source at line 222">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode digit class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 222
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d67726170686963"></a>
-
-## `unicode-is-graphic`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-graphic</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-graphic">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-graphic</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-graphic" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L298" title="View source at line 298">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode graphic class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 298
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d677261706869632d636f6465"></a>
-
-## `unicode-is-graphic-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-graphic-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-graphic-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-graphic-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-graphic-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L294" title="View source at line 294">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode graphic class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 294
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6c6574746572"></a>
-
-## `unicode-is-letter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-letter</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-letter">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-letter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-letter" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L234" title="View source at line 234">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode letter class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 234
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6c65747465722d636f6465"></a>
-
-## `unicode-is-letter-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-letter-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-letter-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-letter-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-letter-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L230" title="View source at line 230">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode letter class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 230
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6c6f776572"></a>
-
-## `unicode-is-lower`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-lower</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-lower">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-lower" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L242" title="View source at line 242">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode lower class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 242
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6c6f7765722d636f6465"></a>
-
-## `unicode-is-lower-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-lower-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-lower-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-lower-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-lower-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L238" title="View source at line 238">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode lower class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 238
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6d61726b"></a>
-
-## `unicode-is-mark`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-mark</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-mark">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-mark</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-mark" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L266" title="View source at line 266">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode mark class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 266
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6d61726b2d636f6465"></a>
-
-## `unicode-is-mark-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-mark-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-mark-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-mark-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-mark-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L262" title="View source at line 262">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode mark class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 262
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6e756d626572"></a>
-
-## `unicode-is-number`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-number</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-number">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-number</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-number" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L274" title="View source at line 274">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode number class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 274
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6e756d6265722d636f6465"></a>
-
-## `unicode-is-number-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-number-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-number-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-number-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-number-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L270" title="View source at line 270">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode number class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 270
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d7072696e74"></a>
-
-## `unicode-is-print`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-print</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-print">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-print</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-print" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L306" title="View source at line 306">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode print class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 306
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d7072696e742d636f6465"></a>
-
-## `unicode-is-print-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-print-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-print-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-print-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-print-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L302" title="View source at line 302">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode print class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 302
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d70756e6374"></a>
-
-## `unicode-is-punct`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-punct</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-punct">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-punct</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-punct" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L282" title="View source at line 282">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode punct class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 282
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d70756e63742d636f6465"></a>
-
-## `unicode-is-punct-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-punct-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-punct-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-punct-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-punct-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L278" title="View source at line 278">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode punct class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 278
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d7363616c61722d636f6465"></a>
-
-## `unicode-is-scalar-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-scalar-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-scalar-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-scalar-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-scalar-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L86" title="View source at line 86">Source</a></span></div>
+<div class="doc-body">
 
 Test a signed numeric value for Unicode scalar validity, excluding surrogates.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 86
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d7370616365"></a>
-
-## `unicode-is-space`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-space</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-space">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-space</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-space" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L317" title="View source at line 317">Source</a></span></div>
+<div class="doc-body">
 
 Test whether one scalar is Unicode whitespace.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 317
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d73706163652d636f6465"></a>
-
-## `unicode-is-space-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-space-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-space-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-space-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-space-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L310" title="View source at line 310">Source</a></span></div>
+<div class="doc-body">
 
 Test Unicode whitespace, including Latin-1 separators and the full White_Space property.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 310
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d73796d626f6c"></a>
-
-## `unicode-is-symbol`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-symbol</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-symbol">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-symbol</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-symbol" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L290" title="View source at line 290">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode symbol class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 290
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d73796d626f6c2d636f6465"></a>
-
-## `unicode-is-symbol-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-symbol-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-symbol-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-symbol-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-symbol-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L286" title="View source at line 286">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode symbol class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 286
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d7469746c65"></a>
-
-## `unicode-is-title`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-title</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-title">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-title</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-title" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L258" title="View source at line 258">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode title class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 258
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d7469746c652d636f6465"></a>
-
-## `unicode-is-title-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-title-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-title-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-title-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-title-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L254" title="View source at line 254">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode title class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 254
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d7570706572"></a>
-
-## `unicode-is-upper`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-upper</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-upper">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-upper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-upper" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L250" title="View source at line 250">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode upper class of one valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 250
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d75707065722d636f6465"></a>
-
-## `unicode-is-upper-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-upper-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-is-upper-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-upper-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-upper-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L246" title="View source at line 246">Source</a></span></div>
+<div class="doc-body">
 
 Test the Unicode upper class for a signed code point, rejecting numbers outside the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 246
+</div>
+</article>
 
-<a id="value-756e69636f64652d6d61782d6173636969"></a>
-
-## `unicode-max-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-max-ascii</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-unicode-max-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-max-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-max-ascii" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 Highest ASCII code point.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 53
+</div>
+</article>
 
-<a id="value-756e69636f64652d6d61782d636f6465706f696e74"></a>
-
-## `unicode-max-codepoint`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-max-codepoint</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-unicode-max-codepoint">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-max-codepoint</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-max-codepoint" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 Highest Unicode code point; this bound alone does not exclude surrogates.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 49
+</div>
+</article>
 
-<a id="value-756e69636f64652d6d61782d6c6174696e31"></a>
-
-## `unicode-max-latin1`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-max-latin1</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-unicode-max-latin1">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-max-latin1</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-max-latin1" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 Highest Latin-1 code point.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 57
+</div>
+</article>
 
-<a id="value-756e69636f64652d7265706c6163656d656e74"></a>
-
-## `unicode-replacement`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-replacement</span> :: <span class="tok-constructor">Char</span></code></pre>
+<article class="doc-entry" id="v-unicode-replacement">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-replacement</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-replacement" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 The Unicode replacement scalar U+FFFD.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 61
+</div>
+</article>
 
-<a id="value-756e69636f64652d73696d706c652d666f6c64"></a>
-
-## `unicode-simple-fold`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-simple-fold</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-simple-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-simple-fold</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-simple-fold" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L194" title="View source at line 194">Source</a></span></div>
+<div class="doc-body">
 
 Return the next scalar in its simple-fold cycle without normalization or expansion.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 194
+</div>
+</article>
 
-<a id="value-756e69636f64652d73696d706c652d666f6c642d636f6465"></a>
-
-## `unicode-simple-fold-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-simple-fold-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-simple-fold-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-simple-fold-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-simple-fold-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 Return the numeric-order successor in a simple-fold cycle; invalid numbers remain unchanged.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 184
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d616666656374732d6173636969"></a>
-
-## `unicode-special-affects-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-affects-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-special-affects-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-affects-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-special-affects-ascii" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L609" title="View source at line 609">Source</a></span></div>
+<div class="doc-body">
 
 Whether any override can affect ASCII, allowing bulk default ASCII mapping when false.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 609
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d63617365"></a>
-
-## `unicode-special-case`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-case</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-special-case">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-case</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseError" title="Data.Unicode.Kernel.UnicodeCaseError">UnicodeCaseError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a></code><span class="doc-sig-links"><a href="#v-unicode-special-case" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L451" title="View source at line 451">Source</a></span></div>
+<div class="doc-body">
 
 Construct scalar-preserving ordered custom rules, with identity rules overriding default casing.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 451
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d636173652d636f756e74"></a>
-
-## `unicode-special-case-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-case-count</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-special-case-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-case-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-unicode-special-case-count" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L553" title="View source at line 553">Source</a></span></div>
+<div class="doc-body">
 
 Count immutable override records without materializing their observations.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 553
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d636173652d72616e67652d6174"></a>
-
-## `unicode-special-case-range-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-case-range-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCaseRange</span>)))</code></pre>
+<article class="doc-entry" id="v-unicode-special-case-range-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-case-range-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCaseRange" title="Data.Unicode.Kernel.UnicodeCaseRange">UnicodeCaseRange</a></code><span class="doc-sig-links"><a href="#v-unicode-special-case-range-at" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L566" title="View source at line 566">Source</a></span></div>
+<div class="doc-body">
 
 Observe one override record; out-of-range indices return None.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 566
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d746f"></a>
-
-## `unicode-special-to`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-to</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCase</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)))</code></pre>
+<article class="doc-entry" id="v-unicode-special-to">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-to</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-special-to" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L549" title="View source at line 549">Source</a></span></div>
+<div class="doc-body">
 
 Apply one scalar-preserving locale override mapping to a valid character.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 549
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d746f2d6c6f776572"></a>
-
-## `unicode-special-to-lower`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-to-lower</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-special-to-lower">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-special-to-lower" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L597" title="View source at line 597">Source</a></span></div>
+<div class="doc-body">
 
 Apply scalar-preserving locale lowercase overrides before default casing.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 597
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d746f2d6c6f7765722d636f6465"></a>
-
-## `unicode-special-to-lower-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-to-lower-code</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-special-to-lower-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-lower-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-special-to-lower-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L593" title="View source at line 593">Source</a></span></div>
+<div class="doc-body">
 
 Apply locale lowercase overrides to a numeric code point, preserving invalid inputs.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 593
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d746f2d7469746c65"></a>
-
-## `unicode-special-to-title`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-to-title</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-special-to-title">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-title</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-special-to-title" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L605" title="View source at line 605">Source</a></span></div>
+<div class="doc-body">
 
 Apply scalar-preserving locale titlecase overrides before default casing.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 605
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d746f2d7469746c652d636f6465"></a>
-
-## `unicode-special-to-title-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-to-title-code</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-special-to-title-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-title-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-special-to-title-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L601" title="View source at line 601">Source</a></span></div>
+<div class="doc-body">
 
 Apply locale titlecase overrides to a numeric code point, preserving invalid inputs.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 601
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d746f2d7570706572"></a>
-
-## `unicode-special-to-upper`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-to-upper</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-special-to-upper">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-upper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-special-to-upper" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L589" title="View source at line 589">Source</a></span></div>
+<div class="doc-body">
 
 Apply scalar-preserving locale uppercase overrides before default casing.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 589
+</div>
+</article>
 
-<a id="value-756e69636f64652d7370656369616c2d746f2d75707065722d636f6465"></a>
-
-## `unicode-special-to-upper-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-special-to-upper-code</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-special-to-upper-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-special-to-upper-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-special-to-upper-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L585" title="View source at line 585">Source</a></span></div>
+<div class="doc-body">
 
 Apply locale uppercase overrides to a numeric code point, preserving invalid inputs.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 585
+</div>
+</article>
 
-<a id="value-756e69636f64652d746f"></a>
-
-## `unicode-to`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-to</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeCase</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-to">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-to</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeCase" title="Data.Unicode.Kernel.UnicodeCase">UnicodeCase</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-to" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-body">
 
 Apply one simple case mapping to a valid scalar.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 169
+</div>
+</article>
 
-<a id="value-756e69636f64652d746f2d636f6465"></a>
-
-## `unicode-to-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-to-code</span> :: (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-to-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-to-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-to-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L165" title="View source at line 165">Source</a></span></div>
+<div class="doc-body">
 
 Map a signed selector and numeric code point; an invalid selector returns U+FFFD.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 165
+</div>
+</article>
 
-<a id="value-756e69636f64652d746f2d6c6f776572"></a>
-
-## `unicode-to-lower`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-to-lower</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-to-lower">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-to-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-to-lower" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L333" title="View source at line 333">Source</a></span></div>
+<div class="doc-body">
 
 Return the simple single-scalar lowercase mapping.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 333
+</div>
+</article>
 
-<a id="value-756e69636f64652d746f2d6c6f7765722d636f6465"></a>
-
-## `unicode-to-lower-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-to-lower-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-to-lower-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-to-lower-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-to-lower-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L329" title="View source at line 329">Source</a></span></div>
+<div class="doc-body">
 
 Return the simple lowercase mapping of a numeric code point; invalid inputs remain unchanged.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 329
+</div>
+</article>
 
-<a id="value-756e69636f64652d746f2d7469746c65"></a>
-
-## `unicode-to-title`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-to-title</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-to-title">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-to-title</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-to-title" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L341" title="View source at line 341">Source</a></span></div>
+<div class="doc-body">
 
 Return the simple single-scalar titlecase mapping.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 341
+</div>
+</article>
 
-<a id="value-756e69636f64652d746f2d7469746c652d636f6465"></a>
-
-## `unicode-to-title-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-to-title-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-to-title-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-to-title-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-to-title-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L337" title="View source at line 337">Source</a></span></div>
+<div class="doc-body">
 
 Return the simple titlecase mapping of a numeric code point; invalid inputs remain unchanged.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 337
+</div>
+</article>
 
-<a id="value-756e69636f64652d746f2d7570706572"></a>
-
-## `unicode-to-upper`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-to-upper</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Char</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-to-upper">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-to-upper</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a></code><span class="doc-sig-links"><a href="#v-unicode-to-upper" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L325" title="View source at line 325">Source</a></span></div>
+<div class="doc-body">
 
 Return the simple single-scalar uppercase mapping.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 325
+</div>
+</article>
 
-<a id="value-756e69636f64652d746f2d75707065722d636f6465"></a>
-
-## `unicode-to-upper-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-to-upper-code</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">I32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-to-upper-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-to-upper-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-to-upper-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L321" title="View source at line 321">Source</a></span></div>
+<div class="doc-body">
 
 Return the simple uppercase mapping of a numeric code point; invalid inputs remain unchanged.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 321
+</div>
+</article>
 
-<a id="value-756e69636f64652d7475726b6973682d63617365"></a>
-
-## `unicode-turkish-case`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-turkish-case</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Kernel</span>.<span class="tok-constructor">UnicodeSpecialCase</span></code></pre>
+<article class="doc-entry" id="v-unicode-turkish-case">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-turkish-case</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeSpecialCase" title="Data.Unicode.Kernel.UnicodeSpecialCase">UnicodeSpecialCase</a></code><span class="doc-sig-links"><a href="#v-unicode-turkish-case" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L399" title="View source at line 399">Source</a></span></div>
+<div class="doc-body">
 
 Turkish simple-case overrides, taking precedence over default mappings.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 399
+</div>
+</article>
 
-<a id="value-756e69636f64652d75707065722d6c6f776572"></a>
-
-## `unicode-upper-lower`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-upper-lower</span> :: <span class="tok-constructor">I32</span></code></pre>
+<article class="doc-entry" id="v-unicode-upper-lower">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-upper-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a></code><span class="doc-sig-links"><a href="#v-unicode-upper-lower" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Sentinel delta used by alternating uppercase/lowercase range observations.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 65
+</div>
+</article>
 
-<a id="value-756e69636f64652d76657273696f6e2d6d616a6f72"></a>
-
-## `unicode-version-major`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-version-major</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-unicode-version-major">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-version-major</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-version-major" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 Major edition of the immutable classification and mapping data.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 37
+</div>
+</article>
 
-<a id="value-756e69636f64652d76657273696f6e2d6d696e6f72"></a>
-
-## `unicode-version-minor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-version-minor</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-unicode-version-minor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-version-minor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-version-minor" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 Minor edition of the immutable classification and mapping data.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 41
+</div>
+</article>
 
-<a id="value-756e69636f64652d76657273696f6e2d7061746368"></a>
-
-## `unicode-version-patch`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-version-patch</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-unicode-version-patch">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-version-patch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-version-patch" title="Permalink">#</a><a href="/library/source/Data.Unicode.Kernel/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 Patch edition of the immutable classification and mapping data.
 
-[Source](/reference-sources/Data.Unicode.Kernel.cinch) · line 45
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Kernel.cinch`. Source SHA-256: `ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Unicode/Kernel.cinch`](/library/source/Data.Unicode.Kernel/). Source SHA-256: `ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b`.

@@ -2,19 +2,21 @@
 
 Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Bytes.Word</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Bytes.Word/">View source</a><a href="/library/search/?q=%2BData.Bytes.Word">Search module</a><a href="/reference-sources/Data.Bytes.Word.cinch" download="Data.Bytes.Word.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Bytes.Word`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
 
-[Download exact module source](/reference-sources/Data.Bytes.Word.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Bytes.Word`: [Data.Bytes.Word](Data.Bytes.Word.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Unaligned little-endian machine-word access to byte buffers.
 Bounds are explicit preconditions in the public signatures. Reads and writes
@@ -25,52 +27,48 @@ endianness. Concurrent mutation follows the same rules as Data.Bytes.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (4 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-bytes-read-le32">bytes-read-le32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-read-le32</strong> :: <span class="tok-variable">arg1</span> + 4 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-bytes-read-le64">bytes-read-le64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-read-le64</strong> :: <span class="tok-variable">arg1</span> + 8 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-bytes-write-le32">bytes-write-le32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-write-le32</strong> :: <span class="tok-variable">arg1</span> + 4 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bytes-write-le64">bytes-write-le64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-write-le64</strong> :: <span class="tok-variable">arg1</span> + 8 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-62797465732d726561642d6c653332"></a>
-
-## `bytes-read-le32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-read-le32</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">U32</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-read-le32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-read-le32</strong> :: <span class="tok-variable">arg1</span> + 4 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-bytes-read-le32" title="Permalink">#</a><a href="/library/source/Data.Bytes.Word/#L16" title="View source at line 16">Source</a></span></div>
+<div class="doc-body">
 
 Read exactly 4 bytes as a little-endian U32. Alignment is unrestricted. The caller must prove pos + 4 <= bytes-len b; no tail bytes are read.
 
-[Source](/reference-sources/Data.Bytes.Word.cinch) · line 16
+</div>
+</article>
 
-<a id="value-62797465732d726561642d6c653634"></a>
-
-## `bytes-read-le64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-read-le64</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">8</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">U64</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-read-le64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-read-le64</strong> :: <span class="tok-variable">arg1</span> + 8 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-bytes-read-le64" title="Permalink">#</a><a href="/library/source/Data.Bytes.Word/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
 
 Read exactly 8 bytes as a little-endian U64. Alignment is unrestricted. The caller must prove pos + 8 <= bytes-len b; no tail bytes are read.
 
-[Source](/reference-sources/Data.Bytes.Word.cinch) · line 28
+</div>
+</article>
 
-<a id="value-62797465732d77726974652d6c653332"></a>
-
-## `bytes-write-le32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-write-le32</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U32</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-write-le32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-write-le32</strong> :: <span class="tok-variable">arg1</span> + 4 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-write-le32" title="Permalink">#</a><a href="/library/source/Data.Bytes.Word/#L20" title="View source at line 20">Source</a></span></div>
+<div class="doc-body">
 
 Write exactly 4 low-to-high bytes of a U32. The caller must prove pos + 4 <= bytes-len b; bytes outside that range are preserved.
 
-[Source](/reference-sources/Data.Bytes.Word.cinch) · line 20
+</div>
+</article>
 
-<a id="value-62797465732d77726974652d6c653634"></a>
-
-## `bytes-write-le64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-write-le64</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg1</span> <span class="tok-operator">+</span> <span class="tok-number">8</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">U64</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-write-le64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-write-le64</strong> :: <span class="tok-variable">arg1</span> + 8 &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-write-le64" title="Permalink">#</a><a href="/library/source/Data.Bytes.Word/#L32" title="View source at line 32">Source</a></span></div>
+<div class="doc-body">
 
 Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= bytes-len b; bytes outside that range are preserved.
 
-[Source](/reference-sources/Data.Bytes.Word.cinch) · line 32
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Word.cinch`. Source SHA-256: `a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Word.cinch`](/library/source/Data.Bytes.Word/). Source SHA-256: `a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8`.

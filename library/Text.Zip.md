@@ -2,19 +2,28 @@
 
 Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or deflated archives.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Zip</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Zip/">View source</a><a href="/library/search/?q=%2BText.Zip">Search module</a><a href="/reference-sources/Text.Zip.cinch" download="Text.Zip.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Zip`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
 
-[Download exact module source](/reference-sources/Text.Zip.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (8 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Zip`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md), [Text.Zip](Text.Zip.md), [Text.Zlib](Text.Zlib.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
+```sh
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Adler32.cinch ./Text.Adler32.cinch
+cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
+cp seed/prelude/Text/Checksum.cinch ./Text.Checksum.cinch
+cp seed/prelude/Text/Crc64.cinch ./Text.Crc64.cinch
+cp seed/prelude/Text/Zip.cinch ./Text.Zip.cinch
+cp seed/prelude/Text/Zlib.cinch ./Text.Zlib.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md), [Text.Zip](Text.Zip.md), [Text.Zlib](Text.Zlib.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Zip archives: read stored and deflated entries (including Zip64) and write stored or deflated archives.
 Reading locates the end-of-central-directory record (and its Zip64
@@ -29,318 +38,280 @@ UTC; names and comments are raw bytes.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (29 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ZipArchive">ZipArchive</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZipArchive</strong></code></li><li><a class="syn-name" href="#t-ZipEntry">ZipEntry</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZipEntry</strong></code></li><li><a class="syn-name" href="#t-ZipError">ZipError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZipError</strong></code></li><li><a class="syn-name" href="#t-ZipFile">ZipFile</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZipFile</strong></code></li><li><a class="syn-name" href="#v-zip-comment">zip-comment</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-comment</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipArchive" title="Text.Zip.ZipArchive">ZipArchive</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-zip-deflate">zip-deflate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-deflate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-entries">zip-entries</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entries</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipArchive" title="Text.Zip.ZipArchive">ZipArchive</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a></code></li><li><a class="syn-name" href="#v-zip-entry-comment">zip-entry-comment</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-comment</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-zip-entry-compressed-size">zip-entry-compressed-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-compressed-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-entry-crc32">zip-entry-crc32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-crc32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-zip-entry-creator">zip-entry-creator</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-creator</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-entry-external-attrs">zip-entry-external-attrs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-external-attrs</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-entry-extra">zip-entry-extra</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-extra</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-zip-entry-flags">zip-entry-flags</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-flags</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-entry-is-directory">zip-entry-is-directory</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-is-directory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-zip-entry-method">zip-entry-method</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-method</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-entry-mode">zip-entry-mode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-entry-modified">zip-entry-modified</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-modified</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-zip-entry-name">zip-entry-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-zip-entry-size">zip-entry-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-entry-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-error-message">zip-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-zip-file">zip-file</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-file</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a></code></li><li><a class="syn-name" href="#v-zip-file-with-comment">zip-file-with-comment</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-file-with-comment</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a></code></li><li><a class="syn-name" href="#v-zip-file-with-mode">zip-file-with-mode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-file-with-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a></code></li><li><a class="syn-name" href="#v-zip-file-with-modified">zip-file-with-modified</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-file-with-modified</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a></code></li><li><a class="syn-name" href="#v-zip-open">zip-open</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-open</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-zip-read">zip-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-read</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipArchive" title="Text.Zip.ZipArchive">ZipArchive</a></code></li><li><a class="syn-name" href="#v-zip-store">zip-store</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-store</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-zip-write">zip-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zip-write</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-5a697041726368697665"></a>
+# Types
 
-## `ZipArchive`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZipArchive</span></code></pre>
+<article class="doc-entry" id="t-ZipArchive">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZipArchive</strong></code><span class="doc-sig-links"><a href="#t-ZipArchive" title="Permalink">#</a><a href="/library/source/Text.Zip/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 A parsed archive: its entries in directory order and its comment.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 75
+</div>
+</article>
 
-<a id="type-5a6970456e747279"></a>
-
-## `ZipEntry`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZipEntry</span></code></pre>
+<article class="doc-entry" id="t-ZipEntry">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZipEntry</strong></code><span class="doc-sig-links"><a href="#t-ZipEntry" title="Permalink">#</a><a href="/library/source/Text.Zip/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 A central directory entry: name, comment, extra fields, creator version, flags, method, MS-DOS time
 and date, CRC-32, compressed and uncompressed sizes, external attributes, local header offset and
 the modification time in Unix seconds.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 70
+</div>
+</article>
 
-<a id="type-5a69704572726f72"></a>
-
-## `ZipError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZipError</span></code></pre>
+<article class="doc-entry" id="t-ZipError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZipError</strong></code><span class="doc-sig-links"><a href="#t-ZipError" title="Permalink">#</a><a href="/library/source/Text.Zip/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
 
 A malformed archive, an unsupported entry or corrupted data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 40
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ZipNotFound"><code><strong class="tok-constructor">ZipNotFound</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a></code></li><li id="k-ZipBadEntry"><code><strong class="tok-constructor">ZipBadEntry</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a></code></li><li id="k-ZipTruncated"><code><strong class="tok-constructor">ZipTruncated</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a></code></li><li id="k-ZipUnsupportedMethod"><code><strong class="tok-constructor">ZipUnsupportedMethod</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a></code></li><li id="k-ZipChecksumMismatch"><code><strong class="tok-constructor">ZipChecksumMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a></code></li><li id="k-ZipSizeMismatch"><code><strong class="tok-constructor">ZipSizeMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a></code></li><li id="k-ZipBadDeflate"><code><strong class="tok-constructor">ZipBadDeflate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZipNotFound</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZipBadEntry</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZipTruncated</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZipUnsupportedMethod</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZipChecksumMismatch</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZipSizeMismatch</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZipBadDeflate</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span></code></pre>
-
-<a id="type-5a697046696c65"></a>
-
-## `ZipFile`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZipFile</span></code></pre>
+<article class="doc-entry" id="t-ZipFile">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZipFile</strong></code><span class="doc-sig-links"><a href="#t-ZipFile" title="Permalink">#</a><a href="/library/source/Text.Zip/#L320" title="View source at line 320">Source</a></span></div>
+<div class="doc-body">
 
 A file to write: name, comment, method, Unix mode (zero for none), modification time and data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 320
+</div>
+</article>
 
 # Values
 
-<a id="value-7a69702d636f6d6d656e74"></a>
-
-## `zip-comment`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-comment</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipArchive</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-zip-comment">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-comment</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipArchive" title="Text.Zip.ZipArchive">ZipArchive</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-zip-comment" title="Permalink">#</a><a href="/library/source/Text.Zip/#L136" title="View source at line 136">Source</a></span></div>
+<div class="doc-body">
 
 Archive comment.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 136
+</div>
+</article>
 
-<a id="value-7a69702d6465666c617465"></a>
-
-## `zip-deflate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-deflate</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-zip-deflate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-deflate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-deflate" title="Permalink">#</a><a href="/library/source/Text.Zip/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
 
 Method code for DEFLATE data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 36
+</div>
+</article>
 
-<a id="value-7a69702d656e7472696573"></a>
-
-## `zip-entries`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entries</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipArchive</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span>))</code></pre>
+<article class="doc-entry" id="v-zip-entries">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entries</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipArchive" title="Text.Zip.ZipArchive">ZipArchive</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a></code><span class="doc-sig-links"><a href="#v-zip-entries" title="Permalink">#</a><a href="/library/source/Text.Zip/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 Entries in central directory order.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 132
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d636f6d6d656e74"></a>
-
-## `zip-entry-comment`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-comment</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-comment">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-comment</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-zip-entry-comment" title="Permalink">#</a><a href="/library/source/Text.Zip/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-body">
 
 Entry comment.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 84
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d636f6d707265737365642d73697a65"></a>
-
-## `zip-entry-compressed-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-compressed-size</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-compressed-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-compressed-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-entry-compressed-size" title="Permalink">#</a><a href="/library/source/Text.Zip/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 Compressed size in bytes.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 108
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d6372633332"></a>
-
-## `zip-entry-crc32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-crc32</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-crc32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-crc32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-zip-entry-crc32" title="Permalink">#</a><a href="/library/source/Text.Zip/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-body">
 
 Recorded CRC-32 of the uncompressed data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 104
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d63726561746f72"></a>
-
-## `zip-entry-creator`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-creator</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-creator">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-creator</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-entry-creator" title="Permalink">#</a><a href="/library/source/Text.Zip/#L92" title="View source at line 92">Source</a></span></div>
+<div class="doc-body">
 
 Version made by: the high byte names the creating system (3 is Unix).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 92
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d65787465726e616c2d6174747273"></a>
-
-## `zip-entry-external-attrs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-external-attrs</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-external-attrs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-external-attrs</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-entry-external-attrs" title="Permalink">#</a><a href="/library/source/Text.Zip/#L116" title="View source at line 116">Source</a></span></div>
+<div class="doc-body">
 
 External attributes; for Unix creators the high sixteen bits hold the mode.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 116
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d6578747261"></a>
-
-## `zip-entry-extra`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-extra</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-extra">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-extra</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-zip-entry-extra" title="Permalink">#</a><a href="/library/source/Text.Zip/#L88" title="View source at line 88">Source</a></span></div>
+<div class="doc-body">
 
 Raw central directory extra fields.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 88
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d666c616773"></a>
-
-## `zip-entry-flags`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-flags</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-flags">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-flags</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-entry-flags" title="Permalink">#</a><a href="/library/source/Text.Zip/#L96" title="View source at line 96">Source</a></span></div>
+<div class="doc-body">
 
 General-purpose flags (bit 3: data descriptor, bit 11: UTF-8 name).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 96
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d69732d6469726563746f7279"></a>
-
-## `zip-entry-is-directory`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-is-directory</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-is-directory">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-is-directory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-zip-entry-is-directory" title="Permalink">#</a><a href="/library/source/Text.Zip/#L128" title="View source at line 128">Source</a></span></div>
+<div class="doc-body">
 
 Whether the entry names a directory (its name ends with a slash).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 128
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d6d6574686f64"></a>
-
-## `zip-entry-method`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-method</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-method">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-method</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-entry-method" title="Permalink">#</a><a href="/library/source/Text.Zip/#L100" title="View source at line 100">Source</a></span></div>
+<div class="doc-body">
 
 Compression method.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 100
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d6d6f6465"></a>
-
-## `zip-entry-mode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-mode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-mode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-entry-mode" title="Permalink">#</a><a href="/library/source/Text.Zip/#L124" title="View source at line 124">Source</a></span></div>
+<div class="doc-body">
 
 Unix permission and type bits for Unix creators, otherwise zero.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 124
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d6d6f646966696564"></a>
-
-## `zip-entry-modified`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-modified</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-modified">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-modified</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-zip-entry-modified" title="Permalink">#</a><a href="/library/source/Text.Zip/#L120" title="View source at line 120">Source</a></span></div>
+<div class="doc-body">
 
 Modification time in Unix seconds: the extended timestamp when present, otherwise the MS-DOS fields as UTC.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 120
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d6e616d65"></a>
-
-## `zip-entry-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-zip-entry-name" title="Permalink">#</a><a href="/library/source/Text.Zip/#L80" title="View source at line 80">Source</a></span></div>
+<div class="doc-body">
 
 Entry name.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 80
+</div>
+</article>
 
-<a id="value-7a69702d656e7472792d73697a65"></a>
-
-## `zip-entry-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-entry-size</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-zip-entry-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-entry-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-entry-size" title="Permalink">#</a><a href="/library/source/Text.Zip/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-body">
 
 Uncompressed size in bytes.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 112
+</div>
+</article>
 
-<a id="value-7a69702d6572726f722d6d657373616765"></a>
-
-## `zip-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-zip-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-zip-error-message" title="Permalink">#</a><a href="/library/source/Text.Zip/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 Render a zip error.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 57
+</div>
+</article>
 
-<a id="value-7a69702d66696c65"></a>
-
-## `zip-file`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-file</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span>)))</code></pre>
+<article class="doc-entry" id="v-zip-file">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-file</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a></code><span class="doc-sig-links"><a href="#v-zip-file" title="Permalink">#</a><a href="/library/source/Text.Zip/#L326" title="View source at line 326">Source</a></span></div>
+<div class="doc-body">
 
 A file with the given name, method and data, no mode, no comment and no modification time.
 Names ending in a slash are written as directories, always stored and without data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 326
+</div>
+</article>
 
-<a id="value-7a69702d66696c652d776974682d636f6d6d656e74"></a>
-
-## `zip-file-with-comment`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-file-with-comment</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span>))</code></pre>
+<article class="doc-entry" id="v-zip-file-with-comment">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-file-with-comment</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a></code><span class="doc-sig-links"><a href="#v-zip-file-with-comment" title="Permalink">#</a><a href="/library/source/Text.Zip/#L338" title="View source at line 338">Source</a></span></div>
+<div class="doc-body">
 
 Attach a per-file comment.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 338
+</div>
+</article>
 
-<a id="value-7a69702d66696c652d776974682d6d6f6465"></a>
-
-## `zip-file-with-mode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-file-with-mode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span>))</code></pre>
+<article class="doc-entry" id="v-zip-file-with-mode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-file-with-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a></code><span class="doc-sig-links"><a href="#v-zip-file-with-mode" title="Permalink">#</a><a href="/library/source/Text.Zip/#L330" title="View source at line 330">Source</a></span></div>
+<div class="doc-body">
 
 Record Unix permission and type bits (for example 0o100644 for a regular file or 0o40755 for a directory).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 330
+</div>
+</article>
 
-<a id="value-7a69702d66696c652d776974682d6d6f646966696564"></a>
-
-## `zip-file-with-modified`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-file-with-modified</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span>))</code></pre>
+<article class="doc-entry" id="v-zip-file-with-modified">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-file-with-modified</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a></code><span class="doc-sig-links"><a href="#v-zip-file-with-modified" title="Permalink">#</a><a href="/library/source/Text.Zip/#L334" title="View source at line 334">Source</a></span></div>
+<div class="doc-body">
 
 Record a modification time in Unix seconds (UTC).
 
-[Source](/reference-sources/Text.Zip.cinch) · line 334
+</div>
+</article>
 
-<a id="value-7a69702d6f70656e"></a>
-
-## `zip-open`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-open</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipEntry</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-zip-open">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-open</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipEntry" title="Text.Zip.ZipEntry">ZipEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-zip-open" title="Permalink">#</a><a href="/library/source/Text.Zip/#L290" title="View source at line 290">Source</a></span></div>
+<div class="doc-body">
 
 Read and verify an entry's data: stored bytes are copied, DEFLATE data is inflated, and the CRC-32
 and uncompressed size must match the directory.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 290
+</div>
+</article>
 
-<a id="value-7a69702d72656164"></a>
-
-## `zip-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-read</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipArchive</span>))</code></pre>
+<article class="doc-entry" id="v-zip-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-read</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipArchive" title="Text.Zip.ZipArchive">ZipArchive</a></code><span class="doc-sig-links"><a href="#v-zip-read" title="Permalink">#</a><a href="/library/source/Text.Zip/#L178" title="View source at line 178">Source</a></span></div>
+<div class="doc-body">
 
 Parse the central directory of a complete archive.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 178
+</div>
+</article>
 
-<a id="value-7a69702d73746f7265"></a>
-
-## `zip-store`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-store</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-zip-store">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-store</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-zip-store" title="Permalink">#</a><a href="/library/source/Text.Zip/#L32" title="View source at line 32">Source</a></span></div>
+<div class="doc-body">
 
 Method code for uncompressed data.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 32
+</div>
+</article>
 
-<a id="value-7a69702d7772697465"></a>
-
-## `zip-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zip-write</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipFile</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zip</span>.<span class="tok-constructor">ZipError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-zip-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zip-write</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipFile" title="Text.Zip.ZipFile">ZipFile</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zip/#t-ZipError" title="Text.Zip.ZipError">ZipError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-zip-write" title="Permalink">#</a><a href="/library/source/Text.Zip/#L342" title="View source at line 342">Source</a></span></div>
+<div class="doc-body">
 
 Write files and an archive comment as a complete archive.
 
-[Source](/reference-sources/Text.Zip.cinch) · line 342
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zip.cinch`. Source SHA-256: `ffbb8942b896c6de9979d22637871b4673d6c7dcae70bdaaf408e8b7713e6ddd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Zip.cinch`](/library/source/Text.Zip/). Source SHA-256: `ffbb8942b896c6de9979d22637871b4673d6c7dcae70bdaaf408e8b7713e6ddd`.

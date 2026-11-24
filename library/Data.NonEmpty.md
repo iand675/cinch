@@ -2,17 +2,11 @@
 
 Lists refined by nonemptiness. The total constructor returns Option; transferred operations must preserve the predicate.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.NonEmpty</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.NonEmpty/">View source</a><a href="/library/search/?q=%2BData.NonEmpty">Search module</a><a href="/reference-sources/Data.NonEmpty.cinch" download="Data.NonEmpty.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.NonEmpty`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Traversable](Category.Traversable.md).
 
-[Download exact module source](/reference-sources/Data.NonEmpty.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Semigroup](Algebra.Semigroup.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Traversable](Category.Traversable.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.NonEmpty: the non-empty list as a refinement (refinement types
 design; decision D151: `NonEmpty` is a decidable predicate over
@@ -44,48 +38,42 @@ data type it replaces (decision D151).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-NonEmpty">NonEmpty</a><code class="syn-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">NonEmpty</strong> <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">xs</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> NotNull xs</code></li><li><a class="syn-name" href="#v-non-empty">non-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">non-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.NonEmpty/#t-NonEmpty" title="Data.NonEmpty.NonEmpty">NonEmpty</a> <span class="tok-variable">a</span>)</code></li></ul>
+</details>
 
-<a id="type-4e6f6e456d707479"></a>
+# Types
 
-## `NonEmpty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">NonEmpty</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) = <span class="tok-variable">refine</span> (<span class="tok-variable">xs</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">NotNull</span> <span class="tok-variable">xs</span></code></pre>
-
-[Source](/reference-sources/Data.NonEmpty.cinch)
+<article class="doc-entry" id="t-NonEmpty">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">NonEmpty</strong> <span class="tok-variable">a</span> = <span class="tok-keyword">refine</span> (<span class="tok-variable">xs</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>) <span class="tok-keyword">with</span> NotNull xs</code><span class="doc-sig-links"><a href="#t-NonEmpty" title="Permalink">#</a><a href="/library/source/Data.NonEmpty/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/library/Data.NonEmpty/#t-NonEmpty" title="Data.NonEmpty.NonEmpty">NonEmpty</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.NonEmpty/#instances">Data.NonEmpty</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/library/Data.NonEmpty/#t-NonEmpty" title="Data.NonEmpty.NonEmpty">NonEmpty</a> <span class="tok-variable">x</span>)</code> <span class="doc-inst-meta">implicit · <a href="/library/Data.NonEmpty/#instances">Data.NonEmpty</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/library/Data.NonEmpty/#t-NonEmpty" title="Data.NonEmpty.NonEmpty">NonEmpty</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.NonEmpty/#instances">Data.NonEmpty</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6e6f6e2d656d707479"></a>
-
-## `non-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">non-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">NonEmpty</span>.<span class="tok-constructor">NonEmpty</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-non-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">non-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.NonEmpty/#t-NonEmpty" title="Data.NonEmpty.NonEmpty">NonEmpty</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-non-empty" title="Permalink">#</a><a href="/library/source/Data.NonEmpty/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 The total constructor (refinement types design: the total API):
 the runtime decision lives in the `Dec`/`decide` world and its
 witness erases into the transparent constructor.
 
-[Source](/reference-sources/Data.NonEmpty.cinch) · line 41
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.NonEmpty.Foldable_NonEmpty` | `Category.Foldable.Foldable Data.NonEmpty.NonEmpty` | Implicit |
-| `Data.NonEmpty.Semigroup_NonEmpty` | `Algebra.Semigroup.Semigroup (Data.NonEmpty.NonEmpty x)` | Implicit |
-| `Data.NonEmpty.Traversable_NonEmpty` | `Category.Traversable.Traversable Data.NonEmpty.NonEmpty` | Implicit |
-
-**`Data.NonEmpty.Foldable_NonEmpty`**: The container's own folds (the transfer rule): they read the
-refined value as the list it is.
-**`Data.NonEmpty.Semigroup_NonEmpty`**: The free semigroup: the container's own `<>` (list append),
-preserved (append of non-empties is non-empty), associative by
-`Semigroup.assoc`; both checked sample-wise in the law layer.
-**`Data.NonEmpty.Traversable_NonEmpty`**: The container's own traversal: `traverse` on the list it is,
-yielding the refined shape (the representation is the list).
+<ul class="doc-module-instances">
+<li id="i-Foldable_NonEmpty"><code><a class="doc-type-link tok-constructor" href="/library/Category.Foldable/#c-Foldable" title="Category.Foldable.Foldable">Foldable</a> <a class="doc-type-link tok-constructor" href="/library/Data.NonEmpty/#t-NonEmpty" title="Data.NonEmpty.NonEmpty">NonEmpty</a></code> <span class="doc-inst-meta">Implicit · <code>Data.NonEmpty.Foldable_NonEmpty</code></span><div class="doc-child-prose">The container's own folds (the transfer rule): they read the refined value as the list it is.</div></li>
+<li id="i-Semigroup_NonEmpty"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/library/Data.NonEmpty/#t-NonEmpty" title="Data.NonEmpty.NonEmpty">NonEmpty</a> <span class="tok-variable">x</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.NonEmpty.Semigroup_NonEmpty</code></span><div class="doc-child-prose">The free semigroup: the container's own &lt;&gt; (list append), preserved (append of non-empties is non-empty), associative by Semigroup.assoc; both checked sample-wise in the law layer.</div></li>
+<li id="i-Traversable_NonEmpty"><code><a class="doc-type-link tok-constructor" href="/library/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/library/Data.NonEmpty/#t-NonEmpty" title="Data.NonEmpty.NonEmpty">NonEmpty</a></code> <span class="doc-inst-meta">Implicit · <code>Data.NonEmpty.Traversable_NonEmpty</code></span><div class="doc-child-prose">The container's own traversal: traverse on the list it is, yielding the refined shape (the representation is the list).</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/NonEmpty.cinch`. Source SHA-256: `858506781fd4dda0bb886cfd2bab77cd6333a1da4e32ff1593eecebafb823ebd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/NonEmpty.cinch`](/library/source/Data.NonEmpty/). Source SHA-256: `858506781fd4dda0bb886cfd2bab77cd6333a1da4e32ff1593eecebafb823ebd`.

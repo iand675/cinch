@@ -2,19 +2,24 @@
 
 A bounded plaintext HTTP client with response framing and named errors. HTTPS is explicitly refused; this module has no TLS implementation.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Http</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Http/">View source</a><a href="/library/search/?q=%2BEffect.Http">Search module</a><a href="/reference-sources/Effect.Http.cinch" download="Effect.Http.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Http`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md), [Text.Uri](Text.Uri.md).
 
-[Download exact module source](/reference-sources/Effect.Http.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Http`: [Data.IpAddr](Data.IpAddr.md), [Effect.Http](Effect.Http.md), [Effect.Net](Effect.Net.md), [Text.Uri](Text.Uri.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md), [Text.Uri](Text.Uri.md).
+```sh
+cp seed/prelude/Data/IpAddr.cinch ./Data.IpAddr.cinch
+cp seed/prelude/Effect/Http.cinch ./Effect.Http.cinch
+cp seed/prelude/Effect/Net.cinch ./Effect.Net.cinch
+cp seed/prelude/Text/Uri.cinch ./Text.Uri.cinch
+```
 
-Non-embedded source closure: [Data.IpAddr](Data.IpAddr.md), [Effect.Http](Effect.Http.md), [Effect.Net](Effect.Net.md), [Text.Uri](Text.Uri.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Http: an HTTP/1.1 client over the Effect.Net socket capability.
 
@@ -101,226 +106,161 @@ an explicit decision rather than a silent gap):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (20 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-HttpError">HttpError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpError</strong></code></li><li><a class="syn-name" href="#t-HttpRequest">HttpRequest</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpRequest</strong></code></li><li><a class="syn-name" href="#t-HttpResponse">HttpResponse</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpResponse</strong></code></li><li><a class="syn-name" href="#v-http-body">http-body</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-body</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-get">http-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a></code></li><li><a class="syn-name" href="#v-http-header">http-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-header-all">http-header-all</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-header-all</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-headers">http-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-headers</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)</code></li><li><a class="syn-name" href="#v-http-reason">http-reason</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-reason</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-request">http-request</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-request</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a></code></li><li><a class="syn-name" href="#v-http-request-body">http-request-body</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-request-body</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-http-request-headers">http-request-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-request-headers</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)</code></li><li><a class="syn-name" href="#v-http-request-host">http-request-host</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-request-host</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-request-max">http-request-max</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-request-max</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a></code></li><li><a class="syn-name" href="#v-http-request-method">http-request-method</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-request-method</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-request-path">http-request-path</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-request-path</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-http-request-port">http-request-port</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-request-port</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-http-status">http-status</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">http-status</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-max-response-bytes">max-response-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">max-response-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-render-http-error">render-http-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-http-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-487474704572726f72"></a>
+# Types
 
-## `HttpError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpError</span></code></pre>
+<article class="doc-entry" id="t-HttpError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpError</strong></code><span class="doc-sig-links"><a href="#t-HttpError" title="Permalink">#</a><a href="/library/source/Effect.Http/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-body">
 
 What went wrong: a malformed or refused reply, a bad URL, or the
 socket layer's own named failure (wrapped, not flattened).
 
-[Source](/reference-sources/Effect.Http.cinch) · line 112
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-HttpBadStatusLine"><code><strong class="tok-constructor">HttpBadStatusLine</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li><li id="k-HttpBadHeaderLine"><code><strong class="tok-constructor">HttpBadHeaderLine</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li><li id="k-HttpUnsupportedTransferEncoding"><code><strong class="tok-constructor">HttpUnsupportedTransferEncoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li><li id="k-HttpBodyTooLarge"><code><strong class="tok-constructor">HttpBodyTooLarge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li><li id="k-HttpTruncatedBody"><code><strong class="tok-constructor">HttpTruncatedBody</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li><li id="k-HttpBadUrl"><code><strong class="tok-constructor">HttpBadUrl</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li><li id="k-HttpNoTls"><code><strong class="tok-constructor">HttpNoTls</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li><li id="k-HttpUnsupportedScheme"><code><strong class="tok-constructor">HttpUnsupportedScheme</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li><li id="k-HttpNetworkError"><code><strong class="tok-constructor">HttpNetworkError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Net/#t-NetError" title="Effect.Net.NetError">NetError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadStatusLine</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadHeaderLine</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpUnsupportedTransferEncoding</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBodyTooLarge</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpTruncatedBody</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpBadUrl</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNoTls</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpUnsupportedScheme</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">HttpNetworkError</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Net</span>.<span class="tok-constructor">NetError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span>)</code></pre>
-
-<a id="type-4874747052657175657374"></a>
-
-## `HttpRequest`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpRequest</span></code></pre>
+<article class="doc-entry" id="t-HttpRequest">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpRequest</strong></code><span class="doc-sig-links"><a href="#t-HttpRequest" title="Permalink">#</a><a href="/library/source/Effect.Http/#L149" title="View source at line 149">Source</a></span></div>
+<div class="doc-body">
 
 A request: method, host, port, request-target path, headers, and an
 optional body. The path is sent as given, with a leading `/` supplied
 when it is empty or does not start with one.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 149
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MkHttpRequest"><code><strong class="tok-constructor">MkHttpRequest</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpRequest</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span>))))))</code></pre>
-
-<a id="type-48747470526573706f6e7365"></a>
-
-## `HttpResponse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HttpResponse</span></code></pre>
+<article class="doc-entry" id="t-HttpResponse">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HttpResponse</strong></code><span class="doc-sig-links"><a href="#t-HttpResponse" title="Permalink">#</a><a href="/library/source/Effect.Http/#L178" title="View source at line 178">Source</a></span></div>
+<div class="doc-body">
 
 A response: status code, reason phrase, the header list (duplicates
 kept, in arrival order) and the decoded body bytes.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 178
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkHttpResponse</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MkHttpResponse"><code><strong class="tok-constructor">MkHttpResponse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-687474702d626f6479"></a>
+<article class="doc-entry" id="v-http-body">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-body</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-body" title="Permalink">#</a><a href="/library/source/Effect.Http/#L193" title="View source at line 193">Source</a></span></div>
+</article>
 
-## `http-body`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-body</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-687474702d676574"></a>
-
-## `http-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>))</code></pre>
+<article class="doc-entry" id="v-http-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-get</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a></code><span class="doc-sig-links"><a href="#v-http-get" title="Permalink">#</a><a href="/library/source/Effect.Http/#L661" title="View source at line 661">Source</a></span></div>
+<div class="doc-body">
 
 GET `url` on a fresh connection. The URL is parsed with Text.Uri. An
 `https` URL is refused (HttpNoTls); any non-`http` scheme (or none) is
 refused (HttpUnsupportedScheme); a URL with no host is HttpBadUrl. A
 missing port is 80.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 661
+</div>
+</article>
 
-<a id="value-687474702d686561646572"></a>
-
-## `http-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-http-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-header" title="Permalink">#</a><a href="/library/source/Effect.Http/#L200" title="View source at line 200">Source</a></span></div>
+<div class="doc-body">
 
 The FIRST value of `name`, matched case-insensitively (ASCII folding:
 a header name is ASCII, so `Content-Length` and `content-length` are
 the same name, and no locale folding is done), or `None`.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 200
+</div>
+</article>
 
-<a id="value-687474702d6865616465722d616c6c"></a>
-
-## `http-header-all`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-header-all</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-http-header-all">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-header-all</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-header-all" title="Permalink">#</a><a href="/library/source/Effect.Http/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 Every value of `name`, matched case-insensitively, in arrival order
 (a repeated header keeps every value).
 
-[Source](/reference-sources/Effect.Http.cinch) · line 205
+</div>
+</article>
 
-<a id="value-687474702d68656164657273"></a>
+<article class="doc-entry" id="v-http-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-headers</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-http-headers" title="Permalink">#</a><a href="/library/source/Effect.Http/#L189" title="View source at line 189">Source</a></span></div>
+</article>
 
-## `http-headers`
+<article class="doc-entry" id="v-http-reason">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-reason</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-reason" title="Permalink">#</a><a href="/library/source/Effect.Http/#L185" title="View source at line 185">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-headers</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
-
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-687474702d726561736f6e"></a>
-
-## `http-reason`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-reason</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-687474702d72657175657374"></a>
-
-## `http-request`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>))</code></pre>
+<article class="doc-entry" id="v-http-request">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-request</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a></code><span class="doc-sig-links"><a href="#v-http-request" title="Permalink">#</a><a href="/library/source/Effect.Http/#L589" title="View source at line 589">Source</a></span></div>
+<div class="doc-body">
 
 Send `q` on a fresh connection and read the whole reply. The default
 bound (max-response-bytes) applies; use http-request-max for an
 explicit one.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 589
+</div>
+</article>
 
-<a id="value-687474702d726571756573742d626f6479"></a>
+<article class="doc-entry" id="v-http-request-body">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-request-body</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-http-request-body" title="Permalink">#</a><a href="/library/source/Effect.Http/#L172" title="View source at line 172">Source</a></span></div>
+</article>
 
-## `http-request-body`
+<article class="doc-entry" id="v-http-request-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-request-headers</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-http-request-headers" title="Permalink">#</a><a href="/library/source/Effect.Http/#L168" title="View source at line 168">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-body</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-http-request-host">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-request-host</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-request-host" title="Permalink">#</a><a href="/library/source/Effect.Http/#L156" title="View source at line 156">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-687474702d726571756573742d68656164657273"></a>
-
-## `http-request-headers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-headers</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
-
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-687474702d726571756573742d686f7374"></a>
-
-## `http-request-host`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-host</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-687474702d726571756573742d6d6178"></a>
-
-## `http-request-max`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-max</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span>)))</code></pre>
+<article class="doc-entry" id="v-http-request-max">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-request-max</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a></code><span class="doc-sig-links"><a href="#v-http-request-max" title="Permalink">#</a><a href="/library/source/Effect.Http/#L594" title="View source at line 594">Source</a></span></div>
+<div class="doc-body">
 
 Send `q` with an explicit bound on the received bytes (headers plus
 body). Refuses past it with HttpBodyTooLarge.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 594
+</div>
+</article>
 
-<a id="value-687474702d726571756573742d6d6574686f64"></a>
+<article class="doc-entry" id="v-http-request-method">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-request-method</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-request-method" title="Permalink">#</a><a href="/library/source/Effect.Http/#L152" title="View source at line 152">Source</a></span></div>
+</article>
 
-## `http-request-method`
+<article class="doc-entry" id="v-http-request-path">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-request-path</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-http-request-path" title="Permalink">#</a><a href="/library/source/Effect.Http/#L164" title="View source at line 164">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-method</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-http-request-port">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-request-port</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpRequest" title="Effect.Http.HttpRequest">HttpRequest</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-http-request-port" title="Permalink">#</a><a href="/library/source/Effect.Http/#L160" title="View source at line 160">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Effect.Http.cinch)
+<article class="doc-entry" id="v-http-status">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">http-status</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpResponse" title="Effect.Http.HttpResponse">HttpResponse</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-http-status" title="Permalink">#</a><a href="/library/source/Effect.Http/#L181" title="View source at line 181">Source</a></span></div>
+</article>
 
-<a id="value-687474702d726571756573742d70617468"></a>
-
-## `http-request-path`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-path</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-687474702d726571756573742d706f7274"></a>
-
-## `http-request-port`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-request-port</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpRequest</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-687474702d737461747573"></a>
-
-## `http-status`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">http-status</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpResponse</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Http.cinch)
-
-<a id="value-6d61782d726573706f6e73652d6279746573"></a>
-
-## `max-response-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-response-bytes</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-max-response-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-response-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-max-response-bytes" title="Permalink">#</a><a href="/library/source/Effect.Http/#L138" title="View source at line 138">Source</a></span></div>
+<div class="doc-body">
 
 The default bound on a whole received response, in bytes (the
 no-framing case and the header section share it).
 
-[Source](/reference-sources/Effect.Http.cinch) · line 138
+</div>
+</article>
 
-<a id="value-72656e6465722d687474702d6572726f72"></a>
-
-## `render-http-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-http-error</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Http</span>.<span class="tok-constructor">HttpError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-render-http-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-http-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Http/#t-HttpError" title="Effect.Http.HttpError">HttpError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-http-error" title="Permalink">#</a><a href="/library/source/Effect.Http/#L124" title="View source at line 124">Source</a></span></div>
+<div class="doc-body">
 
 The diagnostic line for a named error.
 
-[Source](/reference-sources/Effect.Http.cinch) · line 124
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Http.cinch`. Source SHA-256: `402d0270a2549a552be4c7f6e243724f9fe1f63eceb0f2597f0b588c4485035e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Http.cinch`](/library/source/Effect.Http/). Source SHA-256: `402d0270a2549a552be4c7f6e243724f9fe1f63eceb0f2597f0b588c4485035e`.

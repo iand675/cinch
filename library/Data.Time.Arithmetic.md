@@ -2,19 +2,29 @@
 
 Calendar-aware spans applied to dates, wall-clock times, date-times and instants, with explicit overflow results.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Arithmetic</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Time.Arithmetic/">View source</a><a href="/library/search/?q=%2BData.Time.Arithmetic">Search module</a><a href="/reference-sources/Data.Time.Arithmetic.cinch" download="Data.Time.Arithmetic.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Time.Arithmetic`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.Arithmetic.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (9 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Time.Arithmetic`: [Data.Time.Arithmetic](Data.Time.Arithmetic.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Time.Weekday](Data.Time.Weekday.md).
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Data/Time/Arithmetic.cinch ./Data.Time.Arithmetic.cinch
+cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
+cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
+cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
+cp seed/prelude/Data/Time/Span.cinch ./Data.Time.Span.cinch
+cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
+cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
+cp seed/prelude/Data/Time/Unit.cinch ./Data.Time.Unit.cinch
+cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
+```
 
-Non-embedded source closure: [Data.Time.Arithmetic](Data.Time.Arithmetic.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Time.Weekday](Data.Time.Weekday.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time.Arithmetic: spans applied to dates, times and instants.
 
@@ -110,87 +120,78 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (33 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Difference">Difference</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Difference</strong></code></li><li><a class="syn-name" href="#t-Round">Round</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Round</strong></code></li><li><a class="syn-name" href="#v-date-add-span">date-add-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-add-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-date-since">date-since</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span></code></li><li><a class="syn-name" href="#v-date-since-with">date-since-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-since-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code></li><li><a class="syn-name" href="#v-date-sub-span">date-sub-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-sub-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code></li><li><a class="syn-name" href="#v-date-until">date-until</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span></code></li><li><a class="syn-name" href="#v-date-until-with">date-until-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">date-until-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code></li><li><a class="syn-name" href="#v-datetime-add-span">datetime-add-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-add-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-datetime-round">datetime-round</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-round</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-datetime-since">datetime-since</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span></code></li><li><a class="syn-name" href="#v-datetime-since-with">datetime-since-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-since-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code></li><li><a class="syn-name" href="#v-datetime-sub-span">datetime-sub-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-sub-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-datetime-until">datetime-until</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span></code></li><li><a class="syn-name" href="#v-datetime-until-with">datetime-until-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">datetime-until-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code></li><li><a class="syn-name" href="#v-difference-default">difference-default</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">difference-default</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code></li><li><a class="syn-name" href="#v-difference-largest">difference-largest</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">difference-largest</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code></li><li><a class="syn-name" href="#v-round-default">round-default</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">round-default</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a></code></li><li><a class="syn-name" href="#v-round-to">round-to</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">round-to</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a></code></li><li><a class="syn-name" href="#v-time-add-span-wrapping">time-add-span-wrapping</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-add-span-wrapping</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code></li><li><a class="syn-name" href="#v-time-round">time-round</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-round</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code></li><li><a class="syn-name" href="#v-time-since">time-since</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span></code></li><li><a class="syn-name" href="#v-time-since-with">time-since-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-since-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code></li><li><a class="syn-name" href="#v-time-sub-span-wrapping">time-sub-span-wrapping</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-sub-span-wrapping</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code></li><li><a class="syn-name" href="#v-time-until">time-until</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span></code></li><li><a class="syn-name" href="#v-time-until-with">time-until-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">time-until-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code></li><li><a class="syn-name" href="#v-timestamp-add-span">timestamp-add-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-add-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-round">timestamp-round</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-round</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-since-span">timestamp-since-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-since-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span></code></li><li><a class="syn-name" href="#v-timestamp-since-span-with">timestamp-since-span-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-since-span-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code></li><li><a class="syn-name" href="#v-timestamp-sub-span">timestamp-sub-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-sub-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-until-span">timestamp-until-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-until-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span></code></li><li><a class="syn-name" href="#v-timestamp-until-span-with">timestamp-until-span-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-until-span-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code></li></ul>
+</details>
 
-<a id="type-446966666572656e6365"></a>
+# Types
 
-## `Difference`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Difference</span></code></pre>
+<article class="doc-entry" id="t-Difference">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Difference</strong></code><span class="doc-sig-links"><a href="#t-Difference" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L198" title="View source at line 198">Source</a></span></div>
+<div class="doc-body">
 
 Largest unit (unset: the larger of the operand type's default and
 the smallest unit), smallest unit (unset: the operand type's
 default), increment, mode.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 198
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#c-LargestOption" title="Data.Time.Unit.LargestOption">LargestOption</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.Arithmetic/#instances">Data.Time.Arithmetic</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.Arithmetic/#instances">Data.Time.Arithmetic</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="type-526f756e64"></a>
-
-## `Round`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Round</span></code></pre>
+<article class="doc-entry" id="t-Round">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Round</strong></code><span class="doc-sig-links"><a href="#t-Round" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L393" title="View source at line 393">Source</a></span></div>
+<div class="doc-body">
 
 Smallest unit, increment, mode.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 393
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.Arithmetic/#instances">Data.Time.Arithmetic</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-646174652d6164642d7370616e"></a>
-
-## `date-add-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-add-span</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
+<article class="doc-entry" id="v-date-add-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-add-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-date-add-span" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L148" title="View source at line 148">Source</a></span></div>
+<div class="doc-body">
 
 The date `s` after `x` (header: largest unit first, the day
 constrained, the clock units balanced into whole days). `None`
 when the result leaves -9999-01-01..=9999-12-31.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 148
+</div>
+</article>
 
-<a id="value-646174652d73696e6365"></a>
-
-## `date-since`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-since</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))</code></pre>
+<article class="doc-entry" id="v-date-since">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span></code><span class="doc-sig-links"><a href="#v-date-since" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L267" title="View source at line 267">Source</a></span></div>
+<div class="doc-body">
 
 The days since `b`, to `a`: the negation of `date-until a b`.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 267
+</div>
+</article>
 
-<a id="value-646174652d73696e63652d77697468"></a>
+<article class="doc-entry" id="v-date-since-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-since-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code><span class="doc-sig-links"><a href="#v-date-since-with" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L288" title="View source at line 288">Source</a></span></div>
+</article>
 
-## `date-since-with`
+<article class="doc-entry" id="v-date-sub-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-sub-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a></code><span class="doc-sig-links"><a href="#v-date-sub-span" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L151" title="View source at line 151">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-since-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))))</code></pre>
-
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-646174652d7375622d7370616e"></a>
-
-## `date-sub-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-sub-span</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-646174652d756e74696c"></a>
-
-## `date-until`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-until</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))</code></pre>
+<article class="doc-entry" id="v-date-until">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span></code><span class="doc-sig-links"><a href="#v-date-until" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L261" title="View source at line 261">Source</a></span></div>
+<div class="doc-body">
 
 The days from `a` to `b`: 2024-02-01 until 2024-03-01 is 29 days.
 Total: the whole range is 7304483 days, inside the day limit, so
 the `None` arm is unreachable.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 261
+</div>
+</article>
 
-<a id="value-646174652d756e74696c2d77697468"></a>
-
-## `date-until-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">date-until-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Date</span>.<span class="tok-constructor">Date</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))))</code></pre>
+<article class="doc-entry" id="v-date-until-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">date-until-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Date/#t-Date" title="Data.Time.Date.Date">Date</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code><span class="doc-sig-links"><a href="#v-date-until-with" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L285" title="View source at line 285">Source</a></span></div>
+<div class="doc-body">
 
 The span from `a` to `b` under the options. Units are `Day` to
 `Year`; the default smallest unit is `Day`.
@@ -201,25 +202,23 @@ days.
                         1000000000
   Err SpanOutOfRange    a rounding candidate leaves the date range
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 285
+</div>
+</article>
 
-<a id="value-6461746574696d652d6164642d7370616e"></a>
-
-## `datetime-add-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-add-span</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))</code></pre>
+<article class="doc-entry" id="v-datetime-add-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-add-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-datetime-add-span" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L157" title="View source at line 157">Source</a></span></div>
+<div class="doc-body">
 
 The date-time `s` after `x`: 2024-02-01T17:30 plus 1 month 1 hour
 30 minutes is 2024-03-01T19:00. `None` when the date leaves the
 range.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 157
+</div>
+</article>
 
-<a id="value-6461746574696d652d726f756e64"></a>
-
-## `datetime-round`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-round</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Round</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>)))</code></pre>
+<article class="doc-entry" id="v-datetime-round">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-round</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-datetime-round" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L457" title="View source at line 457">Source</a></span></div>
+<div class="doc-body">
 
 Round a date-time (PlainDateTime.prototype.round): the time of day
 is rounded and a carry moves the date, so
@@ -229,37 +228,24 @@ is rounded and a carry moves the date, so
                         but 1
   Err SpanOutOfRange    the carry leaves the date range
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 457
+</div>
+</article>
 
-<a id="value-6461746574696d652d73696e6365"></a>
+<article class="doc-entry" id="v-datetime-since">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span></code><span class="doc-sig-links"><a href="#v-datetime-since" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L305" title="View source at line 305">Source</a></span></div>
+</article>
 
-## `datetime-since`
+<article class="doc-entry" id="v-datetime-since-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-since-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code><span class="doc-sig-links"><a href="#v-datetime-since-with" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L323" title="View source at line 323">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-since</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))</code></pre>
+<article class="doc-entry" id="v-datetime-sub-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-sub-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-datetime-sub-span" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L160" title="View source at line 160">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-6461746574696d652d73696e63652d77697468"></a>
-
-## `datetime-since-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-since-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))))</code></pre>
-
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-6461746574696d652d7375622d7370616e"></a>
-
-## `datetime-sub-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-sub-span</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-6461746574696d652d756e74696c"></a>
-
-## `datetime-until`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-until</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))</code></pre>
+<article class="doc-entry" id="v-datetime-until">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span></code><span class="doc-sig-links"><a href="#v-datetime-until" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L300" title="View source at line 300">Source</a></span></div>
+<div class="doc-body">
 
 The span from `a` to `b` in days and clock units, exact:
 2024-05-15T14:30:54 until 2024-05-31T19:13:27.123456789 is 16 days
@@ -267,13 +253,12 @@ The span from `a` to `b` in days and clock units, exact:
 7304483 days and less than a day of clock units, all inside their
 limits, and nothing is rounded, so the `Err` arm is unreachable.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 300
+</div>
+</article>
 
-<a id="value-6461746574696d652d756e74696c2d77697468"></a>
-
-## `datetime-until-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">datetime-until-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Calendar</span>))))</code></pre>
+<article class="doc-entry" id="v-datetime-until-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">datetime-until-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Calendar</span>)</code><span class="doc-sig-links"><a href="#v-datetime-until-with" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L320" title="View source at line 320">Source</a></span></div>
+<div class="doc-body">
 
 The span from `a` to `b` under the options; every unit is allowed.
   Err SpanBadUnits      largest below smallest
@@ -282,53 +267,48 @@ The span from `a` to `b` under the options; every unit is allowed.
   Err SpanOutOfRange    a rounding candidate leaves the date range
   Err SpanUnitLimit     a unit of the result passes its limit
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 320
+</div>
+</article>
 
-<a id="value-646966666572656e63652d64656661756c74"></a>
-
-## `difference-default`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">difference-default</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span></code></pre>
+<article class="doc-entry" id="v-difference-default">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">difference-default</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code><span class="doc-sig-links"><a href="#v-difference-default" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Both units unset, increment 1, `Trunc`.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 202
+</div>
+</article>
 
-<a id="value-646966666572656e63652d6c617267657374"></a>
-
-## `difference-largest`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">difference-largest</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span>)</code></pre>
+<article class="doc-entry" id="v-difference-largest">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">difference-largest</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code><span class="doc-sig-links"><a href="#v-difference-largest" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L206" title="View source at line 206">Source</a></span></div>
+<div class="doc-body">
 
 The common case: the default with a largest unit.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 206
+</div>
+</article>
 
-<a id="value-726f756e642d64656661756c74"></a>
-
-## `round-default`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-default</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Round</span></code></pre>
+<article class="doc-entry" id="v-round-default">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-default</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a></code><span class="doc-sig-links"><a href="#v-round-default" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L397" title="View source at line 397">Source</a></span></div>
+<div class="doc-body">
 
 `Nanosecond`, 1, `HalfExpand`: rounds nothing until a unit is set.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 397
+</div>
+</article>
 
-<a id="value-726f756e642d746f"></a>
-
-## `round-to`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round-to</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Unit</span>.<span class="tok-constructor">TimeUnit</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Round</span>)</code></pre>
+<article class="doc-entry" id="v-round-to">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round-to</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#t-TimeUnit" title="Data.Time.Unit.TimeUnit">TimeUnit</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a></code><span class="doc-sig-links"><a href="#v-round-to" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L401" title="View source at line 401">Source</a></span></div>
+<div class="doc-body">
 
 The common case: the default with a smallest unit.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 401
+</div>
+</article>
 
-<a id="value-74696d652d6164642d7370616e2d7772617070696e67"></a>
-
-## `time-add-span-wrapping`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-add-span-wrapping</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span>))</code></pre>
+<article class="doc-entry" id="v-time-add-span-wrapping">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-add-span-wrapping</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code><span class="doc-sig-links"><a href="#v-time-add-span-wrapping" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L170" title="View source at line 170">Source</a></span></div>
+<div class="doc-body">
 
 The time of day `s` after `t`, wrapping around midnight. The
 span's calendar units (days and larger) are ignored, as Temporal
@@ -338,13 +318,12 @@ The clock nanoseconds (below 1.3e21) are reduced modulo one day
 first, so the count handed to lane B's wrapping addition is within
 +-86399999999999 and the narrowing is exact.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 170
+</div>
+</article>
 
-<a id="value-74696d652d726f756e64"></a>
-
-## `time-round`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-round</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Round</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span>)))</code></pre>
+<article class="doc-entry" id="v-time-round">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-round</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code><span class="doc-sig-links"><a href="#v-time-round" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L445" title="View source at line 445">Source</a></span></div>
+<div class="doc-body">
 
 Round a time of day (PlainTime.prototype.round). Rounding up past
 the end of the day wraps to midnight: 23:59:40 to the minute is
@@ -353,49 +332,35 @@ the end of the day wraps to midnight: 23:59:40 to the minute is
   Err SpanBadIncrement  the increment does not divide the next
                         larger unit, or equals it
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 445
+</div>
+</article>
 
-<a id="value-74696d652d73696e6365"></a>
+<article class="doc-entry" id="v-time-since">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span></code><span class="doc-sig-links"><a href="#v-time-since" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L338" title="View source at line 338">Source</a></span></div>
+</article>
 
-## `time-since`
+<article class="doc-entry" id="v-time-since-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-since-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code><span class="doc-sig-links"><a href="#v-time-since-with" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L355" title="View source at line 355">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-since</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))</code></pre>
+<article class="doc-entry" id="v-time-sub-span-wrapping">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-sub-span-wrapping</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code><span class="doc-sig-links"><a href="#v-time-sub-span-wrapping" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L174" title="View source at line 174">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-74696d652d73696e63652d77697468"></a>
-
-## `time-since-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-since-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))))</code></pre>
-
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-74696d652d7375622d7370616e2d7772617070696e67"></a>
-
-## `time-sub-span-wrapping`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-sub-span-wrapping</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-74696d652d756e74696c"></a>
-
-## `time-until`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-until</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))</code></pre>
+<article class="doc-entry" id="v-time-until">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span></code><span class="doc-sig-links"><a href="#v-time-until" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L333" title="View source at line 333">Source</a></span></div>
+<div class="doc-body">
 
 The span from `a` to `b` within one day, in hours and smaller;
 negative when `b` is the earlier time (no wrapping). Total: less
 than 24 hours, so the `Err` arm is unreachable.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 333
+</div>
+</article>
 
-<a id="value-74696d652d756e74696c2d77697468"></a>
-
-## `time-until-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">time-until-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">TimeOfDay</span>.<span class="tok-constructor">TimeOfDay</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))))</code></pre>
+<article class="doc-entry" id="v-time-until-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-until-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code><span class="doc-sig-links"><a href="#v-time-until-with" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L352" title="View source at line 352">Source</a></span></div>
+<div class="doc-body">
 
 Units are `Nanosecond` to `Hour`; the default largest unit is
 `Hour`.
@@ -403,26 +368,24 @@ Units are `Nanosecond` to `Hour`; the default largest unit is
   Err SpanBadIncrement  the increment is not valid for the
                         smallest unit
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 352
+</div>
+</article>
 
-<a id="value-74696d657374616d702d6164642d7370616e"></a>
-
-## `timestamp-add-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-add-span</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-add-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-add-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-add-span" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L181" title="View source at line 181">Source</a></span></div>
+<div class="doc-body">
 
 The instant `s` after `t`. Only clock units are allowed
 (Instant.prototype.add).
   Err SpanNeedsAnchor  a day or larger unit of `s` is non-zero
   Err SpanOutOfRange   the result leaves the timestamp range
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 181
+</div>
+</article>
 
-<a id="value-74696d657374616d702d726f756e64"></a>
-
-## `timestamp-round`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-round</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Round</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-timestamp-round">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-round</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-round" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L477" title="View source at line 477">Source</a></span></div>
+<div class="doc-body">
 
 Round an instant (Instant.prototype.round). The increment, in its
 unit, must divide a 24-hour day evenly (it may equal it). The
@@ -436,50 +399,36 @@ The quantum is at most 86400e9 and the count within +-3.8e20, so
 the kernel cannot refuse; its `None` arm is mapped to a refusal
 anyway.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 477
+</div>
+</article>
 
-<a id="value-74696d657374616d702d73696e63652d7370616e"></a>
+<article class="doc-entry" id="v-timestamp-since-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-since-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span></code><span class="doc-sig-links"><a href="#v-timestamp-since-span" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L371" title="View source at line 371">Source</a></span></div>
+</article>
 
-## `timestamp-since-span`
+<article class="doc-entry" id="v-timestamp-since-span-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-since-span-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code><span class="doc-sig-links"><a href="#v-timestamp-since-span-with" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L385" title="View source at line 385">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-since-span</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-sub-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-sub-span</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanClass" title="Data.Time.Span.SpanClass">SpanClass</a>). <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-variable">c</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-sub-span" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L188" title="View source at line 188">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-74696d657374616d702d73696e63652d7370616e2d77697468"></a>
-
-## `timestamp-since-span-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-since-span-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))))</code></pre>
-
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-74696d657374616d702d7375622d7370616e"></a>
-
-## `timestamp-sub-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-sub-span</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">c</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanClass</span>) . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-variable">c</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Arithmetic.cinch)
-
-<a id="value-74696d657374616d702d756e74696c2d7370616e"></a>
-
-## `timestamp-until-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-until-span</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-until-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-until-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span></code><span class="doc-sig-links"><a href="#v-timestamp-until-span" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L366" title="View source at line 366">Source</a></span></div>
+<div class="doc-body">
 
 The span from `a` to `b` in seconds and smaller (Temporal's default
 for instants). Total: the whole timestamp range is fewer than
 631107417600 seconds, the second limit, so the `Err` arm is
 unreachable.
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 366
+</div>
+</article>
 
-<a id="value-74696d657374616d702d756e74696c2d7370616e2d77697468"></a>
-
-## `timestamp-until-span-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-until-span-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">Difference</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">SpanError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Span</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Span</span>.<span class="tok-constructor">Clock</span>))))</code></pre>
+<article class="doc-entry" id="v-timestamp-until-span-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-until-span-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-SpanError" title="Data.Time.Span.SpanError">SpanError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Time.Span/#t-Span" title="Data.Time.Span.Span">Span</a> <span class="tok-constructor">Clock</span>)</code><span class="doc-sig-links"><a href="#v-timestamp-until-span-with" title="Permalink">#</a><a href="/library/source/Data.Time.Arithmetic/#L382" title="View source at line 382">Source</a></span></div>
+<div class="doc-body">
 
 Units are `Nanosecond` to `Hour`; the default largest unit is
 `Second`.
@@ -490,18 +439,19 @@ Units are `Nanosecond` to `Hour`; the default largest unit is
                         (the whole range in nanoseconds does not
                         fit the nanosecond unit)
 
-[Source](/reference-sources/Data.Time.Arithmetic.cinch) · line 382
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Time.Arithmetic.LargestOption_Difference` | `Data.Time.Unit.LargestOption Data.Time.Arithmetic.Difference` | Implicit |
-| `Data.Time.Arithmetic.RoundingOptions_Difference` | `Data.Time.Unit.RoundingOptions Data.Time.Arithmetic.Difference` | Implicit |
-| `Data.Time.Arithmetic.RoundingOptions_Round` | `Data.Time.Unit.RoundingOptions Data.Time.Arithmetic.Round` | Implicit |
+<ul class="doc-module-instances">
+<li id="i-LargestOption_Difference"><code><a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#c-LargestOption" title="Data.Time.Unit.LargestOption">LargestOption</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Arithmetic.LargestOption_Difference</code></span></li>
+<li id="i-RoundingOptions_Difference"><code><a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Arithmetic.RoundingOptions_Difference</code></span></li>
+<li id="i-RoundingOptions_Round"><code><a class="doc-type-link tok-constructor" href="/library/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Arithmetic.RoundingOptions_Round</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/Arithmetic.cinch`. Source SHA-256: `79b5d74e2656408fa3faea242d6cd61e557304402eb839d827fd01645e9c6c38`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Arithmetic.cinch`](/library/source/Data.Time.Arithmetic/). Source SHA-256: `79b5d74e2656408fa3faea242d6cd61e557304402eb839d827fd01645e9c6c38`.

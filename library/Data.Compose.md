@@ -2,13 +2,9 @@
 
 Composition of higher-kinded containers with the admitted generic instances.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Compose</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Compose/">View source</a><a href="/library/search/?q=%2BData.Compose">Search module</a><a href="/reference-sources/Data.Compose.cinch" download="Data.Compose.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Compose`. Selected exports may already be in Prelude.
-
-[Download exact module source](/reference-sources/Data.Compose.cinch) · [How library modules are loaded](00-index.md)
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Compose: composition of type constructors, the composing piece
 of the category family.
@@ -23,28 +19,25 @@ family's shape is complete.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Compose">Compose</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Compose</strong> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-get-compose">get-compose</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">get-compose</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Compose/#t-Compose" title="Data.Compose.Compose">Compose</a> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> (<span class="tok-variable">g</span> <span class="tok-variable">a</span>)</code></li></ul>
+</details>
 
-<a id="type-436f6d706f7365"></a>
+# Types
 
-## `Compose`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Compose</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Compose.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Compose</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">f</span> ((<span class="tok-variable">g</span> <span class="tok-variable">a</span>))) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Compose</span>.<span class="tok-constructor">Compose</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="t-Compose">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Compose</strong> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Compose" title="Permalink">#</a><a href="/library/source/Data.Compose/#L14" title="View source at line 14">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Compose"><code><strong class="tok-constructor">Compose</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span>. <span class="tok-variable">f</span> (<span class="tok-variable">g</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Compose/#t-Compose" title="Data.Compose.Compose">Compose</a> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6765742d636f6d706f7365"></a>
-
-## `get-compose`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">get-compose</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span> -&gt; <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Compose</span>.<span class="tok-constructor">Compose</span> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">f</span> (<span class="tok-variable">g</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Compose.cinch)
+<article class="doc-entry" id="v-get-compose">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">get-compose</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Compose/#t-Compose" title="Data.Compose.Compose">Compose</a> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> (<span class="tok-variable">g</span> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-get-compose" title="Permalink">#</a><a href="/library/source/Data.Compose/#L16" title="View source at line 16">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Compose.cinch`. Source SHA-256: `e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Compose.cinch`](/library/source/Data.Compose/). Source SHA-256: `e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80`.

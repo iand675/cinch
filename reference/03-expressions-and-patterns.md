@@ -1,23 +1,21 @@
 # Expressions, bindings, and patterns
 
-This page gives the spelling of each expression, binding, and pattern form, with one program per group that the compiler accepts and one input per rejection it refuses. Types, effects, ownership, coverage theory, and evaluation order belong to the pages linked from each section; the [lexical page](02-lexical-structure.md) covers names, literals, operators, and where a declaration ends.
+This chapter defines the syntax and static rules for Cinch expressions, local bindings, records, compound literals, and pattern matching. Lexical conventions are in [lexical structure and layout](02-lexical-structure.md); types, effects, ownership, and evaluation semantics are in [types and kinds](04-types-and-kinds.md), [effects and capabilities](09-effects-and-capabilities.md), [ownership and memory](10-ownership-and-memory.md), and [laziness and codata](11-laziness-and-codata.md).
 
-# Application and operators
+# Application, operators, and projection
 
-| Form | Spelling |
-| --- | --- |
-| Application | `f x y`, left associative, so `f x y` is `(f x) y` |
-| An operator as a value | `(+) 2 3` |
-| Infix use | `1 + 2`, resolved by the operators' declared fixity |
-| Low-precedence application | `add 1 $ add 2 3` is `add 1 (add 2 3)` |
-| Prefix negation | `-(add 1 2)`; negation binds to one atomic term, so negate an application in parentheses |
-| Signed literal argument | `f -42` applies `f` to the literal `-42` |
-| Projection | `value.field` |
-| Named capability supply | `f @{io = capability} argument`; see [effects and capabilities](09-effects-and-capabilities.md) |
+| Form | Syntax | Semantics |
+| --- | --- | --- |
+| Function application | `f x y` | Left-associative: `(f x) y`; binds tighter than all infix operators. |
+| Operator as value | `(+) 2 3` | Parenthesizing an infix operator yields an ordinary prefix function. |
+| Infix application | `1 + 2` | Precedence and associativity follow the operator's declared fixity. |
+| Low-precedence application | `add 1 $ add 2 3` | Right-associative: `add 1 (add 2 3)`. |
+| Prefix negation | `-(add 1 2)` | Binds to a single atomic term; parenthesize applications. |
+| Signed literal argument | `f -42` | Applies `f` to the signed integer literal `-42`. |
+| Record projection | `value.field` | Accesses a named field of a record value. |
+| Named capability supply | `f @{io = cap} arg` | Supplies a named capability explicitly (see [effects and capabilities](09-effects-and-capabilities.md)). |
 
-Spacing decides whether a minus is glue, subtraction, or a literal sign; the [lexical page](02-lexical-structure.md) has the table and the program that separates them. Fixities come from the declaring module, and an imported operator keeps the precedence its module declared.
-
-This program exits 0 only if `$`, the parenthesized operator, negated application, and the signed literal each mean what the table says:
+Spacing disambiguates hyphenated identifiers (`x-y`), subtraction (`x - y`), and signed literals (`-42`); see [lexical structure](02-lexical-structure.md).
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -41,13 +39,13 @@ module Main where
   main = if a == 6 && b == -3 && c == -42 then 0 else 1
 ```
 
-# if, case, and guards
+# Conditionals, case expressions, and guards
 
-`if condition then then-branch else else-branch` is an expression. The condition and the guard of a `case` alternative must be `Bool`; an integer in that position is refused with `integer literal cannot have type Bool`.
+`if cond then e1 else e2` is an expression whose condition must have type `Bool`. Non-boolean values (such as integers) are not implicitly coerced and fail with `integer literal cannot have type Bool`.
 
-`case scrutinee of` opens a layout block of alternatives. Each alternative is `pattern -> body`, or `pattern | guard -> body`. There is at most one guard per alternative, and the fallback is a separate alternative, not a second guard on the same one. Alternatives are tried in source order.
+`case scrutinee of` opens a layout block of alternatives evaluated in source order. Each alternative has the form `pattern -> body` or `pattern | guard -> body`, where `guard` has type `Bool`. Each alternative permits at most one guard; fallbacks are written as separate alternatives.
 
-A guarded row covers nothing, because its guard can fail. This program has an unguarded last row and exits 0:
+Pattern matching is checked for exhaustiveness. Because a guard can evaluate to `False`, a guarded alternative contributes nothing to coverage: every reachable constructor or value domain must still be covered by an unguarded alternative.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -62,7 +60,7 @@ module Main where
   main = if classify 0 == 100 && classify 20 == 1 && classify 5 == 5 then 0 else 1
 ```
 
-A second guard written after the first alternative's body is a parse error, because the alternative block expects its next separator:
+Writing a second guard on the same alternative is a syntax error:
 
 <!-- cinch:reject contains="expected `;` or `}` in the alternative block, found Arrow" -->
 ```cinch
@@ -75,7 +73,7 @@ module Main where
   main = classify 5
 ```
 
-The coverage check states the rule in its own words when the only row for a constructor is guarded:
+Covering a constructor only with a guarded row fails exhaustiveness checking:
 
 <!-- cinch:reject contains="constructor Some is not covered by an unguarded row (a guarded row covers nothing, since its guard can fail)" -->
 ```cinch
@@ -91,21 +89,24 @@ module Main where
   main = f (Some 1)
 ```
 
-Coverage of constructors, literal fallback, tuples, and index-refined cases is shared with the dependent-type checker; [dependent types and proofs](08-dependent-types-and-proofs.md) covers the index case where an arm is refused because the index makes it impossible.
+For index-refined exhaustiveness and refuting impossible branches on indexed families, see [dependent types and proofs](08-dependent-types-and-proofs.md).
 
-# let, letrec, where, and memo bindings
+# Local bindings: let, letrec, where, and memo
 
-`let declarations in body` is a sequential local group, and `in` closes it. Its declarations sit in a layout block, so several bindings line up in one column. `letrec declarations in body` is the recursive group: recursion is visible across the group, so a self-referencing local function needs it. The lexer emits `letrec` as a marker token plus a `let` token, which is why the same layout rules open both blocks.
+Cinch provides four local binding forms:
 
-An equation may carry a `where` block of declarations that belongs to that equation and can use its arguments. A memo binding is written `~name = expression`.
+- `let declarations in body` introduces a sequential, non-recursive local binding group. Each binding is in scope only for subsequent bindings and `body`; a self-reference inside plain `let` is rejected (`unknown name ...`).
+- `letrec declarations in body` introduces a recursive local binding group whose names are mutually in scope across the group and `body`. It follows the same layout rules as `let`.
+- `where` attaches a layout block of local declarations to an equation; those declarations may reference the equation's parameters.
+- `~name = expr` introduces a memoized binding evaluated on demand (see [laziness and codata](11-laziness-and-codata.md)).
 
-| Local form | Spelling |
+| Local declaration | Syntax |
 | --- | --- |
-| Signature | `name :: Type` |
-| Equation | `name arguments = expression` |
-| Pattern binding | `pattern = expression` |
-| Memo binding | `~name = expression` |
-| Nested block | `where` followed by a layout block of the forms above |
+| Type signature | `name :: Type` |
+| Function equation | `name arg1 arg2 = expr` |
+| Pattern binding | `pattern = expr` |
+| Memo binding | `~name = expr` |
+| Nested scope | `where` followed by an indented layout block |
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -131,22 +132,20 @@ module Main where
   main = if memo == 42 && countdown 3 == 0 && label 5 == 1 then 0 else 1
 ```
 
-A plain `let` group is not recursive: referring to a binding from its own definition inside `let` is refused with `unknown name go (in Main.cinch)`, where `letrec` accepts the same definition. [Dependent types and proofs](08-dependent-types-and-proofs.md) and [laziness and codata](11-laziness-and-codata.md) describe what ordering and guardedness the checker enforces on local groups.
+Totality and guardedness requirements on recursive and corecursive bindings are covered in [dependent types and proofs](08-dependent-types-and-proofs.md) and [laziness and codata](11-laziness-and-codata.md).
 
 # Lambdas
 
-`\patterns -> body` takes one or more atomic patterns and a body. A captured value keeps its usage and region restrictions, so the type checker treats a closure like any other value; see [ownership and memory](10-ownership-and-memory.md).
+Anonymous functions are written `\p1 p2 -> body` with one or more atomic patterns. Zero-parameter lambdas are rejected (`a lambda needs at least one pattern`). Closures capture free variables under the same multiplicity and region rules as ordinary values (see [ownership and memory](10-ownership-and-memory.md)).
 
 ```cinch
-  inc = \n -> n + 1
-  pick = \a b -> a
+inc = \n -> n + 1
+pick = \a b -> a
 ```
-
-A lambda with no pattern is refused with `a lambda needs at least one pattern`.
 
 # Records
 
-A record is declared with `record Name where` and one `field :: Type` line per field. Construction is `Name { field = value, ... }`, projection is `value.field`, and a record pattern names its fields with `=` and must name every field.
+A record type is declared with `record Name where` followed by `field :: Type` lines. Values are constructed with `Name { field = value, ... }` and projected with `value.field`. Record patterns match fields by name (`Name { field = pat, ... }`) and must list every field of the record.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -166,7 +165,7 @@ module Main where
     in if sum-fields p == 7 && q.x + q.y == 30 then 0 else 1
 ```
 
-A partial record pattern is refused rather than treated as a wildcard for the missing field:
+Omitting a field in a record pattern is a compile error rather than an implicit wildcard:
 
 <!-- cinch:reject contains="record pattern is missing field y" -->
 ```cinch
@@ -183,36 +182,36 @@ module Main where
   main = sum-x (Point { x = 2, y = 5 })
 ```
 
-Record updates, `erased` fields, and the layout guarantee of a record are in [attributes and pragmas](23-attributes-and-pragmas.md) and [type layout](24-type-layout.md).
+See [attributes and pragmas](23-attributes-and-pragmas.md) and [type layout](24-type-layout.md) for `erased` fields and representation guarantees.
 
-# Lists, pairs, and unit
+# Unit, tuples, lists, ranges, and maps
 
-| Form | Type |
+| Literal form | Type and semantics |
 | --- | --- |
-| `()` | `Unit` |
-| `(a, b)` | A pair; `(a, b, c)` continues the same shape |
-| `[a, b, c]` | `FromList` construction at the expected container type, `List` when unconstrained |
-| `[start .. end]` | Finite [`Enum`](../library/Data.Enum.md) range; `[1 .. 3]` has three elements |
-| `[start, next .. end]` | The same range with an explicit step; `[1, 3 .. 7]` has four |
-| `{key => value}` | `FromMap` construction at the expected map type; `{"a" => 1, "b" => 2}` is a `Map String Int` |
+| `()` | The sole inhabitant of `Unit`. |
+| `(a, b)`, `(a, b, c)`, ... | Structural n-ary tuple product. |
+| `[a, b, c]` | `FromList` literal at the expected container type (`List` when unconstrained). |
+| `[start .. end]` | Finite [`Enum`](../library/Data.Enum.md) range; `[1 .. 3]` has three elements. |
+| `[start, next .. end]` | Stepped finite `Enum` range; `[1, 3 .. 7]` has four elements. |
+| `{k1 => v1, k2 => v2}` | `FromMap` literal at the expected map type (e.g., `Map String Int`). |
 
-The list and pair literals are ordinary values, so `[4, 5]` is a two-element list and `(2, 3)` is one pair. A pair has no `Eq` instance in the current base family, so `(1, 2) == (1, 2)` is refused with `no instance for Eq (Int, Int)`; compare the components instead.
+Tuples do not carry a prelude `Eq` instance, so `(1, 2) == (1, 2)` is rejected with `no instance for Eq (Int, Int)`; destructure and compare components instead.
 
 # Patterns
 
-| Pattern | Spelling |
+| Pattern | Syntax |
 | --- | --- |
 | Variable | `name` |
 | Wildcard | `_` |
-| Literal | An integer or `Sym` literal, such as `0` or `'answer` |
+| Literal | Integer or `Sym` literal (`0`, `-1`, `'answer`) |
 | Unit | `()` |
-| Constructor | `Some v`, `Cons x rest`, nested as in `Some (v @ 0)` |
-| Tuple | `(a, b)` |
+| Constructor | `Some v`, `Cons x rest`, nested as `Some (v @ 0)` |
+| Tuple | `(a, b)`, `(a, b, c)`, ... |
 | List | `[a, b]` |
-| Record fields | `Point { x = a, y = b }` |
+| Record | `Point { x = a, y = b }` |
 | As-pattern | `name @ pattern` |
 
-Repeating a binder in one pattern is refused, because a pattern binds names and does not test equality. The equality belongs in a guard or a branch body. Annotating a pattern with its type parses in the grammar but is not implemented here: `(v :: Int)` in a `case` alternative is refused with `pattern type annotations are not supported in the bootstrap slice`.
+Patterns must be linear: binding the same variable twice in one pattern is rejected rather than performing an implicit equality test. Express equality with a guard or in the branch body.
 
 <!-- cinch:reject contains="variable a is bound twice in the same pattern" -->
 ```cinch
@@ -225,7 +224,7 @@ module Main where
   main = eq2 (1, 1)
 ```
 
-A term-position hole is not a valid expression; `_` is a pattern form only:
+`_` is valid only in pattern position; using `_` as a term-level hole is rejected. Inline type annotations on patterns (such as `(v :: Int)` in a `case` alternative) are likewise not supported.
 
 <!-- cinch:reject contains="typed holes are not supported in the bootstrap slice" -->
 ```cinch
@@ -234,7 +233,7 @@ module Main where
   main = _
 ```
 
-This program exercises the as-pattern, the integer literal, the unit, the constructor, the tuple, and the list pattern, and exits 0:
+The following program combines as-patterns, literal, unit, constructor, tuple, and list patterns along with expression type ascription (`(7 :: Int)`):
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -276,9 +275,9 @@ module Main where
     else 1
 ```
 
-# A complete program
+# Complete example
 
-Every form on this page in one file: a record, constructor patterns with a nested as-pattern, guards, `let` and a nested `let`, a lambda, an application chain, a list literal, a pair, and an ascription-free final comparison. It exits 0 only if all of them behave:
+This module combines records, constructors, guards, nested `let` bindings, lambdas, application chains, lists, and tuples:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -334,22 +333,18 @@ module Main where
       else 1
 ```
 
-# Diagnostics
+# Common diagnostics
 
-Each of these was produced by the program above it on this page, or by a program named in its row.
-
-| Text | Cause |
+| Diagnostic | Cause |
 | --- | --- |
 | `non-exhaustive patterns: constructor None is not covered` | A `case` omits a reachable constructor. |
-| `constructor Some is not covered by an unguarded row (a guarded row covers nothing, since its guard can fail)` followed by advice to add an unguarded final row | Every row for that constructor is guarded. |
-| `variable a is bound twice in the same pattern` | Two binders in one pattern share a name. |
-| `record pattern is missing field y` | A record pattern omits a field. |
-| `typed holes are not supported in the bootstrap slice` | `_` used as an expression. |
-| `integer literal cannot have type Bool` | An integer where a condition or guard belongs. |
-| `pattern type annotations are not supported in the bootstrap slice` | `(v :: Int)` written as a pattern. |
-| ``expected `;` or `}` in the alternative block, found Arrow`` | A second guard on one alternative. |
-| `no instance for Eq (Int, Int)` | Equality on a pair, which has no instance. |
+| `constructor Some is not covered by an unguarded row (...)` | Every row matching that constructor carries a guard. |
+| `variable a is bound twice in the same pattern` | Duplicate binder in a single pattern. |
+| `record pattern is missing field y` | A record pattern omits a declared field. |
+| `typed holes are not supported...` | `_` used in expression position. |
+| `pattern type annotations are not supported...` | Type annotation `(v :: T)` written inside a pattern. |
+| `integer literal cannot have type Bool` | Non-boolean condition in `if` or guard. |
+| ``expected `;` or `}` in the alternative block, found Arrow`` | Multiple guards written on one `case` alternative. |
+| `no instance for Eq (Int, Int)` | Equality applied to a tuple without an `Eq` instance. |
 
-Evaluation order, strictness, and the folding of constant collections are covered in [laziness and codata](11-laziness-and-codata.md) and [rewrites and optimization](12-rewrites-and-optimization.md). Effectful expression forms have their own pages: capability supplies and `do` in [effects and capabilities](09-effects-and-capabilities.md), handlers in the same page, quotations, splices, and `name!(tokens)` macro calls in [staging and macros](14-staging-and-macros.md), and `forget` and `narrow` in [refinements](06-refinements.md).
-
-Implementation: `seed/src/ast.rs` (the term and pattern shapes), `seed/src/parser.rs` (the grammar as accepted), `seed/src/check_terms.rs` and `seed/src/check_decls.rs` (types, guards, coverage). Suites: `surface.rs`, `guard_coverage.rs`, `pattern_field_names.rs`, `letrec.rs`, `tail_calls.rs`.
+For strictness and constant collection folding, see [laziness and codata](11-laziness-and-codata.md) and [rewrites and optimization](12-rewrites-and-optimization.md). Specialized expression forms are documented in [refinements](06-refinements.md) (`decide`, `narrow`, `forget`), [effects and capabilities](09-effects-and-capabilities.md) (`do`, `handle`, `with`), and [staging and macros](14-staging-and-macros.md) (quotations, splices, `name!(...)`).

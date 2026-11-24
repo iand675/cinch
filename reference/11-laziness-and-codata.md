@@ -1,27 +1,27 @@
 # Explicit laziness, memoization, and codata
 
-Cinch evaluates strictly, left to right. A type that mentions a deferred form does not make any call lazy. Everything on this page is written where it is wanted, and the three mechanisms stay separate: an affine thunk defers one computation, a memo binding shares one evaluation inside a region, and a `Later` observation guards one step of a productive codata value.
+Cinch is **strict and call-by-value**, evaluating arguments left to right. Deferred computation is never implicit; when you want laziness, sharing, or infinite structures, you choose among three distinct, non-interchangeable constructs:
 
-| Form | Type | Sharing | When the captured environment dies |
+| Construct | Type | Evaluation & sharing | Environment lifetime |
 | --- | --- | --- | --- |
-| `delay (\() -> e)`, `force t` | `Thunk {e} a` | none; a force consumes the thunk | at the force, or with the last owner |
-| the same thunk at a `%many` binder | `Thunk {e} a` | none; each force runs the body again | with each copy |
-| `~name = term` in a `let` or `where` block | `Lazy {e} r a` | one evaluation per memo group | at region teardown, which is block end or return |
-| a codata observation of type `Later a` | `Later a` | none; it is a guarded observation | not applicable, the guard stores nothing |
+| `delay (\() -> e)`, `force t` (`%aff` / `%1`) | `Thunk {e} a` | Deferred; unshared; forcing consumes the thunk | Freed on force or when dropped |
+| `Thunk {e} a %many` | `Thunk {e} a` | Deferred; unshared; each `force` re-evaluates `e` | Freed with each copy |
+| `~name = term` in `let` or `where` | `Lazy {e} r a` | Memoized; evaluated at most once per memo group | Released at region teardown (block exit) |
+| Codata observation of type `Later a` | `Later a` | Guarded pure observation; unshared; takes no effect row | No hidden cache; guards one productive step |
 
-`Thunk`, `Later` and `Lazy` are distinct type formers. `Thunk` never unifies with `Later`, and `Later` takes no effect row.
+`Thunk`, `Lazy`, and `Later` are separate type formers that never unify with one another.
 
 # Thunks
 
-`delay` takes a closure over `Unit` and returns a thunk. Creating the thunk performs nothing. `force` runs the body and yields its result, and the effect row of the force is exactly the row of the body.
+`delay` wraps a nullary closure into a `Thunk {e} a` without running it; `force` runs the body and performs its exact effect row `{e}`:
 
 ```text
-Thunk  :: {e} -> Type -> Type
-delay  :: forall a e. (() ->{|e} a) -> Thunk {e} a
-force  :: forall a e. Thunk {e} a ->{|e} a
+Thunk :: {e} -> Type -> Type
+delay :: forall a e. (() ->{|e} a) -> Thunk {e} a
+force :: forall a e. Thunk {e} a ->{|e} a
 ```
 
-A thunk typed `Thunk {Diverge} a` is how a deferred computation carries divergence. The row is part of the type, so a pure signature cannot hide a deferred effect or a deferred divergence.
+Because the effect row is part of `Thunk {e} a`, a deferred effect or divergence (`Thunk {Diverge} a`) remains visible in the type and cannot be smuggled into a pure signature.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -35,9 +35,9 @@ module Main where
     if force t == 36 then 0 else 1
 ```
 
-# Usage: a force consumes the thunk
+## Multiplicity: affine by default, recomputing at `%many`
 
-An unannotated `Thunk` binder is affine (`%aff`). Forcing it twice uses it twice, and the checker rejects that:
+An unannotated `Thunk` binding is **affine (`%aff`)**: it may be forced at most once or dropped unused (dropping reclaims its captures automatically under normal ownership rules). Use `%1` when every path must force it. Forcing an affine thunk twice is rejected:
 
 <!-- cinch:reject contains="at most once" -->
 ```cinch
@@ -48,13 +48,7 @@ module Main where
     nat-to-int (nat-add (force t) (force t))
 ```
 
-`cinch check` reports `cinch: 4:9: multiplicity %aff: t must be used at most once, but is used 2 time(s) (in Main.cinch)`. Write `%1` when every path must force or consume the thunk exactly once, and `%aff` when at most once suffices.
-
-An unused thunk is allowed at `%aff`. There is no `destroy` name in the bootstrap; an unforced thunk is reclaimed by the ordinary ownership rules, which run the destructors of its captures when the last owner goes away.
-
-# Duplicable thunks: `%many`
-
-A `Thunk` binder annotated `%many` is duplicable and unshared. Each force runs the body again, so a `%many` thunk is call-by-later evaluation with recomputation, never a cache. The count below increments a byte inside the thunk body; the program passes only when the body ran twice.
+Annotating a `Thunk` parameter as `%many` permits forcing it multiple times, **re-executing the body on every force**. The compiler never silently converts a `%many` thunk into a memoized cell, because memoization requires a region lifetime. Below, `twice` increments the log byte twice:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -70,9 +64,7 @@ module Main where
     if nat-to-int (bytes-get log 0) == 2 then 0 else 1
 ```
 
-The compiler never turns a `%many` thunk into a shared memo cell: that would introduce a lifetime the type does not mention.
-
-A deferred diverging computation needs `Diverge` in the thunk's row, which is what makes it different from a pure total thunk:
+Deferring a diverging computation puts `Diverge` in the thunk's effect row:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -87,9 +79,9 @@ module Main where
   main = 0
 ```
 
-# Memo bindings: `~name = term`
+# Memo bindings (`~name = term`)
 
-The memo binding form is `~name = term` inside a `let` block or a `where` block. All `~` bindings of one block form one memo group: one region, one effect label `Eval r`, mutually visible cells. The binding is not evaluated when the block is entered.
+A `~name = term` binding inside a `let` or `where` block creates a **memoized cell** scoped to that block. All `~` bindings in the same block belong to one **memo group** sharing a fresh region `r` and effect label `Eval r`. A cell is not evaluated on block entry; it evaluates at most once on first demand and caches its result until the block exits.
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -102,7 +94,7 @@ module Main where
   main = if tally 1 2 3 == 11 then 0 else 1
 ```
 
-A bare use of the name is the demanded value. It elaborates to `demand` followed by `copyOut`, so the cached value is copied out and the copy needs `Copy` evidence. Using the same memo name twice, in the same expression, still evaluates the body once. The count below is 1, and the body increments the same byte the `%many` thunk incremented twice above:
+Referencing `k` bare elaborates to `copyOut (demand k)`: `demand` performs `Eval r`, evaluates the cell if uninitialized, and returns a `Ref r` borrow of the cached value; `copyOut` copies out an owned value (requiring `Copy` evidence). Referring to `k` multiple times evaluates the body only once:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -116,7 +108,7 @@ module Main where
     if nat-to-int (bytes-get log 0) == 1 then 0 else 1
 ```
 
-Write the demand and the copy out explicitly when you want them in view. `demand` performs `Eval r` and returns a borrow of the cached value; `copyOut` turns that borrow into an owned value:
+You can also write `demand` and `copyOut` explicitly:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -129,9 +121,7 @@ module Main where
 
 # Memo regions and `Eval r`
 
-Each memo group owns a region, and every demand performs that region's effect label. The checker enforces one rule: the evaluation row of a cell body must not contain `Eval r` of its own group. A body that demands its own group is a black hole, and the row is what detects it.
-
-A direct cycle is rejected:
+Every memo group introduces a region `r` and an effect `Eval r` discharged when the block ends. A memo cell's body is forbidden from containing `Eval r` for its own group, preventing cyclic self-demands (black holes) statically:
 
 <!-- cinch:reject contains="cannot demand its own group" -->
 ```cinch
@@ -144,9 +134,7 @@ module Main where
   main = loop 0
 ```
 
-The diagnostic is `cinch: 4:16: effect row must not contain Eval r#13 (a memo cell cannot demand its own group): this memo binding demands its own memo group (in Main.cinch)`. The generated region number after `r#` differs between compilations.
-
-The rule is conservative in one direction: demanding a different cell of the same group is a dependency, not a cycle, and it is rejected too. Separate the cells into separate blocks, since each block is its own group. This program is accepted and returns 21:
+Because this check applies to the whole group, one `~` binding cannot demand a sibling `~` binding in the same `let`/`where` block. Place dependent memo bindings in nested `let` blocks so each receives its own region:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -158,9 +146,11 @@ module Main where
     if a + b == 21 then 0 else 1
 ```
 
-## What the region rejects
+## Region confinement and `Copy` requirements
 
-A memo cell is bound to its region, so it cannot leave the block that owns it. Deferring a demand past the region is a capture of a dead region:
+Memo cells obey two additional static rules:
+
+- **No region escape.** A memo cell cannot be captured inside a thunk or lambda that may outlive its owning block:
 
 <!-- cinch:reject contains="region escape" -->
 ```cinch
@@ -173,9 +163,7 @@ module Main where
   main = force (bad 3)
 ```
 
-`cinch check` reports `cinch: 3:25: region escape: y is captured in a lambda that may outlive region r#13 (in Main.cinch)`.
-
-A memo cell caches a copyable value. Caching a codata value is refused, because a stream is not `Copy` and an infinite stream is not a memo of its elements:
+- **Cached values must be `Copy`.** Because bare reads copy the cached value out of the cell's borrow, non-`Copy` types such as `codata` streams cannot be memoized:
 
 <!-- cinch:reject contains="no Copy evidence" -->
 ```cinch
@@ -195,45 +183,23 @@ module Main where
   main = peek 0
 ```
 
-`cinch check` reports ``cinch: 10:12: no Copy evidence for Main.Stream Int (copying needs a Copy type or a `using (copy :: Copy a)` constraint) (in Main.cinch)``.
+## Known memo limitations
 
-## The `Lazy` type is not usable as a value yet
-
-A signature may name the cell type. It checks, and it needs `Eval r` on the arrow because `demand` performs it:
-
-```text
-hold :: forall r. Lazy {} r Nat ->{Eval r} Nat
-hold c = copyOut (demand c)
-```
-
-No expression in the bootstrap produces a cell value to pass to that parameter. A `~` binding produces the cell, but naming the binding anywhere in an expression is the demanded value, so a call `hold v` reports a type mismatch rather than passing the cell. The parameter form is accepted and unusable; write the function over the demanded value instead.
-
-## Current limitation: a strict binding that reads a memo cell
-
-A strict binding in the same block that reads a memo cell is refused by the ownership verifier, with an internal message rather than a diagnostic about memo groups:
+- **First-class `Lazy {e} r a` values.** Although `Lazy {e} r a` is accepted in type signatures (requiring `Eval r` on arrows that `demand` it), naming a `~` binding in an expression always demands its value rather than passing the cell handle. Write helper functions over the demanded value instead.
+- **Strict sibling reading a memo cell in the same block.** A strict binding in the same `let` or `where` block cannot currently read a sibling `~` cell (nor does the checker yet catch a cycle routed through a strict sibling):
 
 ```text
-main =
-  let ~k = 1 + 1
-      s = k + 1
-  in s
+-- Not currently supported in a single block:
+let ~k = 1 + 1
+    s = k + 1
+in s
 ```
 
-`cinch run` on that shape reports `cinch: compiler bug: ownership verifier rejected Main.main: borrowed read of v1, which is not alive here`. The same failure appears for the `where` form. Move the demand into the equation body, or put the second binding in a nested block, which is a separate group and works. If you hit this message on a shape that does not fit the pattern here, `CINCH_RC_TRACE=1` on a debug build of the compiler writes the verifier's input and output before the message, which makes a report actionable ([environment variables](25-allocators.md#environment-variables)).
-
-The cycle that the specification rules out through a strict sibling is not caught by the checker today. This program passes `cinch check` and fails at build time with the same verifier message, so treat it as a limitation and not as an accepted form:
-
-```text
-f n = s
-  where ~k = s + 1
-        s = k + 1
-```
-
-The runtime still has defense in depth for paths that bypass the static rule: a demand that finds a cell already being evaluated takes the `BlackHole` fault, which exits with status 70 (`runtime/src/abi.rs::cinch_blackhole`, emitted as `__cinch_blackhole`). Well-typed code cannot reach it.
+  **Workaround:** move the strict binding into a nested `let` block (`let ~k = 1 + 1 in let s = k + 1 in s`), or demand `k` directly in the body expression. As defense in depth, re-entering a cell that is already under evaluation triggers a runtime `BlackHole` fault (exit status `70`).
 
 # Codata: observations and `Later`
 
-A `codata` declaration lists observations. Construction uses the observed record form, and each field becomes a closure that runs at observation time.
+A `codata` declaration defines a coinductive type by its **observations** (projections), rather than by finite constructors. A codata value is constructed with `TypeName { field = expr, ... }`, where each observation expression is deferred until projected with `.field`:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -251,7 +217,7 @@ module Main where
     if s.head == 10 && (force s.tail).head == 11 then 0 else 1
 ```
 
-`xs.head` runs one observation. `xs.tail` is a `Later`, and `force` advances to the next layer. Codata has no constructor patterns and no field-by-field destructuring:
+Codata values can only be observed via `.field` and constructed via `TypeName { ... }`. Pattern matching and positional constructor application are rejected:
 
 <!-- cinch:reject contains="observed, not destructured" -->
 ```cinch
@@ -268,18 +234,14 @@ module Main where
   main = 0
 ```
 
-`cinch check` reports ``cinch: 8:5: a codata value is observed, not destructured: use `.field` projection (codata has no constructor patterns) (in Main.cinch)``. The positional application form is refused the same way: ``cinch: 7:11: a codata value is built only by its observed construction form `Stream { ... }`: its observations are closures run at observation time (in Main.cinch)``.
+## The `Later` modality
 
-`Later` is a guarded observation, not a deferred computation. It cannot hold an effect row, and it cannot be unrestricted:
+`Later a` marks a guarded recursive observation step in a productive codata definition. Unlike `Thunk {e} a`:
 
-| Attempt | Diagnostic |
-| --- | --- |
-| `Later {IO} Int` | ``Later must be applied to exactly one type (`Later a`): it is a logical modality and takes no effect row; effectful deferral is `Thunk {e} a` `` |
-| a `%many` `Later` binder | `a Later-typed parameter must be used at most once: %many would give Later unrestricted-thunk semantics` |
-| forcing one `Later` twice | `multiplicity %aff: t must be used at most once, but is used 2 time(s)` |
-| threading a `Thunk` into a `Later` parameter | `Later and Thunk are distinct types; a Later is a guarded observation, not a deferred computation` |
-
-A `Later` body must be pure. Deferring a diverging computation behind a `Later` is refused, and the diagnostic points at the thunk that can carry it:
+- `Later` takes **one type argument and no effect row** (`Later {IO} Int` is rejected).
+- `Later` is **strictly affine**—annotating a `Later` parameter `%many` or forcing a `Later` twice is rejected.
+- `Later` and `Thunk` never unify.
+- A `delay` producing a `Later` **must be pure**; attempting to hide `Diverge` or any other effect inside `Later` is rejected:
 
 <!-- cinch:reject contains="must be pure" -->
 ```cinch
@@ -294,16 +256,14 @@ module Main where
   main = 0
 ```
 
-`cinch check` reports ``cinch: 6:9: a `delay` building a `Later` must be pure: `Later` is a logical modality with no effect row (core language specification section 9); defer effectful or diverging computation in a `Thunk {e}` value (in Main.cinch)``.
+# Productive corecursion (`corec`)
 
-# The productivity rule for `corec`
+Marking a definition `corec` asserts that it is **productive**: every finite prefix of observations terminates in finite time. The checker enforces two syntactic guardedness rules on every `corec` body:
 
-A `corec` definition claims that every finite observation appears after finitely many steps. The checker enforces two syntactic conditions on the body of a `corec` definition:
+1. **Guarded recursive calls.** Every recursive call in the definition's recursion group must appear directly inside a `delay` whose result populates a `Later`-typed observation.
+2. **Explicit observation layer.** Every step of the `corec` body must directly construct the codata value (`TypeName { ... }`) rather than delegating construction to an unguarded helper.
 
-1. Every recursive call of the definition's own recursion group sits inside a `delay` whose result flows to a `Later`-typed observation.
-2. The body builds the codata type at every step, so each recursion level produces its observations before the next call.
-
-A self application with no observation layer violates both. The checker names the call:
+An unguarded self-call violates rule 1 (as does placing a recursive call inside a non-`Later` observation such as `head = bad n`):
 
 <!-- cinch:reject contains="unguarded recursive call to `loop`" -->
 ```cinch
@@ -319,17 +279,7 @@ module Main where
   main = 0
 ```
 
-`cinch check` reports ``cinch: 8:9: unguarded recursive call to `loop`: a `corec` definition must place every recursive call under `delay` in a `Later`-typed observation (core language specification section 9) (in Main.cinch)``.
-
-A recursive call in an observation position is still unguarded, because the observation must produce its value in finite time:
-
-```text
-corec bad n = Stream { head = bad n, tail = delay (\() -> bad (n + 1)) }
-```
-
-`head = bad n` is refused with ``unguarded recursive call to `bad` in a codata observation: an observation must produce its value in finite time, so an unproductive search cannot run here; compute it before construction or defer it in a `Thunk {{Diverge}}` observation``.
-
-Guarding the calls but hiding the construction behind an ordinary helper breaks the second condition. A `corec` definition must construct the codata value itself at each step:
+Delegating construction to an ordinary helper violates rule 2:
 
 <!-- cinch:reject contains="must build its codata type at every step" -->
 ```cinch
@@ -348,9 +298,7 @@ module Main where
   main = 0
 ```
 
-`cinch check` reports ``cinch: 11:3: a `corec` body must build its codata type at every step (an observation layer per recursion level); this body does not construct a codata value (core language specification section 9) (in Main.cinch)``.
-
-The same syntactic discipline is what makes `map` over a stream productive. Each step observes the head and defers the tail:
+When each step computes one layer of observations and places the recursive call under `delay` in `tail :: Later (Stream b)`, `corec` accepts the definition:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -373,9 +321,9 @@ module Main where
     if s.head == 10 && s1.head == 20 && s2.head == 30 then 0 else 1
 ```
 
-# Unrestricted filtering loses productivity
+# Unproductive operations and partial streams
 
-An ordinary definition that returns codata is not certified productive. When its recursion is unguarded, its type must say so with `Diverge`, and marking it `corec` is refused outright:
+An arbitrary filter over an infinite stream can search forever if no element matches the predicate. The checker rejects an unguarded stream filter unless its loss of productivity is declared with `Diverge`:
 
 <!-- cinch:reject contains="not productive, so its type must reflect the loss of productivity" -->
 ```cinch
@@ -393,9 +341,7 @@ module Main where
   main = 0
 ```
 
-`cinch check` reports ``cinch: 9:10: unguarded recursive call to `filter`: this definition is not productive, so its type must reflect the loss of productivity: declare `Diverge` on its arrows (as in `... ->{Diverge} ...`), or guard the call under `delay` in a `Later` observation (core language specification section 9) (in Main.cinch)``. With `corec filter` instead, the message is ``unguarded recursive call to `filter`: a `corec` definition must place every recursive call under `delay` in a `Later`-typed observation``.
-
-The honest form moves the loss of productivity into the observation types. A `PStream` whose tail is a `Thunk {Diverge}` can be built by a filter declared `->{Diverge}`, and the search runs at call time:
+To express a potentially diverging stream, replace `Later` with `Thunk {Diverge}` in the codata type (`PStream`) and declare `{Diverge}` on the filter arrow:
 
 <!-- cinch:run exit=0 -->
 ```cinch
@@ -420,26 +366,21 @@ module Main where
   main = 0
 ```
 
-That definition cannot be consumed from a pure context. `main` is nullary here, so forcing the filtered stream from it is refused: `cinch: 19:3: effect rows do not match: {} vs {Diverge | ?r906} (a nullary definition must be pure in the bootstrap slice) (in Main.cinch)`.
+Because `filter` carries `{Diverge}`, calling or forcing it requires an enclosing computation that permits `Diverge` (not a pure `main :: Int`).
 
-For finite or bounded pipelines prefer the producer vocabulary of `Data.Producer`, whose step form is `Done`, `Skip state` and `Yield value state`, and which has no productivity claim to break. See [streams and producers](../learn/15-streams-and-producers.md).
+For finite or bounded stream pipelines, prefer `Data.Producer` (`Done`, `Skip state`, `Yield value state`), which avoids productivity obligations altogether; see [streams and producers](../learn/15-streams-and-producers.md).
 
-# What is not supported
+# Current boundaries
 
 | Construct | Status |
 | --- | --- |
-| `~pattern` in a function argument (Haskell's irrefutable pattern) | refused: ``irrefutable (`~`) patterns are not supported in the bootstrap slice`` |
-| a lazy field that hides its region | no such form: a field is strict unless its type is `Lazy {e} r a` with `r` bound (`forall r. Lazy {} r Nat -> Box` checks), and an unbound region reports `unknown region variable r` |
-| `%many` on a `Later` | refused as unrestricted-thunk semantics |
-| a `Later` with an effect row | refused; use `Thunk {e} a` |
-| a memo cell as a value passed to a `Lazy` parameter | no producing expression, so the parameter is unusable |
-| a memo cell cached in a value that outlives its region | refused as a region escape |
-| memoizing a codata value | refused for want of `Copy` evidence |
-| `destroy` | no such name in the bootstrap |
-| bisimulation as a relation or as conversion | not implemented; rewrites over streams need ordinary evidence |
+| Irrefutable `~pattern` function parameters | Not supported. |
+| Implicitly lazy data fields (without an explicit `Lazy {e} r a` and bound `r`) | Not supported; all record and constructor fields are strict. |
+| `%many` on `Later`, or an effect row on `Later` | Rejected; use `Thunk {e} a` for effectful or repeatable deferral. |
+| First-class `Lazy {e} r a` cell values | Signature accepted, but bare names always demand; pass demanded values instead. |
+| Strict sibling binding reading a `~` cell in the same block | Known limitation; place the strict binding in a nested `let` or demand in the body. |
+| Memoizing a non-`Copy` or codata value | Rejected (`no Copy evidence`). |
+| Explicit `destroy` primitive for thunks | Not provided; unforced affine thunks are released automatically by ownership rules. |
+| Coinductive bisimulation as built-in conversion | Not implemented; rewrites over streams require explicit evidence ([Chapter 12](12-rewrites-and-optimization.md)). |
 
-Productive codata also has no implicit field laziness. Fields are strict, deferred work is a `Thunk` you write, and an infinite stream is not a memo of its elements.
-
-The normative text is [the laziness and reclamation specification](../specifications/lazy-computation-and-reclamation-specification.md); the guardedness decisions are in [the codata design note](../design/codata-guardedness.md). Rewrites that must cite evidence over streams are covered in [rewrites and optimization](12-rewrites-and-optimization.md).
-
-Implementation: `check_terms.rs` (bare-use demand, `demand`, `copyOut`, `delay`, `force`), `check_decls.rs` (`check_productivity`, `walk_guard`, `construction_layer`, the `Eval r` row rule), `codegen.rs`, `runtime/src/abi.rs`. Suites: `seed/tests/codata.rs`, `seed/tests/ownership.rs`.
+For guided walkthroughs, see [productive streams and partial producers](../learn/15-streams-and-producers.md) and [explicit laziness](../learn/16-explicit-laziness.md).

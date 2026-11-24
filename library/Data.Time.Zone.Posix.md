@@ -2,19 +2,29 @@
 
 POSIX TZ rule strings: parsing and evaluating standard/daylight transition rules.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Zone.Posix</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Time.Zone.Posix/">View source</a><a href="/library/search/?q=%2BData.Time.Zone.Posix">Search module</a><a href="/reference-sources/Data.Time.Zone.Posix.cinch" download="Data.Time.Zone.Posix.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Time.Zone.Posix`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.Zone.Posix.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (9 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Time.Zone.Posix`: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md).
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
+cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
+cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
+cp seed/prelude/Data/Time/Offset.cinch ./Data.Time.Offset.cinch
+cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
+cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
+cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
+cp seed/prelude/Data/Time/Zone/Posix.cinch ./Data.Time.Zone.Posix.cinch
+cp seed/prelude/Data/Time/Zone/Types.cinch ./Data.Time.Zone.Types.cinch
+```
 
-Non-embedded source closure: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 "<" 3 or more of (ASCII letter, digit, "+", "-") ">"
   offset = [ "+" | "-" ] hh [ ":" mm [ ":" ss ] ]     hh 0..24
@@ -22,112 +32,80 @@ Non-embedded source closure: [Data.Time.Date](Data.Time.Date.md), [Data.Time.Dat
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (17 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-PosixRule">PosixRule</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PosixRule</strong></code></li><li><a class="syn-name" href="#t-PosixTzError">PosixTzError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PosixTzError</strong></code></li><li><a class="syn-name" href="#v-parse-posix-tz">parse-posix-tz</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-posix-tz</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a></code></li><li><a class="syn-name" href="#v-parse-posix-tz-bytes">parse-posix-tz-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-posix-tz-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a></code></li><li><a class="syn-name" href="#v-posix-dst-abbreviation">posix-dst-abbreviation</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-dst-abbreviation</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-posix-dst-offset">posix-dst-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-dst-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-posix-has-dst">posix-has-dst</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-has-dst</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-posix-info-at">posix-info-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-info-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code></li><li><a class="syn-name" href="#v-posix-info-at-unix-seconds">posix-info-at-unix-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-info-at-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code></li><li><a class="syn-name" href="#v-posix-next-transition">posix-next-transition</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-next-transition</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-posix-next-transition-unix-seconds">posix-next-transition-unix-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-next-transition-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-posix-offset-at">posix-offset-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-offset-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-posix-previous-transition">posix-previous-transition</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-previous-transition</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-posix-previous-transition-unix-seconds">posix-previous-transition-unix-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-previous-transition-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-posix-std-abbreviation">posix-std-abbreviation</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-std-abbreviation</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-posix-std-offset">posix-std-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-std-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-posix-to-ambiguous">posix-to-ambiguous</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">posix-to-ambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code></li></ul>
+</details>
 
-<a id="type-506f73697852756c65"></a>
+# Types
 
-## `PosixRule`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PosixRule</span></code></pre>
+<article class="doc-entry" id="t-PosixRule">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PosixRule</strong></code><span class="doc-sig-links"><a href="#t-PosixRule" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 A parsed rule: standard time and, optionally, daylight time. Not
 constructible outside this module: every field passed the parser.
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 108
+</div>
+</article>
 
-<a id="type-506f736978547a4572726f72"></a>
-
-## `PosixTzError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PosixTzError</span></code></pre>
+<article class="doc-entry" id="t-PosixTzError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PosixTzError</strong></code><span class="doc-sig-links"><a href="#t-PosixTzError" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-body">
 
 Why a string is not a rule (the header's grammar).
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 112
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PosixEmpty</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PosixBadName</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PosixBadOffset</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PosixMissingRule</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PosixBadDate</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PosixBadTime</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PosixTrailing</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-PosixEmpty"><code><strong class="tok-constructor">PosixEmpty</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a></code></li><li id="k-PosixBadName"><code><strong class="tok-constructor">PosixBadName</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a></code></li><li id="k-PosixBadOffset"><code><strong class="tok-constructor">PosixBadOffset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a></code></li><li id="k-PosixMissingRule"><code><strong class="tok-constructor">PosixMissingRule</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a></code></li><li id="k-PosixBadDate"><code><strong class="tok-constructor">PosixBadDate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a></code></li><li id="k-PosixBadTime"><code><strong class="tok-constructor">PosixBadTime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a></code></li><li id="k-PosixTrailing"><code><strong class="tok-constructor">PosixTrailing</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-70617273652d706f7369782d747a"></a>
+<article class="doc-entry" id="v-parse-posix-tz">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-posix-tz</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a></code><span class="doc-sig-links"><a href="#v-parse-posix-tz" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L334" title="View source at line 334">Source</a></span></div>
+</article>
 
-## `parse-posix-tz`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-posix-tz</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch)
-
-<a id="value-70617273652d706f7369782d747a2d6279746573"></a>
-
-## `parse-posix-tz-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-posix-tz-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixTzError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span>))</code></pre>
+<article class="doc-entry" id="v-parse-posix-tz-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-posix-tz-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixTzError" title="Data.Time.Zone.Posix.PosixTzError">PosixTzError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a></code><span class="doc-sig-links"><a href="#v-parse-posix-tz-bytes" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L325" title="View source at line 325">Source</a></span></div>
+<div class="doc-body">
 
 Parse a rule from its bytes (the header's grammar).
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 325
+</div>
+</article>
 
-<a id="value-706f7369782d6473742d616262726576696174696f6e"></a>
+<article class="doc-entry" id="v-posix-dst-abbreviation">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-dst-abbreviation</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-posix-dst-abbreviation" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L369" title="View source at line 369">Source</a></span></div>
+</article>
 
-## `posix-dst-abbreviation`
+<article class="doc-entry" id="v-posix-dst-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-dst-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-posix-dst-offset" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L364" title="View source at line 364">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-dst-abbreviation</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-posix-has-dst">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-has-dst</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-posix-has-dst" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L353" title="View source at line 353">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch)
-
-<a id="value-706f7369782d6473742d6f6666736574"></a>
-
-## `posix-dst-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-dst-offset</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch)
-
-<a id="value-706f7369782d6861732d647374"></a>
-
-## `posix-has-dst`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-has-dst</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch)
-
-<a id="value-706f7369782d696e666f2d6174"></a>
-
-## `posix-info-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-info-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span>))</code></pre>
+<article class="doc-entry" id="v-posix-info-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-info-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code><span class="doc-sig-links"><a href="#v-posix-info-at" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L549" title="View source at line 549">Source</a></span></div>
+<div class="doc-body">
 
 Offset, daylight flag and abbreviation at an instant.
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 549
+</div>
+</article>
 
-<a id="value-706f7369782d696e666f2d61742d756e69782d7365636f6e6473"></a>
-
-## `posix-info-at-unix-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-info-at-unix-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span>))</code></pre>
+<article class="doc-entry" id="v-posix-info-at-unix-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-info-at-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code><span class="doc-sig-links"><a href="#v-posix-info-at-unix-seconds" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L515" title="View source at line 515">Source</a></span></div>
+<div class="doc-body">
 
 What the rule says at Unix second `t`.
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 515
+</div>
+</article>
 
-<a id="value-706f7369782d6e6578742d7472616e736974696f6e"></a>
-
-## `posix-next-transition`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-next-transition</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-posix-next-transition">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-next-transition</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-posix-next-transition" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L569" title="View source at line 569">Source</a></span></div>
+<div class="doc-body">
 
 The first transition strictly after `t`, and the last strictly
 before it; `None` for a rule without daylight time or when the
@@ -135,70 +113,52 @@ instant is outside the timestamp range. A transition whose second
 is `t`'s own second counts as before `t` only if `t` has a
 fractional part.
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 569
+</div>
+</article>
 
-<a id="value-706f7369782d6e6578742d7472616e736974696f6e2d756e69782d7365636f6e6473"></a>
-
-## `posix-next-transition-unix-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-next-transition-unix-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-posix-next-transition-unix-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-next-transition-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-posix-next-transition-unix-seconds" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L525" title="View source at line 525">Source</a></span></div>
+<div class="doc-body">
 
 The first transition strictly after Unix second `t`.
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 525
+</div>
+</article>
 
-<a id="value-706f7369782d6f66667365742d6174"></a>
+<article class="doc-entry" id="v-posix-offset-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-offset-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-posix-offset-at" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L552" title="View source at line 552">Source</a></span></div>
+</article>
 
-## `posix-offset-at`
+<article class="doc-entry" id="v-posix-previous-transition">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-previous-transition</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-posix-previous-transition" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L574" title="View source at line 574">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-offset-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch)
-
-<a id="value-706f7369782d70726576696f75732d7472616e736974696f6e"></a>
-
-## `posix-previous-transition`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-previous-transition</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch)
-
-<a id="value-706f7369782d70726576696f75732d7472616e736974696f6e2d756e69782d7365636f6e6473"></a>
-
-## `posix-previous-transition-unix-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-previous-transition-unix-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-posix-previous-transition-unix-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-previous-transition-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-posix-previous-transition-unix-seconds" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L535" title="View source at line 535">Source</a></span></div>
+<div class="doc-body">
 
 The last transition strictly before Unix second `t`.
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 535
+</div>
+</article>
 
-<a id="value-706f7369782d7374642d616262726576696174696f6e"></a>
+<article class="doc-entry" id="v-posix-std-abbreviation">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-std-abbreviation</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-posix-std-abbreviation" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L361" title="View source at line 361">Source</a></span></div>
+</article>
 
-## `posix-std-abbreviation`
+<article class="doc-entry" id="v-posix-std-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-std-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-posix-std-offset" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L358" title="View source at line 358">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-std-abbreviation</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch)
-
-<a id="value-706f7369782d7374642d6f6666736574"></a>
-
-## `posix-std-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-std-offset</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch)
-
-<a id="value-706f7369782d746f2d616d626967756f7573"></a>
-
-## `posix-to-ambiguous`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">posix-to-ambiguous</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span>))</code></pre>
+<article class="doc-entry" id="v-posix-to-ambiguous">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">posix-to-ambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code><span class="doc-sig-links"><a href="#v-posix-to-ambiguous" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Posix/#L556" title="View source at line 556">Source</a></span></div>
+<div class="doc-body">
 
 The offsets a civil reading can have under the rule.
 
-[Source](/reference-sources/Data.Time.Zone.Posix.cinch) · line 556
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/Zone/Posix.cinch`. Source SHA-256: `ab9f6f5fe7365fcf24af9c6d156b80f1de73e01b0edf070d1daf0b430d521ce9`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Zone/Posix.cinch`](/library/source/Data.Time.Zone.Posix/). Source SHA-256: `ab9f6f5fe7365fcf24af9c6d156b80f1de73e01b0edf070d1daf0b430d521ce9`.

@@ -6,6 +6,8 @@
 //! `specifications/documentation-comments-specification.md` and is the
 //! implementation behind `cinch doc`.
 
+use crate::doc_html;
+use crate::doc_search::{self, pretty_signature, SearchEntry};
 use crate::highlight;
 use regex::Regex;
 use serde::Serialize;
@@ -175,11 +177,11 @@ pub struct Decl {
 }
 
 #[derive(Clone, Debug, Serialize)]
-struct Parameter {
-    name: String,
+pub struct Parameter {
+    pub name: String,
     #[serde(rename = "type")]
-    ty: String,
-    doc: String,
+    pub ty: String,
+    pub doc: String,
 }
 
 #[derive(Clone, Debug)]
@@ -1403,18 +1405,20 @@ fn doc_lines(doc: &Doc, plain: bool) -> Vec<String> {
 }
 
 fn render_decl(decl: &Decl, level: usize, plain: bool, out: &mut Vec<String>) {
+    let anchor = doc_html::decl_anchor(&decl.kind, &decl.name);
     let heading = "#".repeat(level);
+    out.push(format!("<a id=\"{anchor}\"></a>"));
+    out.push(String::new());
     out.push(format!("{heading} `{}`", decl.name));
     out.push(String::new());
-    out.push(format!("`{}`", decl.kind));
-    out.push(String::new());
     if !decl.signature.is_empty() {
+        let pretty = pretty_signature(&decl.signature, true);
         if plain {
             out.push("```cinch".into());
-            out.push(decl.signature.clone());
+            out.push(pretty);
             out.push("```".into());
         } else {
-            out.push(highlight::html(&decl.signature));
+            out.push(highlight::html(&pretty));
         }
         out.push(String::new());
     }
@@ -1426,18 +1430,58 @@ fn render_decl(decl: &Decl, level: usize, plain: bool, out: &mut Vec<String>) {
     }
 }
 
-/// Render one module as Markdown. Cinch code blocks are tree-sitter
-/// highlighted unless `plain` is set.
+/// Render one module as Hackage-style Markdown with a synopsis, grouped
+/// sections, readable anchors, and pretty-printed signatures. Cinch code
+/// blocks are tree-sitter highlighted unless `plain` is set.
 pub fn render_module(module: &ModuleDoc, plain: bool) -> String {
     let mut lines = vec![format!("# {}", module.module), String::new()];
     if let Some(doc) = &module.doc {
         lines.extend(doc_lines(doc, plain));
     }
     if !module.declarations.is_empty() {
-        lines.push("## Declarations".into());
+        let mut types = Vec::new();
+        let mut signatures = Vec::new();
+        let mut values = Vec::new();
+        let mut fixities = Vec::new();
+        let mut instances = Vec::new();
+        for decl in &module.declarations {
+            match decl.kind.as_str() {
+                "data" | "record" | "codata" | "type" => types.push(decl),
+                "signature" => signatures.push(decl),
+                "fixity" => fixities.push(decl),
+                "instance" => instances.push(decl),
+                _ => values.push(decl),
+            }
+        }
+
+        // Synopsis
+        lines.push("## Synopsis".into());
         lines.push(String::new());
         for decl in &module.declarations {
-            render_decl(decl, 2, plain, &mut lines);
+            if matches!(decl.kind.as_str(), "fixity" | "instance") {
+                continue;
+            }
+            let anchor = doc_html::decl_anchor(&decl.kind, &decl.name);
+            let pretty = pretty_signature(&decl.signature, true);
+            lines.push(format!("- [`{}`](#{anchor}) — `{pretty}`", decl.name));
+        }
+        lines.push(String::new());
+
+        for (title, group) in [
+            ("Types", types),
+            ("Signatures", signatures),
+            ("Values", values),
+            ("Operator fixities", fixities),
+            ("Instances", instances),
+        ] {
+            if group.is_empty() {
+                continue;
+            }
+            lines.push(format!("## {title}"));
+            lines.push(String::new());
+            for decl in group {
+                render_decl(decl, 3, plain, &mut lines);
+            }
         }
     }
     if !module.orphans.is_empty() {
@@ -1477,7 +1521,7 @@ pub fn iter_sources(root: &Path) -> Vec<PathBuf> {
     paths
 }
 
-/// Build the symbol lookup index for a source tree.
+/// Build the symbol lookup and Hoogle search index for a source tree.
 pub fn build_index(root: &Path, legacy: bool) -> Result<Value, String> {
     let mut symbols = Vec::new();
     for path in iter_sources(root) {
@@ -1486,11 +1530,14 @@ pub fn build_index(root: &Path, legacy: bool) -> Result<Value, String> {
         let mut decls = Vec::new();
         flatten(&parsed.declarations, &mut decls);
         for decl in decls {
+            let pretty = pretty_signature(&decl.signature, true);
             symbols.push(json!({
                 "id": decl.id,
                 "module": parsed.module,
                 "kind": decl.kind,
                 "name": decl.name,
+                "signature": decl.signature,
+                "prettySignature": pretty,
                 "summary": decl.doc.as_ref().map(|doc| doc.summary.clone()).unwrap_or_default(),
                 "source": parsed.source,
                 "line": decl.line,
@@ -1809,15 +1856,171 @@ fn parse_lookup(args: &[String]) -> Result<(), String> {
     if as_json {
         print!("{}", canonical_json(found));
     } else {
+        let sig = found
+            .get("prettySignature")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+            .or_else(|| found.get("signature").and_then(Value::as_str))
+            .unwrap_or("");
         println!(
-            "{} ({})\n{}:{}\n\n{}",
+            "{} ({})\n{}:{}",
             found.get("id").and_then(Value::as_str).unwrap_or(""),
             found.get("kind").and_then(Value::as_str).unwrap_or(""),
             found.get("source").and_then(Value::as_str).unwrap_or(""),
             found.get("line").and_then(Value::as_u64).unwrap_or(0),
-            found.get("summary").and_then(Value::as_str).unwrap_or("(no summary)"),
+        );
+        if !sig.is_empty() {
+            println!("{sig}");
+        }
+        println!(
+            "\n{}",
+            found
+                .get("summary")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+                .unwrap_or("(no summary)"),
         );
     }
+    Ok(())
+}
+
+fn search_entries_from_value(data: &Value) -> Vec<SearchEntry> {
+    let items = data
+        .get("symbols")
+        .or_else(|| data.get("entries"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    items
+        .into_iter()
+        .map(|item| {
+            let signature = json_str(&item, "signature");
+            let pretty = {
+                let p = json_str(&item, "prettySignature");
+                if !p.is_empty() {
+                    p
+                } else {
+                    let p2 = json_str(&item, "pretty");
+                    if !p2.is_empty() {
+                        p2
+                    } else {
+                        pretty_signature(&signature, true)
+                    }
+                }
+            };
+            SearchEntry {
+                id: json_str(&item, "id"),
+                module: json_str(&item, "module"),
+                kind: json_str(&item, "kind"),
+                name: json_str(&item, "name"),
+                signature,
+                pretty_signature: pretty,
+                summary: json_str(&item, "summary"),
+                source: json_str(&item, "source"),
+                line: item.get("line").and_then(Value::as_u64).unwrap_or(0) as usize,
+            }
+        })
+        .collect()
+}
+
+fn parse_search(args: &[String]) -> Result<(), String> {
+    let mut query_parts = Vec::new();
+    let mut root = PathBuf::from("seed/prelude");
+    let mut index_file: Option<PathBuf> = None;
+    let mut legacy = true;
+    let mut as_json = false;
+    let mut limit = 25usize;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--dir" => root = PathBuf::from(option_value(args, &mut index, "--dir")?),
+            "--index" => index_file = Some(PathBuf::from(option_value(args, &mut index, "--index")?)),
+            "--legacy" => legacy = true,
+            "--strict-comments" => legacy = false,
+            "--json" => as_json = true,
+            "--limit" | "-n" => {
+                limit = option_value(args, &mut index, "--limit")?
+                    .parse()
+                    .map_err(|_| "--limit expects a positive integer")?;
+            }
+            other => query_parts.push(other.to_string()),
+        }
+        index += 1;
+    }
+    let query = query_parts.join(" ");
+    if query.trim().is_empty() {
+        return Err("search needs a query (name, type signature, +Module, or is:kind)".into());
+    }
+    let data = match index_file {
+        Some(path) => read_json(&path)?,
+        None => build_index(&root, legacy)?,
+    };
+    let entries = search_entries_from_value(&data);
+    let hits = doc_search::search_entries(&entries, &query);
+    if as_json {
+        let rows: Vec<Value> = hits
+            .iter()
+            .take(limit)
+            .map(|hit| {
+                json!({
+                    "id": hit.entry.id,
+                    "module": hit.entry.module,
+                    "kind": hit.entry.kind,
+                    "name": hit.entry.name,
+                    "signature": hit.entry.signature,
+                    "prettySignature": hit.entry.pretty_signature,
+                    "summary": hit.entry.summary,
+                    "source": hit.entry.source,
+                    "line": hit.entry.line,
+                    "score": hit.score,
+                })
+            })
+            .collect();
+        print!("{}", canonical_json(&json!({"query": query, "total": hits.len(), "results": rows})));
+        return Ok(());
+    }
+    if hits.is_empty() {
+        return Err(format!("no matches for {query:?}"));
+    }
+    for hit in hits.iter().take(limit) {
+        let sig = if hit.entry.pretty_signature.is_empty() {
+            hit.entry.name.as_str()
+        } else {
+            hit.entry.pretty_signature.as_str()
+        };
+        println!("{:<24} {}", hit.entry.module, sig);
+        if !hit.entry.summary.is_empty() {
+            println!("{:<24} {}", "", hit.entry.summary);
+        }
+        println!("{:<24} {}:{} ({})", "", hit.entry.source, hit.entry.line, hit.entry.kind);
+    }
+    if hits.len() > limit {
+        println!("({} more matches; pass --limit N to show more)", hits.len() - limit);
+    }
+    Ok(())
+}
+
+fn parse_html(args: &[String]) -> Result<(), String> {
+    let mut root = None;
+    let mut out_dir = PathBuf::from("docs");
+    let mut iface_dir: Option<PathBuf> = None;
+    let mut legacy = false;
+    let mut title = "Cinch API documentation".to_string();
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--out-dir" | "-o" => out_dir = PathBuf::from(option_value(args, &mut index, "--out-dir")?),
+            "--iface-dir" => iface_dir = Some(PathBuf::from(option_value(args, &mut index, "--iface-dir")?)),
+            "--legacy" => legacy = true,
+            "--title" => title = option_value(args, &mut index, "--title")?,
+            other if root.is_none() => root = Some(PathBuf::from(other)),
+            other => return Err(format!("unknown argument {other}")),
+        }
+        index += 1;
+    }
+    let root = root.ok_or("html needs a directory or source path")?;
+    let (mods, syms) = doc_html::generate_html_site(&root, &out_dir, iface_dir.as_deref(), legacy, &title)?;
+    println!("Wrote HTML documentation for {mods} module(s) ({syms} symbols) to {}", out_dir.display());
     Ok(())
 }
 
@@ -1922,12 +2125,14 @@ fn parse_highlight(args: &[String]) -> Result<(), String> {
 /// Entry point for `cinch doc ...`.
 pub fn cli(args: &[String]) -> i32 {
     let Some(command) = args.first().map(String::as_str) else {
-        eprintln!("cinch doc: expected extract, render, lookup, index, test, or highlight");
+        eprintln!("cinch doc: expected extract, render, html, search, lookup, index, test, highlight, or markdown");
         return 2;
     };
     let result = match command {
         "extract" => parse_extract(&args[1..]),
         "render" => parse_render(&args[1..]),
+        "html" => parse_html(&args[1..]),
+        "search" => parse_search(&args[1..]),
         "lookup" => parse_lookup(&args[1..]),
         "index" => parse_index(&args[1..]),
         "test" => parse_test_command(&args[1..]),
@@ -2193,5 +2398,66 @@ module Demo where
         let results = run_doc_tests(&[source], false, &compiler, None, 10);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0]["passed"], true, "{results:?}");
+    }
+
+    #[test]
+    fn render_includes_synopsis_grouped_sections_and_anchors() {
+        let module = parse_source(CANONICAL, Some("Demo"), "Demo.cinch", None, false).unwrap();
+        let rendered = render_module(&module, true);
+        assert!(rendered.contains("## Synopsis"), "{rendered}");
+        assert!(rendered.contains("## Types"), "{rendered}");
+        assert!(rendered.contains("## Values"), "{rendered}");
+        assert!(rendered.contains("<a id=\"t-Option\"></a>"), "{rendered}");
+        assert!(rendered.contains("<a id=\"v-map\"></a>"), "{rendered}");
+    }
+
+    #[test]
+    fn build_index_and_cli_search_support_type_queries() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("Demo.cinch");
+        fs::write(&source, CANONICAL).unwrap();
+
+        let idx = build_index(temp.path(), false).unwrap();
+        let symbols = idx["symbols"].as_array().unwrap();
+        let add_entry = symbols.iter().find(|s| s["name"] == "add").unwrap();
+        assert_eq!(add_entry["prettySignature"], "add :: Int -> Int -> Int");
+
+        let status = cli(&[
+            "search".into(),
+            "Int -> Int -> Int".into(),
+            "--dir".into(),
+            temp.path().to_string_lossy().into_owned(),
+        ]);
+        assert_eq!(status, 0);
+    }
+
+    #[test]
+    fn cli_html_generates_searchable_hackage_site() {
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("src");
+        let out_dir = temp.path().join("html");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("Demo.cinch"), CANONICAL).unwrap();
+
+        let status = cli(&[
+            "html".into(),
+            src_dir.to_string_lossy().into_owned(),
+            "--out-dir".into(),
+            out_dir.to_string_lossy().into_owned(),
+            "--title".into(),
+            "Demo Docs".into(),
+        ]);
+        assert_eq!(status, 0);
+        assert!(out_dir.join("index.html").exists());
+        assert!(out_dir.join("Demo.html").exists());
+        assert!(out_dir.join("source/Demo.html").exists());
+        assert!(out_dir.join("search-index.json").exists());
+        assert!(out_dir.join("style.css").exists());
+        assert!(out_dir.join("search.js").exists());
+
+        let demo_html = fs::read_to_string(out_dir.join("Demo.html")).unwrap();
+        assert!(demo_html.contains("class=\"synopsis\""), "{demo_html}");
+        assert!(demo_html.contains("doc-type-link"), "{demo_html}");
+        assert!(demo_html.contains("source/Demo.html#L"), "{demo_html}");
     }
 }

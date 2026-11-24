@@ -2,19 +2,26 @@
 
 Nonempty raw-byte field views with Unicode whitespace, ordered scalar predicates, persistent producers and replayable effect-preserving iteration.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Bytes.Fields</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Bytes.Fields/">View source</a><a href="/library/search/?q=%2BData.Bytes.Fields">Search module</a><a href="/reference-sources/Data.Bytes.Fields.cinch" download="Data.Bytes.Fields.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Bytes.Fields`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Producer](Data.Producer.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md).
 
-[Download exact module source](/reference-sources/Data.Bytes.Fields.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Bytes.Fields`: [Data.Bytes.Fields](Data.Bytes.Fields.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Producer](Data.Producer.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md).
+```sh
+cp seed/prelude/Data/Bytes/Fields.cinch ./Data.Bytes.Fields.cinch
+cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
+cp seed/prelude/Data/Bytes/View.cinch ./Data.Bytes.View.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
+cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Fields](Data.Bytes.Fields.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Retained raw-byte fields with Unicode whitespace and effect-preserving scalar predicates.
 Fields are nonempty fixed views into the original owner. Malformed UTF8 bytes
@@ -24,226 +31,209 @@ factories do no scanning at construction and start afresh on every invocation.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (21 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ByteFieldsState">ByteFieldsState</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteFieldsState</strong></code></li><li><a class="syn-name" href="#v-byte-fields-next">byte-fields-next</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-fields-next</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-fields-next-with">byte-fields-next-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-fields-next-with</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-fields">byte-view-fields</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-fields-each">byte-view-fields-each</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-each</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-byte-view-fields-func">byte-view-fields-func</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-func</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-fields-func-each">byte-view-fields-func-each</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-func-each</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-byte-view-fields-func-producer">byte-view-fields-func-producer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-func-producer</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-fields-func-sequence">byte-view-fields-func-sequence</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-func-sequence</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-byte-view-fields-producer">byte-view-fields-producer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-producer</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-byte-view-fields-sequence">byte-view-fields-sequence</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-sequence</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-byte-view-fields-start">byte-view-fields-start</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-start</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a></code></li><li><a class="syn-name" href="#v-bytes-fields">bytes-fields</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-fields-each">bytes-fields-each</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields-each</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bytes-fields-func">bytes-fields-func</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields-func</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-fields-func-each">bytes-fields-func-each</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields-func-each</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bytes-fields-func-producer">bytes-fields-func-producer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields-func-producer</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-fields-func-sequence">bytes-fields-func-sequence</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields-func-sequence</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bytes-fields-producer">bytes-fields-producer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields-producer</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code></li><li><a class="syn-name" href="#v-bytes-fields-sequence">bytes-fields-sequence</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields-sequence</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bytes-fields-start">bytes-fields-start</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-fields-start</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a></code></li></ul>
+</details>
 
-<a id="type-427974654669656c64735374617465"></a>
+# Types
 
-## `ByteFieldsState`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ByteFieldsState</span></code></pre>
+<article class="doc-entry" id="t-ByteFieldsState">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ByteFieldsState</strong></code><span class="doc-sig-links"><a href="#t-ByteFieldsState" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-body">
 
 Immutable explicit progress retaining a complete fixed input owner.
 Reusing a state replays its scan against current aliases; it does not share a hidden mutable cursor.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 26
+</div>
+</article>
 
 # Values
 
-<a id="value-627974652d6669656c64732d6e657874"></a>
-
-## `byte-fields-next`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-fields-next</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-fields-next">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-fields-next</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-fields-next" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L96" title="View source at line 96">Source</a></span></div>
+<div class="doc-body">
 
 Advance one default Unicode-whitespace field without copying its bytes.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 96
+</div>
+</article>
 
-<a id="value-627974652d6669656c64732d6e6578742d77697468"></a>
-
-## `byte-fields-next-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-fields-next-with</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . ((<span class="tok-constructor">Char</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-fields-next-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-fields-next-with</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-fields-next-with" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 Advance one field using a genuinely effectful scalar predicate and return explicit next progress.
 Current input mutations remain observable. Each malformed byte is one replacement-scalar predicate call.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 66
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c6473"></a>
-
-## `byte-view-fields`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-fields">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 Split a sealed range around Unicode whitespace; discard empty leading, trailing and intermediate runs.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 115
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c64732d65616368"></a>
-
-## `byte-view-fields-each`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields-each</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-fields-each">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-each</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields-each" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L163" title="View source at line 163">Source</a></span></div>
+<div class="doc-body">
 
 Traverse default fields with an effectful yield callback and no materialized outer list.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 163
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c64732d66756e63"></a>
-
-## `byte-view-fields-func`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields-func</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . ((<span class="tok-constructor">Char</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-fields-func">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-func</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields-func" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L123" title="View source at line 123">Source</a></span></div>
+<div class="doc-body">
 
 Eagerly collect fields using once-per-scalar left-to-right predicate calls, including all trailing delimiters.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 123
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c64732d66756e632d65616368"></a>
-
-## `byte-view-fields-func-each`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields-func-each</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . ((<span class="tok-constructor">Char</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-fields-func-each">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-func-each</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields-func-each" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L172" title="View source at line 172">Source</a></span></div>
+<div class="doc-body">
 
 Traverse predicate fields with a shared effect row containing every predicate and yield capability.
 Use explicit effect weakening wrappers when distinct callback rows need a combined row.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 172
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c64732d66756e632d70726f6475636572"></a>
-
-## `byte-view-fields-func-producer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields-func-producer</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-fields-func-producer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-func-producer</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields-func-producer" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 Adapt a pure-row predicate to the existing pure Producer abstraction.
 Effectful predicates use the next-with or callback sequence operations instead.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 140
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c64732d66756e632d73657175656e6365"></a>
-
-## `byte-view-fields-func-sequence`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields-func-sequence</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . ((<span class="tok-constructor">Char</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-byte-view-fields-func-sequence">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-func-sequence</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields-func-sequence" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L190" title="View source at line 190">Source</a></span></div>
+<div class="doc-body">
 
 Capture an effectful predicate and fixed input range without invoking any callback.
 Every traversal is fresh; callback state and mutable input aliases remain shared and observable.
 Its row includes the intended yield capabilities too; apply explicit effect weakening before construction when needed.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 190
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c64732d70726f6475636572"></a>
-
-## `byte-view-fields-producer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields-producer</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-fields-producer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-producer</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields-producer" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-body">
 
 Build a persistent default producer; fresh folds observe current input from the beginning.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 131
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c64732d73657175656e6365"></a>
-
-## `byte-view-fields-sequence`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields-sequence</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-byte-view-fields-sequence">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-sequence</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields-sequence" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-body">
 
 Construct a reusable default sequence without scanning; each invocation starts at the beginning.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 180
+</div>
+</article>
 
-<a id="value-627974652d766965772d6669656c64732d7374617274"></a>
-
-## `byte-view-fields-start`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">byte-view-fields-start</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span>)</code></pre>
+<article class="doc-entry" id="v-byte-view-fields-start">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">byte-view-fields-start</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a></code><span class="doc-sig-links"><a href="#v-byte-view-fields-start" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L31" title="View source at line 31">Source</a></span></div>
+<div class="doc-body">
 
 Start independent explicit progress without reading input contents or invoking callbacks.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 31
+</div>
+</article>
 
-<a id="value-62797465732d6669656c6473"></a>
-
-## `bytes-fields`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-fields">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-fields" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L119" title="View source at line 119">Source</a></span></div>
+<div class="doc-body">
 
 Split complete raw bytes around Unicode whitespace into retained mutable aliases.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 119
+</div>
+</article>
 
-<a id="value-62797465732d6669656c64732d65616368"></a>
-
-## `bytes-fields-each`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields-each</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-fields-each">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields-each</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-fields-each" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 Traverse complete-buffer default fields while preserving yield effects and early stop.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 167
+</div>
+</article>
 
-<a id="value-62797465732d6669656c64732d66756e63"></a>
-
-## `bytes-fields-func`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields-func</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . ((<span class="tok-constructor">Char</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-fields-func">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields-func</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-fields-func" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L127" title="View source at line 127">Source</a></span></div>
+<div class="doc-body">
 
 Eagerly collect complete-buffer aliases while preserving the predicate's effects.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 127
+</div>
+</article>
 
-<a id="value-62797465732d6669656c64732d66756e632d65616368"></a>
-
-## `bytes-fields-func-each`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields-func-each</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . ((<span class="tok-constructor">Char</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-fields-func-each">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields-func-each</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-fields-func-each" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L176" title="View source at line 176">Source</a></span></div>
+<div class="doc-body">
 
 Traverse complete-buffer predicate fields without restricting either callback to a pure or IO-only row.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 176
+</div>
+</article>
 
-<a id="value-62797465732d6669656c64732d66756e632d70726f6475636572"></a>
-
-## `bytes-fields-func-producer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields-func-producer</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-fields-func-producer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields-func-producer</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-fields-func-producer" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L144" title="View source at line 144">Source</a></span></div>
+<div class="doc-body">
 
 Build the pure-row predicate Producer convenience adapter over complete raw bytes.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 144
+</div>
+</article>
 
-<a id="value-62797465732d6669656c64732d66756e632d73657175656e6365"></a>
-
-## `bytes-fields-func-sequence`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields-func-sequence</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . ((<span class="tok-constructor">Char</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-bytes-fields-func-sequence">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields-func-sequence</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-fields-func-sequence" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L194" title="View source at line 194">Source</a></span></div>
+<div class="doc-body">
 
 Construct a reusable predicate/yield sequence over a retained complete byte buffer.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 194
+</div>
+</article>
 
-<a id="value-62797465732d6669656c64732d70726f6475636572"></a>
-
-## `bytes-fields-producer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields-producer</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-fields-producer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields-producer</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a></code><span class="doc-sig-links"><a href="#v-bytes-fields-producer" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L135" title="View source at line 135">Source</a></span></div>
+<div class="doc-body">
 
 Build a persistent default producer over a complete buffer without copying it.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 135
+</div>
+</article>
 
-<a id="value-62797465732d6669656c64732d73657175656e6365"></a>
-
-## `bytes-fields-sequence`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields-sequence</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> . (<span class="tok-constructor">Bytes</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">View</span>.<span class="tok-constructor">ByteView</span> -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Bool</span>) -&gt;{<span class="tok-variable">e</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-fields-sequence">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields-sequence</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes.View/#t-ByteView" title="Data.Bytes.View.ByteView">ByteView</a> <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span>{e} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-fields-sequence" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 Retain complete raw bytes in a reusable effectful-yield sequence factory.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 184
+</div>
+</article>
 
-<a id="value-62797465732d6669656c64732d7374617274"></a>
-
-## `bytes-fields-start`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-fields-start</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-constructor">Fields</span>.<span class="tok-constructor">ByteFieldsState</span>)</code></pre>
+<article class="doc-entry" id="v-bytes-fields-start">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-fields-start</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes.Fields/#t-ByteFieldsState" title="Data.Bytes.Fields.ByteFieldsState">ByteFieldsState</a></code><span class="doc-sig-links"><a href="#v-bytes-fields-start" title="Permalink">#</a><a href="/library/source/Data.Bytes.Fields/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
 
 Retain a whole fixed buffer in fresh explicit progress without copying it.
 
-[Source](/reference-sources/Data.Bytes.Fields.cinch) · line 35
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes/Fields.cinch`. Source SHA-256: `1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Fields.cinch`](/library/source/Data.Bytes.Fields/). Source SHA-256: `1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963`.

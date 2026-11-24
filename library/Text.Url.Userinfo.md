@@ -2,88 +2,91 @@
 
 Immutable copied URL user information with explicit password presence and checked percent encoding.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Url.Userinfo</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Url.Userinfo/">View source</a><a href="/library/search/?q=%2BText.Url.Userinfo">Search module</a><a href="/reference-sources/Text.Url.Userinfo.cinch" download="Text.Url.Userinfo.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Url.Userinfo`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Scan](Text.Url.Scan.md).
 
-[Download exact module source](/reference-sources/Text.Url.Userinfo.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Url.Userinfo`: [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Scan](Text.Url.Scan.md).
+```sh
+cp seed/prelude/Text/Url/Codec.cinch ./Text.Url.Codec.cinch
+cp seed/prelude/Text/Url/Error.cinch ./Text.Url.Error.cinch
+cp seed/prelude/Text/Url/Scan.cinch ./Text.Url.Scan.cinch
+cp seed/prelude/Text/Url/Userinfo.cinch ./Text.Url.Userinfo.cinch
+```
 
-Non-embedded source closure: [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Immutable byte-preserving URL user information with explicit password presence.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (6 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-UrlUserinfo">UrlUserinfo</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UrlUserinfo</strong></code></li><li><a class="syn-name" href="#v-url-password">url-password</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-password</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-user">url-user</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-user</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a></code></li><li><a class="syn-name" href="#v-url-user-password">url-user-password</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-user-password</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a></code></li><li><a class="syn-name" href="#v-url-userinfo-bytes">url-userinfo-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-userinfo-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-url-username">url-username</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">url-username</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-55726c55736572696e666f"></a>
+# Types
 
-## `UrlUserinfo`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UrlUserinfo</span></code></pre>
+<article class="doc-entry" id="t-UrlUserinfo">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UrlUserinfo</strong></code><span class="doc-sig-links"><a href="#t-UrlUserinfo" title="Permalink">#</a><a href="/library/source/Text.Url.Userinfo/#L12" title="View source at line 12">Source</a></span></div>
+<div class="doc-body">
 
 Private copied username and optional copied password; an empty password remains present.
 
-[Source](/reference-sources/Text.Url.Userinfo.cinch) · line 12
+</div>
+</article>
 
 # Values
 
-<a id="value-75726c2d70617373776f7264"></a>
-
-## `url-password`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-password</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Userinfo</span>.<span class="tok-constructor">UrlUserinfo</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-url-password">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-password</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-password" title="Permalink">#</a><a href="/library/source/Text.Url.Userinfo/#L29" title="View source at line 29">Source</a></span></div>
+<div class="doc-body">
 
 Return a copied optional password, distinguishing absence from an empty password.
 
-[Source](/reference-sources/Text.Url.Userinfo.cinch) · line 29
+</div>
+</article>
 
-<a id="value-75726c2d75736572"></a>
-
-## `url-user`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-user</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Userinfo</span>.<span class="tok-constructor">UrlUserinfo</span>)</code></pre>
+<article class="doc-entry" id="v-url-user">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-user</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a></code><span class="doc-sig-links"><a href="#v-url-user" title="Permalink">#</a><a href="/library/source/Text.Url.Userinfo/#L17" title="View source at line 17">Source</a></span></div>
+<div class="doc-body">
 
 Construct user information without a password, copying arbitrary username bytes.
 
-[Source](/reference-sources/Text.Url.Userinfo.cinch) · line 17
+</div>
+</article>
 
-<a id="value-75726c2d757365722d70617373776f7264"></a>
-
-## `url-user-password`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-user-password</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Userinfo</span>.<span class="tok-constructor">UrlUserinfo</span>))</code></pre>
+<article class="doc-entry" id="v-url-user-password">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-user-password</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a></code><span class="doc-sig-links"><a href="#v-url-user-password" title="Permalink">#</a><a href="/library/source/Text.Url.Userinfo/#L21" title="View source at line 21">Source</a></span></div>
+<div class="doc-body">
 
 Construct user information with a present password, copying both byte buffers.
 
-[Source](/reference-sources/Text.Url.Userinfo.cinch) · line 21
+</div>
+</article>
 
-<a id="value-75726c2d75736572696e666f2d6279746573"></a>
-
-## `url-userinfo-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-userinfo-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Userinfo</span>.<span class="tok-constructor">UrlUserinfo</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-url-userinfo-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-userinfo-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-userinfo-bytes" title="Permalink">#</a><a href="/library/source/Text.Url.Userinfo/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-body">
 
 Escape the username and optional colon-separated password to fresh ASCII bytes.
 
-[Source](/reference-sources/Text.Url.Userinfo.cinch) · line 33
+</div>
+</article>
 
-<a id="value-75726c2d757365726e616d65"></a>
-
-## `url-username`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">url-username</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Url</span>.<span class="tok-constructor">Userinfo</span>.<span class="tok-constructor">UrlUserinfo</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-url-username">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">url-username</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Url/#t-UrlUserinfo" title="Text.Url.Userinfo.UrlUserinfo">UrlUserinfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-url-username" title="Permalink">#</a><a href="/library/source/Text.Url.Userinfo/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 Return fresh username bytes without decoding them as text.
 
-[Source](/reference-sources/Text.Url.Userinfo.cinch) · line 25
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Url/Userinfo.cinch`. Source SHA-256: `cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Userinfo.cinch`](/library/source/Text.Url.Userinfo/). Source SHA-256: `cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a`.

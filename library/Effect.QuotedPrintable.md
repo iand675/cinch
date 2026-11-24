@@ -2,19 +2,24 @@
 
 Incremental quoted-printable readers and writers with explicit binary policy, partial progress and sticky errors.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.QuotedPrintable</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.QuotedPrintable/">View source</a><a href="/library/search/?q=%2BEffect.QuotedPrintable">Search module</a><a href="/reference-sources/Effect.QuotedPrintable.cinch" download="Effect.QuotedPrintable.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.QuotedPrintable`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
 
-[Download exact module source](/reference-sources/Effect.QuotedPrintable.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.QuotedPrintable`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.QuotedPrintable](Effect.QuotedPrintable.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Effect/QuotedPrintable.cinch ./Effect.QuotedPrintable.cinch
+cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
+cp seed/prelude/Text/QuotedPrintable.cinch ./Text.QuotedPrintable.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.QuotedPrintable](Effect.QuotedPrintable.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Quoted-printable stream continuations with explicit input and error progress.
 Writers retain an immutable partial line and return the advanced borrowed sink.
@@ -24,107 +29,96 @@ empty byte writes follow Effect.Stream's inert-operation contract.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-QuotedPrintableReadStatus">QuotedPrintableReadStatus</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableReadStatus</strong></code></li><li><a class="syn-name" href="#t-QuotedPrintableReader">QuotedPrintableReader</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableReader</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#t-QuotedPrintableWriter">QuotedPrintableWriter</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableWriter</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-quoted-printable-finish">quoted-printable-finish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-finish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-quoted-printable-read">quoted-printable-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} ((<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReadStatus" title="Effect.QuotedPrintable.QuotedPrintableReadStatus">QuotedPrintableReadStatus</a>), <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-quoted-printable-reader">quoted-printable-reader</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-reader</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-quoted-printable-reader-as-stream">quoted-printable-reader-as-stream</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-reader-as-stream</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-quoted-printable-reader-source">quoted-printable-reader-source</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-reader-source</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-quoted-printable-write">quoted-printable-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a>) <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span>)</code></li><li><a class="syn-name" href="#v-quoted-printable-writer">quoted-printable-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-quoted-printable-writer-mode">quoted-printable-writer-mode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-writer-mode</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-quoted-printable-writer-policy">quoted-printable-writer-policy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-writer-policy</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a></code></li><li><a class="syn-name" href="#v-quoted-printable-writer-sink">quoted-printable-writer-sink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">quoted-printable-writer-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li></ul>
+</details>
 
-<a id="type-51756f7465645072696e7461626c6552656164537461747573"></a>
+# Types
 
-## `QuotedPrintableReadStatus`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">QuotedPrintableReadStatus</span></code></pre>
+<article class="doc-entry" id="t-QuotedPrintableReadStatus">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableReadStatus</strong></code><span class="doc-sig-links"><a href="#t-QuotedPrintableReadStatus" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L89" title="View source at line 89">Source</a></span></div>
+<div class="doc-body">
 
 Status returned alongside decoded bytes, so a partial read never loses its prefix.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 89
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-QuotedPrintableReady"><code><strong class="tok-constructor">QuotedPrintableReady</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReadStatus" title="Effect.QuotedPrintable.QuotedPrintableReadStatus">QuotedPrintableReadStatus</a></code></li><li id="k-QuotedPrintableEof"><code><strong class="tok-constructor">QuotedPrintableEof</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReadStatus" title="Effect.QuotedPrintable.QuotedPrintableReadStatus">QuotedPrintableReadStatus</a></code></li><li id="k-QuotedPrintableReadFailure"><code><strong class="tok-constructor">QuotedPrintableReadFailure</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReadStatus" title="Effect.QuotedPrintable.QuotedPrintableReadStatus">QuotedPrintableReadStatus</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableReady</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReadStatus</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableEof</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReadStatus</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">QuotedPrintableReadFailure</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReadStatus</span>)</code></pre>
-
-<a id="type-51756f7465645072696e7461626c65526561646572"></a>
-
-## `QuotedPrintableReader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">QuotedPrintableReader</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-QuotedPrintableReader">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableReader</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-QuotedPrintableReader" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L99" title="View source at line 99">Source</a></span></div>
+<div class="doc-body">
 
 Explicit decoder continuation owning its line state and decoded surplus.
 Always continue with the returned handle; descriptor sources share their OS cursor.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 99
+</div>
+</article>
 
-<a id="type-51756f7465645072696e7461626c65577269746572"></a>
-
-## `QuotedPrintableWriter`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">QuotedPrintableWriter</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-QuotedPrintableWriter">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">QuotedPrintableWriter</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-QuotedPrintableWriter" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 An explicitly advanced encoder and its borrowed output sink.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 23
+</div>
+</article>
 
 # Values
 
-<a id="value-71756f7465642d7072696e7461626c652d66696e697368"></a>
-
-## `quoted-printable-finish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-finish</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableWriter</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Unit</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-finish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-finish</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-finish" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L80" title="View source at line 80">Source</a></span></div>
+<div class="doc-body">
 
 Quote the final trailing whitespace, flush retained bytes and return the
 advanced sink on either outcome. The borrowed sink is never closed. Use the
 returned sink for later unencoded data; the encoder handle is now complete.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 80
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d72656164"></a>
-
-## `quoted-printable-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReadStatus</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReader</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} ((<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReadStatus" title="Effect.QuotedPrintable.QuotedPrintableReadStatus">QuotedPrintableReadStatus</a>), <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-read" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L146" title="View source at line 146">Source</a></span></div>
+<div class="doc-body">
 
 Read up to the request while preserving a simultaneous partial prefix and
 terminal status. EOF and failures remain sticky; zero reads are always inert.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 146
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d726561646572"></a>
-
-## `quoted-printable-reader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-reader</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-reader">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-reader</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-quoted-printable-reader" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-body">
 
 Begin decoding an independently owned continuation over a borrowed source.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 104
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d7265616465722d61732d73747265616d"></a>
-
-## `quoted-printable-reader-as-stream`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-reader-as-stream</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-reader-as-stream">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-reader-as-stream</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-quoted-printable-reader-as-stream" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L200" title="View source at line 200">Source</a></span></div>
+<div class="doc-body">
 
 Adapt explicit read statuses to the generic byte-reader protocol. A
 partial prefix is returned first; its error is retained for the next read.
 Neither returned chunks nor later calls can mutate codec continuation state.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 200
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d7265616465722d736f75726365"></a>
-
-## `quoted-printable-reader-source`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-reader-source</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-reader-source">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-reader-source</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableReader" title="Effect.QuotedPrintable.QuotedPrintableReader">QuotedPrintableReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-quoted-printable-reader-source" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 Observe the source after its exact buffered read-ahead, even after failure.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 108
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d7772697465"></a>
-
-## `quoted-printable-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span>) <span class="tok-constructor">Nat</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableWriter</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a>) <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-quoted-printable-write" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L66" title="View source at line 66">Source</a></span></div>
+<div class="doc-body">
 
 Accept one input buffer and return its reportable input count. On failure
 the error carries that count and the advanced handle retains the exact sink
@@ -132,48 +126,45 @@ prefix. Printable batches count only after their entire batch succeeds.
 Short underlying writes are retried; failures are sticky and never replayed.
 An empty input succeeds with zero and leaves even a failed handle untouched.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 66
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d777269746572"></a>
-
-## `quoted-printable-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-writer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-quoted-printable-writer" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 Begin writing with an explicit text or binary newline policy.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 30
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d7772697465722d6d6f6465"></a>
-
-## `quoted-printable-writer-mode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-writer-mode</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableWriter</span> <span class="tok-variable">r</span>)))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-writer-mode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-writer-mode</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-quoted-printable-writer-mode" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 Change the mode for subsequent input without flushing the retained line.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 34
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d7772697465722d706f6c696379"></a>
-
-## `quoted-printable-writer-policy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-writer-policy</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableWriter</span> <span class="tok-variable">r</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableMode</span>)</code></pre>
+<article class="doc-entry" id="v-quoted-printable-writer-policy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-writer-policy</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.QuotedPrintable/#t-QuotedPrintableMode" title="Text.QuotedPrintable.QuotedPrintableMode">QuotedPrintableMode</a></code><span class="doc-sig-links"><a href="#v-quoted-printable-writer-policy" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 Observe the current policy, including after failure or a later policy update.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 46
+</div>
+</article>
 
-<a id="value-71756f7465642d7072696e7461626c652d7772697465722d73696e6b"></a>
-
-## `quoted-printable-writer-sink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">quoted-printable-writer-sink</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">QuotedPrintable</span>.<span class="tok-constructor">QuotedPrintableWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-quoted-printable-writer-sink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">quoted-printable-writer-sink</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">r</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.QuotedPrintable/#t-QuotedPrintableWriter" title="Effect.QuotedPrintable.QuotedPrintableWriter">QuotedPrintableWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-quoted-printable-writer-sink" title="Permalink">#</a><a href="/library/source/Effect.QuotedPrintable/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
 
 Observe the advanced borrowed sink, including after a failed write.
 
-[Source](/reference-sources/Effect.QuotedPrintable.cinch) · line 40
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/QuotedPrintable.cinch`. Source SHA-256: `10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/QuotedPrintable.cinch`](/library/source/Effect.QuotedPrintable/). Source SHA-256: `10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97`.

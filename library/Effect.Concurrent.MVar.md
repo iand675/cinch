@@ -2,17 +2,11 @@
 
 Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Concurrent.MVar</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Concurrent.MVar/">View source</a><a href="/library/search/?q=%2BEffect.Concurrent.MVar">Search module</a><a href="/reference-sources/Effect.Concurrent.MVar.cinch" download="Effect.Concurrent.MVar.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Concurrent.MVar`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Option](Data.Option.md).
 
-[Download exact module source](/reference-sources/Effect.Concurrent.MVar.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Option](Data.Option.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 A native, shared single-place variable with FIFO handoff.
 
@@ -41,160 +35,149 @@ no bound on scheduling or mutex acquisition is promised.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (15 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-MVar">MVar</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MVar</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-is-empty">mvar-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-mvar-new">mvar-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-new</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-new-empty">mvar-new-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-new-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-put">mvar-put</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-put</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-mvar-put-or-cancel">mvar-put-or-cancel</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-put-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-mvar-read">mvar-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-read-or-cancel">mvar-read-or-cancel</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-read-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-swap">mvar-swap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-swap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-swap-or-cancel">mvar-swap-or-cancel</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-swap-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-take">mvar-take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-take-or-cancel">mvar-take-or-cancel</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-take-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-try-put">mvar-try-put</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-try-put</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-mvar-try-read">mvar-try-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-try-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-mvar-try-take">mvar-try-take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mvar-try-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-4d566172"></a>
+# Types
 
-## `MVar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MVar</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-MVar">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MVar</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-MVar" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
 
 A shared single-place variable whose operations preserve stored-value ownership. Constructors are private; task sharing requires shareable contents.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 35
+</div>
+</article>
 
 # Values
 
-<a id="value-6d7661722d69732d656d707479"></a>
-
-## `mvar-is-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-mvar-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-mvar-is-empty" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L105" title="View source at line 105">Source</a></span></div>
+<div class="doc-body">
 
 Return an instantaneous empty-state observation. The result does not reserve space or a value.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 105
+</div>
+</article>
 
-<a id="value-6d7661722d6e6577"></a>
-
-## `mvar-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-new</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-new" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Create a full shared variable containing the supplied value.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 69
+</div>
+</article>
 
-<a id="value-6d7661722d6e65772d656d707479"></a>
-
-## `mvar-new-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-new-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-new-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-new-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-new-empty" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L73" title="View source at line 73">Source</a></span></div>
+<div class="doc-body">
 
 Create an empty shared variable; a take or read waits until a value arrives.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 73
+</div>
+</article>
 
-<a id="value-6d7661722d707574"></a>
-
-## `mvar-put`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-put</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-put">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-put</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-mvar-put" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L81" title="View source at line 81">Source</a></span></div>
+<div class="doc-body">
 
 Wait until space is available and store the supplied value. Registered putters are served in FIFO order.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 81
+</div>
+</article>
 
-<a id="value-6d7661722d7075742d6f722d63616e63656c"></a>
-
-## `mvar-put-or-cancel`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-put-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-put-or-cancel">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-put-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-mvar-put-or-cancel" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L121" title="View source at line 121">Source</a></span></div>
+<div class="doc-body">
 
 Store the value and return True, or return False if cancellation wins before handoff. A committed put succeeds.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 121
+</div>
+</article>
 
-<a id="value-6d7661722d72656164"></a>
-
-## `mvar-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-mvar-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-read" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L85" title="View source at line 85">Source</a></span></div>
+<div class="doc-body">
 
 Wait until a value is available and return it without emptying the variable.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 85
+</div>
+</article>
 
-<a id="value-6d7661722d726561642d6f722d63616e63656c"></a>
-
-## `mvar-read-or-cancel`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-read-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-read-or-cancel">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-read-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-read-or-cancel" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L113" title="View source at line 113">Source</a></span></div>
+<div class="doc-body">
 
 Read a value without removal, or return None if cancellation wins before delivery. Immediate reads succeed despite prior cancellation.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 113
+</div>
+</article>
 
-<a id="value-6d7661722d73776170"></a>
-
-## `mvar-swap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-swap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-swap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-swap" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L89" title="View source at line 89">Source</a></span></div>
+<div class="doc-body">
 
 Wait until a value is available, replace it atomically, and return the previous value.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 89
+</div>
+</article>
 
-<a id="value-6d7661722d737761702d6f722d63616e63656c"></a>
-
-## `mvar-swap-or-cancel`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-swap-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-mvar-swap-or-cancel">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-swap-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-swap-or-cancel" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L117" title="View source at line 117">Source</a></span></div>
+<div class="doc-body">
 
 Exchange values or return None if cancellation wins before handoff. A committed exchange returns the previous value.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 117
+</div>
+</article>
 
-<a id="value-6d7661722d74616b65"></a>
-
-## `mvar-take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-mvar-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-take" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L77" title="View source at line 77">Source</a></span></div>
+<div class="doc-body">
 
 Wait until a value is available, remove it, and return it. Registered takers are served in FIFO order.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 77
+</div>
+</article>
 
-<a id="value-6d7661722d74616b652d6f722d63616e63656c"></a>
-
-## `mvar-take-or-cancel`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-take-or-cancel</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Cancel</span> <span class="tok-variable">r</span>, <span class="tok-constructor">Diverge</span>, <span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-take-or-cancel">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-take-or-cancel</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/13-concurrency-and-runtime/" title="Cancel">Cancel</a> r, <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Diverge">Diverge</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-take-or-cancel" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L109" title="View source at line 109">Source</a></span></div>
+<div class="doc-body">
 
 Take a value or return None if cancellation wins before handoff. An already committed handoff succeeds.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 109
+</div>
+</article>
 
-<a id="value-6d7661722d7472792d707574"></a>
-
-## `mvar-try-put`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-put</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">MVar</span>} <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-try-put">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-try-put</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-mvar-try-put" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L97" title="View source at line 97">Source</a></span></div>
+<div class="doc-body">
 
 Store the value and return True when space is immediately available; otherwise return False without waiting.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 97
+</div>
+</article>
 
-<a id="value-6d7661722d7472792d72656164"></a>
-
-## `mvar-try-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-try-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-try-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-try-read" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L101" title="View source at line 101">Source</a></span></div>
+<div class="doc-body">
 
 Return an immediately available value without removing it, or return None without waiting.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 101
+</div>
+</article>
 
-<a id="value-6d7661722d7472792d74616b65"></a>
-
-## `mvar-try-take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mvar-try-take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Concurrent</span>.<span class="tok-constructor">MVar</span>.<span class="tok-constructor">MVar</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">MVar</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-mvar-try-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mvar-try-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/#t-MVar" title="Effect.Concurrent.MVar.MVar">MVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Concurrent.MVar/" title="MVar">MVar</a>} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mvar-try-take" title="Permalink">#</a><a href="/library/source/Effect.Concurrent.MVar/#L93" title="View source at line 93">Source</a></span></div>
+<div class="doc-body">
 
 Remove and return an immediately available value, or return None without waiting.
 
-[Source](/reference-sources/Effect.Concurrent.MVar.cinch) · line 93
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Concurrent/MVar.cinch`. Source SHA-256: `1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Concurrent/MVar.cinch`](/library/source/Effect.Concurrent.MVar/). Source SHA-256: `1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e`.

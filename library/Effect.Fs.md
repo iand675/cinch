@@ -2,17 +2,11 @@
 
 Filesystem reads/writes, directory and metadata operations, with Path values and named Result errors.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Fs</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Fs/">View source</a><a href="/library/search/?q=%2BEffect.Fs">Search module</a><a href="/reference-sources/Effect.Fs.cinch" download="Effect.Fs.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Fs`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Prim.Sys](Prim.Sys.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Effect.Fs.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Prim.Sys](Prim.Sys.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Fs: the filesystem capability (P34, the platform layer).
 
@@ -63,106 +57,76 @@ system's vocabulary.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (10 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-FileKind">FileKind</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FileKind</strong></code></li><li><a class="syn-name" href="#t-FileMeta">FileMeta</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FileMeta</strong></code></li><li><a class="syn-name" href="#t-FsError">FsError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FsError</strong></code></li><li><a class="syn-name" href="#v-file-meta-kind">file-meta-kind</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">file-meta-kind</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileMeta" title="Effect.Fs.FileMeta">FileMeta</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileKind" title="Effect.Fs.FileKind">FileKind</a></code></li><li><a class="syn-name" href="#v-file-meta-size">file-meta-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">file-meta-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileMeta" title="Effect.Fs.FileMeta">FileMeta</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-fs-list">fs-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fs-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)</code></li><li><a class="syn-name" href="#v-fs-metadata">fs-metadata</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fs-metadata</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileMeta" title="Effect.Fs.FileMeta">FileMeta</a></code></li><li><a class="syn-name" href="#v-fs-read">fs-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fs-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-fs-rename">fs-rename</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fs-rename</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-fs-write">fs-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fs-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li></ul>
+</details>
 
-<a id="type-46696c654b696e64"></a>
+# Types
 
-## `FileKind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FileKind</span></code></pre>
+<article class="doc-entry" id="t-FileKind">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FileKind</strong></code><span class="doc-sig-links"><a href="#t-FileKind" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L80" title="View source at line 80">Source</a></span></div>
+<div class="doc-body">
 
 What a path names.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 80
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-FileIsFile"><code><strong class="tok-constructor">FileIsFile</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileKind" title="Effect.Fs.FileKind">FileKind</a></code></li><li id="k-FileIsDirectory"><code><strong class="tok-constructor">FileIsDirectory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileKind" title="Effect.Fs.FileKind">FileKind</a></code></li><li id="k-FileIsOther"><code><strong class="tok-constructor">FileIsOther</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileKind" title="Effect.Fs.FileKind">FileKind</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsFile</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsDirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileIsOther</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span></code></pre>
-
-<a id="type-46696c654d657461"></a>
-
-## `FileMeta`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FileMeta</span></code></pre>
+<article class="doc-entry" id="t-FileMeta">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FileMeta</strong></code><span class="doc-sig-links"><a href="#t-FileMeta" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L86" title="View source at line 86">Source</a></span></div>
+<div class="doc-body">
 
 A file's metadata: its kind and its size in bytes.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 86
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-FileMeta"><code><strong class="tok-constructor">FileMeta</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileKind" title="Effect.Fs.FileKind">FileKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileMeta" title="Effect.Fs.FileMeta">FileMeta</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FileMeta</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileMeta</span>))</code></pre>
-
-<a id="type-46734572726f72"></a>
-
-## `FsError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FsError</span></code></pre>
+<article class="doc-entry" id="t-FsError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FsError</strong></code><span class="doc-sig-links"><a href="#t-FsError" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 What went wrong, named (the `std::io::ErrorKind` vocabulary the
 runtime maps its codes from).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 70
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AlreadyExists</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NotADirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IsADirectory</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidName</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">IoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-NotFound"><code><strong class="tok-constructor">NotFound</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a></code></li><li id="k-PermissionDenied"><code><strong class="tok-constructor">PermissionDenied</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a></code></li><li id="k-AlreadyExists"><code><strong class="tok-constructor">AlreadyExists</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a></code></li><li id="k-NotADirectory"><code><strong class="tok-constructor">NotADirectory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a></code></li><li id="k-IsADirectory"><code><strong class="tok-constructor">IsADirectory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a></code></li><li id="k-InvalidName"><code><strong class="tok-constructor">InvalidName</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a></code></li><li id="k-IoError"><code><strong class="tok-constructor">IoError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-66696c652d6d6574612d6b696e64"></a>
+<article class="doc-entry" id="v-file-meta-kind">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">file-meta-kind</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileMeta" title="Effect.Fs.FileMeta">FileMeta</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileKind" title="Effect.Fs.FileKind">FileKind</a></code><span class="doc-sig-links"><a href="#v-file-meta-kind" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L89" title="View source at line 89">Source</a></span></div>
+</article>
 
-## `file-meta-kind`
+<article class="doc-entry" id="v-file-meta-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">file-meta-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileMeta" title="Effect.Fs.FileMeta">FileMeta</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-file-meta-size" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L93" title="View source at line 93">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">file-meta-kind</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileMeta</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileKind</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Fs.cinch)
-
-<a id="value-66696c652d6d6574612d73697a65"></a>
-
-## `file-meta-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">file-meta-size</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileMeta</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Fs.cinch)
-
-<a id="value-66732d6c697374"></a>
-
-## `fs-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-fs-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fs-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-fs-list" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L301" title="View source at line 301">Source</a></span></div>
+<div class="doc-body">
 
 The names in the directory `p`, sorted ascending (the OS listing
 order is not specified; the sorted listing is this home's
 observable order).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 301
+</div>
+</article>
 
-<a id="value-66732d6d65746164617461"></a>
-
-## `fs-metadata`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-metadata</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FileMeta</span>))</code></pre>
+<article class="doc-entry" id="v-fs-metadata">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fs-metadata</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FileMeta" title="Effect.Fs.FileMeta">FileMeta</a></code><span class="doc-sig-links"><a href="#v-fs-metadata" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L275" title="View source at line 275">Source</a></span></div>
+<div class="doc-body">
 
 The kind and size of what `p` names.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 275
+</div>
+</article>
 
-<a id="value-66732d72656164"></a>
-
-## `fs-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-fs-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fs-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-fs-read" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L187" title="View source at line 187">Source</a></span></div>
+<div class="doc-body">
 
 The whole file at `p`, or the named error (missing paths report
 `NotFound`).
@@ -174,32 +138,31 @@ while it is being read is read to that length; a file that shrank is
 read a second time at its new length, so the answer is exactly what
 the kernel produced either way.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 187
+</div>
+</article>
 
-<a id="value-66732d72656e616d65"></a>
-
-## `fs-rename`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-rename</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-fs-rename">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fs-rename</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-fs-rename" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L262" title="View source at line 262">Source</a></span></div>
+<div class="doc-body">
 
 Atomically rename `from` to `to` (POSIX `rename`: the target sees
 the whole old or the whole new content, never a partial).
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 262
+</div>
+</article>
 
-<a id="value-66732d7772697465"></a>
-
-## `fs-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fs-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Fs</span>.<span class="tok-constructor">FsError</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-fs-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fs-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Fs/#t-FsError" title="Effect.Fs.FsError">FsError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-fs-write" title="Permalink">#</a><a href="/library/source/Effect.Fs/#L242" title="View source at line 242">Source</a></span></div>
+<div class="doc-body">
 
 Write `content` to `p`, creating or truncating it (NOT atomic;
 atomic replacement is `fs-rename`). The calls are `Prim.Sys`'s:
 `creat` (the fixed argument form of the creating open), a write loop
 (a write may be short), then close.
 
-[Source](/reference-sources/Effect.Fs.cinch) · line 242
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Fs.cinch`. Source SHA-256: `ef52d29afce18d72843cd2704e3a0ebcbeff428436fa047971807c4c56e93a0a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Fs.cinch`](/library/source/Effect.Fs/). Source SHA-256: `ef52d29afce18d72843cd2704e3a0ebcbeff428436fa047971807c4c56e93a0a`.

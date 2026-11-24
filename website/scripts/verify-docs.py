@@ -43,22 +43,23 @@ def main():
             if url.fragment and target.suffix=='.html' and unquote(url.fragment) not in page(target).ids:
                 errors.append((str(file.relative_to(DIST)),href,'missing anchor'))
             links+=1
-    for legacy in ['overview','tutorials/01-values-and-dependent-types','specifications/core-language-specification']:
-        target=DIST/legacy/'index.html'
-        assert target.exists(),f'Preserve existing route: {legacy}'
-        assert 'original design archive' in ''.join(page(target).text),f'Archive status missing: {legacy}'
+    for excluded in ['overview','specifications','tutorials','design','examples','context']:
+        assert not (DIST/excluded).exists(),f'Old design docs must not be published on the website: {excluded}'
     status=''.join(page(DIST/'reference/16-support-and-roadmap/index.html').text)
     for label in ['Coming soon','Partial','API only','Rust compiler']:assert label in status,label
     assert 'support-tag--planned' in (DIST/'reference/16-support-and-roadmap/index.html').read_text()
     for file in [DIST/'learn/01-first-program/index.html',DIST/'reference/15-ffi-layout-and-attributes/index.html']:
         assert 'data-language="cinch"' in file.read_text(),'Cinch examples must render as highlighted code'
+    assert (DIST/'library'/'search'/'index.html').exists(),'Missing Hoogle API search page'
+    assert (DIST/'library-search-index.json').exists(),'Missing Hoogle API search index'
     sources=json.loads((SITE/'src/data/library-sources.json').read_text())['modules']
     for entry in sources:
         assert (DIST/'library'/entry['module']/'index.html').exists(),entry['module']
+        assert (DIST/'library'/'source'/entry['module']/'index.html').exists(),entry['module']
         assert (DIST/'reference-sources'/(entry['module']+'.cinch')).exists(),entry['module']
     if errors:
         for error in errors[:40]:print(error)
         raise AssertionError(f'{len(errors)} documentation link/anchor failures')
-    print(f'Checked {len(files)} reader/landing pages, {links} local links, {len(sources)} module pages/downloads, support labels, code rendering, and preserved archive routes')
+    print(f'Checked {len(files)} reader/landing pages, {links} local links, {len(sources)} module pages/source views/downloads, Hoogle search index, support labels, code rendering, and excluded archive routes')
 
 if __name__=='__main__':main()

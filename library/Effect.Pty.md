@@ -2,19 +2,21 @@
 
 Pseudo-terminal-backed child processes, terminal I/O, and lifecycle operations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Pty</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Pty/">View source</a><a href="/library/search/?q=%2BEffect.Pty">Search module</a><a href="/reference-sources/Effect.Pty.cinch" download="Effect.Pty.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Pty`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md).
 
-[Download exact module source](/reference-sources/Effect.Pty.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Pty`: [Effect.Pty](Effect.Pty.md).
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md).
+```sh
+cp seed/prelude/Effect/Pty.cinch ./Effect.Pty.cinch
+```
 
-Non-embedded source closure: [Effect.Pty](Effect.Pty.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Pty: pseudo-terminal children (the `Open3`/`PTY` shape).
 
@@ -127,13 +129,15 @@ system's vocabulary.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Pty">Pty</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Pty</strong></code></li><li><a class="syn-name" href="#t-PtyCommand">PtyCommand</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PtyCommand</strong></code></li><li><a class="syn-name" href="#t-PtyError">PtyError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PtyError</strong></code></li><li><a class="syn-name" href="#v-pty-close">pty-close</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-close</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-pty-command">pty-command</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-command</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyCommand" title="Effect.Pty.PtyCommand">PtyCommand</a></code></li><li><a class="syn-name" href="#v-pty-command-with-env">pty-command-with-env</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-command-with-env</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyCommand" title="Effect.Pty.PtyCommand">PtyCommand</a></code></li><li><a class="syn-name" href="#v-pty-handle">pty-handle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-handle</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-pty-open">pty-open</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-open</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a></code></li><li><a class="syn-name" href="#v-pty-read">pty-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-pty-resize">pty-resize</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-resize</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>)</code></li><li><a class="syn-name" href="#v-pty-spawn">pty-spawn</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-spawn</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyCommand" title="Effect.Pty.PtyCommand">PtyCommand</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a></code></li><li><a class="syn-name" href="#v-pty-wait">pty-wait</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-wait</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-pty-write">pty-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pty-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code></li></ul>
+</details>
 
-<a id="type-507479"></a>
+# Types
 
-## `Pty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Pty</span></code></pre>
+<article class="doc-entry" id="t-Pty">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Pty</strong></code><span class="doc-sig-links"><a href="#t-Pty" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L143" title="View source at line 143">Source</a></span></div>
+<div class="doc-body">
 
 A live pseudo-terminal, as the runtime's handle word. The handle
 owns the master end and the child; the slave end belongs to the
@@ -142,50 +146,38 @@ child once a spawn consumed it. The operations below take it at
 reference copied around. The handle stays the runtime's `I64` word:
 it only ever goes back to the runtime.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 143
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Pty"><code><strong class="tok-constructor">Pty</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pty</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>)</code></pre>
-
-<a id="type-507479436f6d6d616e64"></a>
-
-## `PtyCommand`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PtyCommand</span></code></pre>
+<article class="doc-entry" id="t-PtyCommand">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PtyCommand</strong></code><span class="doc-sig-links"><a href="#t-PtyCommand" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 A program with its arguments and its environment additions
 (`KEY=VALUE` pairs, added to this process's own environment).
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 159
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-PtyCommand"><code><strong class="tok-constructor">PtyCommand</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyCommand" title="Effect.Pty.PtyCommand">PtyCommand</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyCommand</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyCommand</span>)))</code></pre>
-
-<a id="type-5074794572726f72"></a>
-
-## `PtyError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PtyError</span></code></pre>
+<article class="doc-entry" id="t-PtyError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PtyError</strong></code><span class="doc-sig-links"><a href="#t-PtyError" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-body">
 
 What went wrong before the child's own exit code could exist. The
 constructors correspond one for one to the platform layer's shared
 codes.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 131
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyInvalidArgument</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PtyIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-PtyNotFound"><code><strong class="tok-constructor">PtyNotFound</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a></code></li><li id="k-PtyPermissionDenied"><code><strong class="tok-constructor">PtyPermissionDenied</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a></code></li><li id="k-PtyInvalidArgument"><code><strong class="tok-constructor">PtyInvalidArgument</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a></code></li><li id="k-PtyIoError"><code><strong class="tok-constructor">PtyIoError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-7074792d636c6f7365"></a>
-
-## `pty-close`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-close</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-pty-close">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-close</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-pty-close" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L272" title="View source at line 272">Source</a></span></div>
+<div class="doc-body">
 
 Close the terminal: a child no wait reaped is killed and reaped
 first, and the handle is consumed. This is the one operation that
@@ -194,33 +186,30 @@ there is no value to read from or to close a second time, so those
 programs cannot be written. The named error is the boundary's
 answer for a handle word that was never live.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 272
+</div>
+</article>
 
-<a id="value-7074792d636f6d6d616e64"></a>
-
-## `pty-command`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-command</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyCommand</span>))</code></pre>
+<article class="doc-entry" id="v-pty-command">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-command</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyCommand" title="Effect.Pty.PtyCommand">PtyCommand</a></code><span class="doc-sig-links"><a href="#v-pty-command" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L163" title="View source at line 163">Source</a></span></div>
+<div class="doc-body">
 
 A command without environment additions.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 163
+</div>
+</article>
 
-<a id="value-7074792d636f6d6d616e642d776974682d656e76"></a>
-
-## `pty-command-with-env`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-command-with-env</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)) -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyCommand</span>)))</code></pre>
+<article class="doc-entry" id="v-pty-command-with-env">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-command-with-env</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyCommand" title="Effect.Pty.PtyCommand">PtyCommand</a></code><span class="doc-sig-links"><a href="#v-pty-command-with-env" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 A command with environment additions.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 167
+</div>
+</article>
 
-<a id="value-7074792d68616e646c65"></a>
-
-## `pty-handle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-handle</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-pty-handle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-handle</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-pty-handle" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L153" title="View source at line 153">Source</a></span></div>
+<div class="doc-body">
 
 The handle word of a terminal, for the layers above this one. The
 word is not a handle, and the projection is the one hole in the
@@ -230,25 +219,23 @@ once the real handle is closed (and a word that was never live
 answers the same). The threading's guarantee covers the handles the
 operations hand out, not the bare word.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 153
+</div>
+</article>
 
-<a id="value-7074792d6f70656e"></a>
-
-## `pty-open`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-open</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>))</code></pre>
+<article class="doc-entry" id="v-pty-open">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-open</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a></code><span class="doc-sig-links"><a href="#v-pty-open" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L196" title="View source at line 196">Source</a></span></div>
+<div class="doc-body">
 
 Open a pseudo-terminal pair: the master and slave ends in a handle,
 or the named error. The slave belongs to the handle until a spawn
 hands it to the child.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 196
+</div>
+</article>
 
-<a id="value-7074792d72656164"></a>
-
-## `pty-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-pty-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-read</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-pty-read" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L250" title="View source at line 250">Source</a></span></div>
+<div class="doc-body">
 
 Read up to `max` bytes of the terminal's master (what the child
 wrote to its stdout or stderr, plus the terminal's echo of the
@@ -256,25 +243,23 @@ input): the handle and `Ok` of what one platform call produced, or
 the handle and the named error. A failed read leaves the session
 live, so the handle is handed back rather than dropped.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 250
+</div>
+</article>
 
-<a id="value-7074792d726573697a65"></a>
-
-## `pty-resize`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-resize</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Unit</span>)))))</code></pre>
+<article class="doc-entry" id="v-pty-resize">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-resize</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>)</code><span class="doc-sig-links"><a href="#v-pty-resize" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L281" title="View source at line 281">Source</a></span></div>
+<div class="doc-body">
 
 Set the terminal's window size to `cols` columns by `rows` rows:
 the handle and the unit, or the handle and the named error (the
 handle comes back for the same reason as `pty-write`'s).
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 281
+</div>
+</article>
 
-<a id="value-7074792d737061776e"></a>
-
-## `pty-spawn`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-spawn</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyCommand</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>))))</code></pre>
+<article class="doc-entry" id="v-pty-spawn">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-spawn</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyCommand" title="Effect.Pty.PtyCommand">PtyCommand</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a></code><span class="doc-sig-links"><a href="#v-pty-spawn" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L212" title="View source at line 212">Source</a></span></div>
+<div class="doc-body">
 
 Start `cmd` on the terminal `p`, running in `dir` (`None` inherits
 this process's own directory): the same handle with the child beside
@@ -288,26 +273,24 @@ closed rather than left live with a consumed slave, which is why the
 error path carries no handle: it is already freed, and handing back
 a closed one would be a trap for the caller.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 212
+</div>
+</article>
 
-<a id="value-7074792d77616974"></a>
-
-## `pty-wait`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-wait</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-pty-wait">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-wait</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-pty-wait" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L260" title="View source at line 260">Source</a></span></div>
+<div class="doc-body">
 
 Wait for the child: the handle and its exit code (128 + the signal
 number for a signal death, the shell convention), or the handle and
 the named error. A second wait answers the same code, so waiting is
 not what ends the handle's life; `pty-close` is.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 260
+</div>
+</article>
 
-<a id="value-7074792d7772697465"></a>
-
-## `pty-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pty-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span> %1 -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">Pty</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Pty</span>.<span class="tok-constructor">PtyError</span> <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-pty-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pty-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a> <span class="tok-keyword">%1</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-Pty" title="Effect.Pty.Pty">Pty</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pty/#t-PtyError" title="Effect.Pty.PtyError">PtyError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-pty-write" title="Permalink">#</a><a href="/library/source/Effect.Pty/#L239" title="View source at line 239">Source</a></span></div>
+<div class="doc-body">
 
 Write `bs` to the terminal's master (the child reads it on its
 stdin): the handle and the byte count (the whole buffer goes), or
@@ -315,8 +298,9 @@ the handle and the named error. The handle comes back because a
 failed write is a failed write, not a dead terminal: the caller
 keeps the session.
 
-[Source](/reference-sources/Effect.Pty.cinch) · line 239
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Pty.cinch`. Source SHA-256: `5c376b14e53fa6547230922be94c981f19ccd06b8ca360c6effdb38bec68aa48`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Pty.cinch`](/library/source/Effect.Pty/). Source SHA-256: `5c376b14e53fa6547230922be94c981f19ccd06b8ca360c6effdb38bec68aa48`.

@@ -2,19 +2,26 @@
 
 JSON parsing and rendering over Data.Json, with explicit errors and builder-based output.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Json</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Json/">View source</a><a href="/library/search/?q=%2BText.Json">Search module</a><a href="/reference-sources/Text.Json.cinch" download="Text.Json.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Json`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.HashMap](Data.HashMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Builder](Text.Builder.md), [Text.Codec](Text.Codec.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Json.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Json`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Builder](Text.Builder.md), [Text.Json](Text.Json.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Scan](Text.Scan.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.HashMap](Data.HashMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Builder](Text.Builder.md), [Text.Codec](Text.Codec.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Builder.cinch ./Text.Builder.cinch
+cp seed/prelude/Text/Json.cinch ./Text.Json.cinch
+cp seed/prelude/Text/Lex.cinch ./Text.Lex.cinch
+cp seed/prelude/Text/Parse.cinch ./Text.Parse.cinch
+cp seed/prelude/Text/Scan.cinch ./Text.Scan.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Builder](Text.Builder.md), [Text.Json](Text.Json.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Scan](Text.Scan.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Json: JSON text to `Json` values and back, canonically.
 
@@ -88,292 +95,171 @@ implement; each is a named boundary, never a silent gap):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (31 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-JParser">JParser</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JParser</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-JReply">JReply</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JReply</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-JState">JState</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JState</strong></code></li><li><a class="syn-name" href="#v-attempt-p">attempt-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">attempt-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-between-p">between-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">between-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">open</span> <span class="tok-variable">close</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">open</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">close</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-canonical-bytes">canonical-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">canonical-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-canonical-hash">canonical-hash</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">canonical-hash</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-canonical-json">canonical-json</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">canonical-json</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-choice-p">choice-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">choice-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-digest-hex">digest-hex</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">digest-hex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-expect-eof">expect-eof</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">expect-eof</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-fail-p">fail-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fail-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-json-eq">json-eq</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">json-eq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-json-space-end">json-space-end</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">json-space-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-json-value">json-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">json-value</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-json-value-end">json-value-end</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">json-value-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-label-p">label-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">label-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-look-ahead-p">look-ahead-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">look-ahead-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-many-p">many-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">many-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-optional-p">optional-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">optional-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-or-else">or-else</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">or-else</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-ordered-json-bytes">ordered-json-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ordered-json-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-parse-bind">parse-bind</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-parse-fmap">parse-fmap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-fmap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-parse-json">parse-json</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-json</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Parse/#t-ParseOutcome" title="Text.Parse.ParseOutcome">ParseOutcome</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-parse-pure">parse-pure</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-print-json">print-json</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">print-json</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-run-jparser-fn">run-jparser-fn</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">run-jparser-fn</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JState" title="Text.Json.JState">JState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JReply" title="Text.Json.JReply">JReply</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-satisfy-byte">satisfy-byte</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">satisfy-byte</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Parse/#t-ErrorItem" title="Text.Parse.ErrorItem">ErrorItem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-sep-by-p">sep-by-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sep-by-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">s</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-some-p">some-p</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">some-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code></li></ul>
+</details>
 
-<a id="type-4a506172736572"></a>
+# Types
 
-## `JParser`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JParser</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-JParser">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JParser</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-JParser" title="Permalink">#</a><a href="/library/source/Text.Json/#L199" title="View source at line 199">Source</a></span></div>
+<div class="doc-body">
 
 A parser: a function from cursor to reply (the P30 `Parser`
 shape). Recursive parsers wrap in `MkJParser` so their references
 sit under a lambda (the D302 top-level value discipline).
 
-[Source](/reference-sources/Text.Json.cinch) · line 199
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MkJParser"><code><strong class="tok-constructor">MkJParser</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JState" title="Text.Json.JState">JState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JReply" title="Text.Json.JReply">JReply</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkJParser</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)</code></pre>
-
-<a id="type-4a5265706c79"></a>
-
-## `JReply`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JReply</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-JReply">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JReply</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-JReply" title="Permalink">#</a><a href="/library/source/Text.Json/#L192" title="View source at line 192">Source</a></span></div>
+<div class="doc-body">
 
 A reply: the consumed/empty success and failure distinction of
 `Text.Parse`'s `Reply` (the expected-set hint merges exactly as
 there).
 
-[Source](/reference-sources/Text.Json.cinch) · line 192
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-JOk"><code><strong class="tok-constructor">JOk</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JState" title="Text.Json.JState">JState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Parse/#t-ErrorItem" title="Text.Parse.ErrorItem">ErrorItem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JReply" title="Text.Json.JReply">JReply</a> <span class="tok-variable">a</span></code></li><li id="k-JErr"><code><strong class="tok-constructor">JErr</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Parse/#t-ParseError" title="Text.Parse.ParseError">ParseError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JReply" title="Text.Json.JReply">JReply</a> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JOk</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JErr</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> . (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>))</code></pre>
-
-<a id="type-4a5374617465"></a>
-
-## `JState`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JState</span></code></pre>
+<article class="doc-entry" id="t-JState">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JState</strong></code><span class="doc-sig-links"><a href="#t-JState" title="Permalink">#</a><a href="/library/source/Text.Json/#L170" title="View source at line 170">Source</a></span></div>
+<div class="doc-body">
 
 The cursor into the source: the buffer, the byte offset, and the
 position as line and character column (a UTF-8 continuation byte
 does not advance the column, so columns count scalars like the
 compiler's spans).
 
-[Source](/reference-sources/Text.Json.cinch) · line 170
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">JState</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span>))))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-JState"><code><strong class="tok-constructor">JState</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JState" title="Text.Json.JState">JState</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-617474656d70742d70"></a>
-
-## `attempt-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">attempt-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6265747765656e2d70"></a>
-
-## `between-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">between-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">open</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">close</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">open</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">close</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-63616e6f6e6963616c2d6279746573"></a>
-
-## `canonical-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-63616e6f6e6963616c2d68617368"></a>
-
-## `canonical-hash`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-hash</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-63616e6f6e6963616c2d6a736f6e"></a>
-
-## `canonical-json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">canonical-json</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-63686f6963652d70"></a>
-
-## `choice-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">choice-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6469676573742d686578"></a>
-
-## `digest-hex`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">digest-hex</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6578706563742d656f66"></a>
-
-## `expect-eof`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">expect-eof</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-constructor">Unit</span>)</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6661696c2d70"></a>
-
-## `fail-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fail-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6a736f6e2d6571"></a>
-
-## `json-eq`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-eq</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6a736f6e2d73706163652d656e64"></a>
-
-## `json-space-end`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-space-end</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6a736f6e2d76616c7565"></a>
-
-## `json-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6a736f6e2d76616c75652d656e64"></a>
-
-## `json-value-end`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-value-end</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6c6162656c2d70"></a>
-
-## `label-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">label-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6c6f6f6b2d61686561642d70"></a>
-
-## `look-ahead-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">look-ahead-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6d616e792d70"></a>
-
-## `many-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">many-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6f7074696f6e616c2d70"></a>
-
-## `optional-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">optional-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6f722d656c7365"></a>
-
-## `or-else`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">or-else</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-6f7264657265642d6a736f6e2d6279746573"></a>
-
-## `ordered-json-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ordered-json-bytes</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-70617273652d62696e64"></a>
-
-## `parse-bind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>)) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-70617273652d666d6170"></a>
-
-## `parse-fmap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-fmap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">b</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-70617273652d6a736f6e"></a>
-
-## `parse-json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-json</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseOutcome</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-70617273652d70757265"></a>
-
-## `parse-pure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-7072696e742d6a736f6e"></a>
-
-## `print-json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">print-json</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-72756e2d6a7061727365722d666e"></a>
-
-## `run-jparser-fn`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">run-jparser-fn</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JState</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JReply</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-736174697366792d62797465"></a>
-
-## `satisfy-byte`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">satisfy-byte</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ErrorItem</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-7365702d62792d70"></a>
-
-## `sep-by-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sep-by-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">s</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
-
-<a id="value-736f6d652d70"></a>
-
-## `some-p`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">some-p</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">JParser</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Json.cinch)
+<article class="doc-entry" id="v-attempt-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">attempt-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-attempt-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-between-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">between-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">open</span> <span class="tok-variable">close</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">open</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">close</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-between-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-canonical-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">canonical-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-canonical-bytes" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-canonical-hash">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">canonical-hash</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-canonical-hash" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-canonical-json">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">canonical-json</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-canonical-json" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-choice-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">choice-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-choice-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-digest-hex">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">digest-hex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-digest-hex" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-expect-eof">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">expect-eof</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-expect-eof" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-fail-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fail-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-fail-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-json-eq">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-eq</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-json-eq" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-json-space-end">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-space-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-space-end" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-json-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-json-value" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-json-value-end">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-value-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-json-value-end" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-label-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">label-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-label-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-look-ahead-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">look-ahead-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-look-ahead-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-many-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">many-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-many-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-optional-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">optional-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-optional-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-or-else">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">or-else</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-or-else" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-ordered-json-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ordered-json-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-ordered-json-bytes" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-parse-bind">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-parse-bind" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-parse-fmap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-fmap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-parse-fmap" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-parse-json">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-json</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Parse/#t-ParseOutcome" title="Text.Parse.ParseOutcome">ParseOutcome</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-parse-json" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-parse-pure">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-parse-pure" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-print-json">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">print-json</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-print-json" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-run-jparser-fn">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">run-jparser-fn</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JState" title="Text.Json.JState">JState</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JReply" title="Text.Json.JReply">JReply</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-run-jparser-fn" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-satisfy-byte">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">satisfy-byte</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Parse/#t-ErrorItem" title="Text.Parse.ErrorItem">ErrorItem</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-satisfy-byte" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-sep-by-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sep-by-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">s</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-sep-by-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-some-p">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">some-p</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Json/#t-JParser" title="Text.Json.JParser">JParser</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-some-p" title="Permalink">#</a><a href="/library/source/Text.Json/" title="View source">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Text.Json.JsonCodec_Json` | `Text.Codec.JsonCodec Data.Json.Json` | Implicit |
-
-**`Text.Json.JsonCodec_Json`**: JsonCodec's identity column (the class and its decode-error
-vocabulary live in `Text.Codec`; the `I64`/`Bool` instances live
-with their types in `Data.Machine`/`Data.Bool`). A `Json` round
-trips as itself.
+<ul class="doc-module-instances">
+<li id="i-JsonCodec_Json"><code><a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Json.JsonCodec_Json</code></span><div class="doc-child-prose">JsonCodec's identity column (the class and its decode-error vocabulary live in Text.Codec; the I64/Bool instances live with their types in Data.Machine/Data.Bool).</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Json.cinch`. Source SHA-256: `2293f2ddacb0a057f8c34771b1a069ab844f420f4b96029c15c74bcce2730089`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Json.cinch`](/library/source/Text.Json/). Source SHA-256: `2293f2ddacb0a057f8c34771b1a069ab844f420f4b96029c15c74bcce2730089`.
