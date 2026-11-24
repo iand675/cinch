@@ -51,10 +51,13 @@
   border-bottom: 3px double #77785b;
 }
 [data-has-sidebar] .cinch-doc-header { position: relative; }
-[data-has-sidebar] .doc-label { border-color: #65664d; font-family: 'IBM Plex Mono',monospace; font-size: .6rem; color: #ccc6ae; }
-[data-has-sidebar] .doc-label span { color: #e9a76e; }
+[data-has-sidebar] .cinch-doc-header .cinch-brand { width: 138px; }
+[data-has-sidebar] .cinch-doc-header .site-navigation { color: #eee6d5; gap: 1.75rem; font-size: .78rem; }
+[data-has-sidebar] .cinch-doc-header .site-navigation a { white-space: nowrap; }
+[data-has-sidebar] .cinch-doc-header .site-navigation .github-link { padding: .48rem .95rem; }
+[data-has-sidebar] .cinch-doc-tools { padding-left: 1.25rem; border-left: 1px solid #65664d; }
 [data-has-sidebar] .cinch-doc-tools select { color: #dcd5bd; background-color: #191c17; }
-[data-has-sidebar] .cinch-doc-tools site-search button[data-open-modal] { border-color: #686b51; border-radius: 22px; color: #dfd7bf; padding-inline: 1rem; }
+[data-has-sidebar] .cinch-doc-tools site-search button[data-open-modal] { border-color: #686b51; border-radius: 22px; color: #dfd7bf; padding-inline: .9rem; min-width: 9.5rem; max-width: 12rem; height: 2.2rem; }
 [data-has-sidebar] .cinch-doc-tools site-search kbd { background: #2d3224; color: #d5cdb5; border-color: #515740; }
 [data-has-sidebar] .sidebar-pane {
   --sl-color-white: #eee6d5;
@@ -248,8 +251,9 @@
 [data-has-sidebar] astro-dev-toolbar { display: none; }
 @media (min-width: 50rem) { [data-has-sidebar] .sidebar-pane { border-top-right-radius: 26px; } }
 @media (max-width: 799px) {
-  [data-has-sidebar] .doc-label { font-size: .52rem; gap: .75rem; }
-  [data-has-sidebar] .cinch-doc-tools site-search button[data-open-modal] { padding-inline: .6rem; }
+  [data-has-sidebar] .cinch-doc-header .cinch-brand { width: 105px; }
+  [data-has-sidebar] .cinch-doc-tools { padding-left: 0; border-left: 0; }
+  [data-has-sidebar] .cinch-doc-tools site-search button[data-open-modal] { padding-inline: .6rem; min-width: 0; max-width: none; height: 2.5rem; }
   [data-has-sidebar] main > .content-panel:first-child { border-bottom-right-radius: 38px; padding-block: 1.6rem 1.85rem; }
   [data-has-sidebar] main > .content-panel + .content-panel { padding-block: 1.75rem 2.75rem; }
   [data-has-sidebar] h1#_top { font-size: clamp(2.05rem,7.2vw,2.9rem); }
@@ -272,13 +276,21 @@
   --sl-color-white: #272820; --sl-color-gray-1: #37382e; --sl-color-gray-2: #4b4c41; --sl-color-gray-3: #736c5f; --sl-color-gray-5: #c4baa1; --sl-color-black: #f2ecde; --sl-color-text: #272820;
   color: #272820; background: #f2ecde; color-scheme: light;
 }
-.doc-project-nav { display:flex; align-items:center; gap:1.3rem; font-size:.7rem; }
-.doc-project-nav a { color:#c9c2ac; text-decoration:none; }.doc-project-nav a:hover { color:#ffac76; }
-.sidebar-project-links { display:flex; gap:.45rem .75rem; flex-wrap:wrap; padding-bottom:.95rem; margin-bottom:.35rem; border-bottom:1px solid #62654b; }
-.sidebar-project-links a { font-family:'IBM Plex Mono',monospace; font-size:.58rem; color:#d6c4a1 !important; text-decoration:none; padding:.15rem 0; }
-.sidebar-project-links a:hover { color:#ffac76 !important; background:transparent !important; }
-@media(max-width:1100px) { .doc-label { display:none; }.cinch-doc-identity { gap:1.6rem; } }
-@media(max-width:799px) { .doc-project-nav { display:none; } }
+.sidebar-project-links { display: none; }
+@media (max-width: 1180px) {
+  [data-has-sidebar] .cinch-doc-header .site-navigation { gap: 1.25rem; }
+  [data-has-sidebar] .cinch-doc-right { gap: 1rem; }
+  [data-has-sidebar] .cinch-doc-tools { padding-left: 1rem; }
+}
+@media (max-width: 980px) {
+  [data-has-sidebar] .cinch-doc-header .site-navigation .github-link { display: none; }
+}
+@media (max-width: 799px) {
+  [data-has-sidebar] .cinch-doc-header .site-navigation { display: none; }
+  .sidebar-project-links { display: flex; gap: .5rem .95rem; flex-wrap: wrap; padding-bottom: .95rem; margin-bottom: .5rem; border-bottom: 1px solid #62654b; }
+  .sidebar-project-links a { font-family: 'DM Sans', sans-serif; font-size: .78rem; color: #eee6d5 !important; text-decoration: none; padding: .2rem 0; }
+  .sidebar-project-links a:hover { color: #ff985b !important; background: transparent !important; }
+}
 
 /* Support labels carry implementation status in text as well as colour. */
 [data-has-sidebar] .support-tag {

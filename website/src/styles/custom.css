@@ -30,11 +30,9 @@ a, button, select { -webkit-tap-highlight-color: transparent; }
 .cinch-brand img { display: block; width: 100%; height: auto; }
 .cinch-brand .instrument-wordmark { mix-blend-mode: screen; }
 .status-dot { display: inline-block; width: 6px; height: 6px; background: #ef8c46; border-radius: 50%; flex-shrink: 0; }
-.cinch-doc-header { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.cinch-doc-identity, .cinch-doc-tools { display: flex; align-items: center; gap: 2rem; min-width: 0; }
-.doc-label { display: flex; gap: 1.8rem; align-items: center; border-left: 1px solid var(--sl-color-gray-5); padding-left: 1.6rem; text-decoration: none; font-size: .72rem; color: var(--sl-color-gray-2); }
-.doc-label span { color: var(--sl-color-text-accent); }
-.cinch-doc-tools { gap: 1.2rem; }
+.cinch-doc-header { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
+.cinch-doc-right { display: flex; align-items: center; gap: 1.5rem; margin-left: auto; min-width: 0; }
+.cinch-doc-tools { display: flex; align-items: center; gap: 1rem; min-width: 0; flex-shrink: 0; }
 .cinch-doc-tools site-search button[data-open-modal] { border: 1px solid var(--sl-color-gray-5); border-radius: 3px; box-shadow: none; background: transparent; font-size: .75rem; }
 .sidebar-intro { display: flex; align-items: center; gap: .7rem; font-family: var(--sl-font-mono); color: var(--sl-color-gray-3); font-size: .57rem; letter-spacing: .05em; margin: .75rem 0 1rem; }
 .sidebar-home { border-top: 1px solid var(--sl-color-gray-5); padding: 1.5rem .4rem; margin-top: 1rem; color: var(--sl-color-gray-3); font-size: .72rem; text-decoration: none; }
@@ -56,5 +54,4 @@ h1#_top { font-family: var(--font-display); font-size: clamp(2.4rem,4.3vw,3.6rem
 .right-sidebar-panel h2 { font-family: var(--sl-font-mono); font-size: .65rem; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }.right-sidebar-panel a { font-size: .72rem; }.right-sidebar-panel { padding-top: 2.6rem; }
 .pagination-links a { border-radius: 2px; box-shadow: none; border-color: var(--sl-color-gray-5); }.pagination-links .link-title { font-family: var(--font-display); font-weight: 400; font-synthesis: none; font-size: 1.1rem; }
 @media (min-width: 72rem) { :root { --sl-content-pad-x: 2.5rem; } }
-@media (max-width: 799px) { .cinch-doc-header .cinch-brand { width: 105px; }.doc-label { font-size: .65rem; padding-left: 1rem; gap: .7rem; }.cinch-doc-identity { gap: 1rem; }.cinch-doc-tools { gap: .5rem; }.cinch-doc-tools starlight-theme-select { display: none; }.doc-eyebrow { margin-top: 1rem; }.doc-draft { display: none; } }
-@media (max-width: 390px) { .doc-label { display: none; } }
+@media (max-width: 799px) { .cinch-doc-header .cinch-brand { width: 105px; }.cinch-doc-right { gap: .5rem; }.cinch-doc-tools { gap: .5rem; }.cinch-doc-tools starlight-theme-select { display: none; }.doc-eyebrow { margin-top: 1rem; }.doc-draft { display: none; } }
