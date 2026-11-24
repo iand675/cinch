@@ -2,7 +2,7 @@
 
 Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Bytes</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Bytes/source/">View source</a><a href="/packages/search/?q=%2BData.Bytes">Search module</a><a href="/reference-sources/Data.Bytes.cinch" download="Data.Bytes.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Bytes</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Bytes/source/">View source</a><a href="/packages/search/?q=%2BData.Bytes">Search module</a><a href="/reference-sources/Data.Bytes.cinch" download="Data.Bytes.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md).
 

@@ -2,19 +2,9 @@
 
 Regular-expression parsing/matching and replacement under the module's admitted regex language.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Regex</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Regex/source/">View source</a><a href="/packages/search/?q=%2BText.Regex">Search module</a><a href="/reference-sources/Text.Regex.cinch" download="Text.Regex.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Regex</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Regex/source/">View source</a><a href="/packages/search/?q=%2BText.Regex">Search module</a><a href="/reference-sources/Text.Regex.cinch" download="Text.Regex.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Text.Regex`: [Text.Regex](Text.Regex.md).
-
-```sh
-cp seed/prelude/Text/Regex.cinch ./Text.Regex.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

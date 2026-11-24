@@ -2,22 +2,9 @@
 
 Baseline and progressive JPEG decoding to YCbCr, gray, RGB or CMYK planes, and baseline encoding, with vector IDCT, FDCT, Huffman and colour kernels.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Image.Jpeg</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Jpeg/source/">View source</a><a href="/packages/search/?q=%2BImage.Jpeg">Search module</a><a href="/reference-sources/Image.Jpeg.cinch" download="Image.Jpeg.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Jpeg</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Jpeg/source/">View source</a><a href="/packages/search/?q=%2BImage.Jpeg">Search module</a><a href="/reference-sources/Image.Jpeg.cinch" download="Image.Jpeg.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md), [Image.Raster](Image.Raster.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Image.Jpeg`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Jpeg](Image.Jpeg.md), [Image.Raster](Image.Raster.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Image/Jpeg.cinch ./Image.Jpeg.cinch
-cp seed/prelude/Image/Raster.cinch ./Image.Raster.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -38,7 +38,6 @@ export type LibraryModule = {
   imports: string[];
   declarations: Declaration[];
   source?: string[];
-  embedded?: boolean;
   family?: string;
   exportCount?: number;
 };
@@ -456,7 +455,6 @@ function publicModule(pkg: LibraryPackage, module: LibraryModule, version = pkg.
     imports: module.imports,
     declarations: module.declarations,
     ...(pkg.sourceKind === 'stdlib' ? {} : { source: module.source }),
-    ...(module.embedded !== undefined ? { embedded: module.embedded } : {}),
     ...(module.family !== undefined ? { family: module.family } : {}),
     ...(module.exportCount !== undefined ? { exportCount: module.exportCount } : {}),
     url: moduleUrl(pkg, module, version),

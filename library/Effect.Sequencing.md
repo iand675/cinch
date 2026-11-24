@@ -2,7 +2,7 @@
 
 The direct, Result, and Option do providers. One lexical provider/container is selected per definition.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Sequencing</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Sequencing/source/">View source</a><a href="/packages/search/?q=%2BEffect.Sequencing">Search module</a><a href="/reference-sources/Effect.Sequencing.cinch" download="Effect.Sequencing.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Sequencing</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Sequencing/source/">View source</a><a href="/packages/search/?q=%2BEffect.Sequencing">Search module</a><a href="/reference-sources/Effect.Sequencing.cinch" download="Effect.Sequencing.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Core](Data.Core.md).
 

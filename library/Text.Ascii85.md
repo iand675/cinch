@@ -2,20 +2,9 @@
 
 ASCII85 text, caller-buffer and incremental codecs with consumed-input progress, checked source offsets, SIMD groups and control-run scanning.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Ascii85</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Ascii85/source/">View source</a><a href="/packages/search/?q=%2BText.Ascii85">Search module</a><a href="/reference-sources/Text.Ascii85.cinch" download="Text.Ascii85.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Ascii85</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Ascii85/source/">View source</a><a href="/packages/search/?q=%2BText.Ascii85">Search module</a><a href="/reference-sources/Text.Ascii85.cinch" download="Text.Ascii85.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Ascii85`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Ascii85](Text.Ascii85.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Ascii85.cinch ./Text.Ascii85.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

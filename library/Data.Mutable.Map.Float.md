@@ -2,23 +2,9 @@
 
 Explicit IEEE floating key policies without global equality or hashing instances.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Map.Float</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Map.Float/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Map.Float">Search module</a><a href="/reference-sources/Data.Mutable.Map.Float.cinch" download="Data.Mutable.Map.Float.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Map.Float</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Map.Float/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Map.Float">Search module</a><a href="/reference-sources/Data.Mutable.Map.Float.cinch" download="Data.Mutable.Map.Float.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md), [Data.Mutable.Map](Data.Mutable.Map.md), [Data.Nat](Data.Nat.md).
-
-<details class="doc-closure"><summary>Ship-source closure (5 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.Map.Float`: [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md), [Data.Mutable.Map](Data.Mutable.Map.md), [Data.Mutable.Map.Float](Data.Mutable.Map.Float.md), [Data.Mutable.Var](Data.Mutable.Var.md).
-
-```sh
-cp seed/prelude/Data/Mutable/HashTable.cinch ./Data.Mutable.HashTable.cinch
-cp seed/prelude/Data/Mutable/LinkedList.cinch ./Data.Mutable.LinkedList.cinch
-cp seed/prelude/Data/Mutable/Map.cinch ./Data.Mutable.Map.cinch
-cp seed/prelude/Data/Mutable/Map/Float.cinch ./Data.Mutable.Map.Float.cinch
-cp seed/prelude/Data/Mutable/Var.cinch ./Data.Mutable.Var.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

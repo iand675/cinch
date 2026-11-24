@@ -2,7 +2,7 @@
 
 Small reusable function operations such as identity, composition, argument manipulation, and application.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Function.Combinators</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Function.Combinators/source/">View source</a><a href="/packages/search/?q=%2BFunction.Combinators">Search module</a><a href="/reference-sources/Function.Combinators.cinch" download="Function.Combinators.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Function.Combinators</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Function.Combinators/source/">View source</a><a href="/packages/search/?q=%2BFunction.Combinators">Search module</a><a href="/reference-sources/Function.Combinators.cinch" download="Function.Combinators.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Relation.Eq](Relation.Eq.md).
 

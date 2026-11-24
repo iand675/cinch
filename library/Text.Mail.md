@@ -2,41 +2,9 @@
 
 Parse and format RFC 5322 mail addresses, read message header blocks and parse header dates, with SIMD atom scanning.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Mail</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Mail/source/">View source</a><a href="/packages/search/?q=%2BText.Mail">Search module</a><a href="/reference-sources/Text.Mail.cinch" download="Text.Mail.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Mail</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Mail/source/">View source</a><a href="/packages/search/?q=%2BText.Mail">Search module</a><a href="/reference-sources/Text.Mail.cinch" download="Text.Mail.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Text.Mime](Text.Mime.md), [Text.Show](Text.Show.md), [Text.TextProto](Text.TextProto.md), [Text.Time.Rfc2822](Text.Time.Rfc2822.md).
-
-<details class="doc-closure"><summary>Ship-source closure (23 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Mail`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.IpAddr](Data.IpAddr.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Data.Time.Zoned](Data.Time.Zoned.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Mail](Text.Mail.md), [Text.Mime](Text.Mime.md), [Text.TextProto](Text.TextProto.md), [Text.Time.Rfc2822](Text.Time.Rfc2822.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/IpAddr.cinch ./Data.IpAddr.cinch
-cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
-cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
-cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
-cp seed/prelude/Data/Time/Offset.cinch ./Data.Time.Offset.cinch
-cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
-cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
-cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
-cp seed/prelude/Data/Time/Zone.cinch ./Data.Time.Zone.cinch
-cp seed/prelude/Data/Time/Zone/Posix.cinch ./Data.Time.Zone.Posix.cinch
-cp seed/prelude/Data/Time/Zone/Types.cinch ./Data.Time.Zone.Types.cinch
-cp seed/prelude/Data/Time/Zoned.cinch ./Data.Time.Zoned.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-cp seed/prelude/Text/Base64/Encoding.cinch ./Text.Base64.Encoding.cinch
-cp seed/prelude/Text/Mail.cinch ./Text.Mail.cinch
-cp seed/prelude/Text/Mime.cinch ./Text.Mime.cinch
-cp seed/prelude/Text/TextProto.cinch ./Text.TextProto.cinch
-cp seed/prelude/Text/Time/Rfc2822.cinch ./Text.Time.Rfc2822.cinch
-cp seed/prelude/Text/Time/Scan.cinch ./Text.Time.Scan.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

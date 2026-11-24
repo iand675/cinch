@@ -2,21 +2,9 @@
 
 Raw UTF-8 and immutable-text decoding, validation, scalar counts, replacement encoding and checked atomic buffer writes.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Utf8</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Utf8/source/">View source</a><a href="/packages/search/?q=%2BText.Utf8">Search module</a><a href="/reference-sources/Text.Utf8.cinch" download="Text.Utf8.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Utf8</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Utf8/source/">View source</a><a href="/packages/search/?q=%2BText.Utf8">Search module</a><a href="/reference-sources/Text.Utf8.cinch" download="Text.Utf8.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Utf8`: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Utf8](Text.Utf8.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Utf8.cinch ./Text.Utf8.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

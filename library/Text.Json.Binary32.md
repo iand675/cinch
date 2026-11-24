@@ -2,20 +2,9 @@
 
 Exact decimal rounding and shortest finite binary32 JSON coefficients, with preserved signed zero and midpoint comparisons.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Json.Binary32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Json.Binary32/source/">View source</a><a href="/packages/search/?q=%2BText.Json.Binary32">Search module</a><a href="/reference-sources/Text.Json.Binary32.cinch" download="Text.Json.Binary32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Json.Binary32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Json.Binary32/source/">View source</a><a href="/packages/search/?q=%2BText.Json.Binary32">Search module</a><a href="/reference-sources/Text.Json.Binary32.cinch" download="Text.Json.Binary32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Json.Binary32`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Json.Binary32](Text.Json.Binary32.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Json/Binary32.cinch ./Text.Json.Binary32.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

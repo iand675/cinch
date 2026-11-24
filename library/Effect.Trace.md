@@ -2,20 +2,9 @@
 
 Scoped tracing/span vocabulary and context propagation tied to the runtime identity.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Trace</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Trace/source/">View source</a><a href="/packages/search/?q=%2BEffect.Trace">Search module</a><a href="/reference-sources/Effect.Trace.cinch" download="Effect.Trace.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Trace</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Trace/source/">View source</a><a href="/packages/search/?q=%2BEffect.Trace">Search module</a><a href="/reference-sources/Effect.Trace.cinch" download="Effect.Trace.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.String](Data.String.md), [Effect.Log](Effect.Log.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Trace`: [Effect.Log](Effect.Log.md), [Effect.Trace](Effect.Trace.md).
-
-```sh
-cp seed/prelude/Effect/Log.cinch ./Effect.Log.cinch
-cp seed/prelude/Effect/Trace.cinch ./Effect.Trace.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

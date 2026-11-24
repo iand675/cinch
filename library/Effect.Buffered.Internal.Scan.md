@@ -2,20 +2,9 @@
 
 Exact bounded byte scans shared by buffered input and token splitters.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Buffered.Internal.Scan</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Buffered.Internal.Scan/source/">View source</a><a href="/packages/search/?q=%2BEffect.Buffered.Internal.Scan">Search module</a><a href="/reference-sources/Effect.Buffered.Internal.Scan.cinch" download="Effect.Buffered.Internal.Scan.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Buffered.Internal.Scan</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Buffered.Internal.Scan/source/">View source</a><a href="/packages/search/?q=%2BEffect.Buffered.Internal.Scan">Search module</a><a href="/reference-sources/Effect.Buffered.Internal.Scan.cinch" download="Effect.Buffered.Internal.Scan.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Buffered.Internal.Scan`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Buffered/Internal/Scan.cinch ./Effect.Buffered.Internal.Scan.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

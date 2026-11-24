@@ -2,19 +2,9 @@
 
 Punycode (RFC 3492) encoding and decoding, and ASCII-compatible host names with xn-- labels.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Punycode</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Punycode/source/">View source</a><a href="/packages/search/?q=%2BText.Punycode">Search module</a><a href="/reference-sources/Text.Punycode.cinch" download="Text.Punycode.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Punycode</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Punycode/source/">View source</a><a href="/packages/search/?q=%2BText.Punycode">Search module</a><a href="/reference-sources/Text.Punycode.cinch" download="Text.Punycode.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Text.Punycode`: [Text.Punycode](Text.Punycode.md).
-
-```sh
-cp seed/prelude/Text/Punycode.cinch ./Text.Punycode.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,19 +2,9 @@
 
 A 4-ary priority queue with its ordering fixed at construction: O(log n) push and pop, O(1) peek, and an O(n) Floyd build from a list.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Heap</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Heap/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Heap">Search module</a><a href="/reference-sources/Data.Mutable.Heap.cinch" download="Data.Mutable.Heap.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Heap</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Heap/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Heap">Search module</a><a href="/reference-sources/Data.Mutable.Heap.cinch" download="Data.Mutable.Heap.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.Heap`: [Data.Mutable.Heap](Data.Mutable.Heap.md).
-
-```sh
-cp seed/prelude/Data/Mutable/Heap.cinch ./Data.Mutable.Heap.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

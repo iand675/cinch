@@ -2,21 +2,9 @@
 
 Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.X25519</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.X25519/source/">View source</a><a href="/packages/search/?q=%2BCrypto.X25519">Search module</a><a href="/reference-sources/Crypto.X25519.cinch" download="Crypto.X25519.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.X25519</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.X25519/source/">View source</a><a href="/packages/search/?q=%2BCrypto.X25519">Search module</a><a href="/reference-sources/Crypto.X25519.cinch" download="Crypto.X25519.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.X25519`: [Crypto.Field25519](Crypto.Field25519.md), [Crypto.X25519](Crypto.X25519.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-```sh
-cp seed/prelude/Crypto/Field25519.cinch ./Crypto.Field25519.cinch
-cp seed/prelude/Crypto/X25519.cinch ./Crypto.X25519.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

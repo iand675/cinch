@@ -2,7 +2,7 @@
 
 An unbounded first-in first-out queue for transactions, as two lists so that writers and readers touch different variables.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Stm.TQueue</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TQueue/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TQueue">Search module</a><a href="/reference-sources/Effect.Stm.TQueue.cinch" download="Effect.Stm.TQueue.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stm.TQueue</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TQueue/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TQueue">Search module</a><a href="/reference-sources/Effect.Stm.TQueue.cinch" download="Effect.Stm.TQueue.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.List](Data.List.md), [Effect.Stm](Effect.Stm.md).
 

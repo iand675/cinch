@@ -2,26 +2,9 @@
 
 ISO 8601 extended format and RFC 3339 printing and parsing for dates, times, date-times and timestamps.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Time.Iso</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Time.Iso/source/">View source</a><a href="/packages/search/?q=%2BText.Time.Iso">Search module</a><a href="/reference-sources/Text.Time.Iso.cinch" download="Text.Time.Iso.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Time.Iso</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Time.Iso/source/">View source</a><a href="/packages/search/?q=%2BText.Time.Iso">Search module</a><a href="/reference-sources/Text.Time.Iso.cinch" download="Text.Time.Iso.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-<details class="doc-closure"><summary>Ship-source closure (8 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Time.Iso`: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Text.Time.Iso](Text.Time.Iso.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-```sh
-cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
-cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
-cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
-cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
-cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
-cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
-cp seed/prelude/Text/Time/Iso.cinch ./Text.Time.Iso.cinch
-cp seed/prelude/Text/Time/Scan.cinch ./Text.Time.Scan.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

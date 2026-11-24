@@ -2,19 +2,9 @@
 
 Socket operations with explicit handles, address values, errors, and runtime effects.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Net</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Net/source/">View source</a><a href="/packages/search/?q=%2BEffect.Net">Search module</a><a href="/reference-sources/Effect.Net.cinch" download="Effect.Net.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Net</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Net/source/">View source</a><a href="/packages/search/?q=%2BEffect.Net">Search module</a><a href="/reference-sources/Effect.Net.cinch" download="Effect.Net.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Net`: [Effect.Net](Effect.Net.md).
-
-```sh
-cp seed/prelude/Effect/Net.cinch ./Effect.Net.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

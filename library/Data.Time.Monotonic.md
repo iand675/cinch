@@ -2,20 +2,9 @@
 
 Monotonic clock readings for measuring elapsed time; never related to the civil calendar.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Monotonic</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Monotonic/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Monotonic">Search module</a><a href="/reference-sources/Data.Time.Monotonic.cinch" download="Data.Time.Monotonic.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Monotonic</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Monotonic/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Monotonic">Search module</a><a href="/reference-sources/Data.Time.Monotonic.cinch" download="Data.Time.Monotonic.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Time.Monotonic`: [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Monotonic](Data.Time.Monotonic.md).
-
-```sh
-cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
-cp seed/prelude/Data/Time/Monotonic.cinch ./Data.Time.Monotonic.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

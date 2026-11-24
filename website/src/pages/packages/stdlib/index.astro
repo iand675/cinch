@@ -3,6 +3,7 @@ import PlatformLayout from '../../../layouts/PlatformLayout.astro';
 import StdlibNavigation from '../../../components/catalogue/StdlibNavigation.astro';
 import {
   loadStdlibManifest,
+  stdlibManifestSha256,
   STDLIB_FAMILIES,
   STDLIB_VERSION,
 } from '../../../lib/stdlib';
@@ -10,8 +11,7 @@ import '../../../styles/stdlib-docs.css';
 
 const manifest = await loadStdlibManifest();
 const modules = manifest.modules;
-const embeddedCount = modules.filter((m) => m.embedded).length;
-const sourceCount = modules.length - embeddedCount;
+const manifestSha = stdlibManifestSha256(manifest);
 const totalDeclarations =
   manifest.search_entry_count ??
   modules.reduce((acc, m) => acc + m.types + m.signatures + m.values + m.public_methods + m.instances, 0);
@@ -23,7 +23,7 @@ const groups = STDLIB_FAMILIES.map((family) => ({
 ---
 <PlatformLayout
   title={`stdlib ${STDLIB_VERSION}`}
-  description={`Cinch standard library (stdlib ${STDLIB_VERSION}): ${modules.length} checked modules and ${totalDeclarations.toLocaleString('en-US')} indexed declarations.`}
+  description={`Cinch standard library (cinch/stdlib ${STDLIB_VERSION}): ${modules.length} modules with checked .cinchif interfaces and ${totalDeclarations.toLocaleString('en-US')} indexed declarations.`}
   section="packages"
   sample={false}
 >
@@ -33,7 +33,7 @@ const groups = STDLIB_FAMILIES.map((family) => ({
       <span>/</span>
       <span>stdlib</span>
     </div>
-    <span class="sample-badge">BUNDLED STDLIB · {STDLIB_VERSION}</span>
+    <span class="sample-badge">CINCH/STDLIB · {STDLIB_VERSION}</span>
   </div>
 
   <div class="stdlib-workspace stdlib-workspace--overview">
@@ -42,24 +42,24 @@ const groups = STDLIB_FAMILIES.map((family) => ({
     <article class="stdlib-article">
       <header class="stdlib-header">
         <div class="platform-eyebrow mono">
-          <span>STANDARD LIBRARY / BUNDLED PACKAGE</span>
+          <span>STANDARD LIBRARY PACKAGE / CINCH/STDLIB</span>
           <span>VERSION {STDLIB_VERSION}</span>
         </div>
         <h1>stdlib</h1>
         <p>
-          The Cinch standard library, extracted directly from checked <code>.cinchif</code> compiler
-          interfaces across <strong>{modules.length} modules</strong> ({embeddedCount} embedded in the
-          compiler, {sourceCount} source-distributed) and <strong>{totalDeclarations.toLocaleString('en-US')}</strong> indexed declarations.
+          The Cinch standard library package (<code>cinch/stdlib</code>), generated from checked
+          <code>.cinchif</code> interfaces across <strong>{modules.length} modules</strong> and
+          <strong>{totalDeclarations.toLocaleString('en-US')}</strong> indexed declarations.
         </p>
         <div class="stdlib-facts mono">
-          <span class="support-tag support-tag--current">{embeddedCount} Embedded</span>
-          <span class="support-tag support-tag--source">{sourceCount} Ship source</span>
-          <span>SHA-256 {manifest.base_manifest_sha256.slice(0, 12)}</span>
+          <span class="support-tag support-tag--current">{modules.length} Modules</span>
+          <span>.cinchpkg · .cpk interfaces</span>
+          <span>MANIFEST {manifestSha.slice(0, 12)}</span>
         </div>
         <div class="stdlib-actions">
           <a href="/packages/search/">Hoogle API Search ↗</a>
           <a href="#modules">Browse {modules.length} modules ↓</a>
-          <a href="#loading">How modules load ↓</a>
+          <a href="#using-stdlib">Using cinch/stdlib ↓</a>
           <a href="/reference/20-compiler-vocabulary/">Compiler vocabulary ↗</a>
         </div>
       </header>
@@ -85,14 +85,17 @@ const groups = STDLIB_FAMILIES.map((family) => ({
         </div>
       </form>
 
-      <section id="loading" class="stdlib-doc-body">
-        <h2>How modules are loaded</h2>
+      <section id="using-stdlib" class="stdlib-doc-body">
+        <h2>Using <code>cinch/stdlib</code></h2>
         <ul>
           <li>
-            <strong>Embedded ({embeddedCount} modules):</strong> Compiled into the <code>cinch</code> binary and ready to <code>import</code> immediately. <code>Prelude</code> is implicitly in scope; compiler-installed special forms live in <a href="/reference/20-compiler-vocabulary/">compiler vocabulary</a>.
+            <strong>Direct imports:</strong> Every module in <code>cinch/stdlib</code> resolves automatically through the toolchain’s package manifest (<code>import Data.Rational</code>, <code>import Text.Json</code>, <code>import Crypto.Aes</code>) and checks against its <code>.cinchif</code>/<code>.cpk</code> interface closure.
           </li>
           <li>
-            <strong>Ship source ({sourceCount} modules):</strong> Checked with the compiler today and distributed under <code>seed/prelude/</code>. Each module page lists its exact non-embedded dependency closure and copy commands.
+            <strong>Implicit prelude:</strong> <code>Prelude</code> is imported implicitly in every module unless a package sets <code>"prelude": "none"</code> or names a custom prelude in <code>.cinchpkg</code>. Compiler-installed special forms live in <a href="/reference/20-compiler-vocabulary/">compiler vocabulary</a>.
+          </li>
+          <li>
+            <strong>Package inspection &amp; linking:</strong> Inspect the resolved target surface with <code>cinch pkg info cinch/stdlib</code>, or link precompiled package objects with <code>cinch emit-object</code> and <code>--package-object</code> (see <a href="/reference/29-package-management/">packages, manifests, and the registry</a>).
           </li>
         </ul>
       </section>
@@ -113,9 +116,7 @@ const groups = STDLIB_FAMILIES.map((family) => ({
                     <span class="stdlib-mod-desc">{m.description}</span>
                     <span class="stdlib-mod-meta">
                       <span>{exportsCount} exports</span>
-                      <span class={`support-tag ${m.embedded ? 'support-tag--current' : 'support-tag--source'}`}>
-                        {m.embedded ? 'Embedded' : 'Source'}
-                      </span>
+                      {m.instances > 0 && <span>{m.instances} {m.instances === 1 ? 'inst' : 'insts'}</span>}
                     </span>
                   </a>
                 );

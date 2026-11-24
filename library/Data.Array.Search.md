@@ -2,22 +2,9 @@
 
 Immutable array comparison, indexed lookups, binary search and sortedness with explicit callback policies.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Array.Search</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Array.Search/source/">View source</a><a href="/packages/search/?q=%2BData.Array.Search">Search module</a><a href="/reference-sources/Data.Array.Search.cinch" download="Data.Array.Search.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Array.Search</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Array.Search/source/">View source</a><a href="/packages/search/?q=%2BData.Array.Search">Search module</a><a href="/reference-sources/Data.Array.Search.cinch" download="Data.Array.Search.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Array](Data.Array.md), [Data.Compare](Data.Compare.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Search](Data.Search.md), [Relation.Eq](Relation.Eq.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Array.Search`: [Data.Array](Data.Array.md), [Data.Array.Search](Data.Array.Search.md), [Data.Compare](Data.Compare.md), [Data.Search](Data.Search.md).
-
-```sh
-cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
-cp seed/prelude/Data/Array/Search.cinch ./Data.Array.Search.cinch
-cp seed/prelude/Data/Compare.cinch ./Data.Compare.cinch
-cp seed/prelude/Data/Search.cinch ./Data.Search.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

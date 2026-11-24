@@ -2,27 +2,9 @@
 
 ISO 8601 and friendly duration text for spans and exact durations, printing and parsing.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Time.Duration</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Time.Duration/source/">View source</a><a href="/packages/search/?q=%2BText.Time.Duration">Search module</a><a href="/reference-sources/Text.Time.Duration.cinch" download="Text.Time.Duration.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Time.Duration</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Time.Duration/source/">View source</a><a href="/packages/search/?q=%2BText.Time.Duration">Search module</a><a href="/reference-sources/Text.Time.Duration.cinch" download="Text.Time.Duration.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-<details class="doc-closure"><summary>Ship-source closure (9 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Time.Duration`: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Span](Data.Time.Span.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Unit](Data.Time.Unit.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Text.Time.Duration](Text.Time.Duration.md), [Text.Time.Scan](Text.Time.Scan.md).
-
-```sh
-cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
-cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
-cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
-cp seed/prelude/Data/Time/Span.cinch ./Data.Time.Span.cinch
-cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
-cp seed/prelude/Data/Time/Unit.cinch ./Data.Time.Unit.cinch
-cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
-cp seed/prelude/Text/Time/Duration.cinch ./Text.Time.Duration.cinch
-cp seed/prelude/Text/Time/Scan.cinch ./Text.Time.Scan.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

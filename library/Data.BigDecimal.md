@@ -2,19 +2,9 @@
 
 Decimal arithmetic with explicit precision/scale and rounding/error behaviour in the exported API.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.BigDecimal</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.BigDecimal/source/">View source</a><a href="/packages/search/?q=%2BData.BigDecimal">Search module</a><a href="/reference-sources/Data.BigDecimal.cinch" download="Data.BigDecimal.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.BigDecimal</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.BigDecimal/source/">View source</a><a href="/packages/search/?q=%2BData.BigDecimal">Search module</a><a href="/reference-sources/Data.BigDecimal.cinch" download="Data.BigDecimal.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.BigDecimal`: [Data.BigDecimal](Data.BigDecimal.md).
-
-```sh
-cp seed/prelude/Data/BigDecimal.cinch ./Data.BigDecimal.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

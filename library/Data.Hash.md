@@ -2,7 +2,7 @@
 
 Hashing vocabulary and admitted hash implementations for keys.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Hash</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Hash/source/">View source</a><a href="/packages/search/?q=%2BData.Hash">Search module</a><a href="/reference-sources/Data.Hash.cinch" download="Data.Hash.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Hash</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Hash/source/">View source</a><a href="/packages/search/?q=%2BData.Hash">Search module</a><a href="/reference-sources/Data.Hash.cinch" download="Data.Hash.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

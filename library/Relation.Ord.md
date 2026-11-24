@@ -2,7 +2,7 @@
 
 Ordering vocabulary and comparison helpers. State all required dictionaries explicitly; superclass entailment is not implicit.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Relation.Ord</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Relation.Ord/source/">View source</a><a href="/packages/search/?q=%2BRelation.Ord">Search module</a><a href="/reference-sources/Relation.Ord.cinch" download="Relation.Ord.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Relation.Ord</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Relation.Ord/source/">View source</a><a href="/packages/search/?q=%2BRelation.Ord">Search module</a><a href="/reference-sources/Relation.Ord.cinch" download="Relation.Ord.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md).
 

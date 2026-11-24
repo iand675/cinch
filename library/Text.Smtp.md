@@ -2,25 +2,9 @@
 
 SMTP without a connection: reply state machine, command validation, extensions, dot-stuffing and PLAIN/CRAM-MD5 exchanges.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Smtp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Smtp/source/">View source</a><a href="/packages/search/?q=%2BText.Smtp">Search module</a><a href="/reference-sources/Text.Smtp.cinch" download="Text.Smtp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Smtp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Smtp/source/">View source</a><a href="/packages/search/?q=%2BText.Smtp">Search module</a><a href="/reference-sources/Text.Smtp.cinch" download="Text.Smtp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Base64](Text.Base64.md), [Text.Hex](Text.Hex.md), [Text.Md5](Text.Md5.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (7 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Smtp`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Base64](Text.Base64.md), [Text.Binary](Text.Binary.md), [Text.Hex](Text.Hex.md), [Text.Md5](Text.Md5.md), [Text.Smtp](Text.Smtp.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Base64.cinch ./Text.Base64.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Hex.cinch ./Text.Hex.cinch
-cp seed/prelude/Text/Md5.cinch ./Text.Md5.cinch
-cp seed/prelude/Text/Smtp.cinch ./Text.Smtp.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,39 +2,9 @@
 
 Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Crypto</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Crypto/source/">View source</a><a href="/packages/search/?q=%2BEffect.Crypto">Search module</a><a href="/reference-sources/Effect.Crypto.cinch" download="Effect.Crypto.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Crypto</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Crypto/source/">View source</a><a href="/packages/search/?q=%2BEffect.Crypto">Search module</a><a href="/reference-sources/Effect.Crypto.cinch" download="Effect.Crypto.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Crypto.Aes](Crypto.Aes.md), [Crypto.Cipher](Crypto.Cipher.md), [Crypto.Ecdsa](Crypto.Ecdsa.md), [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Hpke](Crypto.Hpke.md), [Crypto.MlKem](Crypto.MlKem.md), [Crypto.P256](Crypto.P256.md), [Crypto.X25519](Crypto.X25519.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Result](Data.Result.md), [Effect.Random](Effect.Random.md).
-
-<details class="doc-closure"><summary>Ship-source closure (21 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Crypto`: [Crypto.Aes](Crypto.Aes.md), [Crypto.ChaCha20Poly1305](Crypto.ChaCha20Poly1305.md), [Crypto.Cipher](Crypto.Cipher.md), [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Ecdsa](Crypto.Ecdsa.md), [Crypto.Ed25519](Crypto.Ed25519.md), [Crypto.Field25519](Crypto.Field25519.md), [Crypto.Hmac](Crypto.Hmac.md), [Crypto.Hpke](Crypto.Hpke.md), [Crypto.Kdf](Crypto.Kdf.md), [Crypto.MlKem](Crypto.MlKem.md), [Crypto.P256](Crypto.P256.md), [Crypto.X25519](Crypto.X25519.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Crypto](Effect.Crypto.md), [Effect.Random](Effect.Random.md), [Text.Binary](Text.Binary.md), [Text.Digest](Text.Digest.md), [Text.Sha3](Text.Sha3.md), [Text.Sha512](Text.Sha512.md).
-
-```sh
-cp seed/prelude/Crypto/Aes.cinch ./Crypto.Aes.cinch
-cp seed/prelude/Crypto/ChaCha20Poly1305.cinch ./Crypto.ChaCha20Poly1305.cinch
-cp seed/prelude/Crypto/Cipher.cinch ./Crypto.Cipher.cinch
-cp seed/prelude/Crypto/ConstantTime.cinch ./Crypto.ConstantTime.cinch
-cp seed/prelude/Crypto/Ecdsa.cinch ./Crypto.Ecdsa.cinch
-cp seed/prelude/Crypto/Ed25519.cinch ./Crypto.Ed25519.cinch
-cp seed/prelude/Crypto/Field25519.cinch ./Crypto.Field25519.cinch
-cp seed/prelude/Crypto/Hmac.cinch ./Crypto.Hmac.cinch
-cp seed/prelude/Crypto/Hpke.cinch ./Crypto.Hpke.cinch
-cp seed/prelude/Crypto/Kdf.cinch ./Crypto.Kdf.cinch
-cp seed/prelude/Crypto/MlKem.cinch ./Crypto.MlKem.cinch
-cp seed/prelude/Crypto/P256.cinch ./Crypto.P256.cinch
-cp seed/prelude/Crypto/X25519.cinch ./Crypto.X25519.cinch
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Crypto.cinch ./Effect.Crypto.cinch
-cp seed/prelude/Effect/Random.cinch ./Effect.Random.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Digest.cinch ./Text.Digest.cinch
-cp seed/prelude/Text/Sha3.cinch ./Text.Sha3.cinch
-cp seed/prelude/Text/Sha512.cinch ./Text.Sha512.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

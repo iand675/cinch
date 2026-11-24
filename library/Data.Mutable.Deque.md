@@ -2,19 +2,9 @@
 
 A double-ended queue as a power-of-two ring buffer: amortised O(1) push and pop at both ends and O(1) indexing.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Deque</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Deque/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Deque">Search module</a><a href="/reference-sources/Data.Mutable.Deque.cinch" download="Data.Mutable.Deque.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Deque</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Deque/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Deque">Search module</a><a href="/reference-sources/Data.Mutable.Deque.cinch" download="Data.Mutable.Deque.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.Deque`: [Data.Mutable.Deque](Data.Mutable.Deque.md).
-
-```sh
-cp seed/prelude/Data/Mutable/Deque.cinch ./Data.Mutable.Deque.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

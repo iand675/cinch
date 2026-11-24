@@ -2,19 +2,9 @@
 
 Generated Unicode property, case and folding data with a pinned version and source provenance.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Unicode.Tables</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Unicode.Tables/source/">View source</a><a href="/packages/search/?q=%2BData.Unicode.Tables">Search module</a><a href="/reference-sources/Data.Unicode.Tables.cinch" download="Data.Unicode.Tables.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Unicode.Tables</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Unicode.Tables/source/">View source</a><a href="/packages/search/?q=%2BData.Unicode.Tables">Search module</a><a href="/reference-sources/Data.Unicode.Tables.cinch" download="Data.Unicode.Tables.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Unicode.Tables`: [Data.Unicode.Tables](Data.Unicode.Tables.md).
-
-```sh
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

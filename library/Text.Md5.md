@@ -2,21 +2,9 @@
 
 MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Md5</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Md5/source/">View source</a><a href="/packages/search/?q=%2BText.Md5">Search module</a><a href="/reference-sources/Text.Md5.cinch" download="Text.Md5.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Md5</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Md5/source/">View source</a><a href="/packages/search/?q=%2BText.Md5">Search module</a><a href="/reference-sources/Text.Md5.cinch" download="Text.Md5.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Md5`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Md5](Text.Md5.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Md5.cinch ./Text.Md5.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

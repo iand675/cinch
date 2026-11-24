@@ -2,7 +2,7 @@
 
 The LT, EQ, and GT comparison result vocabulary and its instances.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Ordering</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Ordering/source/">View source</a><a href="/packages/search/?q=%2BData.Ordering">Search module</a><a href="/reference-sources/Data.Ordering.cinch" download="Data.Ordering.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Ordering</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Ordering/source/">View source</a><a href="/packages/search/?q=%2BData.Ordering">Search module</a><a href="/reference-sources/Data.Ordering.cinch" download="Data.Ordering.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md).
 

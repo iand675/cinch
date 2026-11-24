@@ -2,22 +2,9 @@
 
 Bounded CSV readers and writers with explicit continuation, record counts, position tracking and advanced handles after failures.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Csv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Csv/source/">View source</a><a href="/packages/search/?q=%2BEffect.Csv">Search module</a><a href="/reference-sources/Effect.Csv.cinch" download="Effect.Csv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Csv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Csv/source/">View source</a><a href="/packages/search/?q=%2BEffect.Csv">Search module</a><a href="/reference-sources/Effect.Csv.cinch" download="Effect.Csv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Csv.Record](Text.Csv.Record.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Csv`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Csv](Effect.Csv.md), [Effect.Stream](Effect.Stream.md), [Text.Csv.Record](Text.Csv.Record.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Csv.cinch ./Effect.Csv.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Csv/Record.cinch ./Text.Csv.Record.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

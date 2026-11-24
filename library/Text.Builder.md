@@ -2,19 +2,9 @@
 
 An efficient text-construction vocabulary for assembling many fragments before rendering.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Builder</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Builder/source/">View source</a><a href="/packages/search/?q=%2BText.Builder">Search module</a><a href="/reference-sources/Text.Builder.cinch" download="Text.Builder.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Builder</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Builder/source/">View source</a><a href="/packages/search/?q=%2BText.Builder">Search module</a><a href="/reference-sources/Text.Builder.cinch" download="Text.Builder.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Text.Builder`: [Text.Builder](Text.Builder.md).
-
-```sh
-cp seed/prelude/Text/Builder.cinch ./Text.Builder.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

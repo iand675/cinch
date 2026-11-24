@@ -2,7 +2,7 @@
 
 ASCII-refined values and checked construction at text boundaries.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Ascii</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Ascii/source/">View source</a><a href="/packages/search/?q=%2BData.Ascii">Search module</a><a href="/reference-sources/Data.Ascii.cinch" download="Data.Ascii.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Ascii</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Ascii/source/">View source</a><a href="/packages/search/?q=%2BData.Ascii">Search module</a><a href="/reference-sources/Data.Ascii.cinch" download="Data.Ascii.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.String](Data.String.md).
 

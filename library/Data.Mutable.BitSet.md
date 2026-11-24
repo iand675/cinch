@@ -2,19 +2,9 @@
 
 A dynamic bitset in 64-bit words: test/set/toggle, popcount, next-set-bit scanning, and word-at-a-time union, intersection and difference.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.BitSet</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.BitSet/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.BitSet">Search module</a><a href="/reference-sources/Data.Mutable.BitSet.cinch" download="Data.Mutable.BitSet.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.BitSet</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.BitSet/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.BitSet">Search module</a><a href="/reference-sources/Data.Mutable.BitSet.cinch" download="Data.Mutable.BitSet.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.BitSet`: [Data.Mutable.BitSet](Data.Mutable.BitSet.md).
-
-```sh
-cp seed/prelude/Data/Mutable/BitSet.cinch ./Data.Mutable.BitSet.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

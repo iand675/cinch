@@ -2,23 +2,9 @@
 
 Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.Hmac</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Hmac/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Hmac">Search module</a><a href="/reference-sources/Crypto.Hmac.cinch" download="Crypto.Hmac.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Hmac</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Hmac/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Hmac">Search module</a><a href="/reference-sources/Crypto.Hmac.cinch" download="Crypto.Hmac.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Text.Digest](Text.Digest.md).
-
-<details class="doc-closure"><summary>Ship-source closure (5 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.Hmac`: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Hmac](Crypto.Hmac.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Digest](Text.Digest.md).
-
-```sh
-cp seed/prelude/Crypto/ConstantTime.cinch ./Crypto.ConstantTime.cinch
-cp seed/prelude/Crypto/Hmac.cinch ./Crypto.Hmac.cinch
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Digest.cinch ./Text.Digest.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

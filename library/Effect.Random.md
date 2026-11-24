@@ -2,19 +2,9 @@
 
 Runtime entropy/random utilities with explicit effectful access.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Random</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Random/source/">View source</a><a href="/packages/search/?q=%2BEffect.Random">Search module</a><a href="/reference-sources/Effect.Random.cinch" download="Effect.Random.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Random</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Random/source/">View source</a><a href="/packages/search/?q=%2BEffect.Random">Search module</a><a href="/reference-sources/Effect.Random.cinch" download="Effect.Random.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Random`: [Effect.Random](Effect.Random.md).
-
-```sh
-cp seed/prelude/Effect/Random.cinch ./Effect.Random.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

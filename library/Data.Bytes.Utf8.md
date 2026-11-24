@@ -2,20 +2,9 @@
 
 Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Bytes.Utf8</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Bytes.Utf8/source/">View source</a><a href="/packages/search/?q=%2BData.Bytes.Utf8">Search module</a><a href="/reference-sources/Data.Bytes.Utf8.cinch" download="Data.Bytes.Utf8.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Bytes.Utf8</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Bytes.Utf8/source/">View source</a><a href="/packages/search/?q=%2BData.Bytes.Utf8">Search module</a><a href="/reference-sources/Data.Bytes.Utf8.cinch" download="Data.Bytes.Utf8.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Bytes.Utf8`: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

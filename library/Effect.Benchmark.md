@@ -2,19 +2,9 @@
 
 Benchmark case execution and timing/reporting helpers over runtime clocks.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Benchmark</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Benchmark/source/">View source</a><a href="/packages/search/?q=%2BEffect.Benchmark">Search module</a><a href="/reference-sources/Effect.Benchmark.cinch" download="Effect.Benchmark.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Benchmark</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Benchmark/source/">View source</a><a href="/packages/search/?q=%2BEffect.Benchmark">Search module</a><a href="/reference-sources/Effect.Benchmark.cinch" download="Effect.Benchmark.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.String](Data.String.md), [Effect.Clock](Effect.Clock.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Benchmark`: [Effect.Benchmark](Effect.Benchmark.md).
-
-```sh
-cp seed/prelude/Effect/Benchmark.cinch ./Effect.Benchmark.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,19 +2,9 @@
 
 Exact signed elapsed-time durations with nanosecond precision and checked arithmetic.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Duration</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Duration/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Duration">Search module</a><a href="/reference-sources/Data.Time.Duration.cinch" download="Data.Time.Duration.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Duration</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Duration/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Duration">Search module</a><a href="/reference-sources/Data.Time.Duration.cinch" download="Data.Time.Duration.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Time.Duration`: [Data.Time.Duration](Data.Time.Duration.md).
-
-```sh
-cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

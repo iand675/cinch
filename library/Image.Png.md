@@ -2,27 +2,9 @@
 
 PNG decoding of every color type, depth and interlace method with SIMD scanline reconstruction, and PNG encoding.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Image.Png</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Png/source/">View source</a><a href="/packages/search/?q=%2BImage.Png">Search module</a><a href="/reference-sources/Image.Png.cinch" download="Image.Png.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Png</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Png/source/">View source</a><a href="/packages/search/?q=%2BImage.Png">Search module</a><a href="/reference-sources/Image.Png.cinch" download="Image.Png.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Image.Raster](Image.Raster.md), [Text.Checksum](Text.Checksum.md), [Text.Zlib](Text.Zlib.md).
-
-<details class="doc-closure"><summary>Ship-source closure (9 files)</summary>
-
-Copy these modules beside your entry file before importing `Image.Png`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Png](Image.Png.md), [Image.Raster](Image.Raster.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md), [Text.Zlib](Text.Zlib.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Image/Png.cinch ./Image.Png.cinch
-cp seed/prelude/Image/Raster.cinch ./Image.Raster.cinch
-cp seed/prelude/Text/Adler32.cinch ./Text.Adler32.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Checksum.cinch ./Text.Checksum.cinch
-cp seed/prelude/Text/Crc64.cinch ./Text.Crc64.cinch
-cp seed/prelude/Text/Zlib.cinch ./Text.Zlib.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

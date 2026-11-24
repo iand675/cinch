@@ -2,20 +2,9 @@
 
 Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Fnv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Fnv/source/">View source</a><a href="/packages/search/?q=%2BText.Fnv">Search module</a><a href="/reference-sources/Text.Fnv.cinch" download="Text.Fnv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Fnv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Fnv/source/">View source</a><a href="/packages/search/?q=%2BText.Fnv">Search module</a><a href="/reference-sources/Text.Fnv.cinch" download="Text.Fnv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Fnv`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Fnv](Text.Fnv.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Fnv.cinch ./Text.Fnv.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

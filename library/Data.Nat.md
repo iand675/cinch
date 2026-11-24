@@ -2,7 +2,7 @@
 
 Mathematical nonnegative integers, exact arithmetic, checked preconditions, and admitted machine conversions.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Nat</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Nat/source/">View source</a><a href="/packages/search/?q=%2BData.Nat">Search module</a><a href="/reference-sources/Data.Nat.cinch" download="Data.Nat.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Nat</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Nat/source/">View source</a><a href="/packages/search/?q=%2BData.Nat">Search module</a><a href="/reference-sources/Data.Nat.cinch" download="Data.Nat.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Semiring](Algebra.Semiring.md), [Data.Core](Data.Core.md), [Data.Enum](Data.Enum.md), [Data.Hash](Data.Hash.md).
 

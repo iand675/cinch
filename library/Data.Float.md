@@ -2,17 +2,7 @@
 
 Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Float</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Float/source/">View source</a><a href="/packages/search/?q=%2BData.Float">Search module</a><a href="/reference-sources/Data.Float.cinch" download="Data.Float.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Float`: [Data.Float](Data.Float.md).
-
-```sh
-cp seed/prelude/Data/Float.cinch ./Data.Float.cinch
-```
-
-</details>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Float</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Float/source/">View source</a><a href="/packages/search/?q=%2BData.Float">Search module</a><a href="/reference-sources/Data.Float.cinch" download="Data.Float.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

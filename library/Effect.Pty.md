@@ -2,19 +2,9 @@
 
 Pseudo-terminal-backed child processes, terminal I/O, and lifecycle operations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Pty</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Pty/source/">View source</a><a href="/packages/search/?q=%2BEffect.Pty">Search module</a><a href="/reference-sources/Effect.Pty.cinch" download="Effect.Pty.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Pty</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Pty/source/">View source</a><a href="/packages/search/?q=%2BEffect.Pty">Search module</a><a href="/reference-sources/Effect.Pty.cinch" download="Effect.Pty.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Pty`: [Effect.Pty](Effect.Pty.md).
-
-```sh
-cp seed/prelude/Effect/Pty.cinch ./Effect.Pty.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

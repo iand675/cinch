@@ -2,20 +2,9 @@
 
 Configurable Base64 byte alphabets, padding and strict trailing bits, SIMD codecs, persistent states and checked caller buffers.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Base64.Encoding</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Base64.Encoding/source/">View source</a><a href="/packages/search/?q=%2BText.Base64.Encoding">Search module</a><a href="/reference-sources/Text.Base64.Encoding.cinch" download="Text.Base64.Encoding.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Base64.Encoding</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Base64.Encoding/source/">View source</a><a href="/packages/search/?q=%2BText.Base64.Encoding">Search module</a><a href="/reference-sources/Text.Base64.Encoding.cinch" download="Text.Base64.Encoding.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Base64.Encoding`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Base64/Encoding.cinch ./Text.Base64.Encoding.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

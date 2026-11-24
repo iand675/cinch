@@ -1305,6 +1305,89 @@ pub fn prelude_module_names() -> Vec<String> {
     base_package().module_names()
 }
 
+/// Locate the installed `cinch/stdlib` package root (the directory containing
+/// its `.cinchpkg` manifest and module tree).
+///
+/// Search order:
+/// 1. `CINCH_STDLIB` environment variable when set and containing `.cinchpkg`.
+/// 2. Toolchain-adjacent sysroot (`<exe>/../share/cinch/stdlib` or `<exe>/stdlib`).
+/// 3. Source-tree fallback (`<CARGO_MANIFEST_DIR>/prelude`) for development builds.
+pub fn stdlib_dir() -> Option<PathBuf> {
+    if let Some(env_dir) = std::env::var_os("CINCH_STDLIB") {
+        let path = PathBuf::from(env_dir);
+        if path.join(".cinchpkg").is_file() {
+            return Some(path);
+        }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            for candidate in [
+                exe_dir.join("../share/cinch/stdlib"),
+                exe_dir.join("stdlib"),
+            ] {
+                if candidate.join(".cinchpkg").is_file() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
+    let dev = Path::new(env!("CARGO_MANIFEST_DIR")).join("prelude");
+    if dev.join(".cinchpkg").is_file() {
+        return Some(dev);
+    }
+    None
+}
+
+/// The default `cinch/stdlib` package manifest, parsed once from disk when
+/// `CINCH_STDLIB` is not overriding the sysroot.
+fn default_stdlib_package() -> &'static Option<(PathBuf, Package)> {
+    static STDLIB: std::sync::OnceLock<Option<(PathBuf, Package)>> = std::sync::OnceLock::new();
+    STDLIB.get_or_init(|| {
+        let dir = stdlib_dir()?;
+        let text = std::fs::read_to_string(dir.join(".cinchpkg")).ok()?;
+        let pkg = Package::parse(&text).ok()?;
+        Some((dir, pkg))
+    })
+}
+
+/// The active `cinch/stdlib` package root and parsed `.cinchpkg` manifest, if
+/// present in the toolchain sysroot or `CINCH_STDLIB`.
+pub fn stdlib_package() -> Result<Option<(PathBuf, Package)>> {
+    if std::env::var_os("CINCH_STDLIB").is_some() {
+        let Some(dir) = stdlib_dir() else {
+            return Ok(None);
+        };
+        let manifest_path = dir.join(".cinchpkg");
+        let text = std::fs::read_to_string(&manifest_path)
+            .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+        let pkg = Package::parse(&text)
+            .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+        return Ok(Some((dir, pkg)));
+    }
+    Ok(default_stdlib_package().clone())
+}
+
+/// Resolve every exposed module declared by the toolchain's `cinch/stdlib`
+/// package for `facts`, returning a map from module name to source path.
+pub fn stdlib_module_map(facts: &TargetFacts) -> Result<HashMap<String, PathBuf>> {
+    let Some((dir, pkg)) = stdlib_package()? else {
+        return Ok(HashMap::new());
+    };
+    let resolved = pkg
+        .resolve(facts)
+        .map_err(|e| Error::plain(format!("{}: {e}", dir.join(".cinchpkg").display())))?;
+    let mut map = HashMap::with_capacity(resolved.modules.len());
+    for m in resolved.modules {
+        if m.exposed {
+            let path = dir.join(&m.path);
+            if path.is_file() {
+                map.insert(m.name, path);
+            }
+        }
+    }
+    Ok(map)
+}
+
 /// The parsed prelude family: the scheme homes in dependency order
 /// with the `Prelude` facade last, every module's fixity table, and
 /// the facade's fixity table (the base table all parsing uses).
@@ -2082,6 +2165,7 @@ fn load_project_for(
     let mut queue: Vec<PathBuf> = vec![entry_path.to_path_buf()];
     let mut dir_index = None;
     let prelude_names: HashSet<_> = prelude_module_names().into_iter().collect();
+    let stdlib_modules = stdlib_module_map(&target_facts)?;
     // Packages: the root project's manifest plus every vendored
     // dependency, resolved for this target, and resolved once more for
     // the host so availability is a per-profile fact rather than a guess
@@ -2269,6 +2353,14 @@ fn load_project_for(
                     1 => queue.push(not_loaded.into_iter().next().expect("one")),
                     0 => {
                         if prelude_names.contains(imp) {
+                            continue;
+                        }
+                        if let Some(stdlib_path) = stdlib_modules.get(imp) {
+                            owner
+                                .entry(imp.clone())
+                                .or_insert_with(|| "cinch/stdlib".to_string());
+                            exposed.entry(imp.clone()).or_insert(true);
+                            queue.push(stdlib_path.clone());
                             continue;
                         }
                         return Err(Error::plain(format!(

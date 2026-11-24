@@ -2,19 +2,9 @@
 
 Private portable SIMD byte scanning shared by URL parsing, queries and path traversal.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Url.Scan</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Scan/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Scan">Search module</a><a href="/reference-sources/Text.Url.Scan.cinch" download="Text.Url.Scan.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Url.Scan</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Scan/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Scan">Search module</a><a href="/reference-sources/Text.Url.Scan.cinch" download="Text.Url.Scan.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Text.Url.Scan`: [Text.Url.Scan](Text.Url.Scan.md).
-
-```sh
-cp seed/prelude/Text/Url/Scan.cinch ./Text.Url.Scan.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

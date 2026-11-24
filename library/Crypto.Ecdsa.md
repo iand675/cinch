@@ -2,25 +2,9 @@
 
 Deterministic (RFC 6979) and hedged P-256 ECDSA signatures in raw and DER form with strict verification.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.Ecdsa</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Ecdsa/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Ecdsa">Search module</a><a href="/reference-sources/Crypto.Ecdsa.cinch" download="Crypto.Ecdsa.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Ecdsa</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Ecdsa/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Ecdsa">Search module</a><a href="/reference-sources/Crypto.Ecdsa.cinch" download="Crypto.Ecdsa.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Crypto.Hmac](Crypto.Hmac.md), [Crypto.P256](Crypto.P256.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (7 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.Ecdsa`: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.Ecdsa](Crypto.Ecdsa.md), [Crypto.Hmac](Crypto.Hmac.md), [Crypto.P256](Crypto.P256.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Digest](Text.Digest.md).
-
-```sh
-cp seed/prelude/Crypto/ConstantTime.cinch ./Crypto.ConstantTime.cinch
-cp seed/prelude/Crypto/Ecdsa.cinch ./Crypto.Ecdsa.cinch
-cp seed/prelude/Crypto/Hmac.cinch ./Crypto.Hmac.cinch
-cp seed/prelude/Crypto/P256.cinch ./Crypto.P256.cinch
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Digest.cinch ./Text.Digest.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

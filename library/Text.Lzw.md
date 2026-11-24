@@ -2,21 +2,9 @@
 
 Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Lzw</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Lzw/source/">View source</a><a href="/packages/search/?q=%2BText.Lzw">Search module</a><a href="/reference-sources/Text.Lzw.cinch" download="Text.Lzw.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Lzw</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Lzw/source/">View source</a><a href="/packages/search/?q=%2BText.Lzw">Search module</a><a href="/reference-sources/Text.Lzw.cinch" download="Text.Lzw.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Lzw`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Lzw](Text.Lzw.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Lzw.cinch ./Text.Lzw.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

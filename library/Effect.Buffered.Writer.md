@@ -2,25 +2,9 @@
 
 Buffered byte output with sticky failures, exact partial progress and independently owned reservations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Buffered.Writer</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Buffered.Writer/source/">View source</a><a href="/packages/search/?q=%2BEffect.Buffered.Writer">Search module</a><a href="/reference-sources/Effect.Buffered.Writer.cinch" download="Effect.Buffered.Writer.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Buffered.Writer</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Buffered.Writer/source/">View source</a><a href="/packages/search/?q=%2BEffect.Buffered.Writer">Search module</a><a href="/reference-sources/Effect.Buffered.Writer.cinch" download="Effect.Buffered.Writer.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Io](Effect.Io.md), [Effect.Stream](Effect.Stream.md).
-
-<details class="doc-closure"><summary>Ship-source closure (7 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Buffered.Writer`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Buffered.Writer](Effect.Buffered.Writer.md), [Effect.Stream](Effect.Stream.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Buffered/Core.cinch ./Effect.Buffered.Core.cinch
-cp seed/prelude/Effect/Buffered/Internal/Cell.cinch ./Effect.Buffered.Internal.Cell.cinch
-cp seed/prelude/Effect/Buffered/Writer.cinch ./Effect.Buffered.Writer.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

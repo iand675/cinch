@@ -2,19 +2,9 @@
 
 Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Word</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Word/source/">View source</a><a href="/packages/search/?q=%2BData.Word">Search module</a><a href="/reference-sources/Data.Word.cinch" download="Data.Word.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Word</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Word/source/">View source</a><a href="/packages/search/?q=%2BData.Word">Search module</a><a href="/reference-sources/Data.Word.cinch" download="Data.Word.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Machine](Data.Machine.md), [Data.Result](Data.Result.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Word`: [Data.Word](Data.Word.md).
-
-```sh
-cp seed/prelude/Data/Word.cinch ./Data.Word.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

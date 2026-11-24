@@ -2,7 +2,7 @@
 
 The opt-in collection-literal vocabulary used to interpret [elements] at the expected container type.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.FromList</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.FromList/source/">View source</a><a href="/packages/search/?q=%2BData.FromList">Search module</a><a href="/reference-sources/Data.FromList.cinch" download="Data.FromList.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.FromList</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.FromList/source/">View source</a><a href="/packages/search/?q=%2BData.FromList">Search module</a><a href="/reference-sources/Data.FromList.cinch" download="Data.FromList.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Core](Data.Core.md).
 

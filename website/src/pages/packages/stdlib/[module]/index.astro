@@ -42,7 +42,7 @@ const exportCount = entry.types + entry.values + entry.public_methods;
       <span>/</span>
       <span>{entry.module}</span>
     </div>
-    <span class="sample-badge">{entry.embedded ? 'EMBEDDED' : 'SHIP SOURCE'}</span>
+    <span class="sample-badge">CINCH/STDLIB · {STDLIB_VERSION}</span>
   </div>
 
   <div class="stdlib-workspace">
@@ -51,17 +51,14 @@ const exportCount = entry.types + entry.values + entry.public_methods;
     <article class="stdlib-article">
       <header class="stdlib-header">
         <div class="platform-eyebrow mono">
-          <span>STDLIB / {entry.family.toUpperCase()}</span>
+          <span>CINCH/STDLIB / {entry.family.toUpperCase()}</span>
           <span>{entry.path}</span>
         </div>
         <h1>{entry.module}</h1>
         <p>{entry.description}</p>
         <div class="stdlib-facts mono">
-          <span class={`support-tag ${entry.embedded ? 'support-tag--current' : 'support-tag--source'}`}>
-            {entry.embedded ? 'Embedded' : 'Ship source'}
-          </span>
           {entry.module === 'Prelude' ? (
-            <span>Implicitly in scope</span>
+            <span class="support-tag support-tag--current">Implicitly in scope</span>
           ) : (
             <code>import {entry.module}</code>
           )}

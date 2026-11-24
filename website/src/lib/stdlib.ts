@@ -44,9 +44,7 @@ export type StdlibModuleEntry = {
   description: string;
   path: string;
   sha256: string;
-  embedded: boolean;
   imports: string[];
-  non_embedded_deps: string[];
   types: number;
   signatures: number;
   values: number;
@@ -56,7 +54,10 @@ export type StdlibModuleEntry = {
 
 export type StdlibManifest = {
   format: number;
-  base_manifest_sha256: string;
+  package?: string;
+  version?: string;
+  stdlib_manifest_sha256?: string;
+  base_manifest_sha256?: string;
   search_entry_count?: number;
   modules: StdlibModuleEntry[];
 };
@@ -69,6 +70,10 @@ export type StdlibRenderedModule = {
 let manifestCache: StdlibManifest | undefined;
 let processorPromise: ReturnType<typeof createMarkdownProcessor> | undefined;
 
+export function stdlibManifestSha256(manifest: StdlibManifest): string {
+  return manifest.stdlib_manifest_sha256 ?? manifest.base_manifest_sha256 ?? '';
+}
+
 export async function loadStdlibManifest(): Promise<StdlibManifest> {
   if (!manifestCache) {
     const parsed = rawManifest as unknown as StdlibManifest;
@@ -79,7 +84,6 @@ export async function loadStdlibManifest(): Promise<StdlibManifest> {
         family: m.family ?? m.module.split('.')[0] ?? 'Other',
         description: m.description ?? `The ${m.module} module.`,
         imports: m.imports ?? [],
-        non_embedded_deps: m.non_embedded_deps ?? [],
         signatures: m.signatures ?? 0,
         instances: m.instances ?? 0,
       })),
@@ -90,11 +94,10 @@ export async function loadStdlibManifest(): Promise<StdlibManifest> {
 
 export async function loadStdlibPackage(): Promise<LibraryPackage> {
   const manifest = await loadStdlibManifest();
-  const embeddedCount = manifest.modules.filter((m) => m.embedded).length;
-  const sourceCount = manifest.modules.length - embeddedCount;
   const searchCount =
     manifest.search_entry_count ??
     manifest.modules.reduce((acc, m) => acc + m.types + m.signatures + m.values + m.public_methods + m.instances, 0);
+  const manifestSha = stdlibManifestSha256(manifest);
 
   const modules: LibraryModule[] = manifest.modules.map((m) => ({
     name: m.module,
@@ -102,16 +105,15 @@ export async function loadStdlibPackage(): Promise<LibraryPackage> {
     description: m.description,
     imports: m.imports,
     declarations: [],
-    embedded: m.embedded,
     family: m.family,
     exportCount: m.types + m.values + m.public_methods,
   }));
 
-  const synopsis = `The Cinch standard library: ${manifest.modules.length} checked modules (${embeddedCount} embedded in the compiler, ${sourceCount} source-distributed) and ${searchCount.toLocaleString('en-US')} indexed declarations.`;
+  const synopsis = `The Cinch standard library (cinch/stdlib): ${manifest.modules.length} modules with checked .cinchif interfaces and ${searchCount.toLocaleString('en-US')} indexed declarations.`;
 
   const release = {
     version: STDLIB_VERSION,
-    packageId: `sha256:${manifest.base_manifest_sha256}`,
+    packageId: `sha256:${manifestSha}`,
     yanked: false,
     category: 'Standard Library',
     synopsis,
@@ -122,8 +124,8 @@ export async function loadStdlibPackage(): Promise<LibraryPackage> {
     dependencies: [],
     modules,
     readme: [
-      `The Cinch standard library (${manifest.modules.length} modules, ${searchCount.toLocaleString('en-US')} indexed declarations) is generated directly from checked .cinchif interfaces and source documentation comments.`,
-      'Embedded modules (66) are compiled into the cinch binary and can be imported immediately. Ship-source modules (222) live under seed/prelude/ and check with the compiler today when copied with their non-embedded closure.',
+      `cinch/stdlib (${manifest.modules.length} modules, ${searchCount.toLocaleString('en-US')} indexed declarations) ships with the Cinch toolchain as a standard .cinchpkg package with checked .cinchif/.cpk interfaces and linkable module units.`,
+      'Prelude is implicitly in scope in every module unless disabled via "prelude": "none". Every other stdlib module resolves on demand with a plain import (for example, import Data.Rational or import Text.Json).',
     ],
   };
 

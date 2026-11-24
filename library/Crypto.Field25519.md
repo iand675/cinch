@@ -2,20 +2,9 @@
 
 Constant-time arithmetic modulo 2^255 - 19 with 128-bit column products, shared by X25519 and Ed25519.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.Field25519</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Field25519/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Field25519">Search module</a><a href="/reference-sources/Crypto.Field25519.cinch" download="Crypto.Field25519.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Field25519</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Field25519/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Field25519">Search module</a><a href="/reference-sources/Crypto.Field25519.cinch" download="Crypto.Field25519.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Wide](Data.Wide.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.Field25519`: [Crypto.Field25519](Crypto.Field25519.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-```sh
-cp seed/prelude/Crypto/Field25519.cinch ./Crypto.Field25519.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

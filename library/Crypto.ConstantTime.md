@@ -2,20 +2,9 @@
 
 Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.ConstantTime</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.ConstantTime/source/">View source</a><a href="/packages/search/?q=%2BCrypto.ConstantTime">Search module</a><a href="/reference-sources/Crypto.ConstantTime.cinch" download="Crypto.ConstantTime.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.ConstantTime</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.ConstantTime/source/">View source</a><a href="/packages/search/?q=%2BCrypto.ConstantTime">Search module</a><a href="/reference-sources/Crypto.ConstantTime.cinch" download="Crypto.ConstantTime.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.ConstantTime`: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-```sh
-cp seed/prelude/Crypto/ConstantTime.cinch ./Crypto.ConstantTime.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

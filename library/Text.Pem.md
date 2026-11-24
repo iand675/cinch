@@ -2,25 +2,9 @@
 
 Owned byte-preserving envelope blocks, persistent headers, exact malformed-input recovery and bounded payload encoding.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Pem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Pem/source/">View source</a><a href="/packages/search/?q=%2BText.Pem">Search module</a><a href="/reference-sources/Text.Pem.cinch" download="Text.Pem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Pem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Pem/source/">View source</a><a href="/packages/search/?q=%2BText.Pem">Search module</a><a href="/reference-sources/Text.Pem.cinch" download="Text.Pem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
-
-<details class="doc-closure"><summary>Ship-source closure (7 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Pem`: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Pem](Text.Pem.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Base64/Encoding.cinch ./Text.Base64.Encoding.cinch
-cp seed/prelude/Text/Pem.cinch ./Text.Pem.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

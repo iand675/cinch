@@ -2,7 +2,7 @@
 
 Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Text.Show</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Show/source/">View source</a><a href="/packages/search/?q=%2BText.Show">Search module</a><a href="/reference-sources/Text.Show.cinch" download="Text.Show.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Show</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Show/source/">View source</a><a href="/packages/search/?q=%2BText.Show">Search module</a><a href="/reference-sources/Text.Show.cinch" download="Text.Show.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.String](Data.String.md).
 

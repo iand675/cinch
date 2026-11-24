@@ -2,22 +2,9 @@
 
 Civil date and wall-clock time pairs without a time zone.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.DateTime</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.DateTime/source/">View source</a><a href="/packages/search/?q=%2BData.Time.DateTime">Search module</a><a href="/reference-sources/Data.Time.DateTime.cinch" download="Data.Time.DateTime.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.DateTime</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.DateTime/source/">View source</a><a href="/packages/search/?q=%2BData.Time.DateTime">Search module</a><a href="/reference-sources/Data.Time.DateTime.cinch" download="Data.Time.DateTime.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Time.Date](Data.Time.Date.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Time.DateTime`: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Weekday](Data.Time.Weekday.md).
-
-```sh
-cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
-cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
-cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
-cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

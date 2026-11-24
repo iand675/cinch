@@ -2,26 +2,9 @@
 
 Validated envelope output through explicit advanced writer continuations, bounded chunks and linear short-write draining.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Pem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Pem/source/">View source</a><a href="/packages/search/?q=%2BEffect.Pem">Search module</a><a href="/reference-sources/Effect.Pem.cinch" download="Effect.Pem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Pem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Pem/source/">View source</a><a href="/packages/search/?q=%2BEffect.Pem">Search module</a><a href="/reference-sources/Effect.Pem.cinch" download="Effect.Pem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Text.Pem](Text.Pem.md).
-
-<details class="doc-closure"><summary>Ship-source closure (8 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Pem`: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Pem](Effect.Pem.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Pem](Text.Pem.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-cp seed/prelude/Effect/Pem.cinch ./Effect.Pem.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Base64/Encoding.cinch ./Text.Base64.Encoding.cinch
-cp seed/prelude/Text/Pem.cinch ./Text.Pem.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

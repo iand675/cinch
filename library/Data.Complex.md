@@ -2,19 +2,9 @@
 
 Complex values and numeric operations using the module's current floating representation.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Complex</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Complex/source/">View source</a><a href="/packages/search/?q=%2BData.Complex">Search module</a><a href="/reference-sources/Data.Complex.cinch" download="Data.Complex.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Complex</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Complex/source/">View source</a><a href="/packages/search/?q=%2BData.Complex">Search module</a><a href="/reference-sources/Data.Complex.cinch" download="Data.Complex.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Complex`: [Data.Complex](Data.Complex.md).
-
-```sh
-cp seed/prelude/Data/Complex.cinch ./Data.Complex.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

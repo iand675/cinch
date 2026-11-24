@@ -2,21 +2,9 @@
 
 OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Otlp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Otlp/source/">View source</a><a href="/packages/search/?q=%2BText.Otlp">Search module</a><a href="/reference-sources/Text.Otlp.cinch" download="Text.Otlp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Otlp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Otlp/source/">View source</a><a href="/packages/search/?q=%2BText.Otlp">Search module</a><a href="/reference-sources/Text.Otlp.cinch" download="Text.Otlp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Effect.Log](Effect.Log.md), [Effect.Trace](Effect.Trace.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Otlp`: [Effect.Log](Effect.Log.md), [Effect.Trace](Effect.Trace.md), [Text.Otlp](Text.Otlp.md).
-
-```sh
-cp seed/prelude/Effect/Log.cinch ./Effect.Log.cinch
-cp seed/prelude/Effect/Trace.cinch ./Effect.Trace.cinch
-cp seed/prelude/Text/Otlp.cinch ./Text.Otlp.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

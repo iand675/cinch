@@ -1,11 +1,11 @@
-"""Generate real Cinch library documentation from Rust-checked interfaces.
+"""Generate real Cinch stdlib documentation from Rust-checked interfaces.
 
 python3 scripts/generate-library-reference.py --compiler /path/to/cinch
 python3 scripts/generate-library-reference.py --check
 
-The generator uses a temporary project and private package store. Non-embedded
-modules are copied by declared name beside the entry, matching the compiler's
-consumer tests. No repository compiler sources or caches are modified.
+The generator uses a temporary project and private package store, resolving
+every module through the toolchain's `cinch/stdlib` manifest (`seed/prelude/.cinchpkg`).
+No repository compiler sources or caches are modified.
 """
 from pathlib import Path
 import argparse
@@ -182,9 +182,9 @@ DESCRIPTIONS = {
 'Effect.Coverage':'Coverage collection/reporting utilities with explicit runtime and source metadata.',
 'Text.Show':'Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself.',
 'Text.Codec':'Encoding/decoding signatures and codec helpers with explicit failure results.',
-'Text.Lex':'A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients.',
+'Text.Lex':'Lexer toolkit: tokens, spans, and lexical errors for grammar and parser clients.',
 'Text.Scan':'Scanning primitives over input text and the shared position/error vocabulary.',
-'Text.Parse':'A source-distributed parser toolkit over the lexer/scanner vocabulary.',
+'Text.Parse':'Parser combinator toolkit over the lexer/scanner vocabulary.',
 'Text.Json':'JSON parsing and rendering over Data.Json, with explicit errors and builder-based output.',
 'Text.Json.Value':'Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting.',
 'Text.Json.Dynamic':'Owned dynamic JSON trees, separate encoding and decoding descriptors, typed payloads and bounded construction.',
@@ -476,13 +476,15 @@ def unpack(package, out):
 def collect_interfaces(compiler, save_dir=None):
     temp = tempfile.TemporaryDirectory(prefix='cinch-library-')
     work = Path(temp.name)
-    manifest = json.loads((PRELUDE / 'cinch-base.cinchpkg').read_text())
-    embedded = {m['name'] for m in manifest['modules']}
+    stdlib_manifest = json.loads((PRELUDE / '.cinchpkg').read_text())
     all_sources = sources()
-    for name, path in all_sources.items():
-        if name not in embedded:
-            (work / (name + '.cinch')).write_bytes(path.read_bytes())
-    env = {**os.environ, 'CINCH_STORE': str(work / 'store'), 'RUST_MIN_STACK': '67108864'}
+    ordered_names = [m['name'] for m in stdlib_manifest['modules'] if m['name'] in all_sources]
+    env = {
+        **os.environ,
+        'CINCH_STORE': str(work / 'store'),
+        'CINCH_STDLIB': str(PRELUDE),
+        'RUST_MIN_STACK': '67108864',
+    }
     entry = work / 'Main.cinch'
     ifaces = save_dir if save_dir else (work / 'interfaces')
     ifaces.mkdir(parents=True, exist_ok=True)
@@ -496,14 +498,14 @@ def collect_interfaces(compiler, save_dir=None):
         unpack(work / 'build' / 'Main.cpk', ifaces)
         return None
 
-    # Always ensure embedded base interfaces exist
-    if not all((ifaces / (m + '.cinchif')).exists() for m in embedded):
+    # First check Prelude (which populates the base interfaces in one pass)
+    if not (ifaces / 'Prelude.cinchif').exists():
         err = check_batch([])
         if err:
-            raise RuntimeError(f'Rust compiler rejected embedded base:\n{err}')
-        print('Checked embedded base', flush=True)
+            raise RuntimeError(f'Rust compiler rejected Prelude:\n{err}')
+        print('Checked Prelude', flush=True)
 
-    remaining = [n for n in sorted(all_sources) if n not in embedded and not (ifaces / (n + '.cinchif')).exists()]
+    remaining = [n for n in ordered_names if not (ifaces / (n + '.cinchif')).exists()]
     batch_size = 24
     for start in range(0, len(remaining), batch_size):
         batch = [n for n in remaining[start:start + batch_size] if not (ifaces / (n + '.cinchif')).exists()]
@@ -668,7 +670,6 @@ def render_entry_block(aid, sig_html, body_md, src_mod, line, extra_html=''):
 
 def generate(ifaces, compiler):
     all_sources = sources()
-    embedded = {m['name'] for m in json.loads((PRELUDE / 'cinch-base.cinchpkg').read_text())['modules']}
     interfaces = {name: json.loads((ifaces / (name + '.cinchif')).read_text()) for name in all_sources}
     documents = {name: doc_json(compiler, path, name, ifaces / (name + '.cinchif')) for name, path in all_sources.items()}
     for name, parsed in documents.items():
@@ -768,32 +769,16 @@ def generate(ifaces, compiler):
         export = iface['exports']
         text = path.read_text()
         (downloads / (name + '.cinch')).write_text(text)
-        embedded_here = name in embedded
         imports = sorted(set(re.findall(r'^  import ([\w.]+)', text, re.M)))
-        closure = set()
-
-        def deps(module):
-            if module in closure or module in embedded or module not in all_sources:
-                return
-            closure.add(module)
-            for child in re.findall(r'^  import ([\w.]+)', all_sources[module].read_text(), re.M):
-                deps(child)
-
-        deps(name)
 
         used_ids = {'synopsis', 'types', 'signatures', 'values', 'operator-fixities', 'instances', 'dependencies', 'reference-provenance'}
 
-        badge_html = (
-            '<span class="support-tag support-tag--current">Embedded</span>'
-            if embedded_here
-            else '<span class="support-tag support-tag--source">Ship source</span>'
-        )
         import_note = (
             'Implicitly in scope.' if name == 'Prelude' else f'<code>import {esc_html(name)}</code>'
         )
         mod_bar = (
             f'<div class="doc-mod-bar">'
-            f'<div class="doc-mod-bar-primary">{badge_html} {import_note}</div>'
+            f'<div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> {import_note}</div>'
             f'<div class="doc-mod-bar-links">'
             f'<a href="{STDLIB_BASE}/{esc_html(name)}/source/">View source</a>'
             f'<a href="{SEARCH_URL}?q=%2B{esc_html(name)}">Search module</a>'
@@ -810,25 +795,6 @@ def generate(ifaces, compiler):
                 for i in imports
             )
             lines += [f'**Dependencies:** {dep_links}.', '']
-        if not embedded_here:
-            sorted_closure = sorted(closure)
-            closure_links = ', '.join(f'[{m}]({m}.md)' for m in sorted_closure)
-            copy_cmds = '\n'.join(
-                f'cp {all_sources[m].relative_to(ROOT)} ./{m}.cinch'
-                for m in sorted_closure
-            )
-            lines += [
-                f'<details class="doc-closure"><summary>Ship-source closure ({len(sorted_closure)} file{"s" if len(sorted_closure) != 1 else ""})</summary>',
-                '',
-                f'Copy these modules beside your entry file before importing `{name}`: {closure_links}.',
-                '',
-                '```sh',
-                copy_cmds,
-                '```',
-                '',
-                '</details>',
-                '',
-            ]
 
         module_doc = documents[name]['doc']
         header = module_doc['markdown'] if module_doc else ''
@@ -902,7 +868,6 @@ def generate(ifaces, compiler):
                             'h': caid,
                             'l': c_info.get('line', item.get('line', 0)) or 0,
                             **({'sm': src_mod} if src_mod != name else {}),
-                            'e': 1 if embedded_here else 0,
                         })
                 children_blocks.append(f'<div class="doc-children"><h4>Constructors</h4><ul>{"".join(ctor_lis)}</ul></div>')
 
@@ -936,7 +901,6 @@ def generate(ifaces, compiler):
                     'h': aid,
                     'l': item.get('line', 0) or 0,
                     **({'sm': src_mod} if src_mod != name else {}),
-                    'e': 1 if embedded_here else 0,
                 })
 
         classes = [s for s in export['signatures'] if public_class(s) or any(m.get('exports') for m in s['methods'])]
@@ -989,7 +953,6 @@ def generate(ifaces, compiler):
                         'h': maid,
                         'l': m_line or 0,
                         **({'sm': src_mod} if src_mod != name else {}),
-                        'e': 1 if embedded_here else 0,
                     })
 
             extra_parts = []
@@ -1014,7 +977,6 @@ def generate(ifaces, compiler):
                     'h': aid,
                     'l': item.get('line', 0) or 0,
                     **({'sm': src_mod} if src_mod != name else {}),
-                    'e': 1 if embedded_here else 0,
                 })
 
         for value in export['values']:
@@ -1045,7 +1007,6 @@ def generate(ifaces, compiler):
                 'h': aid,
                 'l': item.get('line', 0) or 0,
                 **({'sm': src_mod} if src_mod != name else {}),
-                'e': 1 if embedded_here else 0,
             })
 
         # Emit collapsible Synopsis
@@ -1121,7 +1082,6 @@ def generate(ifaces, compiler):
                         'd': summarize(decl['doc']['markdown']) if decl and decl['doc'] else f'{res} instance in {name}.',
                         'h': iaid,
                         'l': decl['source']['line'] if decl else 0,
-                        'e': 1 if embedded_here else 0,
                     })
             lines += ['</ul>', '']
 
@@ -1139,9 +1099,7 @@ def generate(ifaces, compiler):
             'description': describe(name),
             'path': str(path.relative_to(ROOT)),
             'sha256': digest(path),
-            'embedded': embedded_here,
             'imports': imports,
-            'non_embedded_deps': sorted(closure) if not embedded_here else [],
             'types': len(public_types),
             'signatures': pub_sigs,
             'values': len(export['values']),
@@ -1149,25 +1107,25 @@ def generate(ifaces, compiler):
             'instances': len(export['instances']),
         })
 
+    stdlib_pkg = json.loads((PRELUDE / '.cinchpkg').read_text())
     manifest = {
-        'format': 2,
-        'base_manifest_sha256': digest(PRELUDE / 'cinch-base.cinchpkg'),
+        'format': 3,
+        'package': stdlib_pkg.get('name', 'cinch/stdlib'),
+        'version': stdlib_pkg.get('version', '0.1.0'),
+        'stdlib_manifest_sha256': digest(PRELUDE / '.cinchpkg'),
         'search_entry_count': len(search_entries),
         'modules': entries,
     }
     MANIFEST.write_text(json.dumps(manifest, indent=2) + '\n')
 
     search_payload = {
-        'schema': 1,
-        'package': 'stdlib',
+        'schema': 2,
+        'package': 'cinch/stdlib',
         'moduleCount': len(entries),
         'typeLinks': type_links,
         'entries': search_entries,
     }
     SEARCH_INDEX.write_text(json.dumps(search_payload, separators=(',', ':')) + '\n')
-
-    embedded_count = sum(e['embedded'] for e in entries)
-    source_count = sum(not e['embedded'] for e in entries)
 
     hoogle_widget = (
         f'<form class="doc-hoogle-box" action="{SEARCH_URL}" method="get" role="search">\n'
@@ -1187,16 +1145,17 @@ def generate(ifaces, compiler):
     )
 
     index = [
-        '# Standard library (`stdlib`)',
+        '# Standard library (`cinch/stdlib`)',
         '',
-        f'Standard library API reference extracted from checked compiler interfaces across **{len(entries)} modules** (**{embedded_count} embedded** in the compiler, **{source_count} source-distributed**) and **{len(search_entries):,} indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).',
+        f'Standard library API reference extracted from checked `.cinchif` compiler interfaces across **{len(entries)} modules** and **{len(search_entries):,} indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).',
         '',
         hoogle_widget,
         '',
-        '# How modules are loaded',
+        '# Using `cinch/stdlib`',
         '',
-        '- **Embedded** modules are compiled into `cinch` and ready to `import` immediately. `Prelude` is implicitly in scope; compiler-installed special forms live in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
-        '- **Ship source** modules check with the compiler today and ship under `seed/prelude/`. Copy a module and its non-embedded closure (listed on each module page) beside your entry file before importing it.',
+        '- Every module in `cinch/stdlib` resolves directly through the toolchain package manifest (`import Data.Rational`, `import Text.Json`, `import Crypto.Aes`) and checks against its `.cinchif`/`.cpk` interface closure.',
+        '- `Prelude` is implicitly in scope unless a package sets `"prelude": "none"` or names a custom prelude in `.cinchpkg`. Compiler-installed special forms live in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
+        '- Inspect the resolved target surface with `cinch pkg info cinch/stdlib`, or link precompiled package objects via `cinch emit-object` and `--package-object` (see [packages, manifests, and the registry](../reference/29-package-management.md)).',
         '',
         '# Module directory',
         '',
@@ -1206,12 +1165,11 @@ def generate(ifaces, compiler):
         subset = [e for e in entries if e['module'].split('.')[0] == group]
         if not subset:
             continue
-        index += [f'## {group}', '', '| Module | Distribution | Exports | Purpose |', '| --- | --- | --- | --- |']
+        index += [f'## {group}', '', '| Module | Exports | Purpose |', '| --- | --- | --- |']
         for e in subset:
             name = e['module']
-            dist_label = 'Embedded' if e['embedded'] else 'Ship source'
             count = e['types'] + e['values'] + e['public_methods']
-            index.append(f'| [{name}]({name}.md) | {dist_label} | {count} | {markdown_text(describe(name))} |')
+            index.append(f'| [{name}]({name}.md) | {count} | {markdown_text(describe(name))} |')
         index += ['']
 
     index += [
@@ -1257,13 +1215,13 @@ def main():
         recorded = json.loads(MANIFEST.read_text())
         actual = sources()
         assert set(actual) == {m['module'] for m in recorded['modules']}, 'Library source set changed; regenerate reference'
-        assert recorded['base_manifest_sha256'] == digest(PRELUDE / 'cinch-base.cinchpkg'), 'Base manifest changed; regenerate reference'
+        assert recorded['stdlib_manifest_sha256'] == digest(PRELUDE / '.cinchpkg'), 'Stdlib manifest changed; regenerate reference'
         for entry in recorded['modules']:
             assert entry['sha256'] == digest(actual[entry['module']]), f'{entry["module"]}: source changed; regenerate reference'
             assert (OUTPUT / (entry['module'] + '.md')).exists(), f'Missing module page: {entry["module"]}'
             assert (ROOT / 'website/public/reference-sources' / (entry['module'] + '.cinch')).read_bytes() == actual[entry['module']].read_bytes(), f'Stale source download: {entry["module"]}'
         assert SEARCH_INDEX.exists(), 'Missing Hoogle search index: website/public/stdlib-search-index.json'
-        print(f'Standard library (stdlib) reference matches all {len(actual)} module sources, base manifest, and Hoogle search index')
+        print(f'Standard library (cinch/stdlib) reference matches all {len(actual)} module sources, stdlib manifest, and Hoogle search index')
         return
     compiler = options.compiler or shutil.which('cinch')
     if not compiler:

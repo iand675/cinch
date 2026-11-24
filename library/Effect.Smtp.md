@@ -2,27 +2,9 @@
 
 An SMTP client over sockets with explicit client state: greeting with HELO fallback, authentication, envelope, data, quit and send-mail.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Smtp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Smtp/source/">View source</a><a href="/packages/search/?q=%2BEffect.Smtp">Search module</a><a href="/reference-sources/Effect.Smtp.cinch" download="Effect.Smtp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Smtp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Smtp/source/">View source</a><a href="/packages/search/?q=%2BEffect.Smtp">Search module</a><a href="/reference-sources/Effect.Smtp.cinch" download="Effect.Smtp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Text.Base64](Text.Base64.md), [Text.Smtp](Text.Smtp.md).
-
-<details class="doc-closure"><summary>Ship-source closure (9 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Smtp`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Net](Effect.Net.md), [Effect.Smtp](Effect.Smtp.md), [Text.Base64](Text.Base64.md), [Text.Binary](Text.Binary.md), [Text.Hex](Text.Hex.md), [Text.Md5](Text.Md5.md), [Text.Smtp](Text.Smtp.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Net.cinch ./Effect.Net.cinch
-cp seed/prelude/Effect/Smtp.cinch ./Effect.Smtp.cinch
-cp seed/prelude/Text/Base64.cinch ./Text.Base64.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Hex.cinch ./Text.Hex.cinch
-cp seed/prelude/Text/Md5.cinch ./Text.Md5.cinch
-cp seed/prelude/Text/Smtp.cinch ./Text.Smtp.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

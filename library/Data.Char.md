@@ -2,7 +2,7 @@
 
 Unicode scalar values and checked character/code conversions, with range information for safe use.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Char</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Char/source/">View source</a><a href="/packages/search/?q=%2BData.Char">Search module</a><a href="/reference-sources/Data.Char.cinch" download="Data.Char.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Char</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Char/source/">View source</a><a href="/packages/search/?q=%2BData.Char">Search module</a><a href="/reference-sources/Data.Char.cinch" download="Data.Char.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.Option](Data.Option.md).
 

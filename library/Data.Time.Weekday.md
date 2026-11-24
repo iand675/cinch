@@ -2,19 +2,9 @@
 
 The seven days of the week with ordering and offset arithmetic.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Weekday</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Weekday/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Weekday">Search module</a><a href="/reference-sources/Data.Time.Weekday.cinch" download="Data.Time.Weekday.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Weekday</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Weekday/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Weekday">Search module</a><a href="/reference-sources/Data.Time.Weekday.cinch" download="Data.Time.Weekday.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Time.Weekday`: [Data.Time.Weekday](Data.Time.Weekday.md).
-
-```sh
-cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

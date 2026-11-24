@@ -1,6 +1,8 @@
 {
-  "format": 2,
-  "base_manifest_sha256": "791984d30e9413d78fff173eddef0d5438278e074ddd19240d10376e6fa27b1e",
+  "format": 3,
+  "package": "cinch/stdlib",
+  "version": "0.1.0",
+  "stdlib_manifest_sha256": "e4f5f37137057d6c9c82601df52959efc988d82707774803d0b1b77a41fb76b8",
   "search_entry_count": 7907,
   "modules": [
     {
@@ -9,9 +11,7 @@
       "description": "Arithmetic operation signatures and their fixities, including NonZero divisors and InRange refinements.",
       "path": "seed/prelude/Algebra/Arithmetic.cinch",
       "sha256": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 2,
       "signatures": 6,
       "values": 0,
@@ -24,9 +24,7 @@
       "description": "Bit operations, shifts, and the corresponding operator/fixity vocabulary.",
       "path": "seed/prelude/Algebra/Bits.cinch",
       "sha256": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 5,
@@ -39,9 +37,7 @@
       "description": "Group-style inverse/subtraction vocabulary over admitted carrier instances.",
       "path": "seed/prelude/Algebra/Group.cinch",
       "sha256": "df69dec9c9aeb84c0979241629321d1e975609f5ec487f40ae30a9fa8131d0ee",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 0,
@@ -54,12 +50,10 @@
       "description": "Identity plus combination vocabulary, default folding, and unit laws with explicit checking status.",
       "path": "seed/prelude/Algebra/Monoid.cinch",
       "sha256": "65ad6baacef678beae82ef249f304e9efe7f24487278d91b053f2986bde3e1ac",
-      "embedded": true,
       "imports": [
         "Algebra.Group",
         "Algebra.Semigroup"
       ],
-      "non_embedded_deps": [],
       "types": 8,
       "signatures": 1,
       "values": 0,
@@ -72,9 +66,7 @@
       "description": "Associative combination vocabulary and its law. Reported finite checks are distinct from universal proofs.",
       "path": "seed/prelude/Algebra/Semigroup.cinch",
       "sha256": "03b8c3463a181da5deaa4de35921c2bfb69520b4aed1c0a21043fc72f9be6272",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 3,
@@ -87,9 +79,7 @@
       "description": "Zero/one and additive/multiplicative structure, with its law vocabulary.",
       "path": "seed/prelude/Algebra/Semiring.cinch",
       "sha256": "9294495f17cdabec65d1e264550d5f3a02ba0456b6ebb95b9a2e36401d14b0d7",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 0,
@@ -102,11 +92,9 @@
       "description": "Empty and choice operations for admitted higher-kinded containers.",
       "path": "seed/prelude/Category/Alternative.cinch",
       "sha256": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc",
-      "embedded": true,
       "imports": [
         "Category.Applicative"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 0,
@@ -119,11 +107,9 @@
       "description": "Container application and value lifting for independent structure-preserving composition.",
       "path": "seed/prelude/Category/Applicative.cinch",
       "sha256": "fe2bc906c714b1d4d01cedc10c1f5b8eb05a1b73e7be0d80c67f17018af0ffa1",
-      "embedded": true,
       "imports": [
         "Category.Functor"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 5,
@@ -136,7 +122,6 @@
       "description": "Generic folds, conversion to lists, size/emptiness, and related operations over container instances.",
       "path": "seed/prelude/Category/Foldable.cinch",
       "sha256": "6ca66ed68587a97bcf1e3e69c64f47942be1743f898fad08d9020f6bc9f39e33",
-      "embedded": true,
       "imports": [
         "Algebra.Monoid",
         "Algebra.Semigroup",
@@ -144,7 +129,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 21,
@@ -157,11 +141,9 @@
       "description": "Higher-kinded mapping vocabulary, distinct from the lexical do-sequencing provider mechanism.",
       "path": "seed/prelude/Category/Functor.cinch",
       "sha256": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1",
-      "embedded": true,
       "imports": [
         "Function.Combinators"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 0,
@@ -174,11 +156,9 @@
       "description": "Container-dependent composition through the admitted higher-kinded class vocabulary.",
       "path": "seed/prelude/Category/Monad.cinch",
       "sha256": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f",
-      "embedded": true,
       "imports": [
         "Category.Applicative"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 2,
@@ -191,12 +171,10 @@
       "description": "Generic effect/container-aware traversal and sequencing while retaining the input shape.",
       "path": "seed/prelude/Category/Traversable.cinch",
       "sha256": "ee1061fae41837e7548b47c4e259977b53131d9ecaa18b438594ccb7fe873326",
-      "embedded": true,
       "imports": [
         "Category.Applicative",
         "Category.Monad"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 4,
@@ -209,7 +187,6 @@
       "description": "AES-128/192/256 with AES-NI or ARMv8 instructions after detection and a constant-time, table-free SIMD fallback.",
       "path": "seed/prelude/Crypto/Aes.cinch",
       "sha256": "8371f72bd9bf1bdffc8d8e61702a064e82d3e0a0388f1b35eb0ec1aa33f990be",
-      "embedded": false,
       "imports": [
         "Crypto.Cipher",
         "Data.Bytes",
@@ -220,11 +197,6 @@
         "Data.Result",
         "Data.String",
         "Data.Wide"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Aes",
-        "Crypto.Cipher",
-        "Data.Bytes.Word"
       ],
       "types": 2,
       "signatures": 1,
@@ -238,7 +210,6 @@
       "description": "ChaCha20 and XChaCha20 streams, Poly1305 and the ChaCha20-Poly1305 and XChaCha20-Poly1305 AEADs with vector row kernels.",
       "path": "seed/prelude/Crypto/ChaCha20Poly1305.cinch",
       "sha256": "196fddc50996e7438fb32c0c994df4a1201f453f85d0669293a933a2d04db699",
-      "embedded": false,
       "imports": [
         "Crypto.ConstantTime",
         "Data.Bytes",
@@ -249,11 +220,6 @@
         "Data.Result",
         "Data.String",
         "Data.Wide"
-      ],
-      "non_embedded_deps": [
-        "Crypto.ChaCha20Poly1305",
-        "Crypto.ConstantTime",
-        "Data.Bytes.Word"
       ],
       "types": 1,
       "signatures": 0,
@@ -267,7 +233,6 @@
       "description": "CTR, OFB, CFB, CBC and GCM over any 128-bit block cipher, with constant-time or carry-less-instruction GHASH and constant-time tag checks.",
       "path": "seed/prelude/Crypto/Cipher.cinch",
       "sha256": "229b114e7a3c8d8c97c9c91cd506b55f412dcdc018f9692d6540f8dc5cd30783",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -276,10 +241,6 @@
         "Data.Result",
         "Data.String",
         "Data.Wide"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Cipher",
-        "Data.Bytes.Word"
       ],
       "types": 5,
       "signatures": 0,
@@ -293,16 +254,11 @@
       "description": "Branch-free scalar comparison and selection, full-input byte equality, conditional copying and in-place XOR with public bounds and atomic length errors.",
       "path": "seed/prelude/Crypto/ConstantTime.cinch",
       "sha256": "f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
         "Data.Machine",
         "Data.Nat"
-      ],
-      "non_embedded_deps": [
-        "Crypto.ConstantTime",
-        "Data.Bytes.Word"
       ],
       "types": 1,
       "signatures": 0,
@@ -316,7 +272,6 @@
       "description": "DES and Triple DES block ciphers with ECB, CBC and CTR for legacy interoperation, from a generated straight-line round kernel.",
       "path": "seed/prelude/Crypto/Des.cinch",
       "sha256": "35f5c4f7cb8a474bae4e438b2085d9e05fc7a3b290798826588883381dc55fd9",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -327,11 +282,6 @@
         "Data.String",
         "Text.Hex",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Des",
-        "Data.Bytes.Word",
-        "Text.Hex"
       ],
       "types": 2,
       "signatures": 0,
@@ -345,7 +295,6 @@
       "description": "Deterministic (RFC 6979) and hedged P-256 ECDSA signatures in raw and DER form with strict verification.",
       "path": "seed/prelude/Crypto/Ecdsa.cinch",
       "sha256": "6f15ab42fb1c78de630051e078c31260bdc5b3aa416ac90423471f79e171ffa1",
-      "embedded": false,
       "imports": [
         "Crypto.Hmac",
         "Crypto.P256",
@@ -355,15 +304,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Crypto.ConstantTime",
-        "Crypto.Ecdsa",
-        "Crypto.Hmac",
-        "Crypto.P256",
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Digest"
       ],
       "types": 1,
       "signatures": 0,
@@ -377,7 +317,6 @@
       "description": "Deterministic Ed25519 signatures with constant-time signing and strict verification.",
       "path": "seed/prelude/Crypto/Ed25519.cinch",
       "sha256": "c9653a1c9514393759e3c07a4a826ff1fdf856d9dcedd5eb4ac509130350c707",
-      "embedded": false,
       "imports": [
         "Crypto.Field25519",
         "Data.Bytes",
@@ -388,14 +327,6 @@
         "Data.Result",
         "Data.String",
         "Data.Wide",
-        "Text.Sha512"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Ed25519",
-        "Crypto.Field25519",
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Binary",
         "Text.Sha512"
       ],
       "types": 2,
@@ -410,16 +341,11 @@
       "description": "Constant-time arithmetic modulo 2^255 - 19 with 128-bit column products, shared by X25519 and Ed25519.",
       "path": "seed/prelude/Crypto/Field25519.cinch",
       "sha256": "bbbcd693d8fbf35589b30e4837955da8c04f69884a85a55d6d5f613a0e62609d",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
         "Data.Machine",
         "Data.Wide"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Field25519",
-        "Data.Bytes.Word"
       ],
       "types": 1,
       "signatures": 0,
@@ -433,7 +359,6 @@
       "description": "Prepared HMAC-SHA-256/SHA-512 keys, persistent messages and full-tag verification.",
       "path": "seed/prelude/Crypto/Hmac.cinch",
       "sha256": "e585b6638ff0452e24305d5452c798253e0ba4e72c6381a1fad738f929592408",
-      "embedded": false,
       "imports": [
         "Crypto.ConstantTime",
         "Data.Bytes",
@@ -441,13 +366,6 @@
         "Data.List",
         "Data.Machine",
         "Data.Nat",
-        "Text.Digest"
-      ],
-      "non_embedded_deps": [
-        "Crypto.ConstantTime",
-        "Crypto.Hmac",
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
         "Text.Digest"
       ],
       "types": 3,
@@ -462,7 +380,6 @@
       "description": "Hybrid public key encryption (RFC 9180) over DHKEM X25519 and P-256, HKDF and AES-GCM or ChaCha20-Poly1305, in all four modes.",
       "path": "seed/prelude/Crypto/Hpke.cinch",
       "sha256": "02fa628f945bc098ffe21f179980f676c0862c2c3a6f1f8e3655bdd89d116abd",
-      "embedded": false,
       "imports": [
         "Crypto.Aes",
         "Crypto.ChaCha20Poly1305",
@@ -478,23 +395,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String",
-        "Text.Sha512"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Aes",
-        "Crypto.ChaCha20Poly1305",
-        "Crypto.Cipher",
-        "Crypto.ConstantTime",
-        "Crypto.Field25519",
-        "Crypto.Hmac",
-        "Crypto.Hpke",
-        "Crypto.Kdf",
-        "Crypto.P256",
-        "Crypto.X25519",
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Digest",
         "Text.Sha512"
       ],
       "types": 8,
@@ -509,7 +409,6 @@
       "description": "HKDF and PBKDF2 key derivation with checked lengths, binary inputs and HMAC-SHA-256.",
       "path": "seed/prelude/Crypto/Kdf.cinch",
       "sha256": "ee877d5b4b05c5425637d29b05dd35b3012f291e16bb67d159fe820484033291",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -517,11 +416,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.Result",
-        "Text.Digest"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Kdf",
-        "Data.Bytes.Build",
         "Text.Digest"
       ],
       "types": 2,
@@ -536,7 +430,6 @@
       "description": "ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels.",
       "path": "seed/prelude/Crypto/MlKem.cinch",
       "sha256": "130822b4a06af07c585a99e840d37c81576b642ae74a492e8d017c4a641bf6ed",
-      "embedded": false,
       "imports": [
         "Crypto.ConstantTime",
         "Data.Bytes",
@@ -550,14 +443,6 @@
         "Text.Sha3",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Crypto.ConstantTime",
-        "Crypto.MlKem",
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Sha3"
-      ],
       "types": 4,
       "signatures": 0,
       "values": 14,
@@ -570,7 +455,6 @@
       "description": "Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels.",
       "path": "seed/prelude/Crypto/P256.cinch",
       "sha256": "bfc177e66a34f67b929e74cb4a0050790c35e2e0ad12f915e224390c9738ec12",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -579,10 +463,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Crypto.P256",
-        "Data.Bytes.Word"
       ],
       "types": 5,
       "signatures": 0,
@@ -596,7 +476,6 @@
       "description": "The RC4 stream cipher as a persistent keystream state, for legacy data only.",
       "path": "seed/prelude/Crypto/Rc4.cinch",
       "sha256": "625745d9d911990be9c7d9f1efb7fcc21077b0b44fe9cdaef20c5052cefbf1e7",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Machine",
@@ -604,9 +483,6 @@
         "Data.Result",
         "Data.String",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Rc4"
       ],
       "types": 2,
       "signatures": 0,
@@ -620,7 +496,6 @@
       "description": "Constant-time X25519 Diffie-Hellman key agreement with low-order peer rejection.",
       "path": "seed/prelude/Crypto/X25519.cinch",
       "sha256": "84f0ecaa26c3903f7cc622b5552258f3fd3736112d773307ed8ccd3e73958ca3",
-      "embedded": false,
       "imports": [
         "Crypto.Field25519",
         "Data.Bytes",
@@ -629,11 +504,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Crypto.Field25519",
-        "Crypto.X25519",
-        "Data.Bytes.Word"
       ],
       "types": 2,
       "signatures": 0,
@@ -647,17 +517,12 @@
       "description": "Checked immutable array range edits, predicate deletion, adjacent compaction, reversal and concatenation.",
       "path": "seed/prelude/Data/Array/Edit.cinch",
       "sha256": "25857a7cd5dff21d743ddb2871c837c770397ac57e05d524349fc39ccc780bdb",
-      "embedded": false,
       "imports": [
         "Data.Array",
         "Data.List",
         "Data.Nat",
         "Data.Option",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Array.Edit"
       ],
       "types": 0,
       "signatures": 0,
@@ -671,14 +536,9 @@
       "description": "Packed scalar constructors for Array. The element format travels with the buffer, so generic reads and updates keep it.",
       "path": "seed/prelude/Data/Array/Packed.cinch",
       "sha256": "799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364",
-      "embedded": false,
       "imports": [
         "Data.Array",
         "Data.Core"
-      ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Array.Packed"
       ],
       "types": 0,
       "signatures": 0,
@@ -692,7 +552,6 @@
       "description": "Immutable array comparison, indexed lookups, binary search and sortedness with explicit callback policies.",
       "path": "seed/prelude/Data/Array/Search.cinch",
       "sha256": "a10366c85b000d05aa12b145ed82a50b461557ac57098b9b052b2d03f5c7f305",
-      "embedded": false,
       "imports": [
         "Data.Array",
         "Data.Compare",
@@ -701,12 +560,6 @@
         "Data.Ordering",
         "Data.Search",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Array.Search",
-        "Data.Compare",
-        "Data.Search"
       ],
       "types": 0,
       "signatures": 0,
@@ -720,7 +573,6 @@
       "description": "Immutable contiguous arrays with optional failed reads, updates, slices, and ranges, plus list conversions.",
       "path": "seed/prelude/Data/Array.cinch",
       "sha256": "3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.FromList",
@@ -728,9 +580,6 @@
         "Data.Nat",
         "Data.Option",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Array"
       ],
       "types": 0,
       "signatures": 0,
@@ -744,12 +593,10 @@
       "description": "ASCII-refined values and checked construction at text boundaries.",
       "path": "seed/prelude/Data/Ascii.cinch",
       "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2",
-      "embedded": true,
       "imports": [
         "Algebra.Semigroup",
         "Data.String"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 1,
@@ -762,7 +609,6 @@
       "description": "Decimal arithmetic with explicit precision/scale and rounding/error behaviour in the exported API.",
       "path": "seed/prelude/Data/BigDecimal.cinch",
       "sha256": "0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c",
-      "embedded": false,
       "imports": [
         "Data.Char",
         "Data.Int",
@@ -776,9 +622,6 @@
         "Relation.Eq",
         "Relation.Ord",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Data.BigDecimal"
       ],
       "types": 3,
       "signatures": 0,
@@ -792,12 +635,10 @@
       "description": "Boolean operations and their comparison instances.",
       "path": "seed/prelude/Data/Bool.cinch",
       "sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5",
-      "embedded": true,
       "imports": [
         "Data.Hash",
         "Text.Codec"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 12,
@@ -810,15 +651,11 @@
       "description": "Fresh byte cloning, doubling repetition, concatenation and separator-aware joining.",
       "path": "seed/prelude/Data/Bytes/Build.cinch",
       "sha256": "6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
         "Data.List",
         "Data.Nat"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build"
       ],
       "types": 0,
       "signatures": 0,
@@ -832,7 +669,6 @@
       "description": "Nonempty raw-byte field views with Unicode whitespace, ordered scalar predicates, persistent producers and replayable effect-preserving iteration.",
       "path": "seed/prelude/Data/Bytes/Fields.cinch",
       "sha256": "1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -844,14 +680,6 @@
         "Data.Option",
         "Data.Producer",
         "Data.Unicode.Kernel"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Fields",
-        "Data.Bytes.Utf8",
-        "Data.Bytes.View",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables"
       ],
       "types": 1,
       "signatures": 0,
@@ -865,16 +693,12 @@
       "description": "Exact first, last, containment and count queries over raw bytes with bounded SWAR traversals.",
       "path": "seed/prelude/Data/Bytes/Search.cinch",
       "sha256": "65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
         "Data.Machine",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Search"
       ],
       "types": 0,
       "signatures": 0,
@@ -888,7 +712,6 @@
       "description": "Retained byte splitting, persistent producer traversals, shared pull cursors and line iteration.",
       "path": "seed/prelude/Data/Bytes/Split.cinch",
       "sha256": "2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -900,12 +723,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.Producer"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Split",
-        "Data.Bytes.Utf8",
-        "Data.Bytes.View",
-        "Data.Bytes.Word"
       ],
       "types": 4,
       "signatures": 0,
@@ -919,7 +736,6 @@
       "description": "Raw UTF-8 validation, forward and reverse decoding, scalar counting, fresh repair and atomic encoding.",
       "path": "seed/prelude/Data/Bytes/Utf8.cinch",
       "sha256": "f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -928,10 +744,6 @@
         "Data.Machine",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word"
       ],
       "types": 2,
       "signatures": 0,
@@ -945,7 +757,6 @@
       "description": "Owner-retaining checked byte views, relative UTF-8 observations, stable compiled substring patterns and bounded search, cut and comparison operations.",
       "path": "seed/prelude/Data/Bytes/View.cinch",
       "sha256": "3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -955,11 +766,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.Result"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.View",
-        "Data.Bytes.Word"
       ],
       "types": 3,
       "signatures": 0,
@@ -973,14 +779,10 @@
       "description": "Bounds-proved unaligned little-endian machine-word reads and writes for SIMD and SWAR processing.",
       "path": "seed/prelude/Data/Bytes/Word.cinch",
       "sha256": "a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Machine",
         "Data.Nat"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word"
       ],
       "types": 0,
       "signatures": 0,
@@ -994,14 +796,12 @@
       "description": "Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations.",
       "path": "seed/prelude/Data/Bytes.cinch",
       "sha256": "24bb9f3ca7c5420b3abde122e05762f25adaa72df41d27557d22fc69370585da",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Hash",
         "Data.List",
         "Data.Nat"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 10,
@@ -1014,7 +814,6 @@
       "description": "The ChaCha8 pseudorandom generator: four interleaved eight-round blocks per vector kernel call, byte reads and state encoding.",
       "path": "seed/prelude/Data/ChaCha8.cinch",
       "sha256": "84cb4bed6d1e5788ab75b95e2315ef792c7376aefba51fb06cfddd2af67be699",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -1024,11 +823,6 @@
         "Data.Result",
         "Data.String",
         "Data.Wide"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Data.ChaCha8"
       ],
       "types": 2,
       "signatures": 0,
@@ -1042,13 +836,11 @@
       "description": "Unicode scalar values and checked character/code conversions, with range information for safe use.",
       "path": "seed/prelude/Data/Char.cinch",
       "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Hash",
         "Data.Option"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 21,
@@ -1061,14 +853,9 @@
       "description": "Columnar leaves over typed arrays, zipped into nested pairs that share their buffers. A length mismatch is None.",
       "path": "seed/prelude/Data/Columnar.cinch",
       "sha256": "20bf82a9abeddc35eb4abd3c3c6a91d9ee66b40d18848eb40ab674552bbc6506",
-      "embedded": false,
       "imports": [
         "Data.Array",
         "Data.Core"
-      ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Columnar"
       ],
       "types": 0,
       "signatures": 0,
@@ -1082,7 +869,6 @@
       "description": "Explicit scalar comparison policies, NaN-aware floating orders, and first non-default selection.",
       "path": "seed/prelude/Data/Compare.cinch",
       "sha256": "2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb",
-      "embedded": false,
       "imports": [
         "Data.Char",
         "Data.Core",
@@ -1091,9 +877,6 @@
         "Data.Nat",
         "Data.Ordering",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Compare"
       ],
       "types": 0,
       "signatures": 2,
@@ -1107,15 +890,11 @@
       "description": "Complex values and numeric operations using the module's current floating representation.",
       "path": "seed/prelude/Data/Complex.cinch",
       "sha256": "16b1436d6025030f3ab3dbfd6955fb926883ead5dc83af6a373ac42919918a51",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
         "Data.String",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Complex"
       ],
       "types": 1,
       "signatures": 0,
@@ -1129,9 +908,7 @@
       "description": "Composition of higher-kinded containers with the admitted generic instances.",
       "path": "seed/prelude/Data/Compose.cinch",
       "sha256": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 1,
@@ -1144,14 +921,12 @@
       "description": "A constant container that retains its first parameter while ignoring the mapped value parameter.",
       "path": "seed/prelude/Data/Const.cinch",
       "sha256": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c",
-      "embedded": true,
       "imports": [
         "Algebra.Monoid",
         "Algebra.Semigroup",
         "Category.Applicative",
         "Category.Functor"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 2,
@@ -1164,7 +939,6 @@
       "description": "An RFC 6265 cookie jar as an immutable value: store the cookies responses set and choose the cookies a request sends.",
       "path": "seed/prelude/Data/CookieJar.cinch",
       "sha256": "a19367e858100095283000a643f73df3673a96b128c0298156d85504f2bbd716",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.List",
@@ -1174,22 +948,6 @@
         "Text.Cookie",
         "Text.Punycode",
         "Text.Url"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.CookieJar",
-        "Text.Cookie",
-        "Text.Punycode",
-        "Text.Url",
-        "Text.Url.Codec",
-        "Text.Url.Error",
-        "Text.Url.Ip",
-        "Text.Url.Model",
-        "Text.Url.Parser",
-        "Text.Url.Query",
-        "Text.Url.Resolve",
-        "Text.Url.Scan",
-        "Text.Url.Userinfo"
       ],
       "types": 1,
       "signatures": 0,
@@ -1203,9 +961,7 @@
       "description": "Shared declarations for List, Option, and Result. Their public homes add operations and instances; this module breaks declaration-order cycles.",
       "path": "seed/prelude/Data/Core.cinch",
       "sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 3,
       "signatures": 0,
       "values": 0,
@@ -1218,7 +974,6 @@
       "description": "Civil date values, validation, parsing/formatting, and calendar calculations.",
       "path": "seed/prelude/Data/Date.cinch",
       "sha256": "5ab1002e8509257ef7fdfaf392112954771bc4163276747a213e8dd5aadf661e",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Char",
@@ -1234,9 +989,6 @@
         "Relation.Ord",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Data.Date"
-      ],
       "types": 2,
       "signatures": 0,
       "values": 16,
@@ -1249,7 +1001,6 @@
       "description": "Finite enumeration and the class behind inclusive range literals, including an explicit next element for a step.",
       "path": "seed/prelude/Data/Enum.cinch",
       "sha256": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Core",
@@ -1257,7 +1008,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 2,
@@ -1270,11 +1020,7 @@
       "description": "Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target.",
       "path": "seed/prelude/Data/Float.cinch",
       "sha256": "ed1856b6e134453e2e8b1efa30c70515d533ce4d2b4a5d6a981fe4d7c9777d1a",
-      "embedded": false,
       "imports": [],
-      "non_embedded_deps": [
-        "Data.Float"
-      ],
       "types": 0,
       "signatures": 0,
       "values": 79,
@@ -1287,11 +1033,9 @@
       "description": "The opt-in collection-literal vocabulary used to interpret [elements] at the expected container type.",
       "path": "seed/prelude/Data/FromList.cinch",
       "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8",
-      "embedded": true,
       "imports": [
         "Data.Core"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 0,
@@ -1304,11 +1048,9 @@
       "description": "The opt-in map-literal vocabulary used to interpret {key => value} at the expected container type.",
       "path": "seed/prelude/Data/FromMap.cinch",
       "sha256": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf",
-      "embedded": true,
       "imports": [
         "Data.List"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 0,
@@ -1321,9 +1063,7 @@
       "description": "Hashing vocabulary and admitted hash implementations for keys.",
       "path": "seed/prelude/Data/Hash.cinch",
       "sha256": "c80d835dfc4224d8eca8375d24058a77034087077186e85f10b2ba48b1fcc991",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 0,
@@ -1336,11 +1076,9 @@
       "description": "Hash maps with explicit key constraints, lookup/update, and map-style combination operations.",
       "path": "seed/prelude/Data/HashMap.cinch",
       "sha256": "3f1612214a25a5fa2d2613d8a76da79331430ed7394b56e6203fcd0d51a18d6b",
-      "embedded": true,
       "imports": [
         "Data.Hash"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 15,
@@ -1353,13 +1091,11 @@
       "description": "The identity container and its generic abstraction instances.",
       "path": "seed/prelude/Data/Identity.cinch",
       "sha256": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9",
-      "embedded": true,
       "imports": [
         "Category.Applicative",
         "Category.Functor",
         "Category.Monad"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 7,
@@ -1372,7 +1108,6 @@
       "description": "Mathematical signed integers, arithmetic, division/remainder, formatting support, and explicit conversions.",
       "path": "seed/prelude/Data/Int.cinch",
       "sha256": "4936154410419ff4f5a7b052e2e06ad5d272f541cfd026867f4192549b8a3319",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Algebra.Group",
@@ -1381,7 +1116,6 @@
         "Data.Enum",
         "Data.Hash"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 11,
@@ -1394,7 +1128,6 @@
       "description": "Validated IP addresses, parsing/rendering, and address-family vocabulary.",
       "path": "seed/prelude/Data/IpAddr.cinch",
       "sha256": "05576a008c5e1b982453d2d7b1e404fc56e21b038d69fbefe6ad6bc3845980ba",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bool",
@@ -1405,9 +1138,6 @@
         "Data.Option",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.IpAddr"
       ],
       "types": 4,
       "signatures": 0,
@@ -1421,11 +1151,9 @@
       "description": "The JSON value representation shared by parsers, renderers, codecs, and structured observability.",
       "path": "seed/prelude/Data/Json.cinch",
       "sha256": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b",
-      "embedded": true,
       "imports": [
         "Data.String"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 0,
@@ -1438,7 +1166,6 @@
       "description": "Finite strict lists: construction, transformation, filtering, splitting, searching, folds, and collection instances.",
       "path": "seed/prelude/Data/List.cinch",
       "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Algebra.Monoid",
@@ -1455,7 +1182,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 41,
@@ -1468,14 +1194,12 @@
       "description": "Fixed-width and target-sized scalar operations. Names make checked, wrapping, or saturating overflow policy explicit.",
       "path": "seed/prelude/Data/Machine.cinch",
       "sha256": "e33b8e44a106c71e9b3a5c4d49f8b37704b273aeaa958999f5e9455cb97d1ec6",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Option",
         "Data.Ordering",
         "Text.Codec"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 825,
@@ -1488,14 +1212,12 @@
       "description": "Ordered maps with comparison constraints, lookup, insertion, removal, traversal, and collection-literal support.",
       "path": "seed/prelude/Data/Map.cinch",
       "sha256": "b7688dd045304cd4a46530683c40f9e15335159ec9a016845d794294e81e538d",
-      "embedded": true,
       "imports": [
         "Data.FromMap",
         "Data.List",
         "Data.Option",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 15,
@@ -1508,7 +1230,6 @@
       "description": "Matrix construction, shape checks, indexing, transformation, and arithmetic operations.",
       "path": "seed/prelude/Data/Matrix.cinch",
       "sha256": "1c0d2056a1a83186275ef0506d0df7d884ffb167771c00609e076874c88d6688",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.List",
@@ -1516,9 +1237,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Matrix"
       ],
       "types": 2,
       "signatures": 0,
@@ -1532,14 +1250,10 @@
       "description": "A fixed-length mutable array whose slots always hold values, with copying freeze and thaw against the immutable Array.",
       "path": "seed/prelude/Data/Mutable/Array.cinch",
       "sha256": "94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.Array"
       ],
       "types": 1,
       "signatures": 0,
@@ -1553,15 +1267,11 @@
       "description": "An ordered mutable map: a degree-8 B-tree whose nodes are indices into one pooled set of slot arrays, with floor, ceiling, range folds, pop-min/max and a structural verifier.",
       "path": "seed/prelude/Data/Mutable/BTree.cinch",
       "sha256": "9741c4de3eb73bcf097d0dc27f48d9ace038c8a9ca7e4a8062e6e6f41cc19c54",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Nat",
         "Data.Option",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.BTree"
       ],
       "types": 1,
       "signatures": 0,
@@ -1575,15 +1285,10 @@
       "description": "An ordered mutable set: the pooled B-tree with a Unit value per member.",
       "path": "seed/prelude/Data/Mutable/BTreeSet.cinch",
       "sha256": "95b4465c365cead885ece4adbe28d10605df080e6a4903123093775f696b0d04",
-      "embedded": false,
       "imports": [
         "Data.Mutable.BTree",
         "Data.Option",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.BTree",
-        "Data.Mutable.BTreeSet"
       ],
       "types": 1,
       "signatures": 0,
@@ -1597,14 +1302,10 @@
       "description": "A dynamic bitset in 64-bit words: test/set/toggle, popcount, next-set-bit scanning, and word-at-a-time union, intersection and difference.",
       "path": "seed/prelude/Data/Mutable/BitSet.cinch",
       "sha256": "1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.BitSet"
       ],
       "types": 1,
       "signatures": 0,
@@ -1618,14 +1319,10 @@
       "description": "A double-ended queue as a power-of-two ring buffer: amortised O(1) push and pop at both ends and O(1) indexing.",
       "path": "seed/prelude/Data/Mutable/Deque.cinch",
       "sha256": "3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.Deque"
       ],
       "types": 1,
       "signatures": 0,
@@ -1639,16 +1336,11 @@
       "description": "A mutable hash set: the HashTable with a Unit value per member.",
       "path": "seed/prelude/Data/Mutable/HashSet.cinch",
       "sha256": "dd418d95ba3d0f8453ee803fdd25bbd0ed2fbb4dcdca5669b37fd5acfe477977",
-      "embedded": false,
       "imports": [
         "Data.Hash",
         "Data.Mutable.HashTable",
         "Data.Option",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.HashSet",
-        "Data.Mutable.HashTable"
       ],
       "types": 1,
       "signatures": 0,
@@ -1662,16 +1354,12 @@
       "description": "A mutable hash table after SwissTable and F14: 8-slot chunks with 7-bit tags matched eight at a time, a 64-bit finalizer over the Hash digest, and overflow counts that make deletion tombstone-free.",
       "path": "seed/prelude/Data/Mutable/HashTable.cinch",
       "sha256": "c57f816af4f97eea433112fc430685e554b6fca74cc34406fdbfd840e1f642b1",
-      "embedded": false,
       "imports": [
         "Data.Hash",
         "Data.Machine",
         "Data.Nat",
         "Data.Option",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.HashTable"
       ],
       "types": 1,
       "signatures": 0,
@@ -1685,15 +1373,11 @@
       "description": "A 4-ary priority queue with its ordering fixed at construction: O(log n) push and pop, O(1) peek, and an O(n) Floyd build from a list.",
       "path": "seed/prelude/Data/Mutable/Heap.cinch",
       "sha256": "3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Nat",
         "Data.Option",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.Heap"
       ],
       "types": 1,
       "signatures": 0,
@@ -1707,14 +1391,10 @@
       "description": "In-place heap ordering and indexed repairs through explicit borrowed storage callbacks.",
       "path": "seed/prelude/Data/Mutable/HeapView.cinch",
       "sha256": "89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.HeapView"
       ],
       "types": 1,
       "signatures": 0,
@@ -1728,16 +1408,12 @@
       "description": "An insertion-ordered hash map: dense entries with a tagged chunk index over them, positional access, O(1) swap-remove and order-keeping shift-remove.",
       "path": "seed/prelude/Data/Mutable/IndexMap.cinch",
       "sha256": "119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501",
-      "embedded": false,
       "imports": [
         "Data.Hash",
         "Data.Machine",
         "Data.Nat",
         "Data.Option",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.IndexMap"
       ],
       "types": 1,
       "signatures": 0,
@@ -1751,16 +1427,12 @@
       "description": "Stable typed list elements, checked membership and movement, detached value access and bounded self-copy.",
       "path": "seed/prelude/Data/Mutable/LinkedList.cinch",
       "sha256": "6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Machine",
         "Data.Nat",
         "Data.Option",
         "Data.Result"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.LinkedList"
       ],
       "types": 3,
       "signatures": 0,
@@ -1774,7 +1446,6 @@
       "description": "A bounded least-recently-used cache: a hash table to nodes threaded on a recency list, with O(1) get, put and eviction.",
       "path": "seed/prelude/Data/Mutable/LruCache.cinch",
       "sha256": "4ade3198bc4fd7a8686d5c6ffa38a61a80dfaa62153c15bd9543a4d10e5116de",
-      "embedded": false,
       "imports": [
         "Data.Hash",
         "Data.Machine",
@@ -1782,10 +1453,6 @@
         "Data.Nat",
         "Data.Option",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.HashTable",
-        "Data.Mutable.LruCache"
       ],
       "types": 1,
       "signatures": 0,
@@ -1799,18 +1466,10 @@
       "description": "Explicit IEEE floating key policies without global equality or hashing instances.",
       "path": "seed/prelude/Data/Mutable/Map/Float.cinch",
       "sha256": "ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Mutable.Map",
         "Data.Nat"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.HashTable",
-        "Data.Mutable.LinkedList",
-        "Data.Mutable.Map",
-        "Data.Mutable.Map.Float",
-        "Data.Mutable.Var"
       ],
       "types": 0,
       "signatures": 0,
@@ -1824,20 +1483,12 @@
       "description": "Explicit absent-map adapters without hidden null handles.",
       "path": "seed/prelude/Data/Mutable/Map/Optional.cinch",
       "sha256": "7e9b280b6e9d7b0a545479f0ff6c705ecac5ce477608bda3b0c04e644c81620a",
-      "embedded": false,
       "imports": [
         "Data.Core",
         "Data.Hash",
         "Data.Mutable.Map",
         "Data.Mutable.Var",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.HashTable",
-        "Data.Mutable.LinkedList",
-        "Data.Mutable.Map",
-        "Data.Mutable.Map.Optional",
-        "Data.Mutable.Var"
       ],
       "types": 0,
       "signatures": 0,
@@ -1851,7 +1502,6 @@
       "description": "A mutable map with captured key policies and deletion-aware live traversal.",
       "path": "seed/prelude/Data/Mutable/Map.cinch",
       "sha256": "0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6",
-      "embedded": false,
       "imports": [
         "Data.Core",
         "Data.Hash",
@@ -1862,12 +1512,6 @@
         "Data.Nat",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.HashTable",
-        "Data.Mutable.LinkedList",
-        "Data.Mutable.Map",
-        "Data.Mutable.Var"
       ],
       "types": 3,
       "signatures": 0,
@@ -1881,7 +1525,6 @@
       "description": "Mutable circular sequences with stable cursors, alias-preserving joins and splits, explicit value ownership and bounded arena growth.",
       "path": "seed/prelude/Data/Mutable/Ring.cinch",
       "sha256": "9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Int",
@@ -1890,9 +1533,6 @@
         "Data.Option",
         "Data.Result",
         "Data.Wide"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.Ring"
       ],
       "types": 2,
       "signatures": 0,
@@ -1906,14 +1546,10 @@
       "description": "Disjoint sets with union by size and path halving: near-constant find, union and same-set queries, and appendable elements.",
       "path": "seed/prelude/Data/Mutable/UnionFind.cinch",
       "sha256": "727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.UnionFind"
       ],
       "types": 1,
       "signatures": 0,
@@ -1927,11 +1563,7 @@
       "description": "A single mutable cell, written in place; not synchronized (TVar is the shared cell).",
       "path": "seed/prelude/Data/Mutable/Var.cinch",
       "sha256": "1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26",
-      "embedded": false,
       "imports": [],
-      "non_embedded_deps": [
-        "Data.Mutable.Var"
-      ],
       "types": 1,
       "signatures": 0,
       "values": 5,
@@ -1944,16 +1576,12 @@
       "description": "A growable vector: amortised O(1) push and pop, O(1) indexing, middle insertion and removal, in-place introsort, and copying freeze/thaw against Array.",
       "path": "seed/prelude/Data/Mutable/Vec.cinch",
       "sha256": "65dbfe173b5386a2a8f5ee25f8e0896b0ea688534c327e99db165352ee1c474e",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Nat",
         "Data.Option",
         "Data.Ordering",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable.Vec"
       ],
       "types": 1,
       "signatures": 0,
@@ -1967,24 +1595,7 @@
       "description": "A curated mutable-container facade. Region-indexed operations carry Mut r; callback-backed heaps and stable linked-list elements have their own module imports.",
       "path": "seed/prelude/Data/Mutable.cinch",
       "sha256": "6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206",
-      "embedded": false,
       "imports": [
-        "Data.Mutable.Array",
-        "Data.Mutable.BTree",
-        "Data.Mutable.BTreeSet",
-        "Data.Mutable.BitSet",
-        "Data.Mutable.Deque",
-        "Data.Mutable.HashSet",
-        "Data.Mutable.HashTable",
-        "Data.Mutable.Heap",
-        "Data.Mutable.IndexMap",
-        "Data.Mutable.LruCache",
-        "Data.Mutable.UnionFind",
-        "Data.Mutable.Var",
-        "Data.Mutable.Vec"
-      ],
-      "non_embedded_deps": [
-        "Data.Mutable",
         "Data.Mutable.Array",
         "Data.Mutable.BTree",
         "Data.Mutable.BTreeSet",
@@ -2011,7 +1622,6 @@
       "description": "Mathematical nonnegative integers, exact arithmetic, checked preconditions, and admitted machine conversions.",
       "path": "seed/prelude/Data/Nat.cinch",
       "sha256": "caed61b507f2cd957fb00d45ef663cee44f9fd56036054355079804a6f945afb",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Algebra.Semiring",
@@ -2019,7 +1629,6 @@
         "Data.Enum",
         "Data.Hash"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 16,
@@ -2032,14 +1641,12 @@
       "description": "Lists refined by nonemptiness. The total constructor returns Option; transferred operations must preserve the predicate.",
       "path": "seed/prelude/Data/NonEmpty.cinch",
       "sha256": "858506781fd4dda0bb886cfd2bab77cd6333a1da4e32ff1593eecebafb823ebd",
-      "embedded": true,
       "imports": [
         "Algebra.Semigroup",
         "Category.Applicative",
         "Category.Foldable",
         "Category.Traversable"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 1,
@@ -2052,12 +1659,10 @@
       "description": "Total nonzero-number constructors. The NonZero type is also available through the arithmetic vocabulary for safe divisors.",
       "path": "seed/prelude/Data/NonZero.cinch",
       "sha256": "d09f99b17ce4e051a2ac0435c0563f094fe8b0fba310ece953a3c67d40f7327a",
-      "embedded": true,
       "imports": [
         "Algebra.Monoid",
         "Algebra.Semigroup"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 2,
@@ -2070,7 +1675,6 @@
       "description": "Optional values with None and Some, plus combinators for propagating or consuming absence.",
       "path": "seed/prelude/Data/Option.cinch",
       "sha256": "a2ded2aaed9211dacecc4849049bf802ed0d0d701a8ed7453a78508a8b1a8cf7",
-      "embedded": true,
       "imports": [
         "Algebra.Monoid",
         "Algebra.Semigroup",
@@ -2083,7 +1687,6 @@
         "Data.Core",
         "Effect.Sequencing"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 9,
@@ -2096,12 +1699,10 @@
       "description": "The LT, EQ, and GT comparison result vocabulary and its instances.",
       "path": "seed/prelude/Data/Ordering.cinch",
       "sha256": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537",
-      "embedded": true,
       "imports": [
         "Algebra.Monoid",
         "Algebra.Semigroup"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 0,
@@ -2114,7 +1715,6 @@
       "description": "Platform path values and composition/conversion operations used by filesystem and process APIs.",
       "path": "seed/prelude/Data/Path.cinch",
       "sha256": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772",
-      "embedded": true,
       "imports": [
         "Algebra.Semigroup",
         "Data.Char",
@@ -2123,7 +1723,6 @@
         "Data.Option",
         "Data.String"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 10,
@@ -2136,9 +1735,7 @@
       "description": "Partial producer vocabulary, distinct from codata whose next observation is guaranteed productive.",
       "path": "seed/prelude/Data/Producer.cinch",
       "sha256": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 3,
       "signatures": 0,
       "values": 7,
@@ -2151,7 +1748,6 @@
       "description": "Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf.",
       "path": "seed/prelude/Data/Rand.cinch",
       "sha256": "36b9fee50dbb6086e686f303683d130764dd167aec5cd48dfb2efe3682677c53",
-      "embedded": false,
       "imports": [
         "Data.Array",
         "Data.Bytes",
@@ -2162,14 +1758,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.Result"
-      ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Data.ChaCha8",
-        "Data.Float",
-        "Data.Rand"
       ],
       "types": 3,
       "signatures": 1,
@@ -2183,7 +1771,6 @@
       "description": "Rational numbers with explicit denominator/error policy and arithmetic operations.",
       "path": "seed/prelude/Data/Rational.cinch",
       "sha256": "87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac",
-      "embedded": false,
       "imports": [
         "Data.Hash",
         "Data.Int",
@@ -2195,9 +1782,6 @@
         "Relation.Eq",
         "Relation.Ord",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Data.Rational"
       ],
       "types": 2,
       "signatures": 0,
@@ -2211,7 +1795,6 @@
       "description": "Success and named failure values, error-aware transformations, partitioning, and sequencing instances.",
       "path": "seed/prelude/Data/Result.cinch",
       "sha256": "0bec72d2b58142da875a16016816e53cbd2d0c2a4be88906893cac93b89e1470",
-      "embedded": true,
       "imports": [
         "Category.Applicative",
         "Category.Functor",
@@ -2219,7 +1802,6 @@
         "Data.Core",
         "Effect.Sequencing"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 11,
@@ -2232,14 +1814,10 @@
       "description": "Indexed binary search with monotone predicates, insertion positions and effectful three-way comparisons.",
       "path": "seed/prelude/Data/Search.cinch",
       "sha256": "50f1ab5bcb33be8cd461431948d00652353604ba9deafa2e498777fd9560e00c",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Nat",
         "Data.Ordering"
-      ],
-      "non_embedded_deps": [
-        "Data.Search"
       ],
       "types": 0,
       "signatures": 0,
@@ -2253,9 +1831,7 @@
       "description": "Ordered sets and their membership, combination, difference, and conversion operations.",
       "path": "seed/prelude/Data/Set.cinch",
       "sha256": "1c762cb524ccc587696d8927ad46d3fd2c83e42cb7d8590fe096277b45eb6161",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 15,
@@ -2268,11 +1844,9 @@
       "description": "Lists refined by sortedness, with construction and combination that preserve ordering.",
       "path": "seed/prelude/Data/Sorted.cinch",
       "sha256": "1ff30a4df1ec338e447e96442dd13c2cd6f58745f18164326eefe1d5ac692374",
-      "embedded": true,
       "imports": [
         "Algebra.Semigroup"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 2,
@@ -2285,7 +1859,6 @@
       "description": "Immutable UTF-8 text with bounded-stack construction and joining, scalar/span decoding, SIMD scalar counting, slicing and comparison. Byte conversions preserve immutability.",
       "path": "seed/prelude/Data/String.cinch",
       "sha256": "12324541f68d17a1b5cd0bd6dcac44e9644a626aef4d2f1282f95ef9f34e4e3c",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Algebra.Monoid",
@@ -2297,7 +1870,6 @@
         "Data.Nat",
         "Data.Option"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 31,
@@ -2310,13 +1882,9 @@
       "description": "In-memory string-oriented I/O utilities with explicit state and error results.",
       "path": "seed/prelude/Data/StringIo.cinch",
       "sha256": "9eaf153aa82781838f853ea18293df64e0bda38a2055952c74da9dd84e94c4e1",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Result"
-      ],
-      "non_embedded_deps": [
-        "Data.StringIo"
       ],
       "types": 2,
       "signatures": 0,
@@ -2330,14 +1898,12 @@
       "description": "Interned symbols with identity equality, deterministic spelling order, and String conversions.",
       "path": "seed/prelude/Data/Sym.cinch",
       "sha256": "ec8210224881ab65802a4ced9f56847e943254dedc7f335f93021be984a32ec4",
-      "embedded": true,
       "imports": [
         "Data.Bytes",
         "Data.Hash",
         "Data.String",
         "Text.Show"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 2,
@@ -2350,13 +1916,11 @@
       "description": "Target/platform and worker vocabulary used by the compiler-supported runtime and target examples.",
       "path": "seed/prelude/Data/Target.cinch",
       "sha256": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e",
-      "embedded": true,
       "imports": [
         "Data.Option",
         "Data.Producer",
         "Relation.Eq"
       ],
-      "non_embedded_deps": [],
       "types": 5,
       "signatures": 2,
       "values": 2,
@@ -2369,14 +1933,9 @@
       "description": "Immutable row-major tensors with checked runtime shapes of any rank.",
       "path": "seed/prelude/Data/Tensor.cinch",
       "sha256": "caeef1f823e842a73b16519af6e7baa9de0ac0ddb00d31472ed9461116836eb7",
-      "embedded": false,
       "imports": [
         "Data.Array",
         "Data.Core"
-      ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Tensor"
       ],
       "types": 0,
       "signatures": 0,
@@ -2390,7 +1949,6 @@
       "description": "Calendar-aware spans applied to dates, wall-clock times, date-times and instants, with explicit overflow results.",
       "path": "seed/prelude/Data/Time/Arithmetic.cinch",
       "sha256": "79b5d74e2656408fa3faea242d6cd61e557304402eb839d827fd01645e9c6c38",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2407,17 +1965,6 @@
         "Data.Wide",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Arithmetic",
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Span",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Unit",
-        "Data.Time.Weekday"
       ],
       "types": 2,
       "signatures": 0,
@@ -2431,7 +1978,6 @@
       "description": "Civil calendar dates with validated construction, weekday and ordinal queries, and day arithmetic.",
       "path": "seed/prelude/Data/Time/Date.cinch",
       "sha256": "dd1b92039b8c4d39ee8c82843e5eff46a1b324e51b3c8b917c309733227bfc0d",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2440,10 +1986,6 @@
         "Data.Time.Weekday",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.Weekday"
       ],
       "types": 1,
       "signatures": 0,
@@ -2457,7 +1999,6 @@
       "description": "Civil date and wall-clock time pairs without a time zone.",
       "path": "seed/prelude/Data/Time/DateTime.cinch",
       "sha256": "777d7c3bf5a8ecc3ed4f5c357eadd07019d85f5a77898a1c163e1ca33c9619ce",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2469,12 +2010,6 @@
         "Data.Wide",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Weekday"
       ],
       "types": 1,
       "signatures": 0,
@@ -2488,7 +2023,6 @@
       "description": "Exact signed elapsed-time durations with nanosecond precision and checked arithmetic.",
       "path": "seed/prelude/Data/Time/Duration.cinch",
       "sha256": "65b41d25ea1aafb71542227a9456ccb996d696089b1af1993ff90ba80fd506cc",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2497,9 +2031,6 @@
         "Data.Wide",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Duration"
       ],
       "types": 1,
       "signatures": 0,
@@ -2513,7 +2044,6 @@
       "description": "Monotonic clock readings for measuring elapsed time; never related to the civil calendar.",
       "path": "seed/prelude/Data/Time/Monotonic.cinch",
       "sha256": "35ad9089126831a35cefed441b34eec60c6b807e9770bd8185dc3eec72c63ca6",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Option",
@@ -2522,10 +2052,6 @@
         "Data.Wide",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Duration",
-        "Data.Time.Monotonic"
       ],
       "types": 1,
       "signatures": 0,
@@ -2539,7 +2065,6 @@
       "description": "Fixed offsets from UTC with validated ranges.",
       "path": "seed/prelude/Data/Time/Offset.cinch",
       "sha256": "74af282609866c44d75df7392c48eb71cafd85f5e1ee6edb2af30bb4a109cc2c",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Option",
@@ -2548,15 +2073,6 @@
         "Data.Time.Timestamp",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday"
       ],
       "types": 1,
       "signatures": 0,
@@ -2570,7 +2086,6 @@
       "description": "Calendar-aware spans that keep each unit (years through nanoseconds), with balancing and rounding.",
       "path": "seed/prelude/Data/Time/Span.cinch",
       "sha256": "4d4838e0610c2143ead9b6c2cc853f0a9a7c724aa833d6d892ada772a14c39c1",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2585,15 +2100,6 @@
         "Data.Wide",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Span",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Unit",
-        "Data.Time.Weekday"
       ],
       "types": 5,
       "signatures": 0,
@@ -2607,7 +2113,6 @@
       "description": "Civil wall-clock times of day with nanosecond precision.",
       "path": "seed/prelude/Data/Time/TimeOfDay.cinch",
       "sha256": "c5a8af68643957b15c1eabba4f52a562b75b064188e6e588624d7cc415090296",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2615,9 +2120,6 @@
         "Data.Ordering",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.TimeOfDay"
       ],
       "types": 1,
       "signatures": 0,
@@ -2631,7 +2133,6 @@
       "description": "Instants on the Unix time line with nanosecond precision and checked arithmetic.",
       "path": "seed/prelude/Data/Time/Timestamp.cinch",
       "sha256": "c4ac068fadce1317eb55fe3e867e7c85e2e98449390bd95c01eb7c7982380614",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Option",
@@ -2640,10 +2141,6 @@
         "Data.Wide",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Duration",
-        "Data.Time.Timestamp"
       ],
       "types": 1,
       "signatures": 0,
@@ -2657,7 +2154,6 @@
       "description": "Span units, rounding modes and the shared rounding kernel.",
       "path": "seed/prelude/Data/Time/Unit.cinch",
       "sha256": "f2dfb80db9ec3788b0d698bb055050c8842b44d14bf47ee8a7c72762175cc8ab",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2666,9 +2162,6 @@
         "Data.Wide",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Unit"
       ],
       "types": 2,
       "signatures": 2,
@@ -2682,7 +2175,6 @@
       "description": "The seven days of the week with ordering and offset arithmetic.",
       "path": "seed/prelude/Data/Time/Weekday.cinch",
       "sha256": "5f0d65473156ec4f948989a0a1bf99b155c644495f8d29da28f5b31e0e6ddaf8",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2690,9 +2182,6 @@
         "Data.Ordering",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Weekday"
       ],
       "types": 1,
       "signatures": 0,
@@ -2706,7 +2195,6 @@
       "description": "POSIX TZ rule strings: parsing and evaluating standard/daylight transition rules.",
       "path": "seed/prelude/Data/Time/Zone/Posix.cinch",
       "sha256": "ab9f6f5fe7365fcf24af9c6d156b80f1de73e01b0edf070d1daf0b430d521ce9",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -2722,17 +2210,6 @@
         "Data.Time.Zone.Types",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types"
       ],
       "types": 2,
       "signatures": 0,
@@ -2746,7 +2223,6 @@
       "description": "Shared vocabulary for time zones: transitions, ambiguity and disambiguation policies.",
       "path": "seed/prelude/Data/Time/Zone/Types.cinch",
       "sha256": "9ae9aa1e61e7319241e258b3bea890069e31bc1c35c689e1f361f2db050b1ebe",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Option",
@@ -2755,16 +2231,6 @@
         "Data.Time.Offset",
         "Data.Time.Timestamp",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone.Types"
       ],
       "types": 4,
       "signatures": 0,
@@ -2778,7 +2244,6 @@
       "description": "Reading TZif time zone files (RFC 9636) into checked transition tables.",
       "path": "seed/prelude/Data/Time/Zone/Tzif.cinch",
       "sha256": "553280395cae4717281c2a60e19cd658e5589197362da4b23b9bc8f89f5b649c",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -2793,19 +2258,6 @@
         "Data.Time.Zone.Posix",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types",
-        "Data.Time.Zone.Tzif"
       ],
       "types": 1,
       "signatures": 0,
@@ -2819,7 +2271,6 @@
       "description": "Time zones: offsets for instants, resolution of civil times, and fixed or rule-based zones.",
       "path": "seed/prelude/Data/Time/Zone.cinch",
       "sha256": "b97d1abcfcca9d51d317ac70f92284ebe6b3c408d260d1364bc25d73a0548415",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -2837,18 +2288,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types"
-      ],
       "types": 6,
       "signatures": 0,
       "values": 37,
@@ -2861,7 +2300,6 @@
       "description": "Arithmetic, differences and rounding on zoned date-times.",
       "path": "seed/prelude/Data/Time/Zoned/Arithmetic.cinch",
       "sha256": "a1b34d6e327fedb1d1a522b9d956f445c24ad1ee422a7b5b9c77f41c1930af5f",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Machine",
@@ -2885,23 +2323,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Arithmetic",
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.Span",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Unit",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types",
-        "Data.Time.Zoned",
-        "Data.Time.Zoned.Arithmetic"
-      ],
       "types": 4,
       "signatures": 0,
       "values": 41,
@@ -2914,7 +2335,6 @@
       "description": "Instants paired with a time zone, with civil field access.",
       "path": "seed/prelude/Data/Time/Zoned.cinch",
       "sha256": "399a55deb46acb1139e9c71c041af7242622cb6f9d798114bdc0e04d561c1de0",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Option",
@@ -2931,19 +2351,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types",
-        "Data.Time.Zoned"
-      ],
       "types": 1,
       "signatures": 0,
       "values": 26,
@@ -2956,7 +2363,6 @@
       "description": "Time values, durations, and conversions with explicit units and admitted ranges.",
       "path": "seed/prelude/Data/Time.cinch",
       "sha256": "eaebe31539cf831410efab83a69447edab72cad03b00a27d4b515ddd4d54761c",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Char",
@@ -2974,10 +2380,6 @@
         "Relation.Ord",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Data.Date",
-        "Data.Time"
-      ],
       "types": 2,
       "signatures": 0,
       "values": 15,
@@ -2990,7 +2392,6 @@
       "description": "Unicode scalar and numeric classification, simple case mappings, fold cycles and checked locale overrides.",
       "path": "seed/prelude/Data/Unicode/Kernel.cinch",
       "sha256": "ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -3001,11 +2402,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.Result",
-        "Data.Unicode.Tables"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
         "Data.Unicode.Tables"
       ],
       "types": 4,
@@ -3020,19 +2416,12 @@
       "description": "Named Unicode category, script and property tables with deterministic catalog observations.",
       "path": "seed/prelude/Data/Unicode/Names.cinch",
       "sha256": "443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50",
-      "embedded": false,
       "imports": [
         "Data.List",
         "Data.Machine",
         "Data.Nat",
         "Data.Option",
         "Data.String",
-        "Data.Unicode.Range",
-        "Data.Unicode.Tables"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Data.Unicode.Names",
         "Data.Unicode.Range",
         "Data.Unicode.Tables"
       ],
@@ -3048,7 +2437,6 @@
       "description": "Immutable Unicode range tables with checked construction, exact membership and copied observations.",
       "path": "seed/prelude/Data/Unicode/Range.cinch",
       "sha256": "36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -3059,11 +2447,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.Result",
-        "Data.Unicode.Tables"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Data.Unicode.Range",
         "Data.Unicode.Tables"
       ],
       "types": 4,
@@ -3078,12 +2461,8 @@
       "description": "Generated Unicode property, case and folding data with a pinned version and source provenance.",
       "path": "seed/prelude/Data/Unicode/Tables.cinch",
       "sha256": "52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342",
-      "embedded": false,
       "imports": [
         "Data.Machine"
-      ],
-      "non_embedded_deps": [
-        "Data.Unicode.Tables"
       ],
       "types": 0,
       "signatures": 0,
@@ -3097,7 +2476,6 @@
       "description": "Versioned Unicode classification, simple case mappings, fold cycles, named tables and checked custom ranges.",
       "path": "seed/prelude/Data/Unicode.cinch",
       "sha256": "fba58333635e0995c1ae77eb1947275c7198a557147a95333f8ef52d981da2c0",
-      "embedded": false,
       "imports": [
         "Data.Char",
         "Data.List",
@@ -3108,14 +2486,6 @@
         "Data.Unicode.Kernel",
         "Data.Unicode.Names",
         "Data.Unicode.Range"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Data.Unicode",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Names",
-        "Data.Unicode.Range",
-        "Data.Unicode.Tables"
       ],
       "types": 8,
       "signatures": 0,
@@ -3129,7 +2499,6 @@
       "description": "Immutable 128-bit identifiers with RFC 9562 text, ordering and explicit version 7 state.",
       "path": "seed/prelude/Data/Uuid.cinch",
       "sha256": "d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -3141,11 +2510,6 @@
         "Data.String",
         "Relation.Eq",
         "Relation.Ord",
-        "Text.Hex"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Data.Uuid",
         "Text.Hex"
       ],
       "types": 4,
@@ -3160,7 +2524,6 @@
       "description": "Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies.",
       "path": "seed/prelude/Data/Wide.cinch",
       "sha256": "d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133",
-      "embedded": true,
       "imports": [
         "Algebra.Bits",
         "Data.Int",
@@ -3170,7 +2533,6 @@
         "Relation.Ord",
         "Text.Show"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 244,
@@ -3183,14 +2545,10 @@
       "description": "Bit lengths, byte reversal, signed rotations and checked carry/borrow, wide multiply, divide and remainder operations over fixed and native-width words.",
       "path": "seed/prelude/Data/Word.cinch",
       "sha256": "1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Machine",
         "Data.Result"
-      ],
-      "non_embedded_deps": [
-        "Data.Word"
       ],
       "types": 1,
       "signatures": 0,
@@ -3204,20 +2562,12 @@
       "description": "Inspectable scalar checksum sinks, generic byte writers and bounded reader-to-Adler-32 copying with advanced source continuations.",
       "path": "seed/prelude/Effect/Adler32.cinch",
       "sha256": "561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
         "Text.Adler32"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Adler32",
-        "Effect.Stream",
-        "Text.Adler32",
-        "Text.Binary"
       ],
       "types": 0,
       "signatures": 0,
@@ -3231,18 +2581,11 @@
       "description": "ASCII85 encoding writers and decoding byte readers with explicit finalization, bounded read-ahead and sticky stream errors.",
       "path": "seed/prelude/Effect/Ascii85.cinch",
       "sha256": "ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Data.String",
-        "Effect.Stream",
-        "Text.Ascii85"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Ascii85",
         "Effect.Stream",
         "Text.Ascii85"
       ],
@@ -3258,18 +2601,11 @@
       "description": "Explicitly finalized Base32 encoding writers and bounded decoding readers with precise errors, retained cursors and sticky failures.",
       "path": "seed/prelude/Effect/Base32.cinch",
       "sha256": "38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Option",
         "Data.Result",
-        "Effect.Stream",
-        "Text.Base32"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Base32",
         "Effect.Stream",
         "Text.Base32"
       ],
@@ -3285,18 +2621,11 @@
       "description": "Explicitly finalized Base64 writers and bounded decoding readers with sticky errors and isolated output chunks.",
       "path": "seed/prelude/Effect/Base64.cinch",
       "sha256": "4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Option",
         "Data.Result",
-        "Effect.Stream",
-        "Text.Base64.Encoding"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Base64",
         "Effect.Stream",
         "Text.Base64.Encoding"
       ],
@@ -3312,16 +2641,12 @@
       "description": "Benchmark case execution and timing/reporting helpers over runtime clocks.",
       "path": "seed/prelude/Effect/Benchmark.cinch",
       "sha256": "59fcce379631b8530523a7370db82c170c0e5d6e0a7b5961e80fd270883e8ba3",
-      "embedded": false,
       "imports": [
         "Data.List",
         "Data.Nat",
         "Data.String",
         "Effect.Clock",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Effect.Benchmark"
       ],
       "types": 1,
       "signatures": 0,
@@ -3335,7 +2660,6 @@
       "description": "Explicit fixed and variable binary stream codecs preserving progress and advanced handles after failures.",
       "path": "seed/prelude/Effect/Binary.cinch",
       "sha256": "ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Machine",
@@ -3343,14 +2667,6 @@
         "Data.Result",
         "Data.String",
         "Effect.Stream",
-        "Text.Binary.Layout"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Data.Complex",
-        "Effect.Binary",
-        "Effect.Stream",
-        "Text.Binary",
         "Text.Binary.Layout"
       ],
       "types": 1,
@@ -3365,7 +2681,6 @@
       "description": "Byte-stream events with signed progress, simultaneous failures, shared advanced continuations and explicit transfer capabilities.",
       "path": "seed/prelude/Effect/Buffered/Core.cinch",
       "sha256": "5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -3377,11 +2692,6 @@
         "Data.String",
         "Effect.Buffered.Internal.Cell",
         "Effect.Io",
-        "Effect.Stream"
-      ],
-      "non_embedded_deps": [
-        "Effect.Buffered.Core",
-        "Effect.Buffered.Internal.Cell",
         "Effect.Stream"
       ],
       "types": 6,
@@ -3396,11 +2706,7 @@
       "description": "Initialized opaque continuation cells whose allocation, observation and replacement require their I/O region.",
       "path": "seed/prelude/Effect/Buffered/Internal/Cell.cinch",
       "sha256": "3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564",
-      "embedded": false,
       "imports": [],
-      "non_embedded_deps": [
-        "Effect.Buffered.Internal.Cell"
-      ],
       "types": 1,
       "signatures": 0,
       "values": 3,
@@ -3413,7 +2719,6 @@
       "description": "Exact bounded byte scans shared by buffered input and token splitters.",
       "path": "seed/prelude/Effect/Buffered/Internal/Scan.cinch",
       "sha256": "027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -3421,10 +2726,6 @@
         "Data.Machine",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Buffered.Internal.Scan"
       ],
       "types": 0,
       "signatures": 0,
@@ -3438,7 +2739,6 @@
       "description": "Buffered byte reading with explicit advanced handles and independently owned observations.",
       "path": "seed/prelude/Effect/Buffered/Reader.cinch",
       "sha256": "b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -3455,16 +2755,6 @@
         "Effect.Buffered.Core",
         "Effect.Buffered.Internal.Scan",
         "Effect.Io",
-        "Effect.Stream"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Effect.Buffered.Core",
-        "Effect.Buffered.Internal.Cell",
-        "Effect.Buffered.Internal.Scan",
-        "Effect.Buffered.Reader",
         "Effect.Stream"
       ],
       "types": 4,
@@ -3479,7 +2769,6 @@
       "description": "Buffered byte output with sticky failures, exact partial progress and independently owned reservations.",
       "path": "seed/prelude/Effect/Buffered/Writer.cinch",
       "sha256": "bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -3497,15 +2786,6 @@
         "Effect.Io",
         "Effect.Stream"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Effect.Buffered.Core",
-        "Effect.Buffered.Internal.Cell",
-        "Effect.Buffered.Writer",
-        "Effect.Stream"
-      ],
       "types": 2,
       "signatures": 0,
       "values": 29,
@@ -3518,22 +2798,9 @@
       "description": "Buffered input and output components with explicit independent advanced handles.",
       "path": "seed/prelude/Effect/Buffered.cinch",
       "sha256": "a9669f4c6996da84707ead19c237498e0b043fcac8dc1e4cc945ccaecff22054",
-      "embedded": false,
       "imports": [
         "Effect.Buffered.Reader",
         "Effect.Buffered.Writer"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Effect.Buffered",
-        "Effect.Buffered.Core",
-        "Effect.Buffered.Internal.Cell",
-        "Effect.Buffered.Internal.Scan",
-        "Effect.Buffered.Reader",
-        "Effect.Buffered.Writer",
-        "Effect.Stream"
       ],
       "types": 1,
       "signatures": 0,
@@ -3547,13 +2814,11 @@
       "description": "Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs.",
       "path": "seed/prelude/Effect/Clock.cinch",
       "sha256": "df444a92ce56f1388be9014ddcdf637971c3d3c9082eb85f4d5e50c795e6522e",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Nat",
         "Data.Result"
       ],
-      "non_embedded_deps": [],
       "types": 2,
       "signatures": 0,
       "values": 6,
@@ -3566,11 +2831,9 @@
       "description": "Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler.",
       "path": "seed/prelude/Effect/Concurrent/MVar.cinch",
       "sha256": "1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e",
-      "embedded": true,
       "imports": [
         "Data.Option"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 14,
@@ -3583,11 +2846,9 @@
       "description": "Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations.",
       "path": "seed/prelude/Effect/Concurrent.cinch",
       "sha256": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a",
-      "embedded": true,
       "imports": [
         "Data.Result"
       ],
-      "non_embedded_deps": [],
       "types": 2,
       "signatures": 0,
       "values": 1,
@@ -3600,7 +2861,6 @@
       "description": "Coverage collection/reporting utilities with explicit runtime and source metadata.",
       "path": "seed/prelude/Effect/Coverage.cinch",
       "sha256": "b915528a23ac1a11bf8d7223ba1fbf87c1cc1bfd19ce2e38a0e59a1f8858ef62",
-      "embedded": false,
       "imports": [
         "Algebra.Monoid",
         "Algebra.Semigroup",
@@ -3610,9 +2870,6 @@
         "Data.Option",
         "Data.String",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Effect.Coverage"
       ],
       "types": 1,
       "signatures": 0,
@@ -3626,19 +2883,11 @@
       "description": "CRC-32 stream writers and bounded copying into an inspectable checksum state.",
       "path": "seed/prelude/Effect/Crc32.cinch",
       "sha256": "5e6605c274df05c9cab7b75073b307563fc1cfc157152c615a712b53887e296d",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
-        "Text.Crc32"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Crc32",
-        "Effect.Stream",
-        "Text.Binary",
         "Text.Crc32"
       ],
       "types": 0,
@@ -3653,19 +2902,11 @@
       "description": "Inspectable CRC-64 states, generic byte writers and bounded reader-to-checksum copying with advanced source continuations.",
       "path": "seed/prelude/Effect/Crc64.cinch",
       "sha256": "d9692eee84798f6237c7ae8a23ed91e66906cff5f137a800acc413e8b5ddcabc",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
-        "Text.Crc64"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Crc64",
-        "Effect.Stream",
-        "Text.Binary",
         "Text.Crc64"
       ],
       "types": 0,
@@ -3680,7 +2921,6 @@
       "description": "Ed25519, X25519 and AES key generation and random-nonce GCM over the operating system random source.",
       "path": "seed/prelude/Effect/Crypto.cinch",
       "sha256": "957cd112fcd28d0fe72c0849c395aae3e32851e4d48bfac1fa232562ee006725",
-      "embedded": false,
       "imports": [
         "Crypto.Aes",
         "Crypto.Cipher",
@@ -3695,29 +2935,6 @@
         "Data.Result",
         "Effect.Random"
       ],
-      "non_embedded_deps": [
-        "Crypto.Aes",
-        "Crypto.ChaCha20Poly1305",
-        "Crypto.Cipher",
-        "Crypto.ConstantTime",
-        "Crypto.Ecdsa",
-        "Crypto.Ed25519",
-        "Crypto.Field25519",
-        "Crypto.Hmac",
-        "Crypto.Hpke",
-        "Crypto.Kdf",
-        "Crypto.MlKem",
-        "Crypto.P256",
-        "Crypto.X25519",
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Effect.Crypto",
-        "Effect.Random",
-        "Text.Binary",
-        "Text.Digest",
-        "Text.Sha3",
-        "Text.Sha512"
-      ],
       "types": 0,
       "signatures": 0,
       "values": 12,
@@ -3730,7 +2947,6 @@
       "description": "Bounded CSV readers and writers with explicit continuation, record counts, position tracking and advanced handles after failures.",
       "path": "seed/prelude/Effect/Csv.cinch",
       "sha256": "115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -3742,12 +2958,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String",
-        "Effect.Stream",
-        "Text.Csv.Record"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Csv",
         "Effect.Stream",
         "Text.Csv.Record"
       ],
@@ -3763,7 +2973,6 @@
       "description": "Convenience filesystem operations built on the lower-level filesystem API.",
       "path": "seed/prelude/Effect/FileUtils.cinch",
       "sha256": "26ce540b8755def036a6804f9b2da0db29d81d73bee40ac122c89a5b8ead1d00",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Option",
@@ -3771,10 +2980,6 @@
         "Data.Result",
         "Data.String",
         "Effect.Fs",
-        "Effect.Random"
-      ],
-      "non_embedded_deps": [
-        "Effect.FileUtils",
         "Effect.Random"
       ],
       "types": 1,
@@ -3789,15 +2994,11 @@
       "description": "Filesystem walking/search utilities with the module's traversal and error policy.",
       "path": "seed/prelude/Effect/Find.cinch",
       "sha256": "8897fed1fe39856ce9857902d0a5f5fe258a1064bf3be7cf1ba35c033af98080",
-      "embedded": false,
       "imports": [
         "Data.List",
         "Data.Path",
         "Data.Result",
         "Effect.Fs"
-      ],
-      "non_embedded_deps": [
-        "Effect.Find"
       ],
       "types": 1,
       "signatures": 0,
@@ -3811,20 +3012,11 @@
       "description": "Inspectable FNV hashing sinks, generic byte-writer composition and bounded reader-to-hash copying with advanced continuations.",
       "path": "seed/prelude/Effect/Fnv.cinch",
       "sha256": "7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
-        "Text.Fnv.State"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Fnv",
-        "Effect.Stream",
-        "Text.Binary",
-        "Text.Fnv",
         "Text.Fnv.State"
       ],
       "types": 1,
@@ -3839,7 +3031,6 @@
       "description": "Filesystem reads/writes, directory and metadata operations, with Path values and named Result errors.",
       "path": "seed/prelude/Effect/Fs.cinch",
       "sha256": "ef52d29afce18d72843cd2704e3a0ebcbeff428436fa047971807c4c56e93a0a",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -3854,7 +3045,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [],
       "types": 3,
       "signatures": 0,
       "values": 7,
@@ -3867,7 +3057,6 @@
       "description": "Hexadecimal encoding writers, decoding readers and formatted dump sinks with explicit continuations and sticky errors.",
       "path": "seed/prelude/Effect/Hex.cinch",
       "sha256": "e53cb32a3da3f471f746fe04bcd8ef54d4fc774608d236b60da57a9af60c550b",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Machine",
@@ -3875,12 +3064,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String",
-        "Effect.Stream",
-        "Text.Hex"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Hex",
         "Effect.Stream",
         "Text.Hex"
       ],
@@ -3896,7 +3079,6 @@
       "description": "A bounded plaintext HTTP client with response framing and named errors. HTTPS is explicitly refused; this module has no TLS implementation.",
       "path": "seed/prelude/Effect/Http.cinch",
       "sha256": "402d0270a2549a552be4c7f6e243724f9fe1f63eceb0f2597f0b588c4485035e",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -3912,12 +3094,6 @@
         "Text.Show",
         "Text.Uri"
       ],
-      "non_embedded_deps": [
-        "Data.IpAddr",
-        "Effect.Http",
-        "Effect.Net",
-        "Text.Uri"
-      ],
       "types": 3,
       "signatures": 0,
       "values": 17,
@@ -3930,13 +3106,11 @@
       "description": "A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration.",
       "path": "seed/prelude/Effect/Io.cinch",
       "sha256": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804",
-      "embedded": true,
       "imports": [
         "Data.Path",
         "Data.Result",
         "Effect.Fs"
       ],
-      "non_embedded_deps": [],
       "types": 3,
       "signatures": 0,
       "values": 2,
@@ -3949,13 +3123,9 @@
       "description": "Structured log operations and records with runtime capability/effect accounting.",
       "path": "seed/prelude/Effect/Log.cinch",
       "sha256": "c32dae495122e7b3963d8fa2fd19fab81031f29093493080206d0191e7db09ed",
-      "embedded": false,
       "imports": [
         "Data.Json",
         "Data.List"
-      ],
-      "non_embedded_deps": [
-        "Effect.Log"
       ],
       "types": 2,
       "signatures": 0,
@@ -3969,19 +3139,11 @@
       "description": "Inspectable MD5 states, generic digest sinks and bounded reader-to-hash copying for legacy formats.",
       "path": "seed/prelude/Effect/Md5.cinch",
       "sha256": "fc92cfe09b3a1ff53d9b2ed9fc70bf130d965602dbacac76c93ec5c4ad21e1c3",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
-        "Text.Md5"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Md5",
-        "Effect.Stream",
-        "Text.Binary",
         "Text.Md5"
       ],
       "types": 0,
@@ -3996,7 +3158,6 @@
       "description": "Encoded-word and header decoding with explicit charset reader capabilities, typed errors and advanced writer continuations.",
       "path": "seed/prelude/Effect/Mime.cinch",
       "sha256": "1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -4007,16 +3168,6 @@
         "Data.Result",
         "Data.String",
         "Effect.Stream",
-        "Text.Mime"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Effect.Mime",
-        "Effect.Stream",
-        "Text.Base64.Encoding",
         "Text.Mime"
       ],
       "types": 4,
@@ -4031,7 +3182,6 @@
       "description": "Explicit shared multipart sessions with borrowed byte I/O capabilities.",
       "path": "seed/prelude/Effect/Multipart.cinch",
       "sha256": "1969a6077e1aafb84226e9f4457ceb0b17395bdd9ad82a3a8256ec02e22a8044",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -4044,19 +3194,6 @@
         "Data.Result",
         "Data.String",
         "Effect.Stream",
-        "Text.Mime",
-        "Text.Multipart",
-        "Text.QuotedPrintable"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Mutable.Var",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Effect.Multipart",
-        "Effect.Stream",
-        "Text.Base64.Encoding",
         "Text.Mime",
         "Text.Multipart",
         "Text.QuotedPrintable"
@@ -4073,15 +3210,11 @@
       "description": "Socket operations with explicit handles, address values, errors, and runtime effects.",
       "path": "seed/prelude/Effect/Net.cinch",
       "sha256": "9bac11640aa56817a5722b1336568f7d1ad80e034c105313934b44c8a7e9cc30",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Effect.Net"
       ],
       "types": 2,
       "signatures": 0,
@@ -4095,18 +3228,7 @@
       "description": "Validated envelope output through explicit advanced writer continuations, bounded chunks and linear short-write draining.",
       "path": "seed/prelude/Effect/Pem.cinch",
       "sha256": "47dfe3101d486d89c2b6e2b78700b36c4c4c3ed80cf467de347ef7ba6ffc2bb4",
-      "embedded": false,
       "imports": [
-        "Text.Pem"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Effect.Pem",
-        "Effect.Stream",
-        "Text.Base64.Encoding",
         "Text.Pem"
       ],
       "types": 1,
@@ -4121,7 +3243,6 @@
       "description": "One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments.",
       "path": "seed/prelude/Effect/Process.cinch",
       "sha256": "57c8c854e61afb03d242709696cda431007cd423220e4e69bbaf112422eaf37b",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -4134,7 +3255,6 @@
         "Data.String",
         "Relation.Eq"
       ],
-      "non_embedded_deps": [],
       "types": 4,
       "signatures": 0,
       "values": 11,
@@ -4147,7 +3267,6 @@
       "description": "Pseudo-terminal-backed child processes, terminal I/O, and lifecycle operations.",
       "path": "seed/prelude/Effect/Pty.cinch",
       "sha256": "5c376b14e53fa6547230922be94c981f19ccd06b8ca360c6effdb38bec68aa48",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -4159,9 +3278,6 @@
         "Data.Result",
         "Data.String",
         "Relation.Eq"
-      ],
-      "non_embedded_deps": [
-        "Effect.Pty"
       ],
       "types": 3,
       "signatures": 0,
@@ -4175,19 +3291,12 @@
       "description": "Incremental quoted-printable readers and writers with explicit binary policy, partial progress and sticky errors.",
       "path": "seed/prelude/Effect/QuotedPrintable.cinch",
       "sha256": "10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.List",
         "Data.Nat",
         "Data.Option",
         "Data.Result",
-        "Effect.Stream",
-        "Text.QuotedPrintable"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.QuotedPrintable",
         "Effect.Stream",
         "Text.QuotedPrintable"
       ],
@@ -4203,23 +3312,12 @@
       "description": "Pseudorandom sources seeded from operating-system entropy.",
       "path": "seed/prelude/Effect/Rand.cinch",
       "sha256": "1849a085f5e7c61bd4d30491b389f120737eeaee6049ff0839e428e717b7efdf",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
         "Data.ChaCha8",
         "Data.Rand",
         "Data.Result",
-        "Effect.Random"
-      ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Data.ChaCha8",
-        "Data.Float",
-        "Data.Rand",
-        "Effect.Rand",
         "Effect.Random"
       ],
       "types": 0,
@@ -4234,7 +3332,6 @@
       "description": "Runtime entropy/random utilities with explicit effectful access.",
       "path": "seed/prelude/Effect/Random.cinch",
       "sha256": "75d3f181771dfa42e5c912f04c9a003e943b3e6eb7ebabe45eefa9e028be9216",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -4244,9 +3341,6 @@
         "Data.String",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Effect.Random"
       ],
       "types": 1,
       "signatures": 0,
@@ -4260,7 +3354,6 @@
       "description": "Hostname/address resolution through the runtime, with named failure results.",
       "path": "seed/prelude/Effect/Resolv.cinch",
       "sha256": "a965d0886171f2b2cb753518e0dc2dedf3442cb80fe6384d16b92804c61a05f0",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -4272,12 +3365,6 @@
         "Data.Result",
         "Data.String",
         "Effect.Net",
-        "Text.Scan"
-      ],
-      "non_embedded_deps": [
-        "Data.IpAddr",
-        "Effect.Net",
-        "Effect.Resolv",
         "Text.Scan"
       ],
       "types": 1,
@@ -4292,7 +3379,6 @@
       "description": "Byte-preserving token splitters with explicit absent, empty and final token states.",
       "path": "seed/prelude/Effect/Scanner/Split.cinch",
       "sha256": "5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -4307,17 +3393,6 @@
         "Effect.Buffered.Core",
         "Effect.Buffered.Internal.Scan"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Effect.Buffered.Core",
-        "Effect.Buffered.Internal.Cell",
-        "Effect.Buffered.Internal.Scan",
-        "Effect.Scanner.Split",
-        "Effect.Stream"
-      ],
       "types": 3,
       "signatures": 0,
       "values": 8,
@@ -4330,7 +3405,6 @@
       "description": "Advanced byte-stream tokenization with bounded buffers, fresh tokens and explicit checked protocol failures.",
       "path": "seed/prelude/Effect/Scanner.cinch",
       "sha256": "dd6d190f2b53e1fb80b10e48d64a29363b82041895660675d2b383c637be06aa",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -4341,18 +3415,6 @@
         "Data.String",
         "Effect.Buffered.Core",
         "Effect.Io",
-        "Effect.Scanner.Split",
-        "Effect.Stream"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Effect.Buffered.Core",
-        "Effect.Buffered.Internal.Cell",
-        "Effect.Buffered.Internal.Scan",
-        "Effect.Scanner",
         "Effect.Scanner.Split",
         "Effect.Stream"
       ],
@@ -4368,11 +3430,9 @@
       "description": "The direct, Result, and Option do providers. One lexical provider/container is selected per definition.",
       "path": "seed/prelude/Effect/Sequencing.cinch",
       "sha256": "10cce786924bb5062ea0e099b048cc937394920b10c819c99e0a0bae8fdbbe09",
-      "embedded": true,
       "imports": [
         "Data.Core"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 3,
       "values": 0,
@@ -4385,19 +3445,11 @@
       "description": "Inspectable SHA-1 states, generic digest sinks and bounded reader-to-hash copying for legacy formats.",
       "path": "seed/prelude/Effect/Sha1.cinch",
       "sha256": "7fe972afface0debe29d9ce3b39d01d7e1dfc16444702fb10b98986343db1201",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
-        "Text.Sha1"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Sha1",
-        "Effect.Stream",
-        "Text.Binary",
         "Text.Sha1"
       ],
       "types": 0,
@@ -4412,19 +3464,11 @@
       "description": "Inspectable SHA-224/SHA-256 states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations.",
       "path": "seed/prelude/Effect/Sha256.cinch",
       "sha256": "531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
-        "Text.Sha256"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Sha256",
-        "Effect.Stream",
-        "Text.Binary",
         "Text.Sha256"
       ],
       "types": 0,
@@ -4439,19 +3483,11 @@
       "description": "Inspectable SHA-3/SHAKE states, generic digest sinks, bounded reader-to-hash copying and SHAKE output as a generic reader.",
       "path": "seed/prelude/Effect/Sha3.cinch",
       "sha256": "b08dbb1bd12da929f2c38cdad56b119dcc35f59205372e687872ed8ec0d5fe92",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
-        "Text.Sha3"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Sha3",
-        "Effect.Stream",
-        "Text.Binary",
         "Text.Sha3"
       ],
       "types": 0,
@@ -4466,19 +3502,11 @@
       "description": "Inspectable SHA-384/SHA-512/SHA-512/t states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations.",
       "path": "seed/prelude/Effect/Sha512.cinch",
       "sha256": "4956a484bcf01bbd58f54318c5342a2fe5344879c66b0583c1834641fa151c24",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.Result",
         "Effect.Stream",
-        "Text.Sha512"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Effect.Sha512",
-        "Effect.Stream",
-        "Text.Binary",
         "Text.Sha512"
       ],
       "types": 0,
@@ -4493,12 +3521,8 @@
       "description": "Operating-system signal vocabulary and runtime operations with explicit error/effect handling.",
       "path": "seed/prelude/Effect/Signal.cinch",
       "sha256": "e64e11d90a176c3f9f3dfe07e218ac54b086a1beab27ae54009f98dde9fc2724",
-      "embedded": false,
       "imports": [
         "Data.Result"
-      ],
-      "non_embedded_deps": [
-        "Effect.Signal"
       ],
       "types": 2,
       "signatures": 0,
@@ -4512,7 +3536,6 @@
       "description": "An SMTP client over sockets with explicit client state: greeting with HELO fallback, authentication, envelope, data, quit and send-mail.",
       "path": "seed/prelude/Effect/Smtp.cinch",
       "sha256": "03aabb42280978376631405c057b4e0dc6bc306e3d1beda841644e14034c42cf",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -4522,17 +3545,6 @@
         "Data.String",
         "Effect.Net",
         "Text.Base64",
-        "Text.Smtp"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Effect.Net",
-        "Effect.Smtp",
-        "Text.Base64",
-        "Text.Binary",
-        "Text.Hex",
-        "Text.Md5",
         "Text.Smtp"
       ],
       "types": 1,
@@ -4547,12 +3559,10 @@
       "description": "A bounded first-in first-out queue for transactions: a write waits while the queue is at capacity, a read waits while it is empty.",
       "path": "seed/prelude/Effect/Stm/TBQueue.cinch",
       "sha256": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe",
-      "embedded": true,
       "imports": [
         "Data.List",
         "Effect.Stm"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 10,
@@ -4565,11 +3575,9 @@
       "description": "A transactional variable that is either empty or full: take waits while empty, put waits while full. The building block for handoff and mutual exclusion inside transactions.",
       "path": "seed/prelude/Effect/Stm/TMVar.cinch",
       "sha256": "6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4",
-      "embedded": true,
       "imports": [
         "Effect.Stm"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 12,
@@ -4582,12 +3590,10 @@
       "description": "An unbounded first-in first-out queue for transactions, as two lists so that writers and readers touch different variables.",
       "path": "seed/prelude/Effect/Stm/TQueue.cinch",
       "sha256": "706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2",
-      "embedded": true,
       "imports": [
         "Data.List",
         "Effect.Stm"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 9,
@@ -4600,11 +3606,9 @@
       "description": "A counting semaphore for transactions: wait takes a permit or retries, signal returns one.",
       "path": "seed/prelude/Effect/Stm/TSem.cinch",
       "sha256": "a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d",
-      "embedded": true,
       "imports": [
         "Effect.Stm"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 7,
@@ -4617,7 +3621,6 @@
       "description": "Software transactional memory: TVar cells, composable STM transactions run by atomically, retry and or-else for blocking and choice, and the STM do provider. The transaction algorithm is Cinch source over inline target IR.",
       "path": "seed/prelude/Effect/Stm.cinch",
       "sha256": "470353674e04c6572a5f941cbba42503281077aa55abd3ed8daf50ff85a9f071",
-      "embedded": true,
       "imports": [
         "Category.Alternative",
         "Category.Applicative",
@@ -4626,7 +3629,6 @@
         "Data.Machine",
         "Data.Option"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 1,
       "values": 17,
@@ -4639,7 +3641,6 @@
       "description": "Positional byte writers, signed cursor movement and streaming at a base offset.",
       "path": "seed/prelude/Effect/Stream/Offset.cinch",
       "sha256": "1828e5e2f5547face4ed67fdbeeba348c9a52e3679de240a8d79003904c48bbd",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Int",
@@ -4647,10 +3648,6 @@
         "Data.Option",
         "Data.Result",
         "Effect.Stream"
-      ],
-      "non_embedded_deps": [
-        "Effect.Stream",
-        "Effect.Stream.Offset"
       ],
       "types": 2,
       "signatures": 0,
@@ -4664,7 +3661,6 @@
       "description": "Positional byte sources, immutable bounded sections, signed seeks and sequential reader adapters.",
       "path": "seed/prelude/Effect/Stream/Section.cinch",
       "sha256": "ce1b65e973fd2e8d0cbc26d1b9876fa1cd38113fa3843c56cfc229b20954059e",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Int",
@@ -4672,10 +3668,6 @@
         "Data.Option",
         "Data.Result",
         "Effect.Stream"
-      ],
-      "non_embedded_deps": [
-        "Effect.Stream",
-        "Effect.Stream.Section"
       ],
       "types": 3,
       "signatures": 0,
@@ -4689,7 +3681,6 @@
       "description": "Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers.",
       "path": "seed/prelude/Effect/Stream.cinch",
       "sha256": "e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bytes",
@@ -4700,9 +3691,6 @@
         "Data.Result",
         "Data.String",
         "Prim.Sys"
-      ],
-      "non_embedded_deps": [
-        "Effect.Stream"
       ],
       "types": 3,
       "signatures": 0,
@@ -4716,7 +3704,6 @@
       "description": "A subprocess-based test runner and named test-result/report vocabulary.",
       "path": "seed/prelude/Effect/Test.cinch",
       "sha256": "25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.List",
@@ -4724,9 +3711,6 @@
         "Data.String",
         "Relation.Eq",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Effect.Test"
       ],
       "types": 5,
       "signatures": 0,
@@ -4740,7 +3724,6 @@
       "description": "The system time zone database and the current system zone.",
       "path": "seed/prelude/Effect/Time/Zone.cinch",
       "sha256": "00e4316ae15fdfd60d1b89f64409d536b0476812447d505a4a557e05b7139751",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -4759,23 +3742,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Monotonic",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types",
-        "Data.Time.Zone.Tzif",
-        "Data.Time.Zoned",
-        "Effect.Time",
-        "Effect.Time.Zone"
-      ],
       "types": 4,
       "signatures": 0,
       "values": 11,
@@ -4788,7 +3754,6 @@
       "description": "Typed readers for the system and monotonic clocks.",
       "path": "seed/prelude/Effect/Time.cinch",
       "sha256": "55fb18e3413088cd5db3e41302ae0984f1f0039c0e386ae8ca72e4e4fe7be4e4",
-      "embedded": false,
       "imports": [
         "Data.Machine",
         "Data.Nat",
@@ -4799,12 +3764,6 @@
         "Effect.Clock",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Duration",
-        "Data.Time.Monotonic",
-        "Data.Time.Timestamp",
-        "Effect.Time"
       ],
       "types": 2,
       "signatures": 0,
@@ -4818,16 +3777,11 @@
       "description": "Scoped tracing/span vocabulary and context propagation tied to the runtime identity.",
       "path": "seed/prelude/Effect/Trace.cinch",
       "sha256": "fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366",
-      "embedded": false,
       "imports": [
         "Data.Json",
         "Data.List",
         "Data.String",
         "Effect.Log"
-      ],
-      "non_embedded_deps": [
-        "Effect.Log",
-        "Effect.Trace"
       ],
       "types": 1,
       "signatures": 0,
@@ -4841,7 +3795,6 @@
       "description": "Secure UUID generation with explicit serialized version 7 ownership.",
       "path": "seed/prelude/Effect/Uuid.cinch",
       "sha256": "fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3",
-      "embedded": false,
       "imports": [
         "Data.Core",
         "Data.Nat",
@@ -4849,13 +3802,6 @@
         "Effect.Clock",
         "Effect.Concurrent.MVar",
         "Effect.Random"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Data.Uuid",
-        "Effect.Random",
-        "Effect.Uuid",
-        "Text.Hex"
       ],
       "types": 1,
       "signatures": 0,
@@ -4869,12 +3815,10 @@
       "description": "Small reusable function operations such as identity, composition, argument manipulation, and application.",
       "path": "seed/prelude/Function/Combinators.cinch",
       "sha256": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Relation.Eq"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 0,
       "values": 13,
@@ -4887,16 +3831,11 @@
       "description": "Immutable factories for the ordered 256-color Plan 9 and 216-color WebSafe palettes.",
       "path": "seed/prelude/Image/Color/Palette.cinch",
       "sha256": "4d3f13a9a42b56e54be8d4af1c5ef176035b503d83c34dc0cb54671f820ac5dc",
-      "embedded": false,
       "imports": [
         "Data.Core",
         "Data.List",
         "Data.Machine",
         "Image.Color"
-      ],
-      "non_embedded_deps": [
-        "Image.Color",
-        "Image.Color.Palette"
       ],
       "types": 0,
       "signatures": 0,
@@ -4910,16 +3849,12 @@
       "description": "Color representations, conversion models and immutable palettes with first-nearest lookup.",
       "path": "seed/prelude/Image/Color.cinch",
       "sha256": "151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.List",
         "Data.Machine",
         "Data.Nat",
         "Data.Option"
-      ],
-      "non_embedded_deps": [
-        "Image.Color"
       ],
       "types": 4,
       "signatures": 0,
@@ -4933,7 +3868,6 @@
       "description": "Composite rasters with Src and Over, masks and uniform colors, and dither onto palettes, with a vector Over kernel.",
       "path": "seed/prelude/Image/Draw.cinch",
       "sha256": "bf28ed300fee4c128ae7405b125f650ee0d60dc7c7f41dd42f915a34b549e48f",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -4941,11 +3875,6 @@
         "Data.List",
         "Data.Machine",
         "Data.Nat",
-        "Image.Raster"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Image.Draw",
         "Image.Raster"
       ],
       "types": 2,
@@ -4960,7 +3889,6 @@
       "description": "Decode and encode GIF images and animations: palettes, transparency, delays, disposal, looping and interlace.",
       "path": "seed/prelude/Image/Gif.cinch",
       "sha256": "ff3c8851f3f303ba6dd255d062414ba3fb90b555e403a852f245d25589aeaeeb",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -4972,13 +3900,6 @@
         "Image.Raster",
         "Text.Lzw",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Image.Gif",
-        "Image.Raster",
-        "Text.Lzw"
       ],
       "types": 5,
       "signatures": 0,
@@ -4992,7 +3913,6 @@
       "description": "Baseline and progressive JPEG decoding to YCbCr, gray, RGB or CMYK planes, and baseline encoding, with vector IDCT, FDCT, Huffman and colour kernels.",
       "path": "seed/prelude/Image/Jpeg.cinch",
       "sha256": "05234349121fb760e8b50180e88cd63b1eef003c59587d83f6d5c0d170ffc790",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -5003,12 +3923,6 @@
         "Data.Result",
         "Data.String",
         "Data.Wide",
-        "Image.Raster"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Image.Jpeg",
         "Image.Raster"
       ],
       "types": 7,
@@ -5023,7 +3937,6 @@
       "description": "PNG decoding of every color type, depth and interlace method with SIMD scanline reconstruction, and PNG encoding.",
       "path": "seed/prelude/Image/Png.cinch",
       "sha256": "8040ff6891b589157daeda5d4d55e83daf7543d91591dc202a193f662fe44060",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -5035,17 +3948,6 @@
         "Data.String",
         "Image.Raster",
         "Text.Checksum",
-        "Text.Zlib"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Image.Png",
-        "Image.Raster",
-        "Text.Adler32",
-        "Text.Binary",
-        "Text.Checksum",
-        "Text.Crc64",
         "Text.Zlib"
       ],
       "types": 1,
@@ -5060,14 +3962,10 @@
       "description": "Gray, gray-alpha, RGB, RGBA and paletted rasters at eight and sixteen bits with pixel access and RGBA conversion.",
       "path": "seed/prelude/Image/Raster.cinch",
       "sha256": "a4c4c2c6b9f63c021a1654fe120f4746e4266c05a4383b5e6c6581e05b5fbf3b",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.List",
         "Data.Nat"
-      ],
-      "non_embedded_deps": [
-        "Image.Raster"
       ],
       "types": 2,
       "signatures": 0,
@@ -5081,7 +3979,6 @@
       "description": "The implicit, curated base surface available in every program. This facade re-exports selected defining modules; it is not the whole library.",
       "path": "seed/prelude/Prelude.cinch",
       "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Algebra.Bits",
@@ -5113,7 +4010,6 @@
         "Relation.Ord",
         "Text.Show"
       ],
-      "non_embedded_deps": [],
       "types": 23,
       "signatures": 17,
       "values": 1043,
@@ -5126,7 +4022,6 @@
       "description": "The Darwin half of the syscall layer: libSystem calls bound with foreign import ccall (open, read, write, close, lseek, fstat, mkdir, unlink, rename, fsync, getpid), with the -1 result mapped to a named error read from the thread error slot.",
       "path": "seed/prelude/Prim/Sys/Darwin.cinch",
       "sha256": "9bff58d77c388a55aeacf09f90e66094177e2a6ea64025674ee9a20e6c453616",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -5135,7 +4030,6 @@
         "Data.Result",
         "Data.String"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 18,
@@ -5148,7 +4042,6 @@
       "description": "The Linux half of the syscall layer: prim bodies that issue syscall with the pinned number per architecture (x86_64 and aarch64), with the kernel negative result mapped to the same named errors as the Darwin module.",
       "path": "seed/prelude/Prim/Sys/Linux.cinch",
       "sha256": "cf0a9233c9c21c13faa3f5978d0787dd8cfefe0bc5f47b054997800408670a4d",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -5157,7 +4050,6 @@
         "Data.Result",
         "Data.String"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 17,
@@ -5170,7 +4062,6 @@
       "description": "The floor under Prim.Sys: the same entry names and the same named errors as the real backends, with every entry point answering Err SysIoError. It is what a target with no backend yet gets, and it keeps the prelude surface from being empty there.",
       "path": "seed/prelude/Prim/Sys/Portable.cinch",
       "sha256": "2a7ccce7586ac23a9c7b6c10e64a5164032c75691c4fb446ff314894a8b73d7c",
-      "embedded": true,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -5179,7 +4070,6 @@
         "Data.Result",
         "Data.String"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 9,
@@ -5192,13 +4082,11 @@
       "description": "The syscall layer for the compile target under one name: conditional imports and re-exports select Prim.Sys.Darwin on a Darwin target, Prim.Sys.Linux on a Linux target, and the portable floor everywhere else, so a caller imports one module and never names an operating system.",
       "path": "seed/prelude/Prim/Sys.cinch",
       "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d",
-      "embedded": true,
       "imports": [
         "Prim.Sys.Darwin",
         "Prim.Sys.Linux",
         "Prim.Sys.Portable"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 0,
       "values": 17,
@@ -5211,9 +4099,7 @@
       "description": "Equality/inequality class vocabulary. Instances live with their types.",
       "path": "seed/prelude/Relation/Eq.cinch",
       "sha256": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c",
-      "embedded": true,
       "imports": [],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 0,
@@ -5226,12 +4112,10 @@
       "description": "Ordering vocabulary and comparison helpers. State all required dictionaries explicitly; superclass entailment is not implicit.",
       "path": "seed/prelude/Relation/Ord.cinch",
       "sha256": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd",
-      "embedded": true,
       "imports": [
         "Data.Ordering",
         "Relation.Eq"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 1,
       "values": 1,
@@ -5244,7 +4128,6 @@
       "description": "Portable SIMD Adler-32 with bounded machine-word segments, persistent states, network-order digests and checked versioned checkpoints.",
       "path": "seed/prelude/Text/Adler32.cinch",
       "sha256": "30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -5252,11 +4135,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String",
-        "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Adler32",
         "Text.Binary"
       ],
       "types": 2,
@@ -5271,7 +4149,6 @@
       "description": "Command-line argument processing and its named value/error vocabulary.",
       "path": "seed/prelude/Text/Args.cinch",
       "sha256": "106fb5aa92d80c508d1047542d28cd0409801cf136e2a03c299532ccfa156496",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bool",
@@ -5281,9 +4158,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Text.Args"
       ],
       "types": 4,
       "signatures": 0,
@@ -5297,7 +4171,6 @@
       "description": "ASCII85 text, caller-buffer and incremental codecs with consumed-input progress, checked source offsets, SIMD groups and control-run scanning.",
       "path": "seed/prelude/Text/Ascii85.cinch",
       "sha256": "6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5307,10 +4180,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Ascii85"
       ],
       "types": 4,
       "signatures": 0,
@@ -5324,7 +4193,6 @@
       "description": "ASN.1 value trees with a strict DER decoder and canonical DER encoder, including explicit and implicit tags and times.",
       "path": "seed/prelude/Text/Asn1.cinch",
       "sha256": "ce041c4c148382136cc9669fe4558c3dcd23b93ab894f85fb2aa9ecdcf2c2e31",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -5334,10 +4202,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Text.Asn1"
       ],
       "types": 2,
       "signatures": 0,
@@ -5351,7 +4215,6 @@
       "description": "Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffer operations and persistent incremental states.",
       "path": "seed/prelude/Text/Base32.cinch",
       "sha256": "e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5363,10 +4226,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Base32"
       ],
       "types": 7,
       "signatures": 0,
@@ -5380,7 +4239,6 @@
       "description": "Configurable Base64 byte alphabets, padding and strict trailing bits, SIMD codecs, persistent states and checked caller buffers.",
       "path": "seed/prelude/Text/Base64/Encoding.cinch",
       "sha256": "94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -5389,10 +4247,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Base64.Encoding"
       ],
       "types": 5,
       "signatures": 0,
@@ -5406,7 +4260,6 @@
       "description": "Base64 encoding/decoding over bytes with explicit invalid-input results.",
       "path": "seed/prelude/Text/Base64.cinch",
       "sha256": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5417,9 +4270,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Text.Base64"
       ],
       "types": 1,
       "signatures": 0,
@@ -5433,7 +4283,6 @@
       "description": "Typed scalar, floating-point, complex and aggregate binary layouts with checked buffers, exact sizes and packed array kernels.",
       "path": "seed/prelude/Text/Binary/Layout.cinch",
       "sha256": "2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5448,12 +4297,6 @@
         "Data.String",
         "Text.Binary"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Data.Complex",
-        "Text.Binary",
-        "Text.Binary.Layout"
-      ],
       "types": 3,
       "signatures": 0,
       "values": 52,
@@ -5466,7 +4309,6 @@
       "description": "Little- and big-endian integer encoding, checked buffer access, and signed/unsigned varints.",
       "path": "seed/prelude/Text/Binary.cinch",
       "sha256": "9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -5474,10 +4316,6 @@
         "Data.Machine",
         "Data.Nat",
         "Data.Result"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary"
       ],
       "types": 2,
       "signatures": 0,
@@ -5491,15 +4329,11 @@
       "description": "An efficient text-construction vocabulary for assembling many fragments before rendering.",
       "path": "seed/prelude/Text/Builder.cinch",
       "sha256": "c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Nat",
         "Data.String",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Text.Builder"
       ],
       "types": 1,
       "signatures": 0,
@@ -5513,7 +4347,6 @@
       "description": "Decompress concatenated bzip2 streams with table-driven Huffman decoding and verified block and stream CRCs.",
       "path": "seed/prelude/Text/Bzip2.cinch",
       "sha256": "ac64666d69ed61d0f44e7ae56cbb1a840564046919b9da0718ae7b8e50bc9283",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -5523,10 +4356,6 @@
         "Data.Result",
         "Data.String",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Bzip2"
       ],
       "types": 1,
       "signatures": 0,
@@ -5540,20 +4369,12 @@
       "description": "Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials.",
       "path": "seed/prelude/Text/Checksum.cinch",
       "sha256": "6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
         "Data.Machine",
         "Data.Nat",
         "Text.Adler32",
-        "Text.Crc64"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Adler32",
-        "Text.Binary",
-        "Text.Checksum",
         "Text.Crc64"
       ],
       "types": 0,
@@ -5568,12 +4389,10 @@
       "description": "Encoding/decoding signatures and codec helpers with explicit failure results.",
       "path": "seed/prelude/Text/Codec.cinch",
       "sha256": "cf4fe97335cb544ed6801e2a770328f15a859371cc2572f54cd16919f719921b",
-      "embedded": true,
       "imports": [
         "Data.Json",
         "Data.Result"
       ],
-      "non_embedded_deps": [],
       "types": 1,
       "signatures": 2,
       "values": 1,
@@ -5586,7 +4405,6 @@
       "description": "HTTP cookies: parse Set-Cookie and Cookie header lines, serialize cookies as Set-Cookie values and validate them.",
       "path": "seed/prelude/Text/Cookie.cinch",
       "sha256": "30a3d34e01b8800167c59dad6112b180b6a1185f80e2ed3d5cc2270efd2af216",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -5595,10 +4413,6 @@
         "Data.Result",
         "Data.String",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Text.Cookie"
       ],
       "types": 3,
       "signatures": 0,
@@ -5612,7 +4426,6 @@
       "description": "Prepared reflected polynomial tables, persistent CRC-32 states and table-checked binary checkpoints.",
       "path": "seed/prelude/Text/Crc32.cinch",
       "sha256": "f12c03f0ef5f001f56a823a066de69aaea06dea088b89059822d5ce1ed9d5aaa",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -5622,11 +4435,6 @@
         "Data.Result",
         "Data.String",
         "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Crc32"
       ],
       "types": 3,
       "signatures": 0,
@@ -5640,7 +4448,6 @@
       "description": "Immutable SIMD-built polynomial tables, slicing-by-eight CRC-64, persistent states, network-order digests and table-checked checkpoints.",
       "path": "seed/prelude/Text/Crc64.cinch",
       "sha256": "a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -5650,11 +4457,6 @@
         "Data.Result",
         "Data.String",
         "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Crc64"
       ],
       "types": 3,
       "signatures": 0,
@@ -5668,7 +4470,6 @@
       "description": "Configurable Unicode-delimited and lossless byte CSV records, checked partial results, positions and incremental parser state.",
       "path": "seed/prelude/Text/Csv/Record.cinch",
       "sha256": "a9f4220c17a27ef09808c2835109cf7b5e9e83fddae72d23bc649e0923c11806",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5680,10 +4481,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Csv.Record"
       ],
       "types": 10,
       "signatures": 0,
@@ -5697,7 +4494,6 @@
       "description": "CSV parsing/rendering with explicit field, record, and malformed-input handling.",
       "path": "seed/prelude/Text/Csv.cinch",
       "sha256": "d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Char",
@@ -5708,12 +4504,6 @@
         "Text.Lex",
         "Text.Parse",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Text.Csv",
-        "Text.Lex",
-        "Text.Parse",
-        "Text.Scan"
       ],
       "types": 1,
       "signatures": 0,
@@ -5727,7 +4517,6 @@
       "description": "Digest and HMAC operations over bytes. Availability of a legacy digest is not a recommendation for a security protocol.",
       "path": "seed/prelude/Text/Digest.cinch",
       "sha256": "0a0fafd50f72b5471dde4879ac287f4f3d6a7b752619b66ce9ac8a477b543442",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bool",
@@ -5739,9 +4528,6 @@
         "Data.String",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Text.Digest"
       ],
       "types": 1,
       "signatures": 0,
@@ -5755,7 +4541,6 @@
       "description": "POSIX lexical relative paths, locality tests, filesystem-name conversion and search-list splitting.",
       "path": "seed/prelude/Text/FilePath.cinch",
       "sha256": "e465f4641efc3618645ed4ff1bfa12c6a1a91c65de4579a2cbc84462642c44a7",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Char",
@@ -5763,10 +4548,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.String",
-        "Text.Path"
-      ],
-      "non_embedded_deps": [
-        "Text.FilePath",
         "Text.Path"
       ],
       "types": 0,
@@ -5781,7 +4562,6 @@
       "description": "Persistent FNV states with reset, network-order digests, numeric observations and checked versioned binary checkpoints.",
       "path": "seed/prelude/Text/Fnv/State.cinch",
       "sha256": "32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5792,12 +4572,6 @@
         "Data.String",
         "Text.Binary",
         "Text.Fnv"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Fnv",
-        "Text.Fnv.State"
       ],
       "types": 2,
       "signatures": 0,
@@ -5811,17 +4585,12 @@
       "description": "Incremental 32-, 64- and 128-bit FNV-1 and FNV-1a hashing with explicit wrapping arithmetic.",
       "path": "seed/prelude/Text/Fnv.cinch",
       "sha256": "b09f33aa54974a8b67ccac104a8e08a3a2d6e2bfd0f8756e9ea0764aff93f529",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
         "Data.Bytes.Word",
         "Data.Machine",
         "Data.Nat"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Fnv"
       ],
       "types": 0,
       "signatures": 0,
@@ -5835,7 +4604,6 @@
       "description": "Whole-buffer gzip member encoding, checked decompression and concatenated members.",
       "path": "seed/prelude/Text/Gzip.cinch",
       "sha256": "a94c55457e743050595f6fdb22931c834ca66a352cb820372ecaba7728c8a403",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -5844,12 +4612,6 @@
         "Data.Machine",
         "Data.Nat",
         "Data.Result",
-        "Text.Zlib"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Gzip",
         "Text.Zlib"
       ],
       "types": 1,
@@ -5864,7 +4626,6 @@
       "description": "SIMD hexadecimal text/byte codecs, prefix-preserving decoding, append and destination operations, and formatted byte dumps.",
       "path": "seed/prelude/Text/Hex.cinch",
       "sha256": "41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -5873,10 +4634,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Hex"
       ],
       "types": 1,
       "signatures": 0,
@@ -5890,7 +4647,6 @@
       "description": "HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning.",
       "path": "seed/prelude/Text/Html.cinch",
       "sha256": "a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -5898,10 +4654,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Html"
       ],
       "types": 0,
       "signatures": 0,
@@ -5915,7 +4667,6 @@
       "description": "Exact decimal rounding and shortest finite binary32 JSON coefficients, with preserved signed zero and midpoint comparisons.",
       "path": "seed/prelude/Text/Json/Binary32.cinch",
       "sha256": "ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5926,10 +4677,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Json.Binary32"
       ],
       "types": 0,
       "signatures": 0,
@@ -5943,7 +4690,6 @@
       "description": "Typed JSON codecs for records, persistent maps, explicit key capabilities, machine integers, binary buffers and exact binary32/binary64 values.",
       "path": "seed/prelude/Text/Json/Codec.cinch",
       "sha256": "75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022",
-      "embedded": false,
       "imports": [
         "Data.Array",
         "Data.Bool",
@@ -5960,16 +4706,6 @@
         "Data.Unicode.Kernel",
         "Text.Base64.Encoding",
         "Text.Json.Binary32",
-        "Text.Json.Value"
-      ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Text.Base64.Encoding",
-        "Text.Json.Binary32",
-        "Text.Json.Codec",
         "Text.Json.Value"
       ],
       "types": 14,
@@ -5984,7 +4720,6 @@
       "description": "Owned dynamic JSON trees, separate encoding and decoding descriptors, typed payloads and bounded construction.",
       "path": "seed/prelude/Text/Json/Dynamic.cinch",
       "sha256": "19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5999,18 +4734,6 @@
         "Text.Json.Codec",
         "Text.Json.Value"
       ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Text.Base64.Encoding",
-        "Text.Json.Binary32",
-        "Text.Json.Codec",
-        "Text.Json.Dynamic",
-        "Text.Json.Value"
-      ],
       "types": 1,
       "signatures": 0,
       "values": 23,
@@ -6023,7 +4746,6 @@
       "description": "Explicit legacy codec policy and descriptor bridges over owned dynamic values.",
       "path": "seed/prelude/Text/Json/Legacy.cinch",
       "sha256": "c486fb1b879d656fb5a61b1e5d2b098563e269a3d53a273cc1b9f50198fba826",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6041,19 +4763,6 @@
         "Text.Json.Value",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Text.Base64.Encoding",
-        "Text.Json.Binary32",
-        "Text.Json.Codec",
-        "Text.Json.Dynamic",
-        "Text.Json.Legacy",
-        "Text.Json.Value"
-      ],
       "types": 0,
       "signatures": 0,
       "values": 3,
@@ -6066,7 +4775,6 @@
       "description": "Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting.",
       "path": "seed/prelude/Text/Json/Value.cinch",
       "sha256": "21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0",
-      "embedded": false,
       "imports": [
         "Data.Array",
         "Data.Bool",
@@ -6084,14 +4792,6 @@
         "Text.Json.Binary32",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Data.Array",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Text.Json.Binary32",
-        "Text.Json.Value"
-      ],
       "types": 19,
       "signatures": 0,
       "values": 118,
@@ -6104,7 +4804,6 @@
       "description": "JSON parsing and rendering over Data.Json, with explicit errors and builder-based output.",
       "path": "seed/prelude/Text/Json.cinch",
       "sha256": "2293f2ddacb0a057f8c34771b1a069ab844f420f4b96029c15c74bcce2730089",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6126,14 +4825,6 @@
         "Text.Parse",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Builder",
-        "Text.Json",
-        "Text.Lex",
-        "Text.Parse",
-        "Text.Scan"
-      ],
       "types": 3,
       "signatures": 0,
       "values": 28,
@@ -6143,10 +4834,9 @@
     {
       "module": "Text.Lex",
       "family": "Text",
-      "description": "A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients.",
+      "description": "Lexer toolkit: tokens, spans, and lexical errors for grammar and parser clients.",
       "path": "seed/prelude/Text/Lex.cinch",
       "sha256": "508d75917d6276c6436a6954e66353680a66b0af9653b6fd8cc6b0e1662147f3",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6156,9 +4846,6 @@
         "Data.Option",
         "Data.String",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Text.Lex"
       ],
       "types": 6,
       "signatures": 0,
@@ -6172,7 +4859,6 @@
       "description": "Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.",
       "path": "seed/prelude/Text/Lzw.cinch",
       "sha256": "afc9d6247c42c1a0e7acd3cedbd0febb7fdfe91b87de5092078a9d731ec734c4",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -6182,11 +4868,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Lzw"
       ],
       "types": 3,
       "signatures": 0,
@@ -6200,7 +4881,6 @@
       "description": "Parse and format RFC 5322 mail addresses, read message header blocks and parse header dates, with SIMD atom scanning.",
       "path": "seed/prelude/Text/Mail.cinch",
       "sha256": "1885b646b2bcd7e39ad20326334b337c32e134496b8b0dc0cac4e14bea486090",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -6217,31 +4897,6 @@
         "Text.TextProto",
         "Text.Time.Rfc2822"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.IpAddr",
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types",
-        "Data.Time.Zoned",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Text.Base64.Encoding",
-        "Text.Mail",
-        "Text.Mime",
-        "Text.TextProto",
-        "Text.Time.Rfc2822",
-        "Text.Time.Scan"
-      ],
       "types": 3,
       "signatures": 0,
       "values": 16,
@@ -6254,7 +4909,6 @@
       "description": "MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints.",
       "path": "seed/prelude/Text/Md5.cinch",
       "sha256": "1fcad57a2a9fcdc43ce9b9a03fc3034960e3b9c96977aadf78f55bf0b3c9afed",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -6263,11 +4917,6 @@
         "Data.Result",
         "Data.String",
         "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Md5"
       ],
       "types": 2,
       "signatures": 0,
@@ -6281,7 +4930,6 @@
       "description": "Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries.",
       "path": "seed/prelude/Text/Mime.cinch",
       "sha256": "399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6302,14 +4950,6 @@
         "Text.Base64.Encoding",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Text.Base64.Encoding",
-        "Text.Mime"
-      ],
       "types": 7,
       "signatures": 0,
       "values": 29,
@@ -6322,7 +4962,6 @@
       "description": "Multipart wire primitives over arbitrary bytes, exact multi-value headers and explicit delimiter observations.",
       "path": "seed/prelude/Text/Multipart.cinch",
       "sha256": "743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6336,15 +4975,6 @@
         "Data.String",
         "Text.Mime"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Text.Base64.Encoding",
-        "Text.Mime",
-        "Text.Multipart"
-      ],
       "types": 4,
       "signatures": 0,
       "values": 25,
@@ -6357,7 +4987,6 @@
       "description": "Declarative option specifications, short/long forms, conversion, positionals, usage, and named parse errors.",
       "path": "seed/prelude/Text/OptionParser.cinch",
       "sha256": "a98ed14dc7c9027ecc53724e553eaf38be5066a392559916d31036bf5f557eee",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6372,10 +5001,6 @@
         "Text.Scan",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Text.OptionParser",
-        "Text.Scan"
-      ],
       "types": 5,
       "signatures": 0,
       "values": 18,
@@ -6388,7 +5013,6 @@
       "description": "OTLP/JSON record construction/rendering for structured log/trace data and trace-context helpers.",
       "path": "seed/prelude/Text/Otlp.cinch",
       "sha256": "650ee7a5b2e4c12c7c01d4218d520cc4dbd97432fedd85291c8831abdf543b9d",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bool",
@@ -6403,11 +5027,6 @@
         "Effect.Trace",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Effect.Log",
-        "Effect.Trace",
-        "Text.Otlp"
-      ],
       "types": 0,
       "signatures": 0,
       "values": 5,
@@ -6417,10 +5036,9 @@
     {
       "module": "Text.Parse",
       "family": "Text",
-      "description": "A source-distributed parser toolkit over the lexer/scanner vocabulary.",
+      "description": "Parser combinator toolkit over the lexer/scanner vocabulary.",
       "path": "seed/prelude/Text/Parse.cinch",
       "sha256": "4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6432,11 +5050,6 @@
         "Text.Lex",
         "Text.Scan",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Text.Lex",
-        "Text.Parse",
-        "Text.Scan"
       ],
       "types": 7,
       "signatures": 0,
@@ -6450,7 +5063,6 @@
       "description": "Portable slash-path lexical operations and checked shell patterns with reusable compiled matchers and exact SIMD scans.",
       "path": "seed/prelude/Text/Path.cinch",
       "sha256": "8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6461,9 +5073,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Text.Path"
       ],
       "types": 2,
       "signatures": 0,
@@ -6477,7 +5086,6 @@
       "description": "Owned byte-preserving envelope blocks, persistent headers, exact malformed-input recovery and bounded payload encoding.",
       "path": "seed/prelude/Text/Pem.cinch",
       "sha256": "9478c3c41a71436180df02c7ac175c309f790f39d131440895f0a81c7f733efd",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6493,15 +5101,6 @@
         "Effect.Stream",
         "Text.Base64.Encoding"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Effect.Stream",
-        "Text.Base64.Encoding",
-        "Text.Pem"
-      ],
       "types": 3,
       "signatures": 0,
       "values": 17,
@@ -6514,16 +5113,12 @@
       "description": "Punycode (RFC 3492) encoding and decoding, and ASCII-compatible host names with xn-- labels.",
       "path": "seed/prelude/Text/Punycode.cinch",
       "sha256": "c27491d86e8dfe07722cadc036211354ecff896d53959e94b6d534e7a72da3b6",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.List",
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Text.Punycode"
       ],
       "types": 1,
       "signatures": 0,
@@ -6537,7 +5132,6 @@
       "description": "Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies.",
       "path": "seed/prelude/Text/QuotedPrintable.cinch",
       "sha256": "ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bool",
@@ -6551,10 +5145,6 @@
         "Data.String",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.QuotedPrintable"
-      ],
       "types": 4,
       "signatures": 0,
       "values": 20,
@@ -6567,7 +5157,6 @@
       "description": "Regular-expression parsing/matching and replacement under the module's admitted regex language.",
       "path": "seed/prelude/Text/Regex.cinch",
       "sha256": "35adaa7be29d6731181e5e84054b4ef90fa7a40623ae9fe6a1cc2b962b27f9d1",
-      "embedded": false,
       "imports": [
         "Algebra.Monoid",
         "Algebra.Semigroup",
@@ -6583,9 +5172,6 @@
         "Data.String",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Text.Regex"
-      ],
       "types": 3,
       "signatures": 0,
       "values": 19,
@@ -6598,7 +5184,6 @@
       "description": "Scanning primitives over input text and the shared position/error vocabulary.",
       "path": "seed/prelude/Text/Scan.cinch",
       "sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -6610,9 +5195,6 @@
         "Data.Result",
         "Data.String",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Text.Scan"
       ],
       "types": 1,
       "signatures": 0,
@@ -6626,7 +5208,6 @@
       "description": "SHA-1 for legacy interoperability, with a four-lane SIMD schedule, persistent states and checked binary checkpoints.",
       "path": "seed/prelude/Text/Sha1.cinch",
       "sha256": "7c4c6ab9c67ff50be3b4273fd01b709a4ad61b5a0943835f38b438f1142ea095",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -6635,11 +5216,6 @@
         "Data.Result",
         "Data.String",
         "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Sha1"
       ],
       "types": 2,
       "signatures": 0,
@@ -6653,7 +5229,6 @@
       "description": "Portable SHA-224/SHA-256 with generated SIMD schedules, persistent states, network-order digests and checked binary checkpoints.",
       "path": "seed/prelude/Text/Sha256.cinch",
       "sha256": "95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -6662,11 +5237,6 @@
         "Data.Result",
         "Data.String",
         "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Sha256"
       ],
       "types": 2,
       "signatures": 0,
@@ -6680,7 +5250,6 @@
       "description": "SHA3-224/256/384/512, SHAKE128/256 and cSHAKE128/256 over a register-resident Keccak permutation, with persistent sponges, output readers and checkpoints.",
       "path": "seed/prelude/Text/Sha3.cinch",
       "sha256": "26c3d9fe682494d2a244a66098253c9a9a0871eb5bbc1f2405c8b9f99c56b30c",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -6689,11 +5258,6 @@
         "Data.Result",
         "Data.String",
         "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Sha3"
       ],
       "types": 3,
       "signatures": 0,
@@ -6707,7 +5271,6 @@
       "description": "Portable SHA-384, SHA-512, SHA-512/224 and SHA-512/256 with two-lane SIMD schedules, native rotates, persistent states and checked binary checkpoints.",
       "path": "seed/prelude/Text/Sha512.cinch",
       "sha256": "545a627c6c71aeb06162bd87ff5e124d792cc8e6280af48cac1177a75de37317",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -6716,11 +5279,6 @@
         "Data.Result",
         "Data.String",
         "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Sha512"
       ],
       "types": 2,
       "signatures": 0,
@@ -6734,7 +5292,6 @@
       "description": "Shell-style word splitting/joining; this is data parsing, not execution of a shell command.",
       "path": "seed/prelude/Text/Shellwords.cinch",
       "sha256": "04b6373930f8b453c532abfa2fa2e52461c7308a62e2c1c00c64eb21411bd5f1",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Char",
@@ -6744,10 +5301,6 @@
         "Data.Result",
         "Data.String",
         "Text.Scan"
-      ],
-      "non_embedded_deps": [
-        "Text.Scan",
-        "Text.Shellwords"
       ],
       "types": 1,
       "signatures": 0,
@@ -6761,7 +5314,6 @@
       "description": "Rendering values as String. The concrete formatting helpers are re-exported by Prelude; import this module for Show itself.",
       "path": "seed/prelude/Text/Show.cinch",
       "sha256": "482adc06340f899b8664bfbf7804b45d74db5e200f657faa12a8eb5b66de76e8",
-      "embedded": true,
       "imports": [
         "Data.Bytes",
         "Data.Char",
@@ -6770,7 +5322,6 @@
         "Data.Ordering",
         "Data.String"
       ],
-      "non_embedded_deps": [],
       "types": 0,
       "signatures": 1,
       "values": 6,
@@ -6783,7 +5334,6 @@
       "description": "SMTP without a connection: reply state machine, command validation, extensions, dot-stuffing and PLAIN/CRAM-MD5 exchanges.",
       "path": "seed/prelude/Text/Smtp.cinch",
       "sha256": "ab46aeac80b9aa3bcb33399324012c1533fb999ecbf5c9012df64a01130da419",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -6796,15 +5346,6 @@
         "Text.Hex",
         "Text.Md5",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Base64",
-        "Text.Binary",
-        "Text.Hex",
-        "Text.Md5",
-        "Text.Smtp"
       ],
       "types": 5,
       "signatures": 0,
@@ -6818,7 +5359,6 @@
       "description": "Elastic tabstops: align tab-separated cells into padded columns, with escapes, HTML-aware widths, right alignment and incremental flushing.",
       "path": "seed/prelude/Text/TabWriter.cinch",
       "sha256": "e13da1b41483f29493fe929ca885b7a91a5483f3a3b11ff56482fc034161acc5",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -6826,11 +5366,6 @@
         "Data.List",
         "Data.Machine",
         "Data.Nat"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.TabWriter"
       ],
       "types": 2,
       "signatures": 0,
@@ -6844,7 +5379,6 @@
       "description": "Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.",
       "path": "seed/prelude/Text/Tar.cinch",
       "sha256": "b1a5b11b1e6ca35103897fdf97fdb2bcbda0486175b98c020684efe5dd73eb37",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -6855,11 +5389,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Tar"
       ],
       "types": 3,
       "signatures": 0,
@@ -6873,7 +5402,6 @@
       "description": "Data-driven text templates: pipelines, control actions, definitions, builtins and printf over dynamic values.",
       "path": "seed/prelude/Text/Template.cinch",
       "sha256": "c88aa762a5a75fd763c618f7aacebe7540ce8bc76b0f87e1472752c5b36a3fc6",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -6887,13 +5415,6 @@
         "Data.Unicode.Kernel",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Data.Unicode.Kernel",
-        "Data.Unicode.Tables",
-        "Text.Template"
-      ],
       "types": 5,
       "signatures": 0,
       "values": 18,
@@ -6906,7 +5427,6 @@
       "description": "Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail.",
       "path": "seed/prelude/Text/TextProto.cinch",
       "sha256": "3bbe1d9e1cb3ceec6392119510c325ef7cac6357b3cd43a891cd7ce424c06a1b",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -6916,11 +5436,6 @@
         "Data.Nat",
         "Data.Result",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.TextProto"
       ],
       "types": 2,
       "signatures": 0,
@@ -6934,7 +5449,6 @@
       "description": "ISO 8601 and friendly duration text for spans and exact durations, printing and parsing.",
       "path": "seed/prelude/Text/Time/Duration.cinch",
       "sha256": "20fbc027b1c3295d2ad1d3ede0c48b955604990b27f2ab1d7da45334877cb7c8",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -6950,17 +5464,6 @@
         "Relation.Ord",
         "Text.Time.Scan"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Span",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Unit",
-        "Data.Time.Weekday",
-        "Text.Time.Duration",
-        "Text.Time.Scan"
-      ],
       "types": 6,
       "signatures": 0,
       "values": 29,
@@ -6973,7 +5476,6 @@
       "description": "ISO 8601 extended format and RFC 3339 printing and parsing for dates, times, date-times and timestamps.",
       "path": "seed/prelude/Text/Time/Iso.cinch",
       "sha256": "84701811cacba7dc7bbc9790b539521299d85098ecbfe2cd818fa800f761af00",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -6987,16 +5489,6 @@
         "Data.Time.Timestamp",
         "Relation.Eq",
         "Relation.Ord",
-        "Text.Time.Scan"
-      ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Text.Time.Iso",
         "Text.Time.Scan"
       ],
       "types": 4,
@@ -7011,7 +5503,6 @@
       "description": "RFC 2822/5322 internet-message date-time printing and parsing.",
       "path": "seed/prelude/Text/Time/Rfc2822.cinch",
       "sha256": "d264b18fb08807d3449b90d1f0025894e8b1a22b3e67dcf3b06665ce767576bc",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -7031,21 +5522,6 @@
         "Relation.Ord",
         "Text.Time.Scan"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types",
-        "Data.Time.Zoned",
-        "Text.Time.Rfc2822",
-        "Text.Time.Scan"
-      ],
       "types": 1,
       "signatures": 0,
       "values": 7,
@@ -7058,7 +5534,6 @@
       "description": "RFC 9557 date-time text with bracketed time zone annotations for zoned values.",
       "path": "seed/prelude/Text/Time/Rfc9557.cinch",
       "sha256": "d7827396a4192555b96bbe750ebd54edce0041ad499d7535b231185dd0fc6bb1",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -7079,22 +5554,6 @@
         "Text.Time.Iso",
         "Text.Time.Scan"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types",
-        "Data.Time.Zoned",
-        "Text.Time.Iso",
-        "Text.Time.Rfc9557",
-        "Text.Time.Scan"
-      ],
       "types": 6,
       "signatures": 0,
       "values": 28,
@@ -7107,7 +5566,6 @@
       "description": "Shared byte cursor, digit readers and digit writers for the time text modules.",
       "path": "seed/prelude/Text/Time/Scan.cinch",
       "sha256": "47ad87f939deb5508bdab9756d9ecfc9358a47c3a11b12719065dab101aaaf2c",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -7117,9 +5575,6 @@
         "Data.String",
         "Relation.Eq",
         "Relation.Ord"
-      ],
-      "non_embedded_deps": [
-        "Text.Time.Scan"
       ],
       "types": 0,
       "signatures": 0,
@@ -7133,7 +5588,6 @@
       "description": "POSIX strftime/strptime-style formatting and parsing over broken-down time fields.",
       "path": "seed/prelude/Text/Time/Strtime.cinch",
       "sha256": "f38085e1b9841abb2a8cba49b53f7b1cacb1d544ce5d34ab1c06bfdfda12b20f",
-      "embedded": false,
       "imports": [
         "Algebra.Arithmetic",
         "Data.Bytes",
@@ -7150,16 +5604,6 @@
         "Relation.Ord",
         "Text.Time.Scan"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Text.Time.Scan",
-        "Text.Time.Strtime"
-      ],
       "types": 4,
       "signatures": 0,
       "values": 59,
@@ -7172,7 +5616,6 @@
       "description": "Offset and zoned-value text functions.",
       "path": "seed/prelude/Text/Time/Zoned.cinch",
       "sha256": "f4942fd2b7cc3f238527aed3bce3d0a8df17178dbe40fba507c21da52ab15e5b",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Machine",
@@ -7192,28 +5635,6 @@
         "Text.Time.Scan",
         "Text.Time.Strtime"
       ],
-      "non_embedded_deps": [
-        "Data.Time.Date",
-        "Data.Time.DateTime",
-        "Data.Time.Duration",
-        "Data.Time.Monotonic",
-        "Data.Time.Offset",
-        "Data.Time.TimeOfDay",
-        "Data.Time.Timestamp",
-        "Data.Time.Weekday",
-        "Data.Time.Zone",
-        "Data.Time.Zone.Posix",
-        "Data.Time.Zone.Types",
-        "Data.Time.Zone.Tzif",
-        "Data.Time.Zoned",
-        "Effect.Time",
-        "Effect.Time.Zone",
-        "Text.Time.Iso",
-        "Text.Time.Rfc9557",
-        "Text.Time.Scan",
-        "Text.Time.Strtime",
-        "Text.Time.Zoned"
-      ],
       "types": 1,
       "signatures": 0,
       "values": 17,
@@ -7226,7 +5647,6 @@
       "description": "The module's supported TOML parsing/rendering surface and explicit unsupported/malformed cases.",
       "path": "seed/prelude/Text/Toml.cinch",
       "sha256": "a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bool",
@@ -7243,10 +5663,6 @@
         "Text.Scan",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Text.Scan",
-        "Text.Toml"
-      ],
       "types": 1,
       "signatures": 0,
       "values": 2,
@@ -7259,7 +5675,6 @@
       "description": "URI parsing, rendering, components, and validation/error vocabulary.",
       "path": "seed/prelude/Text/Uri.cinch",
       "sha256": "e3098cfb52bdee5813cb985d730d5865cb01c2b687d42464f821b73121bc1749",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bool",
@@ -7274,10 +5689,6 @@
         "Relation.Eq",
         "Relation.Ord"
       ],
-      "non_embedded_deps": [
-        "Data.IpAddr",
-        "Text.Uri"
-      ],
       "types": 2,
       "signatures": 0,
       "values": 15,
@@ -7290,7 +5701,6 @@
       "description": "Checked percent codecs for URL components, exact escaped sizing and optional UTF-8 text views.",
       "path": "seed/prelude/Text/Url/Codec.cinch",
       "sha256": "17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Machine",
@@ -7298,10 +5708,6 @@
         "Data.Option",
         "Data.Result",
         "Data.String",
-        "Text.Url.Error"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Codec",
         "Text.Url.Error"
       ],
       "types": 1,
@@ -7316,16 +5722,12 @@
       "description": "Structured URL failures with original byte offsets, context, diagnostics and explicit causes.",
       "path": "seed/prelude/Text/Url/Error.cinch",
       "sha256": "93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Machine",
         "Data.Nat",
         "Data.Option",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Error"
       ],
       "types": 3,
       "signatures": 0,
@@ -7339,16 +5741,11 @@
       "description": "URL host IP-literal and port validation with explicit IPv6 and zone rules.",
       "path": "seed/prelude/Text/Url/Ip.cinch",
       "sha256": "8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
         "Data.Nat",
         "Data.Option",
-        "Text.Url.Scan"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Ip",
         "Text.Url.Scan"
       ],
       "types": 0,
@@ -7363,7 +5760,6 @@
       "description": "Immutable URL components, raw encoding hints, rendering and independent copied observations.",
       "path": "seed/prelude/Text/Url/Model.cinch",
       "sha256": "7fee092c7305cda028b8ec71763d8f1c76189cb35c76d1a02bb068db1aca7f75",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -7374,14 +5770,6 @@
         "Data.String",
         "Text.Url.Codec",
         "Text.Url.Error",
-        "Text.Url.Query",
-        "Text.Url.Scan",
-        "Text.Url.Userinfo"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Codec",
-        "Text.Url.Error",
-        "Text.Url.Model",
         "Text.Url.Query",
         "Text.Url.Scan",
         "Text.Url.Userinfo"
@@ -7398,7 +5786,6 @@
       "description": "Checked general and request URL parsing with precise scheme, host, port and escape rules.",
       "path": "seed/prelude/Text/Url/Parser.cinch",
       "sha256": "d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -7411,16 +5798,6 @@
         "Text.Url.Error",
         "Text.Url.Ip",
         "Text.Url.Model",
-        "Text.Url.Scan",
-        "Text.Url.Userinfo"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Codec",
-        "Text.Url.Error",
-        "Text.Url.Ip",
-        "Text.Url.Model",
-        "Text.Url.Parser",
-        "Text.Url.Query",
         "Text.Url.Scan",
         "Text.Url.Userinfo"
       ],
@@ -7436,7 +5813,6 @@
       "description": "Persistent byte-preserving query multimaps with deterministic encoding, checked parsing and copied observations.",
       "path": "seed/prelude/Text/Url/Query.cinch",
       "sha256": "d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -7448,12 +5824,6 @@
         "Data.String",
         "Text.Url.Codec",
         "Text.Url.Error",
-        "Text.Url.Scan"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Codec",
-        "Text.Url.Error",
-        "Text.Url.Query",
         "Text.Url.Scan"
       ],
       "types": 1,
@@ -7468,7 +5838,6 @@
       "description": "URL reference resolution, lexical path joining and copied persistent URL updates.",
       "path": "seed/prelude/Text/Url/Resolve.cinch",
       "sha256": "5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -7480,17 +5849,6 @@
         "Text.Url.Error",
         "Text.Url.Model",
         "Text.Url.Parser",
-        "Text.Url.Scan",
-        "Text.Url.Userinfo"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Codec",
-        "Text.Url.Error",
-        "Text.Url.Ip",
-        "Text.Url.Model",
-        "Text.Url.Parser",
-        "Text.Url.Query",
-        "Text.Url.Resolve",
         "Text.Url.Scan",
         "Text.Url.Userinfo"
       ],
@@ -7506,16 +5864,12 @@
       "description": "Private portable SIMD byte scanning shared by URL parsing, queries and path traversal.",
       "path": "seed/prelude/Text/Url/Scan.cinch",
       "sha256": "de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
         "Data.List",
         "Data.Machine",
         "Data.Nat"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Scan"
       ],
       "types": 0,
       "signatures": 0,
@@ -7529,7 +5883,6 @@
       "description": "Immutable copied URL user information with explicit password presence and checked percent encoding.",
       "path": "seed/prelude/Text/Url/Userinfo.cinch",
       "sha256": "cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.List",
@@ -7537,12 +5890,6 @@
         "Data.String",
         "Text.Url.Codec",
         "Text.Url.Scan"
-      ],
-      "non_embedded_deps": [
-        "Text.Url.Codec",
-        "Text.Url.Error",
-        "Text.Url.Scan",
-        "Text.Url.Userinfo"
       ],
       "types": 1,
       "signatures": 0,
@@ -7556,7 +5903,6 @@
       "description": "Immutable byte-preserving URLs, percent escaping, query multimaps, parsing and reference resolution.",
       "path": "seed/prelude/Text/Url.cinch",
       "sha256": "ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c",
-      "embedded": false,
       "imports": [
         "Text.Url.Codec",
         "Text.Url.Error",
@@ -7564,18 +5910,6 @@
         "Text.Url.Parser",
         "Text.Url.Query",
         "Text.Url.Resolve",
-        "Text.Url.Userinfo"
-      ],
-      "non_embedded_deps": [
-        "Text.Url",
-        "Text.Url.Codec",
-        "Text.Url.Error",
-        "Text.Url.Ip",
-        "Text.Url.Model",
-        "Text.Url.Parser",
-        "Text.Url.Query",
-        "Text.Url.Resolve",
-        "Text.Url.Scan",
         "Text.Url.Userinfo"
       ],
       "types": 8,
@@ -7590,7 +5924,6 @@
       "description": "UTF-16 scalar and surrogate operations, code-unit sequences and explicit-order byte codecs with SWAR ASCII blocks.",
       "path": "seed/prelude/Text/Utf16.cinch",
       "sha256": "fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Word",
@@ -7602,11 +5935,6 @@
         "Data.Result",
         "Data.String",
         "Text.Binary"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Word",
-        "Text.Binary",
-        "Text.Utf16"
       ],
       "types": 1,
       "signatures": 0,
@@ -7620,18 +5948,12 @@
       "description": "Raw UTF-8 and immutable-text decoding, validation, scalar counts, replacement encoding and checked atomic buffer writes.",
       "path": "seed/prelude/Text/Utf8.cinch",
       "sha256": "1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159",
-      "embedded": false,
       "imports": [
         "Data.Bytes.Utf8",
         "Data.Char",
         "Data.Nat",
         "Data.Option",
         "Data.String"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Utf8",
-        "Data.Bytes.Word",
-        "Text.Utf8"
       ],
       "types": 2,
       "signatures": 0,
@@ -7645,7 +5967,6 @@
       "description": "Decode XML into namespace-aware tokens or element trees and encode tokens with escaping and indentation.",
       "path": "seed/prelude/Text/Xml.cinch",
       "sha256": "3f790721d3186a9a3a2c7cc288608b39d2565307f09f13bea1693ea0d83e681b",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -7655,10 +5976,6 @@
         "Data.Result",
         "Data.String",
         "Text.Show"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Text.Xml"
       ],
       "types": 7,
       "signatures": 0,
@@ -7672,7 +5989,6 @@
       "description": "The module's supported YAML subset, structured values, and named parse errors; not an assertion of every YAML feature.",
       "path": "seed/prelude/Text/Yaml.cinch",
       "sha256": "1254ed227cac5d100c4132baa92d4ce0773cc78fd1669b269d022f2d5618e7d8",
-      "embedded": false,
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -7687,9 +6003,6 @@
         "Data.String",
         "Text.Show"
       ],
-      "non_embedded_deps": [
-        "Text.Yaml"
-      ],
       "types": 2,
       "signatures": 0,
       "values": 7,
@@ -7702,7 +6015,6 @@
       "description": "Read stored, deflated and Zip64 zip archives with CRC-32 verification and write stored or deflated archives.",
       "path": "seed/prelude/Text/Zip.cinch",
       "sha256": "ffbb8942b896c6de9979d22637871b4673d6c7dcae70bdaaf408e8b7713e6ddd",
-      "embedded": false,
       "imports": [
         "Data.Bytes",
         "Data.Bytes.Build",
@@ -7714,16 +6026,6 @@
         "Data.Result",
         "Data.String",
         "Text.Checksum",
-        "Text.Zlib"
-      ],
-      "non_embedded_deps": [
-        "Data.Bytes.Build",
-        "Data.Bytes.Word",
-        "Text.Adler32",
-        "Text.Binary",
-        "Text.Checksum",
-        "Text.Crc64",
-        "Text.Zip",
         "Text.Zlib"
       ],
       "types": 4,
@@ -7738,7 +6040,6 @@
       "description": "Compression/decompression operations and named malformed/unsupported-stream results.",
       "path": "seed/prelude/Text/Zlib.cinch",
       "sha256": "c39f929789f55ade95b2557d1311b7adf0fa2990be85cce753021af98bcdbeb4",
-      "embedded": false,
       "imports": [
         "Algebra.Semigroup",
         "Data.Bytes",
@@ -7747,9 +6048,6 @@
         "Data.Nat",
         "Data.Option",
         "Data.Result"
-      ],
-      "non_embedded_deps": [
-        "Text.Zlib"
       ],
       "types": 1,
       "signatures": 0,

@@ -72,11 +72,6 @@ export default defineConfig({
         { label: 'Documentation home', link: '/documentation/' },
         { label: '01 / Language tutorial', items: pagesIn('learn') },
         { label: '02 / Compiler user’s guide', items: pagesIn('reference'), collapsed: true },
-        { label: '03 / Standard library & packages', items: [
-          { label: 'stdlib (Standard library)', link: '/packages/stdlib/' },
-          { label: 'API Search (Hoogle)', link: '/packages/search/' },
-          { label: 'Package catalogue', link: '/packages/' },
-        ] },
       ],
     }),
   ],

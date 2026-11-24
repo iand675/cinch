@@ -2,19 +2,9 @@
 
 Validated IP addresses, parsing/rendering, and address-family vocabulary.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.IpAddr</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.IpAddr/source/">View source</a><a href="/packages/search/?q=%2BData.IpAddr">Search module</a><a href="/reference-sources/Data.IpAddr.cinch" download="Data.IpAddr.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.IpAddr</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.IpAddr/source/">View source</a><a href="/packages/search/?q=%2BData.IpAddr">Search module</a><a href="/reference-sources/Data.IpAddr.cinch" download="Data.IpAddr.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.IpAddr`: [Data.IpAddr](Data.IpAddr.md).
-
-```sh
-cp seed/prelude/Data/IpAddr.cinch ./Data.IpAddr.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

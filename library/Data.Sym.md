@@ -2,7 +2,7 @@
 
 Interned symbols with identity equality, deterministic spelling order, and String conversions.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Sym</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Sym/source/">View source</a><a href="/packages/search/?q=%2BData.Sym">Search module</a><a href="/reference-sources/Data.Sym.cinch" download="Data.Sym.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Sym</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Sym/source/">View source</a><a href="/packages/search/?q=%2BData.Sym">Search module</a><a href="/reference-sources/Data.Sym.cinch" download="Data.Sym.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Hash](Data.Hash.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 

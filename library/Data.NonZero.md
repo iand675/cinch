@@ -2,7 +2,7 @@
 
 Total nonzero-number constructors. The NonZero type is also available through the arithmetic vocabulary for safe divisors.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.NonZero</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.NonZero/source/">View source</a><a href="/packages/search/?q=%2BData.NonZero">Search module</a><a href="/reference-sources/Data.NonZero.cinch" download="Data.NonZero.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.NonZero</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.NonZero/source/">View source</a><a href="/packages/search/?q=%2BData.NonZero">Search module</a><a href="/reference-sources/Data.NonZero.cinch" download="Data.NonZero.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md).
 

@@ -2,7 +2,7 @@
 
 The floor under Prim.Sys: the same entry names and the same named errors as the real backends, with every entry point answering Err SysIoError. It is what a target with no backend yet gets, and it keeps the prelude surface from being empty there.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Prim.Sys.Portable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prim.Sys.Portable/source/">View source</a><a href="/packages/search/?q=%2BPrim.Sys.Portable">Search module</a><a href="/reference-sources/Prim.Sys.Portable.cinch" download="Prim.Sys.Portable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Prim.Sys.Portable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prim.Sys.Portable/source/">View source</a><a href="/packages/search/?q=%2BPrim.Sys.Portable">Search module</a><a href="/reference-sources/Prim.Sys.Portable.cinch" download="Prim.Sys.Portable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 

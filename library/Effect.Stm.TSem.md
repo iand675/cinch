@@ -2,7 +2,7 @@
 
 A counting semaphore for transactions: wait takes a permit or retries, signal returns one.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Stm.TSem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TSem/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TSem">Search module</a><a href="/reference-sources/Effect.Stm.TSem.cinch" download="Effect.Stm.TSem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stm.TSem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TSem/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TSem">Search module</a><a href="/reference-sources/Effect.Stm.TSem.cinch" download="Effect.Stm.TSem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Effect.Stm](Effect.Stm.md).
 

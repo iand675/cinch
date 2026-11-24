@@ -57,14 +57,6 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
         <button type="button" data-kind="method" aria-pressed="false">Methods</button>
         <button type="button" data-kind="instance" aria-pressed="false">Instances</button>
       </div>
-      <label class="category-filter">
-        Distribution
-        <select id="hoogle-dist">
-          <option value="all">All modules</option>
-          <option value="embedded">Embedded only</option>
-          <option value="source">Ship source only</option>
-        </select>
-      </label>
     </div>
 
     <p class="results-count mono" aria-live="polite" id="hoogle-status">Enter a name, type signature, or filter above.</p>
@@ -228,7 +220,6 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
   import { kindLabel, runHoogleSearch, type SearchIndexPayload, type SearchHit } from '../../lib/hoogle-search';
 
   const input = document.getElementById('hoogle-input') as HTMLInputElement;
-  const distSelect = document.getElementById('hoogle-dist') as HTMLSelectElement;
   const form = document.getElementById('hoogle-form') as HTMLFormElement;
   const statusEl = document.getElementById('hoogle-status') as HTMLElement;
   const resultsEl = document.getElementById('hoogle-results') as HTMLElement;
@@ -299,7 +290,7 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
           <article class="hoogle-hit">
             <div class="hoogle-hit-meta">
               ${escHtml(kindLabel(entry.k))}
-              <span>${entry.e === 1 ? 'EMBEDDED' : 'SHIP SOURCE'}</span>
+              <span>CINCH/STDLIB</span>
             </div>
             <div>
               <pre class="hoogle-hit-sig"><code>${sigHtml}</code></pre>
@@ -333,7 +324,6 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
     url.search = '';
     if (input.value.trim()) url.searchParams.set('q', input.value.trim());
     if (activeKind !== 'all') url.searchParams.set('kind', activeKind);
-    if (distSelect.value !== 'all') url.searchParams.set('dist', distSelect.value);
     history.replaceState(null, '', url);
   }
 
@@ -343,9 +333,8 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
 
     if (!payload) return;
     const raw = input.value.trim();
-    const dist = distSelect.value as 'all' | 'embedded' | 'source';
 
-    if (!raw && activeKind === 'all' && dist === 'all') {
+    if (!raw && activeKind === 'all') {
       currentHits = [];
       resultsEl.innerHTML = '';
       emptyEl.hidden = true;
@@ -354,7 +343,7 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
     }
 
     displayLimit = 60;
-    currentHits = runHoogleSearch(payload.entries, raw, { kind: activeKind, dist });
+    currentHits = runHoogleSearch(payload.entries, raw, { kind: activeKind });
     emptyEl.hidden = currentHits.length > 0;
 
     if (currentHits.length === 0) {
@@ -373,13 +362,10 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
     input.value = params.get('q') ?? '';
     const k = params.get('kind') ?? 'all';
     activeKind = kindButtons.some((b) => b.dataset.kind === k) ? k : 'all';
-    const d = params.get('dist') ?? 'all';
-    distSelect.value = ['all', 'embedded', 'source'].includes(d) ? d : 'all';
     update();
   }
 
   input.addEventListener('input', update);
-  distSelect.addEventListener('change', update);
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     update();
@@ -399,7 +385,6 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
     btn.addEventListener('click', () => {
       input.value = btn.dataset.example ?? '';
       activeKind = 'all';
-      distSelect.value = 'all';
       update();
       input.focus();
     }),
@@ -407,7 +392,6 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
   document.getElementById('hoogle-reset-filters')?.addEventListener('click', () => {
     input.value = '';
     activeKind = 'all';
-    distSelect.value = 'all';
     update();
     input.focus();
   });

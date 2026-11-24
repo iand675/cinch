@@ -2,20 +2,9 @@
 
 Constant-time NIST P-256 keys, SEC 1 point encodings, ECDH and scalar/point arithmetic over generated Montgomery kernels.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.P256</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.P256/source/">View source</a><a href="/packages/search/?q=%2BCrypto.P256">Search module</a><a href="/reference-sources/Crypto.P256.cinch" download="Crypto.P256.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.P256</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.P256/source/">View source</a><a href="/packages/search/?q=%2BCrypto.P256">Search module</a><a href="/reference-sources/Crypto.P256.cinch" download="Crypto.P256.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.P256`: [Crypto.P256](Crypto.P256.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-```sh
-cp seed/prelude/Crypto/P256.cinch ./Crypto.P256.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

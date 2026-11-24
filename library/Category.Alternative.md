@@ -2,7 +2,7 @@
 
 Empty and choice operations for admitted higher-kinded containers.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Category.Alternative</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Alternative/source/">View source</a><a href="/packages/search/?q=%2BCategory.Alternative">Search module</a><a href="/reference-sources/Category.Alternative.cinch" download="Category.Alternative.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Category.Alternative</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Alternative/source/">View source</a><a href="/packages/search/?q=%2BCategory.Alternative">Search module</a><a href="/reference-sources/Category.Alternative.cinch" download="Category.Alternative.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Category.Applicative](Category.Applicative.md).
 

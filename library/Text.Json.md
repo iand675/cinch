@@ -2,24 +2,9 @@
 
 JSON parsing and rendering over Data.Json, with explicit errors and builder-based output.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Json</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Json/source/">View source</a><a href="/packages/search/?q=%2BText.Json">Search module</a><a href="/reference-sources/Text.Json.cinch" download="Text.Json.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Json</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Json/source/">View source</a><a href="/packages/search/?q=%2BText.Json">Search module</a><a href="/reference-sources/Text.Json.cinch" download="Text.Json.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.HashMap](Data.HashMap.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Builder](Text.Builder.md), [Text.Codec](Text.Codec.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Json`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Builder](Text.Builder.md), [Text.Json](Text.Json.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Scan](Text.Scan.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Builder.cinch ./Text.Builder.cinch
-cp seed/prelude/Text/Json.cinch ./Text.Json.cinch
-cp seed/prelude/Text/Lex.cinch ./Text.Lex.cinch
-cp seed/prelude/Text/Parse.cinch ./Text.Parse.cinch
-cp seed/prelude/Text/Scan.cinch ./Text.Scan.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

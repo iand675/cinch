@@ -2,20 +2,9 @@
 
 URL host IP-literal and port validation with explicit IPv6 and zone rules.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Url.Ip</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Ip/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Ip">Search module</a><a href="/reference-sources/Text.Url.Ip.cinch" download="Text.Url.Ip.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Url.Ip</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Ip/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Ip">Search module</a><a href="/reference-sources/Text.Url.Ip.cinch" download="Text.Url.Ip.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Text.Url.Scan](Text.Url.Scan.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Url.Ip`: [Text.Url.Ip](Text.Url.Ip.md), [Text.Url.Scan](Text.Url.Scan.md).
-
-```sh
-cp seed/prelude/Text/Url/Ip.cinch ./Text.Url.Ip.cinch
-cp seed/prelude/Text/Url/Scan.cinch ./Text.Url.Scan.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

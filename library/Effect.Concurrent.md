@@ -2,7 +2,7 @@
 
 Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Concurrent</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Concurrent/source/">View source</a><a href="/packages/search/?q=%2BEffect.Concurrent">Search module</a><a href="/reference-sources/Effect.Concurrent.cinch" download="Effect.Concurrent.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Concurrent</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Concurrent/source/">View source</a><a href="/packages/search/?q=%2BEffect.Concurrent">Search module</a><a href="/reference-sources/Effect.Concurrent.cinch" download="Effect.Concurrent.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Result](Data.Result.md).
 

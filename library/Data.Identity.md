@@ -2,7 +2,7 @@
 
 The identity container and its generic abstraction instances.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Identity</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Identity/source/">View source</a><a href="/packages/search/?q=%2BData.Identity">Search module</a><a href="/reference-sources/Data.Identity.cinch" download="Data.Identity.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Identity</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Identity/source/">View source</a><a href="/packages/search/?q=%2BData.Identity">Search module</a><a href="/reference-sources/Data.Identity.cinch" download="Data.Identity.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md).
 

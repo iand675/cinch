@@ -2,7 +2,7 @@
 
 Ordered sets and their membership, combination, difference, and conversion operations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Set</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Set/source/">View source</a><a href="/packages/search/?q=%2BData.Set">Search module</a><a href="/reference-sources/Data.Set.cinch" download="Data.Set.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Set</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Set/source/">View source</a><a href="/packages/search/?q=%2BData.Set">Search module</a><a href="/reference-sources/Data.Set.cinch" download="Data.Set.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

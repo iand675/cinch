@@ -2,20 +2,9 @@
 
 Positional byte writers, signed cursor movement and streaming at a base offset.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Stream.Offset</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stream.Offset/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stream.Offset">Search module</a><a href="/reference-sources/Effect.Stream.Offset.cinch" download="Effect.Stream.Offset.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stream.Offset</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stream.Offset/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stream.Offset">Search module</a><a href="/reference-sources/Effect.Stream.Offset.cinch" download="Effect.Stream.Offset.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Stream.Offset`: [Effect.Stream](Effect.Stream.md), [Effect.Stream.Offset](Effect.Stream.Offset.md).
-
-```sh
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Effect/Stream/Offset.cinch ./Effect.Stream.Offset.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

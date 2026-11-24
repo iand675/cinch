@@ -2,23 +2,9 @@
 
 Decode and encode GIF images and animations: palettes, transparency, delays, disposal, looping and interlace.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Image.Gif</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Gif/source/">View source</a><a href="/packages/search/?q=%2BImage.Gif">Search module</a><a href="/reference-sources/Image.Gif.cinch" download="Image.Gif.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Gif</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Gif/source/">View source</a><a href="/packages/search/?q=%2BImage.Gif">Search module</a><a href="/reference-sources/Image.Gif.cinch" download="Image.Gif.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Image.Raster](Image.Raster.md), [Text.Lzw](Text.Lzw.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (5 files)</summary>
-
-Copy these modules beside your entry file before importing `Image.Gif`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Gif](Image.Gif.md), [Image.Raster](Image.Raster.md), [Text.Lzw](Text.Lzw.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Image/Gif.cinch ./Image.Gif.cinch
-cp seed/prelude/Image/Raster.cinch ./Image.Raster.cinch
-cp seed/prelude/Text/Lzw.cinch ./Text.Lzw.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

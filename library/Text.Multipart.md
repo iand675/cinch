@@ -2,25 +2,9 @@
 
 Multipart wire primitives over arbitrary bytes, exact multi-value headers and explicit delimiter observations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Multipart</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Multipart/source/">View source</a><a href="/packages/search/?q=%2BText.Multipart">Search module</a><a href="/reference-sources/Text.Multipart.cinch" download="Text.Multipart.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Multipart</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Multipart/source/">View source</a><a href="/packages/search/?q=%2BText.Multipart">Search module</a><a href="/reference-sources/Text.Multipart.cinch" download="Text.Multipart.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Mime](Text.Mime.md).
-
-<details class="doc-closure"><summary>Ship-source closure (7 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Multipart`: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Mime](Text.Mime.md), [Text.Multipart](Text.Multipart.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-cp seed/prelude/Text/Base64/Encoding.cinch ./Text.Base64.Encoding.cinch
-cp seed/prelude/Text/Mime.cinch ./Text.Mime.cinch
-cp seed/prelude/Text/Multipart.cinch ./Text.Multipart.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

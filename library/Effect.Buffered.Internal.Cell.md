@@ -2,17 +2,7 @@
 
 Initialized opaque continuation cells whose allocation, observation and replacement require their I/O region.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Buffered.Internal.Cell</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Buffered.Internal.Cell/source/">View source</a><a href="/packages/search/?q=%2BEffect.Buffered.Internal.Cell">Search module</a><a href="/reference-sources/Effect.Buffered.Internal.Cell.cinch" download="Effect.Buffered.Internal.Cell.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Buffered.Internal.Cell`: [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md).
-
-```sh
-cp seed/prelude/Effect/Buffered/Internal/Cell.cinch ./Effect.Buffered.Internal.Cell.cinch
-```
-
-</details>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Buffered.Internal.Cell</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Buffered.Internal.Cell/source/">View source</a><a href="/packages/search/?q=%2BEffect.Buffered.Internal.Cell">Search module</a><a href="/reference-sources/Effect.Buffered.Internal.Cell.cinch" download="Effect.Buffered.Internal.Cell.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

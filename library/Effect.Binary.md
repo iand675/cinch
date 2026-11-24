@@ -2,24 +2,9 @@
 
 Explicit fixed and variable binary stream codecs preserving progress and advanced handles after failures.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Binary</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Binary/source/">View source</a><a href="/packages/search/?q=%2BEffect.Binary">Search module</a><a href="/reference-sources/Effect.Binary.cinch" download="Effect.Binary.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Binary</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Binary/source/">View source</a><a href="/packages/search/?q=%2BEffect.Binary">Search module</a><a href="/reference-sources/Effect.Binary.cinch" download="Effect.Binary.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Binary.Layout](Text.Binary.Layout.md).
-
-<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Binary`: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Complex](Data.Complex.md), [Effect.Binary](Effect.Binary.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Binary.Layout](Text.Binary.Layout.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Complex.cinch ./Data.Complex.cinch
-cp seed/prelude/Effect/Binary.cinch ./Effect.Binary.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Binary/Layout.cinch ./Text.Binary.Layout.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

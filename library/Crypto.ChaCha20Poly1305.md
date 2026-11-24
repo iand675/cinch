@@ -2,21 +2,9 @@
 
 ChaCha20 and XChaCha20 streams, Poly1305 and the ChaCha20-Poly1305 and XChaCha20-Poly1305 AEADs with vector row kernels.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.ChaCha20Poly1305</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/">View source</a><a href="/packages/search/?q=%2BCrypto.ChaCha20Poly1305">Search module</a><a href="/reference-sources/Crypto.ChaCha20Poly1305.cinch" download="Crypto.ChaCha20Poly1305.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.ChaCha20Poly1305</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.ChaCha20Poly1305/source/">View source</a><a href="/packages/search/?q=%2BCrypto.ChaCha20Poly1305">Search module</a><a href="/reference-sources/Crypto.ChaCha20Poly1305.cinch" download="Crypto.ChaCha20Poly1305.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.ChaCha20Poly1305`: [Crypto.ChaCha20Poly1305](Crypto.ChaCha20Poly1305.md), [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-```sh
-cp seed/prelude/Crypto/ChaCha20Poly1305.cinch ./Crypto.ChaCha20Poly1305.cinch
-cp seed/prelude/Crypto/ConstantTime.cinch ./Crypto.ConstantTime.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

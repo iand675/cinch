@@ -2,19 +2,9 @@
 
 A mutable hash table after SwissTable and F14: 8-slot chunks with 7-bit tags matched eight at a time, a 64-bit finalizer over the Hash digest, and overflow counts that make deletion tombstone-free.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.HashTable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.HashTable/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.HashTable">Search module</a><a href="/reference-sources/Data.Mutable.HashTable.cinch" download="Data.Mutable.HashTable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.HashTable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.HashTable/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.HashTable">Search module</a><a href="/reference-sources/Data.Mutable.HashTable.cinch" download="Data.Mutable.HashTable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Hash](Data.Hash.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Eq](Relation.Eq.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.HashTable`: [Data.Mutable.HashTable](Data.Mutable.HashTable.md).
-
-```sh
-cp seed/prelude/Data/Mutable/HashTable.cinch ./Data.Mutable.HashTable.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

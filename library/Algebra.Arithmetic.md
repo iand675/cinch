@@ -2,7 +2,7 @@
 
 Arithmetic operation signatures and their fixities, including NonZero divisors and InRange refinements.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Algebra.Arithmetic</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Algebra.Arithmetic/source/">View source</a><a href="/packages/search/?q=%2BAlgebra.Arithmetic">Search module</a><a href="/reference-sources/Algebra.Arithmetic.cinch" download="Algebra.Arithmetic.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Algebra.Arithmetic</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Algebra.Arithmetic/source/">View source</a><a href="/packages/search/?q=%2BAlgebra.Arithmetic">Search module</a><a href="/reference-sources/Algebra.Arithmetic.cinch" download="Algebra.Arithmetic.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

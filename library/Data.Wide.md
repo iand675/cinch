@@ -2,7 +2,7 @@
 
 Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Wide</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Wide/source/">View source</a><a href="/packages/search/?q=%2BData.Wide">Search module</a><a href="/reference-sources/Data.Wide.cinch" download="Data.Wide.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Wide</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Wide/source/">View source</a><a href="/packages/search/?q=%2BData.Wide">Search module</a><a href="/reference-sources/Data.Wide.cinch" download="Data.Wide.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Bits](Algebra.Bits.md), [Data.Int](Data.Int.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
 

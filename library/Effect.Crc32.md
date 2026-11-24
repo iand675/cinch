@@ -2,23 +2,9 @@
 
 CRC-32 stream writers and bounded copying into an inspectable checksum state.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Crc32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Crc32/source/">View source</a><a href="/packages/search/?q=%2BEffect.Crc32">Search module</a><a href="/reference-sources/Effect.Crc32.cinch" download="Effect.Crc32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Crc32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Crc32/source/">View source</a><a href="/packages/search/?q=%2BEffect.Crc32">Search module</a><a href="/reference-sources/Effect.Crc32.cinch" download="Effect.Crc32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Crc32](Text.Crc32.md).
-
-<details class="doc-closure"><summary>Ship-source closure (5 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Crc32`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Crc32](Effect.Crc32.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Crc32](Text.Crc32.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Crc32.cinch ./Effect.Crc32.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Crc32.cinch ./Text.Crc32.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

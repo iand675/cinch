@@ -2,7 +2,7 @@
 
 Finite enumeration and the class behind inclusive range literals, including an explicit next element for a step.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Enum</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Enum/source/">View source</a><a href="/packages/search/?q=%2BData.Enum">Search module</a><a href="/reference-sources/Data.Enum.cinch" download="Data.Enum.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Enum</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Enum/source/">View source</a><a href="/packages/search/?q=%2BData.Enum">Search module</a><a href="/reference-sources/Data.Enum.cinch" download="Data.Enum.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Core](Data.Core.md), [Data.List](Data.List.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 

@@ -2,7 +2,7 @@
 
 Ordered maps with comparison constraints, lookup, insertion, removal, traversal, and collection-literal support.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Map</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Map/source/">View source</a><a href="/packages/search/?q=%2BData.Map">Search module</a><a href="/reference-sources/Data.Map.cinch" download="Data.Map.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Map</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Map/source/">View source</a><a href="/packages/search/?q=%2BData.Map">Search module</a><a href="/reference-sources/Data.Map.cinch" download="Data.Map.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.FromMap](Data.FromMap.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
 

@@ -2,20 +2,9 @@
 
 A bounded least-recently-used cache: a hash table to nodes threaded on a recency list, with O(1) get, put and eviction.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.LruCache</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.LruCache/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.LruCache">Search module</a><a href="/reference-sources/Data.Mutable.LruCache.cinch" download="Data.Mutable.LruCache.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.LruCache</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.LruCache/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.LruCache">Search module</a><a href="/reference-sources/Data.Mutable.LruCache.cinch" download="Data.Mutable.LruCache.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Hash](Data.Hash.md), [Data.Machine](Data.Machine.md), [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Eq](Relation.Eq.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.LruCache`: [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Mutable.LruCache](Data.Mutable.LruCache.md).
-
-```sh
-cp seed/prelude/Data/Mutable/HashTable.cinch ./Data.Mutable.HashTable.cinch
-cp seed/prelude/Data/Mutable/LruCache.cinch ./Data.Mutable.LruCache.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

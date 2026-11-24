@@ -2,7 +2,7 @@
 
 Fixed-width and target-sized scalar operations. Names make checked, wrapping, or saturating overflow policy explicit.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Machine</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Machine/source/">View source</a><a href="/packages/search/?q=%2BData.Machine">Search module</a><a href="/reference-sources/Data.Machine.cinch" download="Data.Machine.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Machine</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Machine/source/">View source</a><a href="/packages/search/?q=%2BData.Machine">Search module</a><a href="/reference-sources/Data.Machine.cinch" download="Data.Machine.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Text.Codec](Text.Codec.md).
 

@@ -2,24 +2,9 @@
 
 ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.MlKem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.MlKem/source/">View source</a><a href="/packages/search/?q=%2BCrypto.MlKem">Search module</a><a href="/reference-sources/Crypto.MlKem.cinch" download="Crypto.MlKem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.MlKem</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.MlKem/source/">View source</a><a href="/packages/search/?q=%2BCrypto.MlKem">Search module</a><a href="/reference-sources/Crypto.MlKem.cinch" download="Crypto.MlKem.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Sha3](Text.Sha3.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.MlKem`: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.MlKem](Crypto.MlKem.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha3](Text.Sha3.md).
-
-```sh
-cp seed/prelude/Crypto/ConstantTime.cinch ./Crypto.ConstantTime.cinch
-cp seed/prelude/Crypto/MlKem.cinch ./Crypto.MlKem.cinch
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Sha3.cinch ./Text.Sha3.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

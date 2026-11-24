@@ -2,20 +2,9 @@
 
 HTTP cookies: parse Set-Cookie and Cookie header lines, serialize cookies as Set-Cookie values and validate them.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Cookie</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Cookie/source/">View source</a><a href="/packages/search/?q=%2BText.Cookie">Search module</a><a href="/reference-sources/Text.Cookie.cinch" download="Text.Cookie.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Cookie</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Cookie/source/">View source</a><a href="/packages/search/?q=%2BText.Cookie">Search module</a><a href="/reference-sources/Text.Cookie.cinch" download="Text.Cookie.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Cookie`: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Cookie](Text.Cookie.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Text/Cookie.cinch ./Text.Cookie.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

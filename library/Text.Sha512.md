@@ -2,21 +2,9 @@
 
 Portable SHA-384, SHA-512, SHA-512/224 and SHA-512/256 with two-lane SIMD schedules, native rotates, persistent states and checked binary checkpoints.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Sha512</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Sha512/source/">View source</a><a href="/packages/search/?q=%2BText.Sha512">Search module</a><a href="/reference-sources/Text.Sha512.cinch" download="Text.Sha512.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Sha512</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Sha512/source/">View source</a><a href="/packages/search/?q=%2BText.Sha512">Search module</a><a href="/reference-sources/Text.Sha512.cinch" download="Text.Sha512.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Sha512`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha512](Text.Sha512.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Sha512.cinch ./Text.Sha512.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

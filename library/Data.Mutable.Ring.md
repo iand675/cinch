@@ -2,19 +2,9 @@
 
 Mutable circular sequences with stable cursors, alias-preserving joins and splits, explicit value ownership and bounded arena growth.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Ring</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Ring/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Ring">Search module</a><a href="/reference-sources/Data.Mutable.Ring.cinch" download="Data.Mutable.Ring.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Ring</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Ring/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Ring">Search module</a><a href="/reference-sources/Data.Mutable.Ring.cinch" download="Data.Mutable.Ring.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Wide](Data.Wide.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.Ring`: [Data.Mutable.Ring](Data.Mutable.Ring.md).
-
-```sh
-cp seed/prelude/Data/Mutable/Ring.cinch ./Data.Mutable.Ring.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

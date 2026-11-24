@@ -2,20 +2,9 @@
 
 An ordered mutable set: the pooled B-tree with a Unit value per member.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.BTreeSet</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.BTreeSet/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.BTreeSet">Search module</a><a href="/reference-sources/Data.Mutable.BTreeSet.cinch" download="Data.Mutable.BTreeSet.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.BTreeSet</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.BTreeSet/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.BTreeSet">Search module</a><a href="/reference-sources/Data.Mutable.BTreeSet.cinch" download="Data.Mutable.BTreeSet.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Mutable.BTree](Data.Mutable.BTree.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.BTreeSet`: [Data.Mutable.BTree](Data.Mutable.BTree.md), [Data.Mutable.BTreeSet](Data.Mutable.BTreeSet.md).
-
-```sh
-cp seed/prelude/Data/Mutable/BTree.cinch ./Data.Mutable.BTree.cinch
-cp seed/prelude/Data/Mutable/BTreeSet.cinch ./Data.Mutable.BTreeSet.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

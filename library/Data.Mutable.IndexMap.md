@@ -2,19 +2,9 @@
 
 An insertion-ordered hash map: dense entries with a tagged chunk index over them, positional access, O(1) swap-remove and order-keeping shift-remove.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.IndexMap</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.IndexMap/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.IndexMap">Search module</a><a href="/reference-sources/Data.Mutable.IndexMap.cinch" download="Data.Mutable.IndexMap.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.IndexMap</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.IndexMap/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.IndexMap">Search module</a><a href="/reference-sources/Data.Mutable.IndexMap.cinch" download="Data.Mutable.IndexMap.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Hash](Data.Hash.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Eq](Relation.Eq.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.IndexMap`: [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md).
-
-```sh
-cp seed/prelude/Data/Mutable/IndexMap.cinch ./Data.Mutable.IndexMap.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,7 +2,7 @@
 
 Generic folds, conversion to lists, size/emptiness, and related operations over container instances.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Category.Foldable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Foldable/source/">View source</a><a href="/packages/search/?q=%2BCategory.Foldable">Search module</a><a href="/reference-sources/Category.Foldable.cinch" download="Category.Foldable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Category.Foldable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Foldable/source/">View source</a><a href="/packages/search/?q=%2BCategory.Foldable">Search module</a><a href="/reference-sources/Category.Foldable.cinch" download="Category.Foldable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Algebra.Semiring](Algebra.Semiring.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 

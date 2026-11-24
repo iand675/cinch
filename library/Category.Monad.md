@@ -2,7 +2,7 @@
 
 Container-dependent composition through the admitted higher-kinded class vocabulary.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Category.Monad</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Monad/source/">View source</a><a href="/packages/search/?q=%2BCategory.Monad">Search module</a><a href="/reference-sources/Category.Monad.cinch" download="Category.Monad.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Category.Monad</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Monad/source/">View source</a><a href="/packages/search/?q=%2BCategory.Monad">Search module</a><a href="/reference-sources/Category.Monad.cinch" download="Category.Monad.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Category.Applicative](Category.Applicative.md).
 

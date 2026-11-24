@@ -2,24 +2,9 @@
 
 Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Rand</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Rand/source/">View source</a><a href="/packages/search/?q=%2BData.Rand">Search module</a><a href="/reference-sources/Data.Rand.cinch" download="Data.Rand.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Rand</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Rand/source/">View source</a><a href="/packages/search/?q=%2BData.Rand">Search module</a><a href="/reference-sources/Data.Rand.cinch" download="Data.Rand.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Array](Data.Array.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md).
-
-<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Rand`: [Data.Array](Data.Array.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.Rand](Data.Rand.md).
-
-```sh
-cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/ChaCha8.cinch ./Data.ChaCha8.cinch
-cp seed/prelude/Data/Float.cinch ./Data.Float.cinch
-cp seed/prelude/Data/Rand.cinch ./Data.Rand.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

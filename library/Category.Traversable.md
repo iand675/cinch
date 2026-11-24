@@ -2,7 +2,7 @@
 
 Generic effect/container-aware traversal and sequencing while retaining the input shape.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Category.Traversable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Traversable/source/">View source</a><a href="/packages/search/?q=%2BCategory.Traversable">Search module</a><a href="/reference-sources/Category.Traversable.cinch" download="Category.Traversable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Category.Traversable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Traversable/source/">View source</a><a href="/packages/search/?q=%2BCategory.Traversable">Search module</a><a href="/reference-sources/Category.Traversable.cinch" download="Category.Traversable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Category.Applicative](Category.Applicative.md), [Category.Monad](Category.Monad.md).
 

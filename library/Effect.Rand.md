@@ -2,26 +2,9 @@
 
 Pseudorandom sources seeded from operating-system entropy.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Rand</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Rand/source/">View source</a><a href="/packages/search/?q=%2BEffect.Rand">Search module</a><a href="/reference-sources/Effect.Rand.cinch" download="Effect.Rand.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Rand</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Rand/source/">View source</a><a href="/packages/search/?q=%2BEffect.Rand">Search module</a><a href="/reference-sources/Effect.Rand.cinch" download="Effect.Rand.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Rand](Data.Rand.md), [Data.Result](Data.Result.md), [Effect.Random](Effect.Random.md).
-
-<details class="doc-closure"><summary>Ship-source closure (8 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Rand`: [Data.Array](Data.Array.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.Rand](Data.Rand.md), [Effect.Rand](Effect.Rand.md), [Effect.Random](Effect.Random.md).
-
-```sh
-cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/ChaCha8.cinch ./Data.ChaCha8.cinch
-cp seed/prelude/Data/Float.cinch ./Data.Float.cinch
-cp seed/prelude/Data/Rand.cinch ./Data.Rand.cinch
-cp seed/prelude/Effect/Rand.cinch ./Effect.Rand.cinch
-cp seed/prelude/Effect/Random.cinch ./Effect.Random.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

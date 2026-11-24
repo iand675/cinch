@@ -2,19 +2,9 @@
 
 Rational numbers with explicit denominator/error policy and arithmetic operations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Rational</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Rational/source/">View source</a><a href="/packages/search/?q=%2BData.Rational">Search module</a><a href="/reference-sources/Data.Rational.cinch" download="Data.Rational.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Rational</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Rational/source/">View source</a><a href="/packages/search/?q=%2BData.Rational">Search module</a><a href="/reference-sources/Data.Rational.cinch" download="Data.Rational.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Hash](Data.Hash.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Rational`: [Data.Rational](Data.Rational.md).
-
-```sh
-cp seed/prelude/Data/Rational.cinch ./Data.Rational.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

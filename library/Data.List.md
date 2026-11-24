@@ -2,7 +2,7 @@
 
 Finite strict lists: construction, transformation, filtering, splitting, searching, folds, and collection instances.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.List</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.List/source/">View source</a><a href="/packages/search/?q=%2BData.List">Search module</a><a href="/reference-sources/Data.List.cinch" download="Data.List.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.List</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.List/source/">View source</a><a href="/packages/search/?q=%2BData.List">Search module</a><a href="/reference-sources/Data.List.cinch" download="Data.List.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Category.Traversable](Category.Traversable.md), [Data.Core](Data.Core.md), [Data.FromList](Data.FromList.md), [Data.Ordering](Data.Ordering.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 

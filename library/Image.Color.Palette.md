@@ -2,20 +2,9 @@
 
 Immutable factories for the ordered 256-color Plan 9 and 216-color WebSafe palettes.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Image.Color.Palette</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Color.Palette/source/">View source</a><a href="/packages/search/?q=%2BImage.Color.Palette">Search module</a><a href="/reference-sources/Image.Color.Palette.cinch" download="Image.Color.Palette.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Color.Palette</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Color.Palette/source/">View source</a><a href="/packages/search/?q=%2BImage.Color.Palette">Search module</a><a href="/reference-sources/Image.Color.Palette.cinch" download="Image.Color.Palette.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Core](Data.Core.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Image.Color](Image.Color.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Image.Color.Palette`: [Image.Color](Image.Color.md), [Image.Color.Palette](Image.Color.Palette.md).
-
-```sh
-cp seed/prelude/Image/Color.cinch ./Image.Color.cinch
-cp seed/prelude/Image/Color/Palette.cinch ./Image.Color.Palette.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

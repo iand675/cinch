@@ -2,22 +2,9 @@
 
 Explicitly finalized Base32 encoding writers and bounded decoding readers with precise errors, retained cursors and sticky failures.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Base32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Base32/source/">View source</a><a href="/packages/search/?q=%2BEffect.Base32">Search module</a><a href="/reference-sources/Effect.Base32.cinch" download="Effect.Base32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Base32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Base32/source/">View source</a><a href="/packages/search/?q=%2BEffect.Base32">Search module</a><a href="/reference-sources/Effect.Base32.cinch" download="Effect.Base32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Base32](Text.Base32.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Base32`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Base32](Effect.Base32.md), [Effect.Stream](Effect.Stream.md), [Text.Base32](Text.Base32.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Base32.cinch ./Effect.Base32.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Base32.cinch ./Text.Base32.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

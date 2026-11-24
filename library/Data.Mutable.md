@@ -2,32 +2,9 @@
 
 A curated mutable-container facade. Region-indexed operations carry Mut r; callback-backed heaps and stable linked-list elements have their own module imports.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable">Search module</a><a href="/reference-sources/Data.Mutable.cinch" download="Data.Mutable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable">Search module</a><a href="/reference-sources/Data.Mutable.cinch" download="Data.Mutable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Mutable.Array](Data.Mutable.Array.md), [Data.Mutable.BTree](Data.Mutable.BTree.md), [Data.Mutable.BTreeSet](Data.Mutable.BTreeSet.md), [Data.Mutable.BitSet](Data.Mutable.BitSet.md), [Data.Mutable.Deque](Data.Mutable.Deque.md), [Data.Mutable.HashSet](Data.Mutable.HashSet.md), [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Mutable.Heap](Data.Mutable.Heap.md), [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md), [Data.Mutable.LruCache](Data.Mutable.LruCache.md), [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md), [Data.Mutable.Var](Data.Mutable.Var.md), [Data.Mutable.Vec](Data.Mutable.Vec.md).
-
-<details class="doc-closure"><summary>Ship-source closure (14 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable`: [Data.Mutable](Data.Mutable.md), [Data.Mutable.Array](Data.Mutable.Array.md), [Data.Mutable.BTree](Data.Mutable.BTree.md), [Data.Mutable.BTreeSet](Data.Mutable.BTreeSet.md), [Data.Mutable.BitSet](Data.Mutable.BitSet.md), [Data.Mutable.Deque](Data.Mutable.Deque.md), [Data.Mutable.HashSet](Data.Mutable.HashSet.md), [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Mutable.Heap](Data.Mutable.Heap.md), [Data.Mutable.IndexMap](Data.Mutable.IndexMap.md), [Data.Mutable.LruCache](Data.Mutable.LruCache.md), [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md), [Data.Mutable.Var](Data.Mutable.Var.md), [Data.Mutable.Vec](Data.Mutable.Vec.md).
-
-```sh
-cp seed/prelude/Data/Mutable.cinch ./Data.Mutable.cinch
-cp seed/prelude/Data/Mutable/Array.cinch ./Data.Mutable.Array.cinch
-cp seed/prelude/Data/Mutable/BTree.cinch ./Data.Mutable.BTree.cinch
-cp seed/prelude/Data/Mutable/BTreeSet.cinch ./Data.Mutable.BTreeSet.cinch
-cp seed/prelude/Data/Mutable/BitSet.cinch ./Data.Mutable.BitSet.cinch
-cp seed/prelude/Data/Mutable/Deque.cinch ./Data.Mutable.Deque.cinch
-cp seed/prelude/Data/Mutable/HashSet.cinch ./Data.Mutable.HashSet.cinch
-cp seed/prelude/Data/Mutable/HashTable.cinch ./Data.Mutable.HashTable.cinch
-cp seed/prelude/Data/Mutable/Heap.cinch ./Data.Mutable.Heap.cinch
-cp seed/prelude/Data/Mutable/IndexMap.cinch ./Data.Mutable.IndexMap.cinch
-cp seed/prelude/Data/Mutable/LruCache.cinch ./Data.Mutable.LruCache.cinch
-cp seed/prelude/Data/Mutable/UnionFind.cinch ./Data.Mutable.UnionFind.cinch
-cp seed/prelude/Data/Mutable/Var.cinch ./Data.Mutable.Var.cinch
-cp seed/prelude/Data/Mutable/Vec.cinch ./Data.Mutable.Vec.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

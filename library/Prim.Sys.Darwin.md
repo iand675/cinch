@@ -2,7 +2,7 @@
 
 The Darwin half of the syscall layer: libSystem calls bound with foreign import ccall (open, read, write, close, lseek, fstat, mkdir, unlink, rename, fsync, getpid), with the -1 result mapped to a named error read from the thread error slot.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Prim.Sys.Darwin</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prim.Sys.Darwin/source/">View source</a><a href="/packages/search/?q=%2BPrim.Sys.Darwin">Search module</a><a href="/reference-sources/Prim.Sys.Darwin.cinch" download="Prim.Sys.Darwin.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Prim.Sys.Darwin</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prim.Sys.Darwin/source/">View source</a><a href="/packages/search/?q=%2BPrim.Sys.Darwin">Search module</a><a href="/reference-sources/Prim.Sys.Darwin.cinch" download="Prim.Sys.Darwin.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 

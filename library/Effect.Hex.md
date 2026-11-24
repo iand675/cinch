@@ -2,22 +2,9 @@
 
 Hexadecimal encoding writers, decoding readers and formatted dump sinks with explicit continuations and sticky errors.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Hex</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Hex/source/">View source</a><a href="/packages/search/?q=%2BEffect.Hex">Search module</a><a href="/reference-sources/Effect.Hex.cinch" download="Effect.Hex.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Hex</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Hex/source/">View source</a><a href="/packages/search/?q=%2BEffect.Hex">Search module</a><a href="/reference-sources/Effect.Hex.cinch" download="Effect.Hex.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Stream](Effect.Stream.md), [Text.Hex](Text.Hex.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Hex`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Hex](Effect.Hex.md), [Effect.Stream](Effect.Stream.md), [Text.Hex](Text.Hex.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Hex.cinch ./Effect.Hex.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Hex.cinch ./Text.Hex.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

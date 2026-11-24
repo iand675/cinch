@@ -2,20 +2,9 @@
 
 Immutable row-major tensors with checked runtime shapes of any rank.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Tensor</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Tensor/source/">View source</a><a href="/packages/search/?q=%2BData.Tensor">Search module</a><a href="/reference-sources/Data.Tensor.cinch" download="Data.Tensor.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Tensor</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Tensor/source/">View source</a><a href="/packages/search/?q=%2BData.Tensor">Search module</a><a href="/reference-sources/Data.Tensor.cinch" download="Data.Tensor.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Array](Data.Array.md), [Data.Core](Data.Core.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Tensor`: [Data.Array](Data.Array.md), [Data.Tensor](Data.Tensor.md).
-
-```sh
-cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
-cp seed/prelude/Data/Tensor.cinch ./Data.Tensor.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

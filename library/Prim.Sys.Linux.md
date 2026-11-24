@@ -2,7 +2,7 @@
 
 The Linux half of the syscall layer: prim bodies that issue syscall with the pinned number per architecture (x86_64 and aarch64), with the kernel negative result mapped to the same named errors as the Darwin module.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Prim.Sys.Linux</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prim.Sys.Linux/source/">View source</a><a href="/packages/search/?q=%2BPrim.Sys.Linux">Search module</a><a href="/reference-sources/Prim.Sys.Linux.cinch" download="Prim.Sys.Linux.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Prim.Sys.Linux</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prim.Sys.Linux/source/">View source</a><a href="/packages/search/?q=%2BPrim.Sys.Linux">Search module</a><a href="/reference-sources/Prim.Sys.Linux.cinch" download="Prim.Sys.Linux.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 

@@ -2,7 +2,7 @@
 
 Success and named failure values, error-aware transformations, partitioning, and sequencing instances.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Result</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Result/source/">View source</a><a href="/packages/search/?q=%2BData.Result">Search module</a><a href="/reference-sources/Data.Result.cinch" download="Data.Result.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Result</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Result/source/">View source</a><a href="/packages/search/?q=%2BData.Result">Search module</a><a href="/reference-sources/Data.Result.cinch" download="Data.Result.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Data.Core](Data.Core.md), [Effect.Sequencing](Effect.Sequencing.md).
 

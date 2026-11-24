@@ -2,24 +2,9 @@
 
 Nonempty raw-byte field views with Unicode whitespace, ordered scalar predicates, persistent producers and replayable effect-preserving iteration.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Bytes.Fields</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Bytes.Fields/source/">View source</a><a href="/packages/search/?q=%2BData.Bytes.Fields">Search module</a><a href="/reference-sources/Data.Bytes.Fields.cinch" download="Data.Bytes.Fields.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Bytes.Fields</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Bytes.Fields/source/">View source</a><a href="/packages/search/?q=%2BData.Bytes.Fields">Search module</a><a href="/reference-sources/Data.Bytes.Fields.cinch" download="Data.Bytes.Fields.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Producer](Data.Producer.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md).
-
-<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Bytes.Fields`: [Data.Bytes.Fields](Data.Bytes.Fields.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.View](Data.Bytes.View.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Fields.cinch ./Data.Bytes.Fields.cinch
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/View.cinch ./Data.Bytes.View.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

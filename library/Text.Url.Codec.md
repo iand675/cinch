@@ -2,20 +2,9 @@
 
 Checked percent codecs for URL components, exact escaped sizing and optional UTF-8 text views.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Url.Codec</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Codec/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Codec">Search module</a><a href="/reference-sources/Text.Url.Codec.cinch" download="Text.Url.Codec.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Url.Codec</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Codec/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Codec">Search module</a><a href="/reference-sources/Text.Url.Codec.cinch" download="Text.Url.Codec.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Url.Error](Text.Url.Error.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Url.Codec`: [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md).
-
-```sh
-cp seed/prelude/Text/Url/Codec.cinch ./Text.Url.Codec.cinch
-cp seed/prelude/Text/Url/Error.cinch ./Text.Url.Error.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

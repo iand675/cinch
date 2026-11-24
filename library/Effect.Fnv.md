@@ -2,24 +2,9 @@
 
 Inspectable FNV hashing sinks, generic byte-writer composition and bounded reader-to-hash copying with advanced continuations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Fnv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Fnv/source/">View source</a><a href="/packages/search/?q=%2BEffect.Fnv">Search module</a><a href="/reference-sources/Effect.Fnv.cinch" download="Effect.Fnv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Fnv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Fnv/source/">View source</a><a href="/packages/search/?q=%2BEffect.Fnv">Search module</a><a href="/reference-sources/Effect.Fnv.cinch" download="Effect.Fnv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Fnv.State](Text.Fnv.State.md).
-
-<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Fnv`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Fnv](Effect.Fnv.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Fnv](Text.Fnv.md), [Text.Fnv.State](Text.Fnv.State.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Fnv.cinch ./Effect.Fnv.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Fnv.cinch ./Text.Fnv.cinch
-cp seed/prelude/Text/Fnv/State.cinch ./Text.Fnv.State.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

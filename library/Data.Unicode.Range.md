@@ -2,21 +2,9 @@
 
 Immutable Unicode range tables with checked construction, exact membership and copied observations.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Unicode.Range</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Unicode.Range/source/">View source</a><a href="/packages/search/?q=%2BData.Unicode.Range">Search module</a><a href="/reference-sources/Data.Unicode.Range.cinch" download="Data.Unicode.Range.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Unicode.Range</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Unicode.Range/source/">View source</a><a href="/packages/search/?q=%2BData.Unicode.Range">Search module</a><a href="/reference-sources/Data.Unicode.Range.cinch" download="Data.Unicode.Range.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Unicode.Range`: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Range](Data.Unicode.Range.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode/Range.cinch ./Data.Unicode.Range.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

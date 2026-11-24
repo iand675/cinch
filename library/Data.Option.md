@@ -2,7 +2,7 @@
 
 Optional values with None and Some, plus combinators for propagating or consuming absence.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Option</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Option/source/">View source</a><a href="/packages/search/?q=%2BData.Option">Search module</a><a href="/reference-sources/Data.Option.cinch" download="Data.Option.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Option</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Option/source/">View source</a><a href="/packages/search/?q=%2BData.Option">Search module</a><a href="/reference-sources/Data.Option.cinch" download="Data.Option.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Category.Traversable](Category.Traversable.md), [Data.Core](Data.Core.md), [Effect.Sequencing](Effect.Sequencing.md).
 

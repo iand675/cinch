@@ -2,7 +2,7 @@
 
 Software transactional memory: TVar cells, composable STM transactions run by atomically, retry and or-else for blocking and choice, and the STM do provider. The transaction algorithm is Cinch source over inline target IR.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Stm</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm">Search module</a><a href="/reference-sources/Effect.Stm.cinch" download="Effect.Stm.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stm</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm">Search module</a><a href="/reference-sources/Effect.Stm.cinch" download="Effect.Stm.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Category.Alternative](Category.Alternative.md), [Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md), [Category.Monad](Category.Monad.md), [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md).
 

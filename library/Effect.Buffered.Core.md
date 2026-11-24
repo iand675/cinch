@@ -2,21 +2,9 @@
 
 Byte-stream events with signed progress, simultaneous failures, shared advanced continuations and explicit transfer capabilities.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Buffered.Core</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Buffered.Core/source/">View source</a><a href="/packages/search/?q=%2BEffect.Buffered.Core">Search module</a><a href="/reference-sources/Effect.Buffered.Core.cinch" download="Effect.Buffered.Core.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Buffered.Core</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Buffered.Core/source/">View source</a><a href="/packages/search/?q=%2BEffect.Buffered.Core">Search module</a><a href="/reference-sources/Effect.Buffered.Core.cinch" download="Effect.Buffered.Core.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Io](Effect.Io.md), [Effect.Stream](Effect.Stream.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Buffered.Core`: [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Stream](Effect.Stream.md).
-
-```sh
-cp seed/prelude/Effect/Buffered/Core.cinch ./Effect.Buffered.Core.cinch
-cp seed/prelude/Effect/Buffered/Internal/Cell.cinch ./Effect.Buffered.Internal.Cell.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

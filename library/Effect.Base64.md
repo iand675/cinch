@@ -2,22 +2,9 @@
 
 Explicitly finalized Base64 writers and bounded decoding readers with sticky errors and isolated output chunks.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Base64</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Base64/source/">View source</a><a href="/packages/search/?q=%2BEffect.Base64">Search module</a><a href="/reference-sources/Effect.Base64.cinch" download="Effect.Base64.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Base64</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Base64/source/">View source</a><a href="/packages/search/?q=%2BEffect.Base64">Search module</a><a href="/reference-sources/Effect.Base64.cinch" download="Effect.Base64.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Base64`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Base64](Effect.Base64.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/Base64.cinch ./Effect.Base64.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/Base64/Encoding.cinch ./Text.Base64.Encoding.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

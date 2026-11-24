@@ -2,20 +2,9 @@
 
 ASN.1 value trees with a strict DER decoder and canonical DER encoder, including explicit and implicit tags and times.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Asn1</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Asn1/source/">View source</a><a href="/packages/search/?q=%2BText.Asn1">Search module</a><a href="/reference-sources/Text.Asn1.cinch" download="Text.Asn1.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Asn1</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Asn1/source/">View source</a><a href="/packages/search/?q=%2BText.Asn1">Search module</a><a href="/reference-sources/Text.Asn1.cinch" download="Text.Asn1.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Asn1`: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Asn1](Text.Asn1.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Text/Asn1.cinch ./Text.Asn1.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

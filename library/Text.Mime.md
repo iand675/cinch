@@ -2,24 +2,9 @@
 
 Byte-preserving media types, encoded words, immutable parameter maps and explicit extension registries.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Mime</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Mime/source/">View source</a><a href="/packages/search/?q=%2BText.Mime">Search module</a><a href="/reference-sources/Text.Mime.cinch" download="Text.Mime.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Mime</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Mime/source/">View source</a><a href="/packages/search/?q=%2BText.Mime">Search module</a><a href="/reference-sources/Text.Mime.cinch" download="Text.Mime.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.HashMap](Data.HashMap.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Relation.Eq](Relation.Eq.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Mime`: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Mime](Text.Mime.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-cp seed/prelude/Text/Base64/Encoding.cinch ./Text.Base64.Encoding.cinch
-cp seed/prelude/Text/Mime.cinch ./Text.Mime.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,19 +2,9 @@
 
 Indexed binary search with monotone predicates, insertion positions and effectful three-way comparisons.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Search</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Search/source/">View source</a><a href="/packages/search/?q=%2BData.Search">Search module</a><a href="/reference-sources/Data.Search.cinch" download="Data.Search.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Search</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Search/source/">View source</a><a href="/packages/search/?q=%2BData.Search">Search module</a><a href="/reference-sources/Data.Search.cinch" download="Data.Search.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Search`: [Data.Search](Data.Search.md).
-
-```sh
-cp seed/prelude/Data/Search.cinch ./Data.Search.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

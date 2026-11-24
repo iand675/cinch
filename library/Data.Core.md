@@ -2,7 +2,7 @@
 
 Shared declarations for List, Option, and Result. Their public homes add operations and instances; this module breaks declaration-order cycles.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Core</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Core/source/">View source</a><a href="/packages/search/?q=%2BData.Core">Search module</a><a href="/reference-sources/Data.Core.cinch" download="Data.Core.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Core</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Core/source/">View source</a><a href="/packages/search/?q=%2BData.Core">Search module</a><a href="/reference-sources/Data.Core.cinch" download="Data.Core.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

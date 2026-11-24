@@ -2,22 +2,9 @@
 
 Hostname/address resolution through the runtime, with named failure results.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Resolv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Resolv/source/">View source</a><a href="/packages/search/?q=%2BEffect.Resolv">Search module</a><a href="/reference-sources/Effect.Resolv.cinch" download="Effect.Resolv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Resolv</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Resolv/source/">View source</a><a href="/packages/search/?q=%2BEffect.Resolv">Search module</a><a href="/reference-sources/Effect.Resolv.cinch" download="Effect.Resolv.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Text.Scan](Text.Scan.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Resolv`: [Data.IpAddr](Data.IpAddr.md), [Effect.Net](Effect.Net.md), [Effect.Resolv](Effect.Resolv.md), [Text.Scan](Text.Scan.md).
-
-```sh
-cp seed/prelude/Data/IpAddr.cinch ./Data.IpAddr.cinch
-cp seed/prelude/Effect/Net.cinch ./Effect.Net.cinch
-cp seed/prelude/Effect/Resolv.cinch ./Effect.Resolv.cinch
-cp seed/prelude/Text/Scan.cinch ./Text.Scan.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

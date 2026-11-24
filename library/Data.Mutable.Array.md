@@ -2,19 +2,9 @@
 
 A fixed-length mutable array whose slots always hold values, with copying freeze and thaw against the immutable Array.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Array</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Array/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Array">Search module</a><a href="/reference-sources/Data.Mutable.Array.cinch" download="Data.Mutable.Array.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Array</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Array/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Array">Search module</a><a href="/reference-sources/Data.Mutable.Array.cinch" download="Data.Mutable.Array.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.Array`: [Data.Mutable.Array](Data.Mutable.Array.md).
-
-```sh
-cp seed/prelude/Data/Mutable/Array.cinch ./Data.Mutable.Array.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

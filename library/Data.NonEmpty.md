@@ -2,7 +2,7 @@
 
 Lists refined by nonemptiness. The total constructor returns Option; transferred operations must preserve the predicate.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.NonEmpty</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.NonEmpty/source/">View source</a><a href="/packages/search/?q=%2BData.NonEmpty">Search module</a><a href="/reference-sources/Data.NonEmpty.cinch" download="Data.NonEmpty.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.NonEmpty</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.NonEmpty/source/">View source</a><a href="/packages/search/?q=%2BData.NonEmpty">Search module</a><a href="/reference-sources/Data.NonEmpty.cinch" download="Data.NonEmpty.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Applicative](Category.Applicative.md), [Category.Foldable](Category.Foldable.md), [Category.Traversable](Category.Traversable.md).
 

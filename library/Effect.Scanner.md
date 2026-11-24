@@ -2,28 +2,9 @@
 
 Advanced byte-stream tokenization with bounded buffers, fresh tokens and explicit checked protocol failures.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Scanner</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Scanner/source/">View source</a><a href="/packages/search/?q=%2BEffect.Scanner">Search module</a><a href="/reference-sources/Effect.Scanner.cinch" download="Effect.Scanner.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Scanner</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Scanner/source/">View source</a><a href="/packages/search/?q=%2BEffect.Scanner">Search module</a><a href="/reference-sources/Effect.Scanner.cinch" download="Effect.Scanner.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Io](Effect.Io.md), [Effect.Scanner.Split](Effect.Scanner.Split.md), [Effect.Stream](Effect.Stream.md).
-
-<details class="doc-closure"><summary>Ship-source closure (10 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Scanner`: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Buffered.Core](Effect.Buffered.Core.md), [Effect.Buffered.Internal.Cell](Effect.Buffered.Internal.Cell.md), [Effect.Buffered.Internal.Scan](Effect.Buffered.Internal.Scan.md), [Effect.Scanner](Effect.Scanner.md), [Effect.Scanner.Split](Effect.Scanner.Split.md), [Effect.Stream](Effect.Stream.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-cp seed/prelude/Effect/Buffered/Core.cinch ./Effect.Buffered.Core.cinch
-cp seed/prelude/Effect/Buffered/Internal/Cell.cinch ./Effect.Buffered.Internal.Cell.cinch
-cp seed/prelude/Effect/Buffered/Internal/Scan.cinch ./Effect.Buffered.Internal.Scan.cinch
-cp seed/prelude/Effect/Scanner.cinch ./Effect.Scanner.cinch
-cp seed/prelude/Effect/Scanner/Split.cinch ./Effect.Scanner.Split.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

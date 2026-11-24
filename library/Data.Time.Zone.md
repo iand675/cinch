@@ -2,28 +2,9 @@
 
 Time zones: offsets for instants, resolution of civil times, and fixed or rule-based zones.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Zone</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Zone/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Zone">Search module</a><a href="/reference-sources/Data.Time.Zone.cinch" download="Data.Time.Zone.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Zone</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Zone/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Zone">Search module</a><a href="/reference-sources/Data.Time.Zone.cinch" download="Data.Time.Zone.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (10 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Time.Zone`: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md).
-
-```sh
-cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
-cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
-cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
-cp seed/prelude/Data/Time/Offset.cinch ./Data.Time.Offset.cinch
-cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
-cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
-cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
-cp seed/prelude/Data/Time/Zone.cinch ./Data.Time.Zone.cinch
-cp seed/prelude/Data/Time/Zone/Posix.cinch ./Data.Time.Zone.Posix.cinch
-cp seed/prelude/Data/Time/Zone/Types.cinch ./Data.Time.Zone.Types.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

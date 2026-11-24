@@ -2,22 +2,9 @@
 
 A bounded plaintext HTTP client with response framing and named errors. HTTPS is explicitly refused; this module has no TLS implementation.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Http</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Http/source/">View source</a><a href="/packages/search/?q=%2BEffect.Http">Search module</a><a href="/reference-sources/Effect.Http.cinch" download="Effect.Http.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Http</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Http/source/">View source</a><a href="/packages/search/?q=%2BEffect.Http">Search module</a><a href="/reference-sources/Effect.Http.cinch" download="Effect.Http.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md), [Text.Uri](Text.Uri.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Http`: [Data.IpAddr](Data.IpAddr.md), [Effect.Http](Effect.Http.md), [Effect.Net](Effect.Net.md), [Text.Uri](Text.Uri.md).
-
-```sh
-cp seed/prelude/Data/IpAddr.cinch ./Data.IpAddr.cinch
-cp seed/prelude/Effect/Http.cinch ./Effect.Http.cinch
-cp seed/prelude/Effect/Net.cinch ./Effect.Net.cinch
-cp seed/prelude/Text/Uri.cinch ./Text.Uri.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

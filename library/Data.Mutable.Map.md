@@ -2,22 +2,9 @@
 
 A mutable map with captured key policies and deletion-aware live traversal.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Map</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Map/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Map">Search module</a><a href="/reference-sources/Data.Mutable.Map.cinch" download="Data.Mutable.Map.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Map</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Map/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Map">Search module</a><a href="/reference-sources/Data.Mutable.Map.cinch" download="Data.Mutable.Map.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Core](Data.Core.md), [Data.Hash](Data.Hash.md), [Data.Machine](Data.Machine.md), [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md), [Data.Mutable.Var](Data.Mutable.Var.md), [Data.Nat](Data.Nat.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.Map`: [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md), [Data.Mutable.Map](Data.Mutable.Map.md), [Data.Mutable.Var](Data.Mutable.Var.md).
-
-```sh
-cp seed/prelude/Data/Mutable/HashTable.cinch ./Data.Mutable.HashTable.cinch
-cp seed/prelude/Data/Mutable/LinkedList.cinch ./Data.Mutable.LinkedList.cinch
-cp seed/prelude/Data/Mutable/Map.cinch ./Data.Mutable.Map.cinch
-cp seed/prelude/Data/Mutable/Var.cinch ./Data.Mutable.Var.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

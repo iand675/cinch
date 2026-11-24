@@ -2,22 +2,9 @@
 
 Immutable copied URL user information with explicit password presence and checked percent encoding.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Url.Userinfo</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Userinfo/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Userinfo">Search module</a><a href="/reference-sources/Text.Url.Userinfo.cinch" download="Text.Url.Userinfo.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Url.Userinfo</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Userinfo/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Userinfo">Search module</a><a href="/reference-sources/Text.Url.Userinfo.cinch" download="Text.Url.Userinfo.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Scan](Text.Url.Scan.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Url.Userinfo`: [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
-
-```sh
-cp seed/prelude/Text/Url/Codec.cinch ./Text.Url.Codec.cinch
-cp seed/prelude/Text/Url/Error.cinch ./Text.Url.Error.cinch
-cp seed/prelude/Text/Url/Scan.cinch ./Text.Url.Scan.cinch
-cp seed/prelude/Text/Url/Userinfo.cinch ./Text.Url.Userinfo.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,23 +2,9 @@
 
 Data-driven text templates: pipelines, control actions, definitions, builtins and printf over dynamic values.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Template</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Template/source/">View source</a><a href="/packages/search/?q=%2BText.Template">Search module</a><a href="/reference-sources/Text.Template.cinch" download="Text.Template.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Template</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Template/source/">View source</a><a href="/packages/search/?q=%2BText.Template">Search module</a><a href="/reference-sources/Text.Template.cinch" download="Text.Template.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (5 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Template`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Text.Template](Text.Template.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-cp seed/prelude/Text/Template.cinch ./Text.Template.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

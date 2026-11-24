@@ -2,7 +2,7 @@
 
 Composition of higher-kinded containers with the admitted generic instances.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Compose</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Compose/source/">View source</a><a href="/packages/search/?q=%2BData.Compose">Search module</a><a href="/reference-sources/Data.Compose.cinch" download="Data.Compose.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Compose</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Compose/source/">View source</a><a href="/packages/search/?q=%2BData.Compose">Search module</a><a href="/reference-sources/Data.Compose.cinch" download="Data.Compose.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

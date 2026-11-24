@@ -2,25 +2,9 @@
 
 Fixed offsets from UTC with validated ranges.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Offset</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Offset/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Offset">Search module</a><a href="/reference-sources/Data.Time.Offset.cinch" download="Data.Time.Offset.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Offset</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Offset/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Offset">Search module</a><a href="/reference-sources/Data.Time.Offset.cinch" download="Data.Time.Offset.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (7 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Time.Offset`: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md).
-
-```sh
-cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
-cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
-cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
-cp seed/prelude/Data/Time/Offset.cinch ./Data.Time.Offset.cinch
-cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
-cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
-cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

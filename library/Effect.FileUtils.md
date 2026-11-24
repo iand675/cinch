@@ -2,20 +2,9 @@
 
 Convenience filesystem operations built on the lower-level filesystem API.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.FileUtils</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.FileUtils/source/">View source</a><a href="/packages/search/?q=%2BEffect.FileUtils">Search module</a><a href="/reference-sources/Effect.FileUtils.cinch" download="Effect.FileUtils.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.FileUtils</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.FileUtils/source/">View source</a><a href="/packages/search/?q=%2BEffect.FileUtils">Search module</a><a href="/reference-sources/Effect.FileUtils.cinch" download="Effect.FileUtils.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Fs](Effect.Fs.md), [Effect.Random](Effect.Random.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.FileUtils`: [Effect.FileUtils](Effect.FileUtils.md), [Effect.Random](Effect.Random.md).
-
-```sh
-cp seed/prelude/Effect/FileUtils.cinch ./Effect.FileUtils.cinch
-cp seed/prelude/Effect/Random.cinch ./Effect.Random.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

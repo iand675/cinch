@@ -19,7 +19,7 @@ For `check`, `emit-ir`, `build`, and `run` targeting the same profile, these out
 
 | Artifact | Contents | Consumers |
 | --- | --- | --- |
-| `<Entry>.cpk` | Packed `.cinchif` interface contracts for every module in the checked closure (user modules and the embedded base library), plus optional unfoldings when `--emit-interface-optimisations` or `emit-object` is active | Downstream packages, `cinch doc`, JIT, object admission |
+| `<Entry>.cpk` | Packed `.cinchif` interface contracts for every module in the checked closure (user modules, vendored packages, and imported `cinch/stdlib` modules), plus optional unfoldings when `--emit-interface-optimisations` or `emit-object` is active | Downstream packages, `cinch doc`, JIT, object admission |
 | `<Entry>.manifest.json` | Target profile, module contract hashes, assumptions, safety assertions, specialization report, staging log, and checked-vs-trusted lowering boundary | Build audits, tooling, native/JIT admission |
 | `<Entry>.stage.snap` | Recorded compile-time I/O captured inside `snapshot` blocks | Replay builds (`CINCH_STAGE_MODE=replay`) |
 
@@ -194,7 +194,7 @@ An empty file indicates that the build captured no external staging inputs. Sele
 
 # The package store
 
-The package store is a per-user, content-keyed cache of compiled artifacts for the embedded base package. Deleting it is always safe.
+The package store is a per-user, content-keyed cache of compiled interface artifacts for the toolchain's standard-library core (`cinch-base`). Deleting it is always safe.
 
 | Platform / environment | Store root |
 | --- | --- |
@@ -264,7 +264,7 @@ The store has two deliberately asymmetric paths:
 | `Wrote` | No entry existed for the key. |
 | `Verified` | An intact entry existed and matched the current compile byte-for-byte. |
 | `Repaired` | An entry existed but was corrupt, mismatched, or overridden by `--rebuild`, and was atomically replaced. |
-| `Skipped` | The compilation did not cover the embedded base package. |
+| `Skipped` | The compilation did not cover the standard-library core package. |
 
 - **Load path (strict verification):** Validates the entry manifest, schema/ABI/compiler identity, every artifact's readability and content hash, and the interface import chain, returning a typed error (`Missing`, `Corrupt`, `KeyMismatch`, `IdentityMismatch`, `ArtifactUnreadable`, `HashMismatch`, `ChainBroken`, `Package`, `Io`) on any discrepancy.
 

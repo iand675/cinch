@@ -2,7 +2,7 @@
 
 One-shot and live subprocesses, command arguments/environment additions, pipes, exit codes, and this process's arguments.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Process</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Process/source/">View source</a><a href="/packages/search/?q=%2BEffect.Process">Search module</a><a href="/reference-sources/Effect.Process.cinch" download="Effect.Process.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Process</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Process/source/">View source</a><a href="/packages/search/?q=%2BEffect.Process">Search module</a><a href="/reference-sources/Effect.Process.cinch" download="Effect.Process.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md).
 

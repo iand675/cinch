@@ -2,21 +2,9 @@
 
 Composite rasters with Src and Over, masks and uniform colors, and dither onto palettes, with a vector Over kernel.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Image.Draw</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Draw/source/">View source</a><a href="/packages/search/?q=%2BImage.Draw">Search module</a><a href="/reference-sources/Image.Draw.cinch" download="Image.Draw.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Draw</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Draw/source/">View source</a><a href="/packages/search/?q=%2BImage.Draw">Search module</a><a href="/reference-sources/Image.Draw.cinch" download="Image.Draw.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Image.Raster](Image.Raster.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Image.Draw`: [Data.Bytes.Word](Data.Bytes.Word.md), [Image.Draw](Image.Draw.md), [Image.Raster](Image.Raster.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Image/Draw.cinch ./Image.Draw.cinch
-cp seed/prelude/Image/Raster.cinch ./Image.Raster.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,7 +2,7 @@
 
 A bounded first-in first-out queue for transactions: a write waits while the queue is at capacity, a read waits while it is empty.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Stm.TBQueue</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TBQueue/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TBQueue">Search module</a><a href="/reference-sources/Effect.Stm.TBQueue.cinch" download="Effect.Stm.TBQueue.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stm.TBQueue</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TBQueue/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TBQueue">Search module</a><a href="/reference-sources/Effect.Stm.TBQueue.cinch" download="Effect.Stm.TBQueue.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.List](Data.List.md), [Effect.Stm](Effect.Stm.md).
 

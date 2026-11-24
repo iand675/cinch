@@ -381,3 +381,80 @@ fn a_schema_one_manifest_keeps_its_meaning() {
         .expect("a schema 1 manifest resolves to itself");
     assert_eq!(resolved.order, pkg.order);
 }
+
+#[test]
+fn stdlib_manifest_covers_every_module_under_prelude() {
+    let (dir, pkg) = cinch::driver::stdlib_package()
+        .expect("stdlib manifest parses")
+        .expect("stdlib manifest is present in the toolchain");
+    assert_eq!(pkg.name, "cinch/stdlib");
+    assert_eq!(pkg.schema, 2);
+    assert!(!pkg.version.is_empty());
+
+    let mut on_disk: BTreeSet<String> = BTreeSet::new();
+    let mut stack = vec![dir.clone()];
+    while let Some(cur) = stack.pop() {
+        for entry in std::fs::read_dir(&cur).expect("read stdlib dir").flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                stack.push(p);
+            } else if p.extension().and_then(|e| e.to_str()) == Some("cinch") {
+                let rel = p
+                    .strip_prefix(&dir)
+                    .expect("relative path")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                on_disk.insert(rel);
+            }
+        }
+    }
+
+    let declared: BTreeSet<String> = pkg.modules.iter().map(|m| m.path.clone()).collect();
+    assert_eq!(
+        declared, on_disk,
+        "every .cinch file in seed/prelude must be declared in seed/prelude/.cinchpkg"
+    );
+    let names: BTreeSet<&str> = pkg.modules.iter().map(|m| m.name.as_str()).collect();
+    let order: BTreeSet<&str> = pkg.order.iter().map(|n| n.as_str()).collect();
+    assert_eq!(pkg.order.len(), pkg.modules.len());
+    assert_eq!(order, names);
+}
+
+#[test]
+fn stdlib_modules_import_directly_without_copying_source_files() {
+    let dir = std::env::temp_dir().join(format!(
+        "cinch-stdlib-direct-import-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let entry = dir.join("Main.cinch");
+    let src = "\
+module Main where
+  import Data.Rational (Rational, from-int, numerator)
+  import Text.Json (parse-json)
+
+  sample :: Rational
+  sample = from-int 42
+
+  main :: Int
+  main =
+    let parsed = parse-json \"<test>\" (string-to-bytes \"1\")
+    in numerator sample - 42
+";
+    std::fs::write(&entry, src).expect("write Main.cinch");
+    let result = cinch::driver::driver_opts(
+        cinch::driver::Mode::Check,
+        &entry,
+        None,
+        &cinch::driver::DriverOptions::default(),
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    result.expect("stdlib modules Data.Rational and Text.Json must resolve directly without copying files");
+}
+
+#[test]
+fn pkg_info_reports_cinch_stdlib() {
+    let args = vec!["info".to_string(), "cinch/stdlib".to_string()];
+    assert_eq!(cinch::pkg::cli(&args), 0, "cinch pkg info cinch/stdlib should succeed");
+}

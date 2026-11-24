@@ -2,20 +2,9 @@
 
 Instants on the Unix time line with nanosecond precision and checked arithmetic.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Timestamp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Timestamp/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Timestamp">Search module</a><a href="/reference-sources/Data.Time.Timestamp.cinch" download="Data.Time.Timestamp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Time.Timestamp</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Time.Timestamp/source/">View source</a><a href="/packages/search/?q=%2BData.Time.Timestamp">Search module</a><a href="/reference-sources/Data.Time.Timestamp.cinch" download="Data.Time.Timestamp.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Time.Timestamp`: [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Timestamp](Data.Time.Timestamp.md).
-
-```sh
-cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
-cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

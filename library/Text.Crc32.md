@@ -2,21 +2,9 @@
 
 Prepared reflected polynomial tables, persistent CRC-32 states and table-checked binary checkpoints.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Crc32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Crc32/source/">View source</a><a href="/packages/search/?q=%2BText.Crc32">Search module</a><a href="/reference-sources/Text.Crc32.cinch" download="Text.Crc32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Crc32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Crc32/source/">View source</a><a href="/packages/search/?q=%2BText.Crc32">Search module</a><a href="/reference-sources/Text.Crc32.cinch" download="Text.Crc32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Crc32`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Crc32](Text.Crc32.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-cp seed/prelude/Text/Crc32.cinch ./Text.Crc32.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

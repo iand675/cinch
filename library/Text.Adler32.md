@@ -2,21 +2,9 @@
 
 Portable SIMD Adler-32 with bounded machine-word segments, persistent states, network-order digests and checked versioned checkpoints.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Adler32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Adler32/source/">View source</a><a href="/packages/search/?q=%2BText.Adler32">Search module</a><a href="/reference-sources/Text.Adler32.cinch" download="Text.Adler32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Adler32</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Adler32/source/">View source</a><a href="/packages/search/?q=%2BText.Adler32">Search module</a><a href="/reference-sources/Text.Adler32.cinch" download="Text.Adler32.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Binary](Text.Binary.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Adler32`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Adler32.cinch ./Text.Adler32.cinch
-cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

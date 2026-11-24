@@ -2,24 +2,9 @@
 
 Versioned Unicode classification, simple case mappings, fold cycles, named tables and checked custom ranges.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Unicode</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Unicode/source/">View source</a><a href="/packages/search/?q=%2BData.Unicode">Search module</a><a href="/reference-sources/Data.Unicode.cinch" download="Data.Unicode.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Unicode</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Unicode/source/">View source</a><a href="/packages/search/?q=%2BData.Unicode">Search module</a><a href="/reference-sources/Data.Unicode.cinch" download="Data.Unicode.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Names](Data.Unicode.Names.md), [Data.Unicode.Range](Data.Unicode.Range.md).
-
-<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Unicode`: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode](Data.Unicode.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Names](Data.Unicode.Names.md), [Data.Unicode.Range](Data.Unicode.Range.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Unicode.cinch ./Data.Unicode.cinch
-cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
-cp seed/prelude/Data/Unicode/Names.cinch ./Data.Unicode.Names.cinch
-cp seed/prelude/Data/Unicode/Range.cinch ./Data.Unicode.Range.cinch
-cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,7 +2,7 @@
 
 Lists refined by sortedness, with construction and combination that preserve ordering.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Sorted</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Sorted/source/">View source</a><a href="/packages/search/?q=%2BData.Sorted">Search module</a><a href="/reference-sources/Data.Sorted.cinch" download="Data.Sorted.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Sorted</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Sorted/source/">View source</a><a href="/packages/search/?q=%2BData.Sorted">Search module</a><a href="/reference-sources/Data.Sorted.cinch" download="Data.Sorted.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md).
 

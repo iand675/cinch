@@ -2,7 +2,7 @@
 
 Target/platform and worker vocabulary used by the compiler-supported runtime and target examples.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Target</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Target/source/">View source</a><a href="/packages/search/?q=%2BData.Target">Search module</a><a href="/reference-sources/Data.Target.cinch" download="Data.Target.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Target</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Target/source/">View source</a><a href="/packages/search/?q=%2BData.Target">Search module</a><a href="/reference-sources/Data.Target.cinch" download="Data.Target.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Option](Data.Option.md), [Data.Producer](Data.Producer.md), [Relation.Eq](Relation.Eq.md).
 

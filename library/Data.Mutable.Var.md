@@ -2,17 +2,7 @@
 
 A single mutable cell, written in place; not synchronized (TVar is the shared cell).
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Var</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Var/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Var">Search module</a><a href="/reference-sources/Data.Mutable.Var.cinch" download="Data.Mutable.Var.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.Mutable.Var`: [Data.Mutable.Var](Data.Mutable.Var.md).
-
-```sh
-cp seed/prelude/Data/Mutable/Var.cinch ./Data.Mutable.Var.cinch
-```
-
-</details>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Mutable.Var</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Mutable.Var/source/">View source</a><a href="/packages/search/?q=%2BData.Mutable.Var">Search module</a><a href="/reference-sources/Data.Mutable.Var.cinch" download="Data.Mutable.Var.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

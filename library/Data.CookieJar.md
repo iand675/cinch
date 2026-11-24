@@ -2,32 +2,9 @@
 
 An RFC 6265 cookie jar as an immutable value: store the cookies responses set and choose the cookies a request sends.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.CookieJar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.CookieJar/source/">View source</a><a href="/packages/search/?q=%2BData.CookieJar">Search module</a><a href="/reference-sources/Data.CookieJar.cinch" download="Data.CookieJar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.CookieJar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.CookieJar/source/">View source</a><a href="/packages/search/?q=%2BData.CookieJar">Search module</a><a href="/reference-sources/Data.CookieJar.cinch" download="Data.CookieJar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Cookie](Text.Cookie.md), [Text.Punycode](Text.Punycode.md), [Text.Url](Text.Url.md).
-
-<details class="doc-closure"><summary>Ship-source closure (14 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.CookieJar`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.CookieJar](Data.CookieJar.md), [Text.Cookie](Text.Cookie.md), [Text.Punycode](Text.Punycode.md), [Text.Url](Text.Url.md), [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Ip](Text.Url.Ip.md), [Text.Url.Model](Text.Url.Model.md), [Text.Url.Parser](Text.Url.Parser.md), [Text.Url.Query](Text.Url.Query.md), [Text.Url.Resolve](Text.Url.Resolve.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/CookieJar.cinch ./Data.CookieJar.cinch
-cp seed/prelude/Text/Cookie.cinch ./Text.Cookie.cinch
-cp seed/prelude/Text/Punycode.cinch ./Text.Punycode.cinch
-cp seed/prelude/Text/Url.cinch ./Text.Url.cinch
-cp seed/prelude/Text/Url/Codec.cinch ./Text.Url.Codec.cinch
-cp seed/prelude/Text/Url/Error.cinch ./Text.Url.Error.cinch
-cp seed/prelude/Text/Url/Ip.cinch ./Text.Url.Ip.cinch
-cp seed/prelude/Text/Url/Model.cinch ./Text.Url.Model.cinch
-cp seed/prelude/Text/Url/Parser.cinch ./Text.Url.Parser.cinch
-cp seed/prelude/Text/Url/Query.cinch ./Text.Url.Query.cinch
-cp seed/prelude/Text/Url/Resolve.cinch ./Text.Url.Resolve.cinch
-cp seed/prelude/Text/Url/Scan.cinch ./Text.Url.Scan.cinch
-cp seed/prelude/Text/Url/Userinfo.cinch ./Text.Url.Userinfo.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

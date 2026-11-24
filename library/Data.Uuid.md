@@ -2,21 +2,9 @@
 
 Immutable 128-bit identifiers with RFC 9562 text, ordering and explicit version 7 state.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Uuid</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Uuid/source/">View source</a><a href="/packages/search/?q=%2BData.Uuid">Search module</a><a href="/reference-sources/Data.Uuid.cinch" download="Data.Uuid.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Uuid</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Uuid/source/">View source</a><a href="/packages/search/?q=%2BData.Uuid">Search module</a><a href="/reference-sources/Data.Uuid.cinch" download="Data.Uuid.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Core](Data.Core.md), [Data.Hash](Data.Hash.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Hex](Text.Hex.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Uuid`: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Uuid](Data.Uuid.md), [Text.Hex](Text.Hex.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Data/Uuid.cinch ./Data.Uuid.cinch
-cp seed/prelude/Text/Hex.cinch ./Text.Hex.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

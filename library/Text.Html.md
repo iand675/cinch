@@ -2,20 +2,9 @@
 
 HTML text/byte escaping, complete HTML5 character references, exact escaped sizing and SIMD/SWAR scanning.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Html</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Html/source/">View source</a><a href="/packages/search/?q=%2BText.Html">Search module</a><a href="/reference-sources/Text.Html.cinch" download="Text.Html.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Html</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Html/source/">View source</a><a href="/packages/search/?q=%2BText.Html">Search module</a><a href="/reference-sources/Text.Html.cinch" download="Text.Html.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Html`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Html](Text.Html.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Html.cinch ./Text.Html.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

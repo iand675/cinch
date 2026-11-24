@@ -2,22 +2,9 @@
 
 Incremental quoted-printable readers and writers with explicit binary policy, partial progress and sticky errors.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.QuotedPrintable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.QuotedPrintable/source/">View source</a><a href="/packages/search/?q=%2BEffect.QuotedPrintable">Search module</a><a href="/reference-sources/Effect.QuotedPrintable.cinch" download="Effect.QuotedPrintable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.QuotedPrintable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.QuotedPrintable/source/">View source</a><a href="/packages/search/?q=%2BEffect.QuotedPrintable">Search module</a><a href="/reference-sources/Effect.QuotedPrintable.cinch" download="Effect.QuotedPrintable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
-
-<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
-
-Copy these modules beside your entry file before importing `Effect.QuotedPrintable`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.QuotedPrintable](Effect.QuotedPrintable.md), [Effect.Stream](Effect.Stream.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Effect/QuotedPrintable.cinch ./Effect.QuotedPrintable.cinch
-cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
-cp seed/prelude/Text/QuotedPrintable.cinch ./Text.QuotedPrintable.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

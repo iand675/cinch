@@ -2,19 +2,9 @@
 
 Filesystem walking/search utilities with the module's traversal and error policy.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Find</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Find/source/">View source</a><a href="/packages/search/?q=%2BEffect.Find">Search module</a><a href="/reference-sources/Effect.Find.cinch" download="Effect.Find.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Find</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Find/source/">View source</a><a href="/packages/search/?q=%2BEffect.Find">Search module</a><a href="/reference-sources/Effect.Find.cinch" download="Effect.Find.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.List](Data.List.md), [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Effect.Fs](Effect.Fs.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Find`: [Effect.Find](Effect.Find.md).
-
-```sh
-cp seed/prelude/Effect/Find.cinch ./Effect.Find.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

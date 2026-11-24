@@ -2,7 +2,7 @@
 
 Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Concurrent.MVar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Concurrent.MVar/source/">View source</a><a href="/packages/search/?q=%2BEffect.Concurrent.MVar">Search module</a><a href="/reference-sources/Effect.Concurrent.MVar.cinch" download="Effect.Concurrent.MVar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Concurrent.MVar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Concurrent.MVar/source/">View source</a><a href="/packages/search/?q=%2BEffect.Concurrent.MVar">Search module</a><a href="/reference-sources/Effect.Concurrent.MVar.cinch" download="Effect.Concurrent.MVar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Option](Data.Option.md).
 

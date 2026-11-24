@@ -2,7 +2,7 @@
 
 A transactional variable that is either empty or full: take waits while empty, put waits while full. The building block for handoff and mutual exclusion inside transactions.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Stm.TMVar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TMVar/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TMVar">Search module</a><a href="/reference-sources/Effect.Stm.TMVar.cinch" download="Effect.Stm.TMVar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Stm.TMVar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Stm.TMVar/source/">View source</a><a href="/packages/search/?q=%2BEffect.Stm.TMVar">Search module</a><a href="/reference-sources/Effect.Stm.TMVar.cinch" download="Effect.Stm.TMVar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Effect.Stm](Effect.Stm.md).
 

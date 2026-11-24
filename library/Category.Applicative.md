@@ -2,7 +2,7 @@
 
 Container application and value lifting for independent structure-preserving composition.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Category.Applicative</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Applicative/source/">View source</a><a href="/packages/search/?q=%2BCategory.Applicative">Search module</a><a href="/reference-sources/Category.Applicative.cinch" download="Category.Applicative.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Category.Applicative</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Category.Applicative/source/">View source</a><a href="/packages/search/?q=%2BCategory.Applicative">Search module</a><a href="/reference-sources/Category.Applicative.cinch" download="Category.Applicative.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Category.Functor](Category.Functor.md).
 

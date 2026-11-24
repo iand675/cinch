@@ -2,19 +2,9 @@
 
 Structured log operations and records with runtime capability/effect accounting.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Log</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Log/source/">View source</a><a href="/packages/search/?q=%2BEffect.Log">Search module</a><a href="/reference-sources/Effect.Log.cinch" download="Effect.Log.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Log</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Log/source/">View source</a><a href="/packages/search/?q=%2BEffect.Log">Search module</a><a href="/reference-sources/Effect.Log.cinch" download="Effect.Log.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Json](Data.Json.md), [Data.List](Data.List.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Effect.Log`: [Effect.Log](Effect.Log.md).
-
-```sh
-cp seed/prelude/Effect/Log.cinch ./Effect.Log.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

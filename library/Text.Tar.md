@@ -2,21 +2,9 @@
 
 Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Tar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Tar/source/">View source</a><a href="/packages/search/?q=%2BText.Tar">Search module</a><a href="/reference-sources/Text.Tar.cinch" download="Text.Tar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Tar</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Tar/source/">View source</a><a href="/packages/search/?q=%2BText.Tar">Search module</a><a href="/reference-sources/Text.Tar.cinch" download="Text.Tar.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Tar`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Tar](Text.Tar.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/Tar.cinch ./Text.Tar.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

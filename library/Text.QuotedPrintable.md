@@ -2,20 +2,9 @@
 
 Quoted-printable byte encoding and decoding with checked line wrapping, escape and malformed-input policies.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.QuotedPrintable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.QuotedPrintable/source/">View source</a><a href="/packages/search/?q=%2BText.QuotedPrintable">Search module</a><a href="/reference-sources/Text.QuotedPrintable.cinch" download="Text.QuotedPrintable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.QuotedPrintable</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.QuotedPrintable/source/">View source</a><a href="/packages/search/?q=%2BText.QuotedPrintable">Search module</a><a href="/reference-sources/Text.QuotedPrintable.cinch" download="Text.QuotedPrintable.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.QuotedPrintable`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.QuotedPrintable](Text.QuotedPrintable.md).
-
-```sh
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-cp seed/prelude/Text/QuotedPrintable.cinch ./Text.QuotedPrintable.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

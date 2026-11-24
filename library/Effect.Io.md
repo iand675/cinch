@@ -2,7 +2,7 @@
 
 A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Io</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Io/source/">View source</a><a href="/packages/search/?q=%2BEffect.Io">Search module</a><a href="/reference-sources/Effect.Io.cinch" download="Effect.Io.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Effect.Io</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Effect.Io/source/">View source</a><a href="/packages/search/?q=%2BEffect.Io">Search module</a><a href="/reference-sources/Effect.Io.cinch" download="Effect.Io.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Effect.Fs](Effect.Fs.md).
 

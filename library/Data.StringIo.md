@@ -2,19 +2,9 @@
 
 In-memory string-oriented I/O utilities with explicit state and error results.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.StringIo</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.StringIo/source/">View source</a><a href="/packages/search/?q=%2BData.StringIo">Search module</a><a href="/reference-sources/Data.StringIo.cinch" download="Data.StringIo.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.StringIo</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.StringIo/source/">View source</a><a href="/packages/search/?q=%2BData.StringIo">Search module</a><a href="/reference-sources/Data.StringIo.cinch" download="Data.StringIo.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Result](Data.Result.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Data.StringIo`: [Data.StringIo](Data.StringIo.md).
-
-```sh
-cp seed/prelude/Data/StringIo.cinch ./Data.StringIo.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

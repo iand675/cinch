@@ -2,27 +2,9 @@
 
 URL reference resolution, lexical path joining and copied persistent URL updates.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Url.Resolve</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Resolve/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Resolve">Search module</a><a href="/reference-sources/Text.Url.Resolve.cinch" download="Text.Url.Resolve.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Text.Url.Resolve</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Text.Url.Resolve/source/">View source</a><a href="/packages/search/?q=%2BText.Url.Resolve">Search module</a><a href="/reference-sources/Text.Url.Resolve.cinch" download="Text.Url.Resolve.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Model](Text.Url.Model.md), [Text.Url.Parser](Text.Url.Parser.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
-
-<details class="doc-closure"><summary>Ship-source closure (9 files)</summary>
-
-Copy these modules beside your entry file before importing `Text.Url.Resolve`: [Text.Url.Codec](Text.Url.Codec.md), [Text.Url.Error](Text.Url.Error.md), [Text.Url.Ip](Text.Url.Ip.md), [Text.Url.Model](Text.Url.Model.md), [Text.Url.Parser](Text.Url.Parser.md), [Text.Url.Query](Text.Url.Query.md), [Text.Url.Resolve](Text.Url.Resolve.md), [Text.Url.Scan](Text.Url.Scan.md), [Text.Url.Userinfo](Text.Url.Userinfo.md).
-
-```sh
-cp seed/prelude/Text/Url/Codec.cinch ./Text.Url.Codec.cinch
-cp seed/prelude/Text/Url/Error.cinch ./Text.Url.Error.cinch
-cp seed/prelude/Text/Url/Ip.cinch ./Text.Url.Ip.cinch
-cp seed/prelude/Text/Url/Model.cinch ./Text.Url.Model.cinch
-cp seed/prelude/Text/Url/Parser.cinch ./Text.Url.Parser.cinch
-cp seed/prelude/Text/Url/Query.cinch ./Text.Url.Query.cinch
-cp seed/prelude/Text/Url/Resolve.cinch ./Text.Url.Resolve.cinch
-cp seed/prelude/Text/Url/Scan.cinch ./Text.Url.Scan.cinch
-cp seed/prelude/Text/Url/Userinfo.cinch ./Text.Url.Userinfo.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

@@ -2,20 +2,9 @@
 
 Checked immutable array range edits, predicate deletion, adjacent compaction, reversal and concatenation.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Array.Edit</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Array.Edit/source/">View source</a><a href="/packages/search/?q=%2BData.Array.Edit">Search module</a><a href="/reference-sources/Data.Array.Edit.cinch" download="Data.Array.Edit.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Data.Array.Edit</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Data.Array.Edit/source/">View source</a><a href="/packages/search/?q=%2BData.Array.Edit">Search module</a><a href="/reference-sources/Data.Array.Edit.cinch" download="Data.Array.Edit.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Array](Data.Array.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Eq](Relation.Eq.md).
-
-<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
-
-Copy these modules beside your entry file before importing `Data.Array.Edit`: [Data.Array](Data.Array.md), [Data.Array.Edit](Data.Array.Edit.md).
-
-```sh
-cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
-cp seed/prelude/Data/Array/Edit.cinch ./Data.Array.Edit.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

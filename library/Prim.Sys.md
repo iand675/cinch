@@ -2,7 +2,7 @@
 
 The syscall layer for the compile target under one name: conditional imports and re-exports select Prim.Sys.Darwin on a Darwin target, Prim.Sys.Linux on a Linux target, and the portable floor everywhere else, so a caller imports one module and never names an operating system.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Prim.Sys</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prim.Sys/source/">View source</a><a href="/packages/search/?q=%2BPrim.Sys">Search module</a><a href="/reference-sources/Prim.Sys.cinch" download="Prim.Sys.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Prim.Sys</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Prim.Sys/source/">View source</a><a href="/packages/search/?q=%2BPrim.Sys">Search module</a><a href="/reference-sources/Prim.Sys.cinch" download="Prim.Sys.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Prim.Sys.Darwin](Prim.Sys.Darwin.md), [Prim.Sys.Linux](Prim.Sys.Linux.md), [Prim.Sys.Portable](Prim.Sys.Portable.md).
 

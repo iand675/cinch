@@ -2,19 +2,9 @@
 
 Gray, gray-alpha, RGB, RGBA and paletted rasters at eight and sixteen bits with pixel access and RGBA conversion.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Image.Raster</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Raster/source/">View source</a><a href="/packages/search/?q=%2BImage.Raster">Search module</a><a href="/reference-sources/Image.Raster.cinch" download="Image.Raster.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Image.Raster</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Image.Raster/source/">View source</a><a href="/packages/search/?q=%2BImage.Raster">Search module</a><a href="/reference-sources/Image.Raster.cinch" download="Image.Raster.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md).
-
-<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
-
-Copy these modules beside your entry file before importing `Image.Raster`: [Image.Raster](Image.Raster.md).
-
-```sh
-cp seed/prelude/Image/Raster.cinch ./Image.Raster.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 

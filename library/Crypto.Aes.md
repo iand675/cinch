@@ -2,21 +2,9 @@
 
 AES-128/192/256 with AES-NI or ARMv8 instructions after detection and a constant-time, table-free SIMD fallback.
 
-<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.Aes</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Aes/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Aes">Search module</a><a href="/reference-sources/Crypto.Aes.cinch" download="Crypto.Aes.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">cinch/stdlib</span> <code>import Crypto.Aes</code></div><div class="doc-mod-bar-links"><a href="/packages/stdlib/Crypto.Aes/source/">View source</a><a href="/packages/search/?q=%2BCrypto.Aes">Search module</a><a href="/reference-sources/Crypto.Aes.cinch" download="Crypto.Aes.cinch">Download .cinch</a><a href="/packages/stdlib/">All stdlib modules</a></div></div>
 
 **Dependencies:** [Crypto.Cipher](Crypto.Cipher.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Wide](Data.Wide.md).
-
-<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
-
-Copy these modules beside your entry file before importing `Crypto.Aes`: [Crypto.Aes](Crypto.Aes.md), [Crypto.Cipher](Crypto.Cipher.md), [Data.Bytes.Word](Data.Bytes.Word.md).
-
-```sh
-cp seed/prelude/Crypto/Aes.cinch ./Crypto.Aes.cinch
-cp seed/prelude/Crypto/Cipher.cinch ./Crypto.Cipher.cinch
-cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
-```
-
-</details>
 
 <details class="doc-notes"><summary>Module notes</summary>
 
