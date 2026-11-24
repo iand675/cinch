@@ -14,6 +14,29 @@ import bootstrap_objects
 
 
 class BootstrapContract(unittest.TestCase):
+    def test_failed_smoke_prints_diagnostics_before_the_build_tree_disappears(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(bootstrap, "BUILD", Path(temp)):
+            def fail(command, directory, log):
+                log.write_text("compiler failed\n")
+                (directory / "program.ll.diagnostics").write_text("package read: unexpected EOF\n")
+                (directory / "report.txt").write_text("frontend exit 7\n")
+                return 7
+            with patch.object(bootstrap, "run", side_effect=fail):
+                with self.assertRaises(bootstrap.BootstrapError) as failure:
+                    bootstrap.smoke(1, Path("cinch"))
+            self.assertIn("exit 7", str(failure.exception))
+            self.assertIn("unexpected EOF", str(failure.exception))
+            self.assertIn("frontend exit 7", str(failure.exception))
+
+    def test_failure_evidence_is_bounded_and_tolerates_absent_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            log = Path(temp) / "build.log"
+            log.write_text("discarded line\n" * 100 + "important error\n" + "x" * 10000)
+            evidence = bootstrap.failure_evidence(log, Path(temp) / "missing")
+            self.assertIn("important error", evidence)
+            self.assertEqual(len(evidence.splitlines()), 81)
+            self.assertLessEqual(max(map(len, evidence.splitlines())), 2000)
+
     def test_seed_pgo_packs_the_training_contracts(self):
         from bootstrap_interfaces import canonical, interface_hash
         from pack_interfaces import PackedInterfaces

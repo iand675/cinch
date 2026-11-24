@@ -1,0 +1,48 @@
+name: Publish compiler nightly
+
+on:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful main Compiler distributions run ID (empty selects latest complete build)
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# Publication uses only existing artifacts. Serialize uploads without
+# cancelling an active draft upload.
+concurrency:
+  group: compiler-nightly-publication
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check publication tooling
+        run: python3 -m unittest discover -s tooling/tests -p test_publish_nightly.py
+      - name: Verify and promote the complete checked build
+        shell: bash
+        run: |
+          args=()
+          if [[ -n "$BUILD_RUN_ID" ]]; then
+            args+=(--run-id "$BUILD_RUN_ID")
+          fi
+          python3 tooling/publish_nightly.py --publish "${args[@]}"

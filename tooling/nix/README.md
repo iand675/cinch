@@ -45,7 +45,7 @@ pins, so a tree built for other pins is rebuilt, never trusted.
 `.github/workflows/ladder-cache.yml` builds and checks native distributions
 for `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin` on relevant
 pushes, pull requests, and manual runs. Every job pulls from the public
-`cinch` cache. Trusted push/manual/scheduled jobs publish through the
+`cinch` cache. Trusted push/manual jobs publish through the
 cache-scoped `CACHIX_AUTH_TOKEN` repository secret; pull requests receive
 no write token. A missing token fails trusted jobs instead of silently
 skipping the compiler build. No repository variable is required.
@@ -56,12 +56,36 @@ configuration also pulls from and pushes to `cinch`; provide a personal
 cache-scoped token through `CACHIX_AUTH_TOKEN` to publish local builds.
 Never put a token in the repository.
 
-The same workflow runs nightly at 02:23 UTC. After all three builds pass,
-it publishes a dated GitHub prerelease with native Stage 3 binaries,
-SHA-256 sidecars, and per-platform build metadata. A draft keeps incomplete
-uploads off the public release list. Manual runs on `main` can publish an
-initial nightly using the `publish_nightly` input. Ordinary pushes produce
-14-day Actions artifacts without creating releases.
+Ordinary builds produce 14-day Actions artifacts without creating releases.
+The separate `Publish compiler nightly` workflow runs at 02:23 UTC. It
+promotes the latest successful main `Compiler distributions` run that still
+has all three platform artifacts, without starting new compiler jobs or
+requesting macOS runners. It verifies binary checksums, Stage 3 receipts,
+the source revision, and platform names, retaining each compiler-source hash
+(bundles include generated host-specific source).
+All distributions must come from the same run. Missing or expired artifact
+sets are skipped during automatic selection; invalid downloaded contents
+fail publication. No complete successful build means publication fails.
+
+Run `Publish compiler nightly` manually on `main` with `build_run_id` to
+promote a particular successful main build, or leave it empty for automatic
+selection. `Compiler distributions` manual runs now only build artifacts;
+the former `publish_nightly` input has moved to this separate workflow.
+Releases carry native Stage 3 binaries, SHA-256 sidecars, and per-platform
+metadata. A draft keeps incomplete uploads off the public release list.
+The tag and title use the selected build's original UTC creation date,
+revision, and run ID, so retries after midnight resume the same release.
+Already complete public releases are left unchanged.
+
+For read-only preparation locally (a new output directory is required):
+
+```sh
+GH_REPO=iand675/cinch python3 tooling/publish_nightly.py --run-id BUILD_RUN_ID
+```
+
+Only `--publish` enables release creation and upload. The tool requires an
+authenticated `gh` CLI with Actions read access; publication additionally
+requires contents write access.
 
 See [nightly instructions](../nightly-release.md) for binary verification
 and usage. The release executables run without Nix. Linux packaging checks
