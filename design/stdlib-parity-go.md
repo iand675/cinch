@@ -276,7 +276,7 @@ cargo test --test lib_go_stdlib
 | `flag`, `log`, `testing` | `Text.OptionParser`, `Effect.Log`, `Effect.Test`, `Effect.Benchmark`, `Effect.Coverage` | Usability and integration audit |
 | `regexp`, `text/scanner` | `Text.Regex`, `Text.Lex`, `Text.Scan` | Syntax and resource-behavior audit |
 | Templates and HTML | None | HTML escaping first; templates with explicit escaping policy later |
-| `math`, `math/bits`, `math/big`, `math/cmplx` | `Data.Machine`, `Algebra.Bits`, `Data.Int`, `Data.Rational`, `Data.Complex` | Transcendental functions, IEEE edge cases, numerical validation |
+| `math`, `math/bits`, `math/big`, `math/cmplx` | [Data.Float](../library/Data.Float.md), `Data.Machine`, `Algebra.Bits`, `Data.Int`, `Data.Rational`, `Data.Complex` | Data.Float: constants, classification, exact roundings, frexp/ldexp/modf, remainders, roots, exponentials, logarithms, powers, trigonometric, inverse trigonometric and hyperbolic functions as generated branch-free kernels, bit-identical to the reference's portable algorithms on every target; erf, gamma, Bessel functions and FMA remain |
 | `container/heap`, `container/list`, `container/ring` | `Data.List`, `Data.Mutable.Heap`, `Data.Mutable.Deque` | Audit priority queue, mutable sequence and ring capabilities against the reference operations |
 
 See the [checked library index](../library/00-index.md) for the existing

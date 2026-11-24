@@ -427,6 +427,14 @@
       "public_methods": 4
     },
     {
+      "module": "Data.Float",
+      "path": "seed/prelude/Data/Float.cinch",
+      "sha256": "949fa82cf6b91e83172986fce7f9e44485a13d4acaf61532bd6638ac73fdd048",
+      "embedded": false,
+      "values": 66,
+      "public_methods": 0
+    },
+    {
       "module": "Data.FromList",
       "path": "seed/prelude/Data/FromList.cinch",
       "sha256": "62cc79932ad61b2dc2a269fa592573ca8d514cc0f99ff34ddbf0be60160fd3d8",
