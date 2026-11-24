@@ -1598,10 +1598,19 @@
     },
     {
       "reference_package": "image/draw",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 25
+      "status": "partial",
+      "cinch_modules": [
+        "Image.Draw",
+        "Image.Raster"
+      ],
+      "remaining": [
+        "User-supplied Drawer and Quantizer implementations (only Floyd-Steinberg is built in)",
+        "Premultiplied RGBA and YCbCr/CMYK raster formats and their fast paths"
+      ],
+      "reference_declarations": 25,
+      "tests": [
+        "lib_draw"
+      ]
     },
     {
       "reference_package": "image/gif",

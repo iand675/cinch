@@ -1,0 +1,548 @@
+-- | Image compositing: Porter-Duff Src and Over, with optional masks and uniform sources, and Floyd-Steinberg dithering.
+-- Drawing fills a rectangle of the destination from a source starting at a
+-- point (and a mask starting at another), after clipping the rectangle to the
+-- destination, source and mask. Pixels are combined in 16-bit premultiplied
+-- RGBA: sources are read in that form and results are stored back in the
+-- destination's format (un-premultiplied for RGBA formats, as luma for gray,
+-- as the nearest palette entry for indexed rasters). Src between rasters of one
+-- non-indexed format copies the stored bytes, so no precision is lost to the
+-- premultiplied round trip, and Over of non-premultiplied 8-bit RGBA runs four
+-- pixels per vector step. Dithering spreads each
+-- pixel's quantization error to its neighbours (7/16 right, 3/16, 5/16 and
+-- 1/16 below). Every operation returns a fresh raster; inputs are unchanged.
+module Image.Draw where
+
+  import Data.Bytes
+  import Data.Bytes.Word
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Image.Raster
+
+  export DrawOp, DrawOver, DrawSrc, DrawRect, draw-rect, draw, draw-mask, draw-uniform, draw-floyd-steinberg
+
+  -- | How source pixels combine with the destination.
+  data DrawOp where
+    -- | The source composited over the destination.
+    DrawOver :: DrawOp
+    -- | The source replaces the destination.
+    DrawSrc :: DrawOp
+
+  -- | A rectangle: left, top, right and bottom (right and bottom exclusive); coordinates may be negative.
+  data DrawRect where
+    -- | Corners in the order listed above.
+    DrawRect :: Int -> Int -> Int -> Int -> DrawRect
+
+  -- | Make a rectangle from its corners.
+  draw-rect :: Int -> Int -> Int -> Int -> DrawRect
+  draw-rect x0 y0 x1 y1 = DrawRect x0 y0 x1 y1
+
+  -- | Where source pixels come from.
+  data Source where
+    -- | A raster.
+    SourceImage :: Raster -> Source
+    -- | One premultiplied 16-bit color everywhere.
+    SourceUniform :: Nat -> Nat -> Nat -> Nat -> Source
+
+  -- | Draw the source onto the destination within the rectangle, source point sp aligned with its corner.
+  draw :: Raster -> DrawRect -> Raster -> (Int, Int) -> DrawOp -> Raster
+  draw dst r src sp op = composite dst r (SourceImage src) sp None (0, 0) op
+
+  -- | Draw through a mask: the mask's alpha at point mp onward scales the source.
+  draw-mask :: Raster -> DrawRect -> Raster -> (Int, Int) -> Raster -> (Int, Int) -> DrawOp -> Raster
+  draw-mask dst r src sp mask mp op = composite dst r (SourceImage src) sp (Some mask) mp op
+
+  -- | Draw one non-premultiplied 8-bit color (red, green, blue, alpha) over the rectangle.
+  draw-uniform :: Raster -> DrawRect -> (Nat, Nat, Nat, Nat) -> DrawOp -> Raster
+  draw-uniform dst r color op = case color of
+    (cr, cg, cb, ca) ->
+      let a = byte-of ca in
+      composite dst r (SourceUniform (premul8 (byte-of cr) a) (premul8 (byte-of cg) a) (premul8 (byte-of cb) a) (a * 257)) (0, 0) None (0, 0) op
+
+  -- | A value as a byte (values above 255 saturate).
+  byte-of :: Nat -> Nat
+  byte-of v = if v > 255 then (255 :: Nat) else v
+
+  -- | An 8-bit channel premultiplied by 8-bit alpha, in 16 bits.
+  premul8 :: Nat -> Nat -> Nat
+  premul8 c a = nat-div (c * 257 * a) 255
+
+  -- ---------------------------------------------------------------------
+  -- Clipping.
+  -- ---------------------------------------------------------------------
+
+  -- | Clip a rectangle to the destination, the source (placed at the corner minus sp) and the mask; the source and
+  -- mask points move with the corner. None when nothing remains.
+  clip :: Raster -> DrawRect -> Source -> (Int, Int) -> Option Raster -> (Int, Int) -> Option (DrawRect, (Int, Int), (Int, Int))
+  clip dst r src sp mask mp = case r of
+    DrawRect x0 y0 x1 y1 -> case sp of
+      (sx, sy) -> case mp of
+        (mx, my) ->
+          let d = intersect r (DrawRect 0 0 (to-int (raster-width dst)) (to-int (raster-height dst))) in
+          let s = case src of SourceImage img -> intersect d (shifted img (int-sub x0 sx) (int-sub y0 sy)); SourceUniform a b c e -> d in
+          let m = case mask of Some img -> intersect s (shifted img (int-sub x0 mx) (int-sub y0 my)); None -> s in
+          case m of
+            DrawRect a0 b0 a1 b1 ->
+              if a0 >= a1 || b0 >= b1 then None
+              else Some (m, (int-add sx (int-sub a0 x0), int-add sy (int-sub b0 y0)), (int-add mx (int-sub a0 x0), int-add my (int-sub b0 y0)))
+
+  -- | A raster's bounds moved by an offset.
+  shifted :: Raster -> Int -> Int -> DrawRect
+  shifted img dx dy = DrawRect dx dy (int-add dx (to-int (raster-width img))) (int-add dy (to-int (raster-height img)))
+
+  -- | The intersection of two rectangles (possibly empty).
+  intersect :: DrawRect -> DrawRect -> DrawRect
+  intersect a b = case a of
+    DrawRect ax0 ay0 ax1 ay1 -> case b of
+      DrawRect bx0 by0 bx1 by1 -> DrawRect (max-int ax0 bx0) (max-int ay0 by0) (min-int ax1 bx1) (min-int ay1 by1)
+
+  -- | The larger integer.
+  max-int :: Int -> Int -> Int
+  max-int a b = if a >= b then a else b
+
+  -- | The smaller integer.
+  min-int :: Int -> Int -> Int
+  min-int a b = if a <= b then a else b
+
+  -- ---------------------------------------------------------------------
+  -- Compositing.
+  -- ---------------------------------------------------------------------
+
+  -- | Clip, copy the destination, and combine every pixel of the clipped rectangle.
+  composite :: Raster -> DrawRect -> Source -> (Int, Int) -> Option Raster -> (Int, Int) -> DrawOp -> Raster
+  composite dst r src sp mask mp op = case clip dst r src sp mask mp of
+    None -> dst
+    Some (c, sp2, mp2) ->
+      let out = copy (raster-pixels dst) in
+      let palette = palette-table (raster-palette dst) 0 Nil in
+      case c of
+        DrawRect x0 y0 x1 y1 ->
+          let done = rows dst out palette src mask op (to-nat x0) (to-nat x1) (to-nat y0) (to-nat y1) (pair-nat sp2) (pair-nat mp2) in
+          rebuild dst out
+
+  -- | A raster like dst over new pixels.
+  rebuild :: Raster -> Bytes -> Raster
+  rebuild dst out = case raster (raster-format dst) (raster-width dst) (raster-height dst) out (raster-palette dst) of Some r -> r; None -> dst
+
+  -- | A clipped point as natural numbers.
+  pair-nat :: (Int, Int) -> (Nat, Nat)
+  pair-nat p = case p of (x, y) -> (to-nat x, to-nat y)
+
+  -- | Combine each row from y to y1.
+  rows :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> Source -> Option Raster -> DrawOp -> Nat -> Nat -> Nat -> Nat -> (Nat, Nat) -> (Nat, Nat) -> Unit
+  rows dst out palette src mask op x0 x1 y y1 sp mp =
+    if y >= y1 then ()
+    else case sp of
+      (sx, sy) -> case mp of
+        (mx, my) ->
+          let start = vector-row dst out src mask op x0 x1 y (sx, sy) in
+          let row = pixels dst out palette src mask op (x0 + start) x1 y (sx + start, sy) (mx + start, my) in
+          rows dst out palette src mask op x0 x1 (y + 1) y1 (sx, sy + 1) (mx, my + 1)
+
+  -- | Fast rows without a mask; returns how many pixels it did. Src between rasters of one non-indexed format copies
+  -- the stored bytes (no premultiplied round trip loses precision); Over of non-premultiplied 8-bit RGBA runs four
+  -- pixels per vector step.
+  vector-row :: Raster -> Bytes -> Source -> Option Raster -> DrawOp -> Nat -> Nat -> Nat -> (Nat, Nat) -> Nat
+  vector-row dst out src mask op x0 x1 y sp = case mask of
+    Some m -> 0
+    None -> case src of
+      SourceUniform a b c d -> 0
+      SourceImage img -> case sp of
+        (sx, sy) -> case op of
+          DrawSrc -> if same-format (raster-format dst) (raster-format img) then copy-row out (raster-pixels img) (y * raster-stride dst + pixel-bytes (raster-format dst) * x0) (sy * raster-stride img + pixel-bytes (raster-format img) * sx) (minus x1 x0) (pixel-bytes (raster-format dst)) else 0
+          DrawOver -> if is-rgba8 (raster-format dst) && is-rgba8 (raster-format img) then quads out (raster-pixels img) (y * raster-stride dst + 4 * x0) (sy * raster-stride img + 4 * sx) (minus x1 x0) 0 else 0
+
+  -- | Whether two formats are the same non-indexed format.
+  same-format :: PixelFormat -> PixelFormat -> Bool
+  same-format a b = not (is-indexed a) && pixel-bytes a == pixel-bytes b && format-code a == format-code b
+
+  -- | Whether a format is indexed.
+  is-indexed :: PixelFormat -> Bool
+  is-indexed f = case f of Indexed -> True; other -> False
+
+  -- | A number naming each format.
+  format-code :: PixelFormat -> Nat
+  format-code f = case f of Gray8 -> 0; Gray16 -> 1; GrayAlpha8 -> 2; GrayAlpha16 -> 3; Rgb8 -> 4; Rgb16 -> 5; Rgba8 -> 6; Rgba16 -> 7; Indexed -> 8
+
+  -- | Copy n pixels of the given size between rows; the count copied.
+  copy-row :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat
+  copy-row out s d o n size =
+    if d + n * size <= bytes-len out && o + n * size <= bytes-len s then (let c = bytes-copy-range out s d o (n * size) in n) else 0
+
+  -- | Whether a format is non-premultiplied 8-bit RGBA.
+  is-rgba8 :: PixelFormat -> Bool
+  is-rgba8 f = case f of Rgba8 -> True; other -> False
+
+  -- | Four-pixel Over steps from byte offsets; the count of pixels done.
+  quads :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat
+  quads out s d o n done =
+    if done + 4 > n || d + 16 > bytes-len out || o + 16 > bytes-len s then done
+    else
+      let source = lane s o in
+      let result = over4 (lane out d) source in
+      let a = bytes-write-le64 out d (low64 result) in
+      let b = if d + 16 <= bytes-len out then bytes-write-le64 out (d + 8) (high64 result) else () in
+      quads out s (d + 16) (o + 16) n (done + 4)
+
+  -- | Sixteen bytes at an offset as a U128.
+  lane :: Bytes -> Nat -> U128
+  lane b o = if o + 16 <= bytes-len b then join64 (bytes-read-le64 b o) (bytes-read-le64 b (o + 8)) else join64 0 0
+
+  -- | Combine single pixels from x to x1.
+  pixels :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> Source -> Option Raster -> DrawOp -> Nat -> Nat -> Nat -> (Nat, Nat) -> (Nat, Nat) -> Unit
+  pixels dst out palette src mask op x x1 y sp mp =
+    if x >= x1 then ()
+    else case sp of
+      (sx, sy) -> case mp of
+        (mx, my) ->
+          let w = combine dst out palette op x y (source-at src sx sy) mask mx my in
+          pixels dst out palette src mask op (x + 1) x1 y (sx + 1, sy) (mx + 1, my)
+
+  -- | Combine one pixel with or without the mask.
+  combine :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> DrawOp -> Nat -> Nat -> (Nat, Nat, Nat, Nat) -> Option Raster -> Nat -> Nat -> Unit
+  combine dst out palette op x y s mask mx my = case mask of
+    None -> unmasked dst out palette op x y s
+    Some m -> masked dst out palette op x y s (alpha16 (rgba64-at m mx my))
+
+  -- | Without a mask: Src stores the source; Over stores d * (65535 - sA) / 65535 + s per channel.
+  unmasked :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> DrawOp -> Nat -> Nat -> (Nat, Nat, Nat, Nat) -> Unit
+  unmasked dst out palette op x y s = case op of
+    DrawSrc -> store dst out palette x y s
+    DrawOver -> case s of
+      (sr, sg, sb, sa) -> case pixel-from dst out x y of
+        (dr, dg, db, da) ->
+          let a = minus 65535 sa in
+          store dst out palette x y (nat-div (dr * a) 65535 + sr, nat-div (dg * a) 65535 + sg, nat-div (db * a) 65535 + sb, nat-div (da * a) 65535 + sa)
+
+  -- | With mask alpha ma: zero leaves Over alone and clears Src; full alpha with Src stores the source; otherwise
+  -- Over stores (d * (65535 - sA * ma / 65535) + s * ma) / 65535 and Src stores s * ma / 65535.
+  masked :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> DrawOp -> Nat -> Nat -> (Nat, Nat, Nat, Nat) -> Nat -> Unit
+  masked dst out palette op x y s ma =
+    if ma == 0 then (case op of DrawOver -> (); DrawSrc -> store dst out palette x y (0, 0, 0, 0))
+    else case op of
+      DrawSrc -> if ma == 65535 then store dst out palette x y s else (case s of (sr, sg, sb, sa) -> store dst out palette x y (nat-div (sr * ma) 65535, nat-div (sg * ma) 65535, nat-div (sb * ma) 65535, nat-div (sa * ma) 65535))
+      DrawOver -> case s of
+        (sr, sg, sb, sa) -> case pixel-from dst out x y of
+          (dr, dg, db, da) ->
+            let a = minus 65535 (nat-div (sa * ma) 65535) in
+            store dst out palette x y (nat-div (dr * a + sr * ma) 65535, nat-div (dg * a + sg * ma) 65535, nat-div (db * a + sb * ma) 65535, nat-div (da * a + sa * ma) 65535)
+
+  -- | The alpha of a premultiplied color.
+  alpha16 :: (Nat, Nat, Nat, Nat) -> Nat
+  alpha16 c = case c of (r, g, b, a) -> a
+
+  -- | A source pixel in 16-bit premultiplied form.
+  source-at :: Source -> Nat -> Nat -> (Nat, Nat, Nat, Nat)
+  source-at src x y = case src of
+    SourceImage img -> rgba64-at img x y
+    SourceUniform r g b a -> (r, g, b, a)
+
+  -- | A raster pixel in 16-bit premultiplied form: 8-bit alpha scales by a / 255 after widening, 16-bit alpha by
+  -- a / 65535, and formats without alpha are opaque.
+  rgba64-at :: Raster -> Nat -> Nat -> (Nat, Nat, Nat, Nat)
+  rgba64-at img x y = case raster-pixel img x y of
+    None -> (0, 0, 0, 0)
+    Some (r, g, b, a) -> premultiply (raster-format img) r g b a
+
+  -- | Premultiply widened channels for a format.
+  premultiply :: PixelFormat -> Nat -> Nat -> Nat -> Nat -> (Nat, Nat, Nat, Nat)
+  premultiply f r g b a =
+    if eight-bit-alpha f then (let a8 = nat-div a 257 in (nat-div (r * a8) 255, nat-div (g * a8) 255, nat-div (b * a8) 255, a))
+    else if a == 65535 then (r, g, b, a)
+    else (nat-div (r * a) 65535, nat-div (g * a) 65535, nat-div (b * a) 65535, a)
+
+  -- | Formats whose alpha is 8 bits (palette entries included).
+  eight-bit-alpha :: PixelFormat -> Bool
+  eight-bit-alpha f = case f of Rgba8 -> True; GrayAlpha8 -> True; Indexed -> True; other -> False
+
+  -- | The destination pixel currently stored at (x, y), premultiplied.
+  pixel-from :: Raster -> Bytes -> Nat -> Nat -> (Nat, Nat, Nat, Nat)
+  pixel-from dst out x y = case raster (raster-format dst) (raster-width dst) (raster-height dst) out (raster-palette dst) of
+    Some r -> rgba64-at r x y
+    None -> (0, 0, 0, 0)
+
+  -- | Store a premultiplied color in the destination's format.
+  store :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> Nat -> Nat -> (Nat, Nat, Nat, Nat) -> Unit
+  store dst out palette x y c = case c of
+    (r, g, b, a) ->
+      let f = raster-format dst in
+      let o = y * raster-stride dst + x * pixel-bytes f in
+      case f of
+        Gray8 -> put out o (nat-div (luma r g b) 16777216)
+        Gray16 -> put16 out o (nat-div (luma r g b) 65536)
+        Indexed -> put out o (nearest palette r g b a)
+        other -> case unpremultiply r g b a of
+          (ur, ug, ub) -> case f of
+            Rgba8 -> let w = put out o (nat-div ur 256) in let w2 = put out (o + 1) (nat-div ug 256) in let w3 = put out (o + 2) (nat-div ub 256) in put out (o + 3) (nat-div a 256)
+            Rgba16 -> let w = put16 out o ur in let w2 = put16 out (o + 2) ug in let w3 = put16 out (o + 4) ub in put16 out (o + 6) a
+            Rgb8 -> let w = put out o (nat-div ur 256) in let w2 = put out (o + 1) (nat-div ug 256) in put out (o + 2) (nat-div ub 256)
+            Rgb16 -> let w = put16 out o ur in let w2 = put16 out (o + 2) ug in put16 out (o + 4) ub
+            GrayAlpha8 -> let w = put out o (nat-div (luma ur ug ub) 16777216) in put out (o + 1) (nat-div a 256)
+            other2 -> let w = put16 out o (nat-div (luma ur ug ub) 65536) in put16 out (o + 2) a
+
+  -- | Luma (ITU-R BT.601 weights) scaled by 2^24, rounded.
+  luma :: Nat -> Nat -> Nat -> Nat
+  luma r g b = 19595 * r + 38470 * g + 7471 * b + 32768
+
+  -- | Undo premultiplication (alpha zero and full alpha leave channels as they are).
+  unpremultiply :: Nat -> Nat -> Nat -> Nat -> (Nat, Nat, Nat)
+  unpremultiply r g b a = if a == 0 || a == 65535 then (r, g, b) else (nat-div (r * 65535) a, nat-div (g * 65535) a, nat-div (b * 65535) a)
+
+  -- | Palette entries in premultiplied 16-bit form.
+  palette-table :: Bytes -> Nat -> List (Nat, Nat, Nat, Nat) -> List (Nat, Nat, Nat, Nat)
+  palette-table p i acc =
+    if i + 4 > bytes-len p then reverse acc
+    else
+      let a = at p (i + 3) in
+      palette-table p (i + 4) (Cons (premul8 (at p i) a, premul8 (at p (i + 1)) a, premul8 (at p (i + 2)) a, a * 257) acc)
+
+  -- | The index of the palette entry nearest in summed squared difference (each term divided by 4); ties keep the
+  -- earlier entry and an exact match stops the search.
+  nearest :: List (Nat, Nat, Nat, Nat) -> Nat -> Nat -> Nat -> Nat -> Nat
+  nearest palette r g b a = nearest-from palette r g b a 0 0 4294967295
+
+  -- | Search from index i with the best so far.
+  nearest-from :: List (Nat, Nat, Nat, Nat) -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat
+  nearest-from palette r g b a i best sum = case palette of
+    Nil -> best
+    Cons p rest -> case p of
+      (pr, pg, pb, pa) ->
+        let s = sq-diff r pr + sq-diff g pg + sq-diff b pb + sq-diff a pa in
+        if s < sum then (if s == 0 then i else nearest-from rest r g b a (i + 1) i s) else nearest-from rest r g b a (i + 1) best sum
+
+  -- | (x - y)^2 / 4.
+  sq-diff :: Nat -> Nat -> Nat
+  sq-diff x y = let d = if x >= y then x - y else y - x in nat-div (d * d) 4
+
+  -- ---------------------------------------------------------------------
+  -- Floyd-Steinberg dithering.
+  -- ---------------------------------------------------------------------
+
+  -- | Draw a source onto an indexed raster with Floyd-Steinberg error diffusion (Src compositing). Other rasters are
+  -- returned unchanged.
+  draw-floyd-steinberg :: Raster -> DrawRect -> Raster -> (Int, Int) -> Raster
+  draw-floyd-steinberg dst r src sp = case raster-format dst of
+    Indexed -> (case clip dst r (SourceImage src) sp None (0, 0) of
+      None -> dst
+      Some (c, sp2, mp2) -> case c of
+        DrawRect x0 y0 x1 y1 ->
+          let out = copy (raster-pixels dst) in
+          let palette = palette-table (raster-palette dst) 0 Nil in
+          let w = to-nat (int-sub x1 x0) in
+          let left = to-nat x0 in
+          let top = to-nat y0 in
+          let bottom = to-nat y1 in
+          let start = pair-nat sp2 in
+          let errs = zeros (w + 2) in
+          let done = dither-rows dst out palette src left w top bottom start errs in
+          rebuild dst out)
+    other -> dst
+
+  -- | Zero errors for n positions.
+  zeros :: Nat -> List (Int, Int, Int, Int)
+  zeros n = if n == 0 then Nil else Cons (0, 0, 0, 0) (zeros (n - 1))
+
+  -- | Rows from y; errs holds this row's propagated errors for positions 0 .. w + 1 (pixel x reads x + 1).
+  dither-rows :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> Raster -> Nat -> Nat -> Nat -> Nat -> (Nat, Nat) -> List (Int, Int, Int, Int) -> Unit
+  dither-rows dst out palette src x0 w y y1 sp errs =
+    if y >= y1 then ()
+    else case sp of
+      (sx, sy) -> case errs of
+        Nil -> ()
+        Cons skipped rest -> case rest of
+          Nil -> ()
+          Cons first more ->
+            let next = dither-row dst out palette src x0 w y 0 (sx, sy) first more (0, 0, 0, 0) (0, 0, 0, 0) (0, 0, 0, 0) Nil in
+            dither-rows dst out palette src x0 w (y + 1) y1 (sx, sy + 1) next
+
+  -- | One row as a state machine: cur is this pixel's propagated error, rest the errors after it, and n0, n1, n2 the
+  -- partial errors for the next row below-left, below and below-right; finished next-row errors gather in reverse.
+  dither-row :: Raster -> Bytes -> List (Nat, Nat, Nat, Nat) -> Raster -> Nat -> Nat -> Nat -> Nat -> (Nat, Nat) -> (Int, Int, Int, Int) -> List (Int, Int, Int, Int) -> (Int, Int, Int, Int) -> (Int, Int, Int, Int) -> (Int, Int, Int, Int) -> List (Int, Int, Int, Int) -> List (Int, Int, Int, Int)
+  dither-row dst out palette src x0 w y x sp cur rest n0 n1 n2 done =
+    if x >= w then reverse (Cons n1 (Cons n0 done))
+    else case sp of
+      (sx, sy) -> case rgba64-at src (sx + x) sy of
+        (r, g, b, a) ->
+          let er = with-error r (first4 cur) in
+          let eg = with-error g (second4 cur) in
+          let eb = with-error b (third4 cur) in
+          let ea = with-error a (fourth4 cur) in
+          let best = nearest palette (to-nat er) (to-nat eg) (to-nat eb) (to-nat ea) in
+          let chosen = nth-color palette best in
+          let w2 = put out (y * raster-stride dst + x0 + x) best in
+          let e = (int-sub er (first4 chosen), int-sub eg (second4 chosen), int-sub eb (third4 chosen), int-sub ea (fourth4 chosen)) in
+          let head-next = case rest of Cons h t -> h; Nil -> (0, 0, 0, 0) in
+          let tail-next = case rest of Cons h t -> t; Nil -> Nil in
+          dither-row dst out palette src x0 w y (x + 1) sp (spread head-next e 7) tail-next (spread n1 e 5) (spread n2 e 1) (0, 0, 0, 0) (Cons (spread n0 e 3) done)
+
+  -- | A channel plus a sixteenth of its propagated error (truncated toward zero), clamped to 16 bits.
+  with-error :: Nat -> Int -> Int
+  with-error c err = clamp (int-add (to-int c) (sixteenth err))
+
+  -- | x / 16 truncated toward zero.
+  sixteenth :: Int -> Int
+  sixteenth x = if x >= 0 then to-int (nat-div (to-nat x) 16) else int-neg (to-int (nat-div (to-nat (int-neg x)) 16))
+
+  -- | Clamp to [0, 65535].
+  clamp :: Int -> Int
+  clamp x = if x < 0 then (0 :: Int) else if x > 65535 then (65535 :: Int) else x
+
+  -- | Add k times an error to an accumulator.
+  spread :: (Int, Int, Int, Int) -> (Int, Int, Int, Int) -> Int -> (Int, Int, Int, Int)
+  spread acc e k = case acc of
+    (a0, a1, a2, a3) -> case e of
+      (e0, e1, e2, e3) -> (int-add a0 (int-mul e0 k), int-add a1 (int-mul e1 k), int-add a2 (int-mul e2 k), int-add a3 (int-mul e3 k))
+
+  -- | A palette entry as integers.
+  nth-color :: List (Nat, Nat, Nat, Nat) -> Nat -> (Int, Int, Int, Int)
+  nth-color palette i = case palette of
+    Nil -> (0, 0, 0, 0)
+    Cons p rest -> if i == 0 then (case p of (r, g, b, a) -> (to-int r, to-int g, to-int b, to-int a)) else nth-color rest (i - 1)
+
+  -- | Components of a four-tuple.
+  first4 :: (Int, Int, Int, Int) -> Int
+  first4 t = case t of (a, b, c, d) -> a
+
+  -- | The second component.
+  second4 :: (Int, Int, Int, Int) -> Int
+  second4 t = case t of (a, b, c, d) -> b
+
+  -- | The third component.
+  third4 :: (Int, Int, Int, Int) -> Int
+  third4 t = case t of (a, b, c, d) -> c
+
+  -- | The fourth component.
+  fourth4 :: (Int, Int, Int, Int) -> Int
+  fourth4 t = case t of (a, b, c, d) -> d
+
+  -- ---------------------------------------------------------------------
+  -- Bytes and numbers.
+  -- ---------------------------------------------------------------------
+
+  -- | A byte or zero past the end.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Store a byte when it fits.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | Store a big-endian 16-bit sample.
+  put16 :: Bytes -> Nat -> Nat -> Unit
+  put16 b i v = let w = put b i (nat-rem (nat-div v 256) 256) in put b (i + 1) (nat-rem v 256)
+
+  -- | A fresh copy.
+  copy :: Bytes -> Bytes
+  copy b = let out = bytes-new (bytes-len b) in let c = bytes-copy-range out b 0 0 (bytes-len b) in out
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | A natural number as an integer.
+  to-int :: Nat -> Int
+  to-int n = nat-to-int n
+
+  -- | A non-negative integer as a natural number (negatives become zero).
+  to-nat :: Int -> Nat
+  to-nat n = case checked-int-to-i64 n of Some k -> (if 0 <= k then nat-from-i64 k else 0); None -> 0
+
+  -- | A U128 from its halves.
+  prim join64 :: U64 -> U64 -> U128 where
+    llvm {
+      %lo = zext i64 %0 to i128
+      %hi = zext i64 %1 to i128
+      %s = shl i128 %hi, 64
+      %r = or i128 %lo, %s
+      ret i128 %r
+    }
+
+  -- | The low half of a U128.
+  prim low64 :: U128 -> U64 where
+    llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+
+  -- | The high half of a U128.
+  prim high64 :: U128 -> U64 where
+    llvm {
+      %s = lshr i128 %0, 64
+      %r = trunc i128 %s to i64
+      ret i64 %r
+    }
+
+  -- | Four non-premultiplied 8-bit RGBA pixels composited Over: both premultiplied to 16 bits, d * (65535 - sA) / 65535 + s, then un-premultiplied and narrowed, as the generic path computes each pixel.
+  prim over4 :: U128 -> U128 -> U128 where
+    llvm {
+      %v1 = bitcast i128 %0 to <16 x i8>
+      %v2 = zext <16 x i8> %v1 to <16 x i32>
+      %v3 = shufflevector <16 x i32> %v2, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
+      %v4 = mul <16 x i32> %v2, <i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257>
+      %v5 = mul <16 x i32> %v4, %v3
+      %v6 = udiv <16 x i32> %v5, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>
+      %v7 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v4, <16 x i32> %v6
+      %v8 = bitcast i128 %1 to <16 x i8>
+      %v9 = zext <16 x i8> %v8 to <16 x i32>
+      %v10 = shufflevector <16 x i32> %v9, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
+      %v11 = mul <16 x i32> %v9, <i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257>
+      %v12 = mul <16 x i32> %v11, %v10
+      %v13 = udiv <16 x i32> %v12, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>
+      %v14 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v11, <16 x i32> %v13
+      %v15 = shufflevector <16 x i32> %v14, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
+      %v16 = sub <16 x i32> <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>, %v15
+      %v17 = mul <16 x i32> %v7, %v16
+      %v18 = udiv <16 x i32> %v17, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
+      %v19 = add <16 x i32> %v18, %v14
+      %v20 = shufflevector <16 x i32> %v19, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
+      %v21 = icmp eq <16 x i32> %v20, zeroinitializer
+      %v22 = icmp eq <16 x i32> %v20, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
+      %v23 = or <16 x i1> %v21, %v22
+      %v24 = select <16 x i1> %v21, <16 x i32> <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>, <16 x i32> %v20
+      %v25 = mul <16 x i32> %v19, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
+      %v26 = udiv <16 x i32> %v25, %v24
+      %v27 = select <16 x i1> %v23, <16 x i32> %v19, <16 x i32> %v26
+      %v28 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v19, <16 x i32> %v27
+      %v29 = lshr <16 x i32> %v28, <i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8>
+      %v30 = trunc <16 x i32> %v29 to <16 x i8>
+      %v31 = bitcast <16 x i8> %v30 to i128
+      ret i128 %v31
+    } when endian little
+    llvm {
+      %v1 = bitcast i128 %0 to <16 x i8>
+      %v2 = shufflevector <16 x i8> %v1, <16 x i8> poison, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v3 = zext <16 x i8> %v2 to <16 x i32>
+      %v4 = shufflevector <16 x i32> %v3, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
+      %v5 = mul <16 x i32> %v3, <i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257>
+      %v6 = mul <16 x i32> %v5, %v4
+      %v7 = udiv <16 x i32> %v6, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>
+      %v8 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v5, <16 x i32> %v7
+      %v9 = bitcast i128 %1 to <16 x i8>
+      %v10 = shufflevector <16 x i8> %v9, <16 x i8> poison, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v11 = zext <16 x i8> %v10 to <16 x i32>
+      %v12 = shufflevector <16 x i32> %v11, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
+      %v13 = mul <16 x i32> %v11, <i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257, i32 257>
+      %v14 = mul <16 x i32> %v13, %v12
+      %v15 = udiv <16 x i32> %v14, <i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255, i32 255>
+      %v16 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v13, <16 x i32> %v15
+      %v17 = shufflevector <16 x i32> %v16, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
+      %v18 = sub <16 x i32> <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>, %v17
+      %v19 = mul <16 x i32> %v8, %v18
+      %v20 = udiv <16 x i32> %v19, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
+      %v21 = add <16 x i32> %v20, %v16
+      %v22 = shufflevector <16 x i32> %v21, <16 x i32> poison, <16 x i32> <i32 3, i32 3, i32 3, i32 3, i32 7, i32 7, i32 7, i32 7, i32 11, i32 11, i32 11, i32 11, i32 15, i32 15, i32 15, i32 15>
+      %v23 = icmp eq <16 x i32> %v22, zeroinitializer
+      %v24 = icmp eq <16 x i32> %v22, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
+      %v25 = or <16 x i1> %v23, %v24
+      %v26 = select <16 x i1> %v23, <16 x i32> <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>, <16 x i32> %v22
+      %v27 = mul <16 x i32> %v21, <i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535, i32 65535>
+      %v28 = udiv <16 x i32> %v27, %v26
+      %v29 = select <16 x i1> %v25, <16 x i32> %v21, <16 x i32> %v28
+      %v30 = select <16 x i1> <i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true, i1 false, i1 false, i1 false, i1 true>, <16 x i32> %v21, <16 x i32> %v29
+      %v31 = lshr <16 x i32> %v30, <i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8, i32 8>
+      %v32 = trunc <16 x i32> %v31 to <16 x i8>
+      %v33 = shufflevector <16 x i8> %v32, <16 x i8> poison, <16 x i32> <i32 15, i32 14, i32 13, i32 12, i32 11, i32 10, i32 9, i32 8, i32 7, i32 6, i32 5, i32 4, i32 3, i32 2, i32 1, i32 0>
+      %v34 = bitcast <16 x i8> %v33 to i128
+      ret i128 %v34
+    } when endian big

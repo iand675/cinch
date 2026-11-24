@@ -1475,6 +1475,14 @@
       "public_methods": 0
     },
     {
+      "module": "Image.Draw",
+      "path": "seed/prelude/Image/Draw.cinch",
+      "sha256": "bf28ed300fee4c128ae7405b125f650ee0d60dc7c7f41dd42f915a34b549e48f",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
       "module": "Image.Gif",
       "path": "seed/prelude/Image/Gif.cinch",
       "sha256": "ff3c8851f3f303ba6dd255d062414ba3fb90b555e403a852f245d25589aeaeeb",
