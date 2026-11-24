@@ -118,9 +118,9 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
   .hoogle-hit {
     display: grid;
     grid-template-columns: 148px minmax(0, 1fr) auto;
-    gap: 1.4rem;
+    gap: 1.5rem;
     align-items: start;
-    padding: 1.2rem 0;
+    padding: 1.45rem 0;
     border-bottom: 1px solid var(--platform-rule);
   }
   .hoogle-hit-meta {
@@ -128,21 +128,22 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
     font-size: var(--label);
     text-transform: uppercase;
     color: var(--platform-accent);
+    padding-top: 0.25rem;
   }
   .hoogle-hit-meta span {
     display: block;
     color: var(--platform-muted);
-    margin-top: 0.35rem;
+    margin-top: 0.4rem;
     font-size: 0.68rem;
   }
   .hoogle-hit-sig {
     margin: 0;
-    padding: 0.55rem 0.85rem;
+    padding: 0.7rem 1rem;
     background: var(--platform-panel);
     border: 1px solid var(--platform-rule);
     border-left: 3px solid var(--platform-accent);
     border-radius: 3px 14px 3px 3px;
-    font: 0.84rem/1.55 'IBM Plex Mono', monospace;
+    font: 0.85rem/1.58 'IBM Plex Mono', monospace;
     overflow-x: auto;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -166,10 +167,11 @@ import PlatformLayout from '../../layouts/PlatformLayout.astro';
     border-bottom-style: solid;
   }
   .hoogle-hit-desc {
-    margin: 0.55rem 0 0;
+    margin: 0.72rem 0 0;
     color: var(--platform-muted);
-    font-size: 0.9rem;
-    max-width: 78ch;
+    font-size: 0.94rem;
+    line-height: 1.65;
+    max-width: 74ch;
   }
   .hoogle-hit-actions {
     display: flex;

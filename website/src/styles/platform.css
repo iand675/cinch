@@ -68,3 +68,11 @@
 .install-result code { font-size: .9rem; }
 .install-result .install-copy { margin-top: .8rem; }
 @media (max-width: 760px) { .install-form { grid-template-columns: 1fr; } .install-submit { grid-column: 1; } }
+
+/* Platform reading rhythm: prevent base.css's heading margin reset from crowding following blocks. */
+.cinch-platform .package-article section > h2,
+.cinch-platform .install-page h2 { margin-bottom: 1.15rem; }
+.cinch-platform .package-article section > h3,
+.cinch-platform .install-page h3 { margin-bottom: 0.75rem; }
+.cinch-platform .source-build h2 { margin-bottom: 1rem; }
+.cinch-platform .empty-results h2 { margin-bottom: 0.85rem; }
