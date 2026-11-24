@@ -2544,10 +2544,19 @@
     },
     {
       "reference_package": "text/template",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 39
+      "status": "partial",
+      "cinch_modules": [
+        "Text.Template"
+      ],
+      "remaining": [
+        "Reflection over arbitrary application values and method calls (call); values are a dynamic TemplateValue",
+        "Parse-tree access and AddParseTree/Clone (text/template/parse)",
+        "Exact error message wording with source positions in execution errors"
+      ],
+      "reference_declarations": 39,
+      "tests": [
+        "lib_template"
+      ]
     },
     {
       "reference_package": "text/template/parse",

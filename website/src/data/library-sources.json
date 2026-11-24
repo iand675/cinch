@@ -1971,6 +1971,14 @@
       "public_methods": 0
     },
     {
+      "module": "Text.Template",
+      "path": "seed/prelude/Text/Template.cinch",
+      "sha256": "c88aa762a5a75fd763c618f7aacebe7540ce8bc76b0f87e1472752c5b36a3fc6",
+      "embedded": false,
+      "values": 18,
+      "public_methods": 0
+    },
+    {
       "module": "Text.TextProto",
       "path": "seed/prelude/Text/TextProto.cinch",
       "sha256": "3bbe1d9e1cb3ceec6392119510c325ef7cac6357b3cd43a891cd7ce424c06a1b",

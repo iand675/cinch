@@ -273,6 +273,7 @@ DESCRIPTIONS = {
 'Image.Gif':'Decode and encode GIF images and animations: palettes, transparency, delays, disposal, looping and interlace.',
 'Text.Xml':'Decode XML into namespace-aware tokens or element trees and encode tokens with escaping and indentation.',
 'Crypto.MlKem':'ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels.',
+'Text.Template':'Data-driven text templates: pipelines, control actions, definitions, builtins and printf over dynamic values.',
 'Text.Lzw':'Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF.',
 'Text.Tar':'Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.',
 'Text.TextProto':'Text-protocol framing: lines, canonical MIME headers, status responses and dot encoding for HTTP, SMTP and mail.',
