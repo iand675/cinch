@@ -284,7 +284,7 @@ Read the colour model and size: stops at the frame header after a JFIF marker, o
 
 The quality used when none is chosen.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1684
+[Source](/reference-sources/Image.Jpeg.cinch) · line 1718
 
 <a id="value-6a7065672d656e636f6465"></a>
 
@@ -295,7 +295,7 @@ The quality used when none is chosen.
 Encode a raster at a quality (clamped to 1..100): Gray8 as one component, every other format as YCbCr
 4:2:0 after premultiplying alpha.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1689
+[Source](/reference-sources/Image.Jpeg.cinch) · line 1723
 
 <a id="value-6a7065672d656e636f64652d7963626372"></a>
 
@@ -306,7 +306,7 @@ Encode a raster at a quality (clamped to 1..100): Gray8 as one component, every 
 Encode YCbCr planes at a quality as YCbCr 4:2:0; each pixel takes the chroma sample covering it, and
 each 2x2 neighbourhood is averaged.
 
-[Source](/reference-sources/Image.Jpeg.cinch) · line 1700
+[Source](/reference-sources/Image.Jpeg.cinch) · line 1734
 
 <a id="value-6a7065672d6572726f722d6d657373616765"></a>
 
@@ -461,4 +461,4 @@ Bytes between vertically adjacent luma samples.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Image/Jpeg.cinch`. Source SHA-256: `1970f9e50cd8c62171a16aa80ceca7fe529dec234f0a90ed81e048529dc14c86`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Image/Jpeg.cinch`. Source SHA-256: `05234349121fb760e8b50180e88cd63b1eef003c59587d83f6d5c0d170ffc790`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

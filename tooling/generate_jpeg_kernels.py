@@ -48,8 +48,10 @@ from __future__ import annotations
 
 import argparse
 import random
-import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "seed/prelude/Image/Jpeg.cinch"
@@ -192,237 +194,7 @@ def premultiply(c: int, a: int) -> int:
     return ((c * 0x101 * a) // 0xFF) >> 8
 
 
-# ---------------------------------------------------------------------------
-# The lane DSL: an IR emitter and an evaluator with one interface.
-# ---------------------------------------------------------------------------
-
-TY = re.compile(r"<(\d+) x (i\d+|double)>")
-
-
-def parse(ty: str) -> tuple[int, str]:
-    m = TY.fullmatch(ty)
-    if not m:
-        raise ValueError(ty)
-    return int(m.group(1)), m.group(2)
-
-
-def bits(elem: str) -> int:
-    return 64 if elem == "double" else int(elem[1:])
-
-
-def splat(ty: str, v) -> str:
-    n, e = parse(ty)
-    return "<" + ", ".join(f"{e} {v}" for _ in range(n)) + ">"
-
-
-def const(ty: str, vals: list[int]) -> str:
-    n, e = parse(ty)
-    assert len(vals) == n
-    return "<" + ", ".join(f"{e} {v}" for v in vals) + ">"
-
-
-class IR:
-    """Emits one LLVM body."""
-
-    def __init__(self, big: bool) -> None:
-        self.big, self.lines, self.n = big, [], 0
-
-    def emit(self, text: str) -> str:
-        self.n += 1
-        name = f"%v{self.n}"
-        self.lines.append(f"      {name} = {text}")
-        return name
-
-    def raw(self, text: str) -> None:
-        self.lines.append(f"      {text}")
-
-    # Values are (type, name) pairs.
-    def c(self, ty, vals):
-        return (ty, const(ty, vals) if isinstance(vals, list) else splat(ty, vals))
-
-    def bin(self, op, x, y):
-        assert x[0] == y[0], (op, x[0], y[0])
-        return (x[0], self.emit(f"{op} {x[0]} {x[1]}, {y[1]}"))
-
-    def icmp(self, pred, x, y):
-        n, _ = parse(x[0])
-        return (f"<{n} x i1>", self.emit(f"icmp {pred} {x[0]} {x[1]}, {y[1]}"))
-
-    def select(self, m, x, y):
-        return (x[0], self.emit(f"select {m[0]} {m[1]}, {x[0]} {x[1]}, {x[0]} {y[1]}"))
-
-    def cast(self, op, x, ty):
-        return (ty, self.emit(f"{op} {x[0]} {x[1]} to {ty}"))
-
-    def shuf(self, x, y, lanes):
-        n, e = parse(x[0])
-        ty = f"<{len(lanes)} x {e}>"
-        other = y[1] if y is not None else "poison"
-        return (ty, self.emit(f"shufflevector {x[0]} {x[1]}, {x[0]} {other}, <{len(lanes)} x i32> <" + ", ".join(f"i32 {i}" for i in lanes) + ">"))
-
-    def intr(self, name, x, y=None):
-        n, e = parse(x[0])
-        args = f"{x[0]} {x[1]}" + (f", {y[0]} {y[1]}" if y is not None else "")
-        return (x[0], self.emit(f"call {x[0]} @llvm.{name}.v{n}{e}({args})"))
-
-    def reduce_umin(self, x):
-        n, e = parse(x[0])
-        return ("i32", self.emit(f"call {e} @llvm.vector.reduce.umin.v{n}{e}({x[0]} {x[1]})"))
-
-    def extract(self, x, idx):
-        n, e = parse(x[0])
-        i = idx[1] if isinstance(idx, tuple) else str(idx)
-        it = idx[0] if isinstance(idx, tuple) else "i64"
-        return (e, self.emit(f"extractelement {x[0]} {x[1]}, {it} {i}"))
-
-    # Boundaries.
-    def arg128(self, arg, ty):
-        """A U128 argument as canonical lanes (lane 0 in the low bits)."""
-        n, e = parse(ty)
-        v = (ty, self.emit(f"bitcast i128 {arg} to {ty}"))
-        return self.shuf(v, None, list(range(n - 1, -1, -1))) if self.big else v
-
-    def arg_int(self, arg, width, ty):
-        """A width-bit integer argument as canonical byte lanes."""
-        n, e = parse(ty)
-        v = (ty, self.emit(f"bitcast i{width} {arg} to {ty}"))
-        return self.shuf(v, None, list(range(n - 1, -1, -1))) if self.big else v
-
-    def ret128(self, v):
-        n, e = parse(v[0])
-        if self.big:
-            v = self.shuf(v, None, list(range(n - 1, -1, -1)))
-        r = self.emit(f"bitcast {v[0]} {v[1]} to i128")
-        self.raw(f"ret i128 {r}")
-
-    def ret_int(self, v, width):
-        n, e = parse(v[0])
-        if self.big:
-            v = self.shuf(v, None, list(range(n - 1, -1, -1)))
-        r = self.emit(f"bitcast {v[0]} {v[1]} to i{width}")
-        self.raw(f"ret i{width} {r}")
-
-    def load_le(self, base, offset, ty):
-        """Load little-endian elements from base + offset bytes."""
-        n, e = parse(ty)
-        p = self.emit(f"getelementptr i8, ptr {base}, i64 {offset}")
-        v = (ty, self.emit(f"load {ty}, ptr {p}, align 1"))
-        if self.big and bits(e) > 8:
-            v = self.intr("bswap", v)
-        return v
-
-
-class Ev:
-    """Evaluates the same operations on integer lanes."""
-
-    def __init__(self, memory: bytes = b"") -> None:
-        self.memory = memory
-
-    @staticmethod
-    def norm(e, v):
-        if e == "double":
-            return float(v)
-        w = bits(e)
-        return v & ((1 << w) - 1)
-
-    @staticmethod
-    def signed(e, v):
-        w = bits(e)
-        return v - (1 << w) if v & (1 << (w - 1)) else v
-
-    def c(self, ty, vals):
-        n, e = parse(ty)
-        vals = vals if isinstance(vals, list) else [vals] * n
-        return (ty, [self.norm(e, v) for v in vals])
-
-    def bin(self, op, x, y):
-        ty = x[0]
-        n, e = parse(ty)
-        out = []
-        for a, b in zip(x[1], y[1]):
-            if op == "add": r = a + b
-            elif op == "sub": r = a - b
-            elif op == "mul": r = a * b
-            elif op == "and": r = a & b
-            elif op == "or": r = a | b
-            elif op == "xor": r = a ^ b
-            elif op == "shl": r = a << b
-            elif op == "ashr": r = self.signed(e, a) >> b
-            elif op == "lshr": r = a >> b
-            elif op == "udiv": r = a // b
-            elif op == "fdiv": r = a / b
-            else: raise ValueError(op)
-            out.append(self.norm(e, r))
-        return (ty, out)
-
-    def icmp(self, pred, x, y):
-        n, e = parse(x[0])
-        res = []
-        for a, b in zip(x[1], y[1]):
-            sa, sb = self.signed(e, a), self.signed(e, b)
-            res.append({"eq": a == b, "ne": a != b, "slt": sa < sb, "sgt": sa > sb, "sle": sa <= sb, "sge": sa >= sb,
-                        "ult": a < b, "ugt": a > b, "ule": a <= b, "uge": a >= b}[pred])
-        return (f"<{n} x i1>", res)
-
-    def select(self, m, x, y):
-        return (x[0], [a if k else b for k, a, b in zip(m[1], x[1], y[1])])
-
-    def cast(self, op, x, ty):
-        n, e = parse(x[0])
-        n2, e2 = parse(ty)
-        out = []
-        for a in x[1]:
-            if op == "sext": r = self.signed(e, a)
-            elif op in ("zext", "trunc"): r = a
-            elif op == "uitofp": r = float(a)
-            elif op == "fptoui": r = int(a)
-            else: raise ValueError(op)
-            out.append(self.norm(e2, r))
-        return (ty, out)
-
-    def shuf(self, x, y, lanes):
-        n, e = parse(x[0])
-        src = x[1] + (y[1] if y is not None else [0] * n)
-        return (f"<{len(lanes)} x {e}>", [src[i] for i in lanes])
-
-    def intr(self, name, x, y=None):
-        n, e = parse(x[0])
-        if name == "smin":
-            return (x[0], [a if self.signed(e, a) <= self.signed(e, b) else b for a, b in zip(x[1], y[1])])
-        if name == "smax":
-            return (x[0], [a if self.signed(e, a) >= self.signed(e, b) else b for a, b in zip(x[1], y[1])])
-        if name == "bswap":
-            return x
-        raise ValueError(name)
-
-    def reduce_umin(self, x):
-        return ("i32", min(x[1]))
-
-    def extract(self, x, idx):
-        i = idx[1] if isinstance(idx, tuple) else idx
-        return (parse(x[0])[1], x[1][i])
-
-    def arg128(self, arg, ty):
-        n, e = parse(ty)
-        w = bits(e)
-        return (ty, [(arg >> (w * i)) & ((1 << w) - 1) for i in range(n)])
-
-    def arg_int(self, arg, width, ty):
-        return self.arg128(arg, ty)
-
-    def ret128(self, v):
-        n, e = parse(v[0])
-        w = bits(e)
-        self.result = sum((int(x) & ((1 << w) - 1)) << (w * i) for i, x in enumerate(v[1]))
-
-    def ret_int(self, v, width):
-        self.ret128(v)
-
-    def load_le(self, base, offset, ty):
-        n, e = parse(ty)
-        w = bits(e) // 8
-        o = base + offset
-        return (ty, [int.from_bytes(self.memory[o + w * i:o + w * i + w], "little") for i in range(n)])
+from lane_dsl import IR, Ev, parse, bits, splat, const  # noqa: E402
 
 
 V8 = "<8 x i32>"
@@ -960,6 +732,54 @@ def rle_bits_body(big: bool) -> list[str]:
     return lines
 
 
+def window_lines(big: bool, seg: str, pos: str) -> list[str]:
+    """Load the 64-bit window at bit position pos of the segment at address seg into %win."""
+    return [
+        f"      %seg = inttoptr i64 {seg} to ptr",
+        f"      %byte = lshr i64 {pos}, 3",
+        f"      %sh = and i64 {pos}, 7",
+        "      %wp = getelementptr i8, ptr %seg, i64 %byte",
+        "      %wraw = load i64, ptr %wp, align 1",
+        ("      %w = call i64 @llvm.bswap.i64(i64 %wraw)" if not big else "      %w = add i64 %wraw, 0"),
+        "      %win = shl i64 %w, %sh",
+    ]
+
+
+def sym_at_body(big: bool) -> list[str]:
+    """huff-decode reading its window straight from a destuffed segment."""
+    return ["      %tab = inttoptr i64 %0 to ptr"] + window_lines(big, "%1", "%2") + resolve_lines(big) + [
+        line.replace("%3", "%3") for line in huff_tail()]
+
+
+def seg_bits_body(big: bool) -> list[str]:
+    """The k bits (0 to 32) at bit position p of a destuffed segment."""
+    return window_lines(big, "%0", "%1") + [
+        "      %z = icmp eq i64 %2, 0",
+        "      %rs = sub i64 64, %2",
+        "      %rs2 = select i1 %z, i64 63, i64 %rs",
+        "      %v = lshr i64 %win, %rs2",
+        "      %r = select i1 %z, i64 0, i64 %v",
+        "      ret i64 %r",
+    ]
+
+
+def coef_at_body(big: bool) -> list[str]:
+    """The 32-bit coefficient at zig-zag position z of a natural-order block, as (value << 8) | natural index."""
+    lines = [
+        "      %blk = inttoptr i64 %0 to ptr",
+        "      %order = inttoptr i64 %1 to ptr",
+        "      %zm = and i64 %2, 63",
+        "      %op = getelementptr i8, ptr %order, i64 %zm",
+        "      %n8 = load i8, ptr %op, align 1",
+        "      %n = zext i8 %n8 to i64",
+        "      %cp = getelementptr i32, ptr %blk, i64 %n",
+        "      %raw = load i32, ptr %cp, align 1",
+    ]
+    lines.append("      %c = call i32 @llvm.bswap.i32(i32 %raw)" if big else "      %c = add i32 %raw, 0")
+    lines += ["      %v = sext i32 %c to i64", "      %vs = shl i64 %v, 8", "      %r = or i64 %vs, %n", "      ret i64 %r"]
+    return lines
+
+
 # ---------------------------------------------------------------------------
 # Verification.
 # ---------------------------------------------------------------------------
@@ -1117,6 +937,12 @@ def suffix() -> str:
                       ff_span_body, unsafe=True, endian=False) + [""]
     lines += raw_prim("huff-decode", "I64 -> U64 -> I64 -> I64 -> I64", HUFF_DOC, huff_body, unsafe=True, endian=True) + [""]
     lines += raw_prim("ac-decode", "I64 -> I64 -> I64 -> I64 -> I64", AC_DOC, ac_body, unsafe=True, endian=True) + [""]
+    lines += raw_prim("sym-at", "I64 -> I64 -> I64 -> I64 -> I64", "huff-decode with its window read at bit position p (third argument) of the destuffed segment at the second address; the table and mode are as for huff-decode.",
+                      sym_at_body, unsafe=True, endian=True) + [""]
+    lines += raw_prim("seg-bits", "I64 -> I64 -> I64 -> I64", "The k bits (third argument, 0 to 32) at bit position p (second) of the destuffed segment at the address, most significant first.",
+                      seg_bits_body, unsafe=True, endian=True) + [""]
+    lines += raw_prim("coef-at", "I64 -> I64 -> I64 -> I64", "The 32-bit little-endian coefficient at zig-zag position z (third argument) of the natural-order block at the first address, through the zig-zag order at the second: (sign-extended value << 8) | natural index.",
+                      coef_at_body, unsafe=True, endian=True) + [""]
     lines += raw_prim("zz-mask", "I64 -> I64", "Bit z set when the coefficient at zig-zag position z of the natural-order block of sixty-four little-endian i16 values at the address is nonzero.",
                       zz_mask_body, unsafe=True, endian=False) + [""]
     lines += raw_prim("zz-coef", "I64 -> I64 -> I64 -> I64", "The coefficient at zig-zag position z (third argument) of the natural-order block at the first address, through the zig-zag order at the second, sign-extended.",
