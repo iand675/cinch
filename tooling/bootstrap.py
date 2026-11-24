@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import fcntl
 import hashlib
 import io
@@ -450,6 +451,19 @@ def cached(directory: Path, inputs: dict) -> bool:
                     for name, expected in record.get("artifacts", {}).items()))
 
 
+def failure_evidence(*paths: Path) -> str:
+    # Failed Nix outputs need not survive the builder. Put useful bounded
+    # evidence in its log, rather than only pointing at a disappearing path.
+    evidence = []
+    for path in paths:
+        if path.is_file():
+            with path.open(errors="replace") as stream:
+                lines = deque((line.rstrip("\n")[:2000] for line in stream), maxlen=80)
+            if lines:
+                evidence.append(f"{path}:\n" + "\n".join(lines))
+    return "\n".join(evidence)
+
+
 def record_build(directory: Path, inputs: dict, code: int, log: Path) -> Path:
     exe = directory / "cinch"
     required = required_artifacts(inputs)
@@ -472,11 +486,8 @@ def record_build(directory: Path, inputs: dict, code: int, log: Path) -> Path:
     write_json(directory / "stage.json", record)
     if not good:
         diagnostics = directory / "compiler.ll.diagnostics"
-        has_diagnostics = diagnostics.is_file() and bool(diagnostics.read_text(errors="replace").strip())
-        detail = diagnostics if has_diagnostics else log
-        lines = detail.read_text(errors="replace").splitlines()
-        preview = "\n".join(lines[:6] if has_diagnostics else lines[-6:])
-        raise BootstrapError(f"{directory.name} did not build (exit {code}).\n{preview}\nEvidence: {detail}")
+        evidence = failure_evidence(log, diagnostics, directory / "link-report.txt")
+        raise BootstrapError(f"{directory.name} did not build (exit {code}).\n{evidence}")
     print(f"{directory.name}: built {exe}", flush=True)
     return exe
 
@@ -1095,13 +1106,17 @@ def smoke(stage: int, compiler: Path) -> None:
             expected_code = 1 if stage == 0 else 4
             if (code != expected_code or exe.exists() or not diagnostics.is_file()
                     or "unknown-name" not in diagnostics.read_text(errors="replace")):
-                raise BootstrapError(f"stage{stage} did not give a named refusal for the invalid smoke program")
+                raise BootstrapError(f"stage{stage} did not give a named refusal for the invalid smoke program\n"
+                                     + failure_evidence(case / "compile.log", diagnostics))
         else:
             if code or not exe.is_file():
-                raise BootstrapError(f"stage{stage} failed the {name} smoke compile: {case / 'compile.log'}")
+                raise BootstrapError(f"stage{stage} failed the {name} smoke compile (exit {code})\n"
+                                     + failure_evidence(case / "compile.log", case / "program.ll.diagnostics",
+                                                        case / "report.txt"))
             answer = run([exe], case, case / "run.log")
             if answer != expected:
-                raise BootstrapError(f"stage{stage} {name}: expected {expected}, got {answer}")
+                raise BootstrapError(f"stage{stage} {name}: expected {expected}, got {answer}\n"
+                                     + failure_evidence(case / "run.log"))
         print(f"stage{stage}: {name} smoke passed", flush=True)
 
 

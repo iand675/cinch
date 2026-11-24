@@ -15,7 +15,9 @@ module Bootstrap.Package where
   import Data.List (sort)
   import Data.Machine (u32-to-nat)
   import Data.Nat (checked-nat-from-i64, nat-to-int)
-  import Prim.Sys (sys-open-read, sys-close, sys-lseek, sys-seek-end, sys-seek-set, sys-read)
+  import Prim.Sys (SysError, SysNotFound, SysPermissionDenied, SysAlreadyExists,
+    SysNotADirectory, SysIsADirectory, SysInvalidName, SysIoError,
+    sys-open-read, sys-close, sys-lseek, sys-seek-end, sys-seek-set, sys-read)
   import Text.Fnv (fnv64a-update)
 
   export PackageContract, package-contract, read-package-documents, packaged-abi
@@ -940,26 +942,55 @@ module Bootstrap.Package where
 
   read-package-source :: forall r. using (io :: Io r) => String ->{IO r} Result String Bytes
   read-package-source path = case sys-open-read path of
-    Err error -> Err "cannot open interface package"
+    Err error -> Err (string-concat-all ["cannot open interface package ", path, ": ", package-sys-error error])
     Ok fd -> case read-package-bytes fd of
-      result -> case sys-close fd of _ -> result
+      result -> case sys-close fd of _ -> (case result of
+        Err message -> Err (string-concat-all ["interface package ", path, ": ", message])
+        Ok bytes -> Ok bytes)
+
+  -- Prim.Sys retains an error category, while mapPackageBytes retains the
+  -- numeric platform error. Keep both when the buffered fallback also fails.
+  package-sys-error :: SysError -> String
+  package-sys-error error = case error of
+    SysNotFound -> "SysNotFound"
+    SysPermissionDenied -> "SysPermissionDenied"
+    SysAlreadyExists -> "SysAlreadyExists"
+    SysNotADirectory -> "SysNotADirectory"
+    SysIsADirectory -> "SysIsADirectory"
+    SysInvalidName -> "SysInvalidName"
+    SysIoError -> "SysIoError"
+
+  package-number :: I64 -> String
+  package-number value = if value < 0 then
+    string-concat "-" (u64-decimal (wrapping-i64-to-u64 (wrapping-sub-i64 0 value)))
+    else u64-decimal (wrapping-i64-to-u64 value)
 
   read-package-bytes :: forall r. using (io :: Io r) => I64 ->{IO r} Result String Bytes
   read-package-bytes fd = case sys-lseek fd 0 sys-seek-end of
     Ok length | length > 0 && length <= 4294967295 ->
       (case map-package-bytes fd length of
         Ok mapped -> Ok mapped
-        Err error -> (case (checked-nat-from-i64 length, sys-lseek fd 0 sys-seek-set) of
-          (Some size, Ok start) -> fill-package-buffer fd (bytes-new size) length 0
-          other -> Err "cannot read interface package"))
-    other -> Err "invalid interface package length"
+        Err error ->
+          let context = string-concat-all ["mmap failed (error ", package-number error,
+                ", length ", package-number length, "); fallback: "] in
+          let result = case (checked-nat-from-i64 length, sys-lseek fd 0 sys-seek-set) of
+                (Some size, Ok 0) -> fill-package-buffer fd (bytes-new size) length 0
+                (None, other) -> Err "length does not fit Nat"
+                (Some size, Err failure) -> Err (string-concat "lseek(SEEK_SET): " (package-sys-error failure))
+                (Some size, Ok start) -> Err (string-concat "lseek(SEEK_SET) returned " (package-number start)) in
+          (case result of Err message -> Err (string-concat context message); Ok bytes -> Ok bytes))
+    Ok length -> Err (string-concat "invalid interface package length: " (package-number length))
+    Err error -> Err (string-concat "lseek(SEEK_END): " (package-sys-error error))
 
   fill-package-buffer :: forall r. using (io :: Io r) => I64 -> Bytes -> I64 -> I64 ->{IO r} Result String Bytes
   fill-package-buffer fd bytes length used =
     if used == length then Ok bytes else
       (case sys-read fd bytes used (wrapping-sub-i64 length used) of
         Ok got | got > 0 -> fill-package-buffer fd bytes length (wrapping-add-i64 used got)
-        other -> Err "cannot read interface package")
+        Ok got -> Err (string-concat-all ["unexpected EOF/read result ", package-number got,
+          " after ", package-number used, " of ", package-number length, " bytes"])
+        Err error -> Err (string-concat-all ["read after ", package-number used,
+          " of ", package-number length, " bytes: ", package-sys-error error]))
 
   read-package-documents :: forall r. using (io :: Io r) => String ->{IO r} Result String (List PackageContract)
   read-package-documents path = case read-package-snapshot path of

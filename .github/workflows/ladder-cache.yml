@@ -22,20 +22,13 @@ on:
       - "flake.lock"
       - "devenv.nix"
       - ".github/workflows/ladder-cache.yml"
-  schedule:
-    - cron: "23 2 * * *"
   workflow_dispatch:
-    inputs:
-      publish_nightly:
-        description: Publish a nightly prerelease after all platform builds pass
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: compiler-distributions-${{ github.workflow }}-${{ (github.event_name == 'schedule' || inputs.publish_nightly) && 'nightly' || github.ref }}
+  group: compiler-distributions-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -59,6 +52,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Check bootstrap driver diagnostics
+        run: python3 -m unittest discover -s tooling/tests -p 'test_bootstrap*.py'
       - name: Require cache publishing credentials on trusted builds
         if: github.event_name != 'pull_request'
         shell: bash
@@ -100,50 +95,3 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
-
-  nightly:
-    name: Publish nightly release
-    needs: ladder
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish_nightly))
-    runs-on: ubuntu-24.04
-    permissions:
-      actions: read
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-    steps:
-      - name: Download the three checked distributions
-        env:
-          RUN_ID: ${{ github.run_id }}
-        run: gh run download "$RUN_ID" --pattern 'cinch-*' --dir artifacts
-      - name: Prepare release assets and checksums
-        run: |
-          mkdir -p release
-          for system in x86_64-linux aarch64-linux aarch64-darwin; do
-            artifact="artifacts/cinch-${system}-${GITHUB_SHA}"
-            (cd "$artifact" && sha256sum --check "cinch-${system}.sha256")
-            cp "$artifact/cinch-${system}" "$artifact/cinch-${system}.sha256" "$artifact/build-${system}.json" release/
-          done
-          cp "artifacts/cinch-x86_64-linux-${GITHUB_SHA}/README.md" release/README.md
-          cat release/*.sha256 > release/SHA256SUMS
-          cat > notes.md <<EOF_NOTES
-          Native compiler distributions built from ${GITHUB_SHA}.
-
-          All three platforms passed the bootstrap fixed point, stage smokes, interface consumption and changed-source checks.
-
-          Download the native Stage 3 executable for your platform and make it executable with chmod +x. See README.md for usage. Each binary has a SHA-256 sidecar; SHA256SUMS covers all three. Linux binaries are statically linked; macOS uses only system libraries.
-
-          Build: https://github.com/${GH_REPO}/actions/runs/${GITHUB_RUN_ID}
-          EOF_NOTES
-      - name: Publish a complete dated prerelease
-        run: |
-          tag="nightly-$(date -u +%Y%m%d)-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}"
-          # Stage all assets on a draft, then expose the complete release.
-          # Re-running this job resumes the same draft or completed release.
-          if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --target "$GITHUB_SHA" --draft --prerelease \
-              --title "Cinch nightly $(date -u +%Y-%m-%d) (${GITHUB_SHA:0:8})" --notes-file notes.md
-          fi
-          gh release upload "$tag" release/* --clobber
-          gh release edit "$tag" --draft=false --prerelease --latest=false
