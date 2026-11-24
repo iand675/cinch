@@ -2,19 +2,21 @@
 
 Regular-expression parsing/matching and replacement under the module's admitted regex language.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Regex</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Regex/">View source</a><a href="/library/search/?q=%2BText.Regex">Search module</a><a href="/reference-sources/Text.Regex.cinch" download="Text.Regex.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Regex`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Regex.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Regex`: [Text.Regex](Text.Regex.md).
 
-[Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Text/Regex.cinch ./Text.Regex.cinch
+```
 
-Non-embedded source closure: [Text.Regex](Text.Regex.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Regex: RE2-style regular expressions with linear-time matching.
 
@@ -88,223 +90,140 @@ utilities.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (22 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Match">Match</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Match</strong></code></li><li><a class="syn-name" href="#t-Regex">Regex</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Regex</strong></code></li><li><a class="syn-name" href="#t-RegexError">RegexError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">RegexError</strong></code></li><li><a class="syn-name" href="#v-match-end">match-end</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">match-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-match-group">match-group</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">match-group</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-match-group-count">match-group-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">match-group-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-match-start">match-start</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">match-start</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-match-text">match-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">match-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-parse-regex">parse-regex</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-regex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a></code></li><li><a class="syn-name" href="#v-regex-count">regex-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-regex-escape">regex-escape</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-escape</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-regex-match">regex-match</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-match</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a></code></li><li><a class="syn-name" href="#v-regex-match-counted">regex-match-counted</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-match-counted</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code></li><li><a class="syn-name" href="#v-regex-replace-all">regex-replace-all</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-replace-all</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-regex-replace-all-template">regex-replace-all-template</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-replace-all-template</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-regex-replace-first">regex-replace-first</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-replace-first</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-regex-replace-first-template">regex-replace-first-template</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-replace-first-template</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-regex-scan">regex-scan</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-scan</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a></code></li><li><a class="syn-name" href="#v-regex-scan-texts">regex-scan-texts</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-scan-texts</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-regex-search-from">regex-search-from</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-search-from</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a></code></li><li><a class="syn-name" href="#v-regex-split">regex-split</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">regex-split</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-render-regex-error">render-regex-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-regex-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-4d61746368"></a>
+# Types
 
-## `Match`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Match</span></code></pre>
+<article class="doc-entry" id="t-Match">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Match</strong></code><span class="doc-sig-links"><a href="#t-Match" title="Permalink">#</a><a href="/library/source/Text.Regex/#L895" title="View source at line 895">Source</a></span></div>
+<div class="doc-body">
 
 A match: byte offsets into the subject and one text per group
 (index 0 is the whole match; a group that did not participate is
 None).
 
-[Source](/reference-sources/Text.Regex.cinch) · line 895
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Match"><code><strong class="tok-constructor">Match</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Match</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>)))</code></pre>
+<article class="doc-entry" id="t-Regex">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Regex</strong></code><span class="doc-sig-links"><a href="#t-Regex" title="Permalink">#</a><a href="/library/source/Text.Regex/#L798" title="View source at line 798">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Regex"><code><strong class="tok-constructor">Regex</strong> :: <span class="tok-constructor">Prog</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a></code></li></ul></div>
+</div>
+</article>
 
-<a id="type-5265676578"></a>
-
-## `Regex`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Regex</span></code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Regex</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Prog</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span>))</code></pre>
-
-<a id="type-52656765784572726f72"></a>
-
-## `RegexError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">RegexError</span></code></pre>
+<article class="doc-entry" id="t-RegexError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">RegexError</strong></code><span class="doc-sig-links"><a href="#t-RegexError" title="Permalink">#</a><a href="/library/source/Text.Regex/#L201" title="View source at line 201">Source</a></span></div>
+<div class="doc-body">
 
 The named refusals and structural errors: one constructor per
 refusal so each error names itself, with the pattern's scalar
 offset for the report.
 
-[Source](/reference-sources/Text.Regex.cinch) · line 201
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BackreferenceRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LookaroundRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NamedGroupRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlagGroupRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodePropertyRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnsupportedEscape</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PossessiveRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NestedRepeatRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">EmptyWidthRepeatRefused</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DanglingQuantifier</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RepeatLimitExceeded</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidRepeatSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidRepeatRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidClassRange</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedClass</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedGroup</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnmatchedCloseParen</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TrailingBackslash</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidHexEscape</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ProgramTooLarge</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidPatternSyntax</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-BackreferenceRefused"><code><strong class="tok-constructor">BackreferenceRefused</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-LookaroundRefused"><code><strong class="tok-constructor">LookaroundRefused</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-NamedGroupRefused"><code><strong class="tok-constructor">NamedGroupRefused</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-FlagGroupRefused"><code><strong class="tok-constructor">FlagGroupRefused</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-UnicodePropertyRefused"><code><strong class="tok-constructor">UnicodePropertyRefused</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-UnsupportedEscape"><code><strong class="tok-constructor">UnsupportedEscape</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-PossessiveRefused"><code><strong class="tok-constructor">PossessiveRefused</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-NestedRepeatRefused"><code><strong class="tok-constructor">NestedRepeatRefused</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-EmptyWidthRepeatRefused"><code><strong class="tok-constructor">EmptyWidthRepeatRefused</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-DanglingQuantifier"><code><strong class="tok-constructor">DanglingQuantifier</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-RepeatLimitExceeded"><code><strong class="tok-constructor">RepeatLimitExceeded</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-InvalidRepeatSyntax"><code><strong class="tok-constructor">InvalidRepeatSyntax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-InvalidRepeatRange"><code><strong class="tok-constructor">InvalidRepeatRange</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-InvalidClassRange"><code><strong class="tok-constructor">InvalidClassRange</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-UnterminatedClass"><code><strong class="tok-constructor">UnterminatedClass</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-UnterminatedGroup"><code><strong class="tok-constructor">UnterminatedGroup</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-UnmatchedCloseParen"><code><strong class="tok-constructor">UnmatchedCloseParen</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-TrailingBackslash"><code><strong class="tok-constructor">TrailingBackslash</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-InvalidHexEscape"><code><strong class="tok-constructor">InvalidHexEscape</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-ProgramTooLarge"><code><strong class="tok-constructor">ProgramTooLarge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li><li id="k-InvalidPatternSyntax"><code><strong class="tok-constructor">InvalidPatternSyntax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6d617463682d656e64"></a>
+<article class="doc-entry" id="v-match-end">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">match-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-match-end" title="Permalink">#</a><a href="/library/source/Text.Regex/#L902" title="View source at line 902">Source</a></span></div>
+</article>
 
-## `match-end`
+<article class="doc-entry" id="v-match-group">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">match-group</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-match-group" title="Permalink">#</a><a href="/library/source/Text.Regex/#L914" title="View source at line 914">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-end</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-match-group-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">match-group-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-match-group-count" title="Permalink">#</a><a href="/library/source/Text.Regex/#L920" title="View source at line 920">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Regex.cinch)
+<article class="doc-entry" id="v-match-start">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">match-start</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-match-start" title="Permalink">#</a><a href="/library/source/Text.Regex/#L898" title="View source at line 898">Source</a></span></div>
+</article>
 
-<a id="value-6d617463682d67726f7570"></a>
+<article class="doc-entry" id="v-match-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">match-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-match-text" title="Permalink">#</a><a href="/library/source/Text.Regex/#L906" title="View source at line 906">Source</a></span></div>
+</article>
 
-## `match-group`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-group</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
-
-<a id="value-6d617463682d67726f75702d636f756e74"></a>
-
-## `match-group-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-group-count</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
-
-<a id="value-6d617463682d7374617274"></a>
-
-## `match-start`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-start</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
-
-<a id="value-6d617463682d74657874"></a>
-
-## `match-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">match-text</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
-
-<a id="value-70617273652d7265676578"></a>
-
-## `parse-regex`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-regex</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span>))</code></pre>
+<article class="doc-entry" id="v-parse-regex">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-regex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a></code><span class="doc-sig-links"><a href="#v-parse-regex" title="Permalink">#</a><a href="/library/source/Text.Regex/#L928" title="View source at line 928">Source</a></span></div>
+<div class="doc-body">
 
 Compile a pattern. The parser is strict about quantifier
 position: `{` right after an atom MUST be a valid quantifier
 (escape it as `\{` for a literal brace there); a bare `{`
 elsewhere is a literal.
 
-[Source](/reference-sources/Text.Regex.cinch) · line 928
+</div>
+</article>
 
-<a id="value-72656765782d636f756e74"></a>
-
-## `regex-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-count</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-regex-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-regex-count" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1322" title="View source at line 1322">Source</a></span></div>
+<div class="doc-body">
 
 Count the matches (the scan's length).
 
-[Source](/reference-sources/Text.Regex.cinch) · line 1322
+</div>
+</article>
 
-<a id="value-72656765782d657363617065"></a>
-
-## `regex-escape`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-escape</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-regex-escape">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-escape</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-regex-escape" title="Permalink">#</a><a href="/library/source/Text.Regex/#L945" title="View source at line 945">Source</a></span></div>
+<div class="doc-body">
 
 Escape the regex metacharacters in a literal string, so the
 result matches exactly that string (Ruby's Regexp.escape).
 
-[Source](/reference-sources/Text.Regex.cinch) · line 945
+</div>
+</article>
 
-<a id="value-72656765782d6d61746368"></a>
-
-## `regex-match`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-match</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>)))</code></pre>
+<article class="doc-entry" id="v-regex-match">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-match</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a></code><span class="doc-sig-links"><a href="#v-regex-match" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1230" title="View source at line 1230">Source</a></span></div>
+<div class="doc-body">
 
 The leftmost-first match of the pattern anywhere in the string.
 
-[Source](/reference-sources/Text.Regex.cinch) · line 1230
+</div>
+</article>
 
-<a id="value-72656765782d6d617463682d636f756e746564"></a>
-
-## `regex-match-counted`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-match-counted</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>), <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-regex-match-counted">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-match-counted</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-regex-match-counted" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1235" title="View source at line 1235">Source</a></span></div>
+<div class="doc-body">
 
 The match and the engine's VM dispatch count (the ReDoS pin:
 this counter is the wall-clock-independent measure of work).
 
-[Source](/reference-sources/Text.Regex.cinch) · line 1235
+</div>
+</article>
 
-<a id="value-72656765782d7265706c6163652d616c6c"></a>
-
-## `regex-replace-all`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-all</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-regex-replace-all">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-replace-all</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-regex-replace-all" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1327" title="View source at line 1327">Source</a></span></div>
+<div class="doc-body">
 
 Replace every match with `f` applied to it (the text between
 matches is copied through unchanged).
 
-[Source](/reference-sources/Text.Regex.cinch) · line 1327
+</div>
+</article>
 
-<a id="value-72656765782d7265706c6163652d616c6c2d74656d706c617465"></a>
+<article class="doc-entry" id="v-regex-replace-all-template">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-replace-all-template</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-regex-replace-all-template" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1352" title="View source at line 1352">Source</a></span></div>
+</article>
 
-## `regex-replace-all-template`
+<article class="doc-entry" id="v-regex-replace-first">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-replace-first</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-regex-replace-first" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1332" title="View source at line 1332">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-all-template</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-regex-replace-first-template">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-replace-first-template</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-regex-replace-first-template" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1357" title="View source at line 1357">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Regex.cinch)
-
-<a id="value-72656765782d7265706c6163652d6669727374"></a>
-
-## `regex-replace-first`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-first</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; ((<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
-
-<a id="value-72656765782d7265706c6163652d66697273742d74656d706c617465"></a>
-
-## `regex-replace-first-template`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-replace-first-template</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
-
-<a id="value-72656765782d7363616e"></a>
-
-## `regex-scan`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-scan</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>)))</code></pre>
+<article class="doc-entry" id="v-regex-scan">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-scan</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a></code><span class="doc-sig-links"><a href="#v-regex-scan" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1268" title="View source at line 1268">Source</a></span></div>
+<div class="doc-body">
 
 The scanning family: every non-overlapping match left to right.
 After a non-empty match the scan resumes at its end; after an
@@ -312,48 +231,39 @@ empty match it resumes one scalar later; an empty match at the
 end of the subject is the last one. (This is the traversal Ruby
 documents for String#scan.)
 
-[Source](/reference-sources/Text.Regex.cinch) · line 1268
+</div>
+</article>
 
-<a id="value-72656765782d7363616e2d7465787473"></a>
+<article class="doc-entry" id="v-regex-scan-texts">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-scan-texts</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-regex-scan-texts" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1292" title="View source at line 1292">Source</a></span></div>
+</article>
 
-## `regex-scan-texts`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-scan-texts</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
-
-<a id="value-72656765782d7365617263682d66726f6d"></a>
-
-## `regex-search-from`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-search-from</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Match</span>))))</code></pre>
+<article class="doc-entry" id="v-regex-search-from">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-search-from</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Match" title="Text.Regex.Match">Match</a></code><span class="doc-sig-links"><a href="#v-regex-search-from" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1247" title="View source at line 1247">Source</a></span></div>
+<div class="doc-body">
 
 The leftmost-first match starting at or after byte offset
 `from` (`^` still means the text start; `from` only bounds
 where matches may begin).
 
-[Source](/reference-sources/Text.Regex.cinch) · line 1247
+</div>
+</article>
 
-<a id="value-72656765782d73706c6974"></a>
-
-## `regex-split`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">regex-split</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">Regex</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-regex-split">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">regex-split</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-Regex" title="Text.Regex.Regex">Regex</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-regex-split" title="Permalink">#</a><a href="/library/source/Text.Regex/#L1303" title="View source at line 1303">Source</a></span></div>
+<div class="doc-body">
 
 Split at every match (the separators are removed; a captured
 group is not echoed into the output). Trailing empty pieces are
 dropped, Ruby's default.
 
-[Source](/reference-sources/Text.Regex.cinch) · line 1303
+</div>
+</article>
 
-<a id="value-72656e6465722d72656765782d6572726f72"></a>
-
-## `render-regex-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-regex-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Regex</span>.<span class="tok-constructor">RegexError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Regex.cinch)
+<article class="doc-entry" id="v-render-regex-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-regex-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-regex-error" title="Permalink">#</a><a href="/library/source/Text.Regex/#L224" title="View source at line 224">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Regex.cinch`. Source SHA-256: `35adaa7be29d6731181e5e84054b4ef90fa7a40623ae9fe6a1cc2b962b27f9d1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Regex.cinch`](/library/source/Text.Regex/). Source SHA-256: `35adaa7be29d6731181e5e84054b4ef90fa7a40623ae9fe6a1cc2b962b27f9d1`.

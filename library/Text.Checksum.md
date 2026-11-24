@@ -2,19 +2,25 @@
 
 Incremental Adler-32, CRC-32 and CRC-64 checksums with explicit reflected polynomials.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Checksum</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Checksum/">View source</a><a href="/library/search/?q=%2BText.Checksum">Search module</a><a href="/reference-sources/Text.Checksum.cinch" download="Text.Checksum.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Checksum`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Text.Adler32](Text.Adler32.md), [Text.Crc64](Text.Crc64.md).
 
-[Download exact module source](/reference-sources/Text.Checksum.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (5 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Checksum`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Text.Adler32](Text.Adler32.md), [Text.Crc64](Text.Crc64.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Adler32.cinch ./Text.Adler32.cinch
+cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
+cp seed/prelude/Text/Checksum.cinch ./Text.Checksum.cinch
+cp seed/prelude/Text/Crc64.cinch ./Text.Crc64.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Adler32](Text.Adler32.md), [Text.Binary](Text.Binary.md), [Text.Checksum](Text.Checksum.md), [Text.Crc64](Text.Crc64.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Incremental Adler-32, CRC-32 and CRC-64 checksums over byte buffers.
 Updates accept finished checksums: updating the checksum of a prefix with a
@@ -27,144 +33,133 @@ inline LLVM shift registers. These checksums do not authenticate messages.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-ArmCrc32">ArmCrc32</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ArmCrc32</strong></code></li><li><a class="syn-name" href="#v-adler32-sum">adler32-sum</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">adler32-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-adler32-update">adler32-update</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">adler32-update</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-crc32-castagnoli">crc32-castagnoli</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc32-castagnoli</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-crc32-ieee">crc32-ieee</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc32-ieee</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-crc32-koopman">crc32-koopman</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc32-koopman</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-crc32-sum">crc32-sum</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc32-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-crc32-update">crc32-update</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc32-update</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-crc32-with">crc32-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc32-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-crc64-ecma">crc64-ecma</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc64-ecma</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-crc64-iso">crc64-iso</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc64-iso</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-crc64-sum">crc64-sum</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc64-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code></li><li><a class="syn-name" href="#v-crc64-update">crc64-update</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc64-update</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-41726d4372633332"></a>
-
-## `ArmCrc32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">ArmCrc32</span> </code></pre>
+<article class="doc-entry" id="c-ArmCrc32">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ArmCrc32</strong></code><span class="doc-sig-links"><a href="#c-ArmCrc32" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L26" title="View source at line 26">Source</a></span></div>
+<div class="doc-body">
 
 Target-profile evidence that AArch64 CRC instructions may execute.
 Only profiles that guarantee the CRC extension should name this capability.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 26
+</div>
+</article>
 
 # Values
 
-<a id="value-61646c657233322d73756d"></a>
-
-## `adler32-sum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">adler32-sum</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-adler32-sum">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">adler32-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-adler32-sum" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L31" title="View source at line 31">Source</a></span></div>
+<div class="doc-body">
 
 Compute Adler-32 over all input bytes, starting at the standard state 1. The empty checksum is 1.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 31
+</div>
+</article>
 
-<a id="value-61646c657233322d757064617465"></a>
-
-## `adler32-update`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">adler32-update</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
+<article class="doc-entry" id="v-adler32-update">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">adler32-update</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-adler32-update" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
 
 Continue a finished Adler-32 checksum with another chunk. Empty input preserves the supplied state.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 35
+</div>
+</article>
 
-<a id="value-63726333322d6361737461676e6f6c69"></a>
-
-## `crc32-castagnoli`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc32-castagnoli</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-crc32-castagnoli">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc32-castagnoli</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-crc32-castagnoli" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L43" title="View source at line 43">Source</a></span></div>
+<div class="doc-body">
 
 The reflected Castagnoli CRC-32C polynomial, 0x82F63B78.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 43
+</div>
+</article>
 
-<a id="value-63726333322d69656565"></a>
-
-## `crc32-ieee`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc32-ieee</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-crc32-ieee">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc32-ieee</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-crc32-ieee" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 The reflected IEEE CRC-32 polynomial, 0xEDB88320.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 39
+</div>
+</article>
 
-<a id="value-63726333322d6b6f6f706d616e"></a>
-
-## `crc32-koopman`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc32-koopman</span> :: <span class="tok-constructor">U32</span></code></pre>
+<article class="doc-entry" id="v-crc32-koopman">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc32-koopman</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-crc32-koopman" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 The reflected Koopman CRC-32 polynomial, 0xEB31D82E.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 47
+</div>
+</article>
 
-<a id="value-63726333322d73756d"></a>
-
-## `crc32-sum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc32-sum</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-crc32-sum">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc32-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-crc32-sum" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 Compute the IEEE CRC-32 checksum. The empty checksum is zero.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 51
+</div>
+</article>
 
-<a id="value-63726333322d757064617465"></a>
-
-## `crc32-update`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc32-update</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>)))</code></pre>
+<article class="doc-entry" id="v-crc32-update">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc32-update</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-crc32-update" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 Continue a finished CRC-32 with another chunk. Arguments are reflected polynomial, previous checksum, and bytes; initial/final complementing is internal.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 59
+</div>
+</article>
 
-<a id="value-63726333322d77697468"></a>
-
-## `crc32-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc32-with</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>))</code></pre>
+<article class="doc-entry" id="v-crc32-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc32-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-crc32-with" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 Compute CRC-32 with the supplied reflected polynomial, starting from the finished state zero.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 55
+</div>
+</article>
 
-<a id="value-63726336342d65636d61"></a>
-
-## `crc64-ecma`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc64-ecma</span> :: <span class="tok-constructor">U64</span></code></pre>
+<article class="doc-entry" id="v-crc64-ecma">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc64-ecma</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-crc64-ecma" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L88" title="View source at line 88">Source</a></span></div>
+<div class="doc-body">
 
 The reflected ECMA CRC-64 polynomial, 0xC96C5795D7870F42.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 88
+</div>
+</article>
 
-<a id="value-63726336342d69736f"></a>
-
-## `crc64-iso`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc64-iso</span> :: <span class="tok-constructor">U64</span></code></pre>
+<article class="doc-entry" id="v-crc64-iso">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc64-iso</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-crc64-iso" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-body">
 
 The reflected ISO CRC-64 polynomial, 0xD800000000000000.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 84
+</div>
+</article>
 
-<a id="value-63726336342d73756d"></a>
-
-## `crc64-sum`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc64-sum</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U64</span>))</code></pre>
+<article class="doc-entry" id="v-crc64-sum">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc64-sum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-crc64-sum" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L93" title="View source at line 93">Source</a></span></div>
+<div class="doc-body">
 
 Compute CRC-64 with a supplied reflected polynomial. Empty input yields zero.
 Reuse a prepared Text.Crc64 table when processing many chunks of one polynomial.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 93
+</div>
+</article>
 
-<a id="value-63726336342d757064617465"></a>
-
-## `crc64-update`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc64-update</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U64</span>)))</code></pre>
+<article class="doc-entry" id="v-crc64-update">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc64-update</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a></code><span class="doc-sig-links"><a href="#v-crc64-update" title="Permalink">#</a><a href="/library/source/Text.Checksum/#L97" title="View source at line 97">Source</a></span></div>
+<div class="doc-body">
 
 Continue a finished CRC-64 with the same reflected polynomial and additional bytes.
 
-[Source](/reference-sources/Text.Checksum.cinch) · line 97
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Checksum.cinch`. Source SHA-256: `6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Checksum.cinch`](/library/source/Text.Checksum/). Source SHA-256: `6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684`.

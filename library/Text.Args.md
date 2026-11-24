@@ -2,19 +2,21 @@
 
 Command-line argument processing and its named value/error vocabulary.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Args</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Args/">View source</a><a href="/library/search/?q=%2BText.Args">Search module</a><a href="/reference-sources/Text.Args.cinch" download="Text.Args.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Args`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Text.Args.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Args`: [Text.Args](Text.Args.md).
 
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bool](Data.Bool.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+```sh
+cp seed/prelude/Text/Args.cinch ./Text.Args.cinch
+```
 
-Non-embedded source closure: [Text.Args](Text.Args.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Args: CLI argument parsing over an argv-shaped `List String`.
 
@@ -48,135 +50,99 @@ implement; each is a named boundary, never a silent gap):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (11 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ArgSpec">ArgSpec</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ArgSpec</strong></code></li><li><a class="syn-name" href="#t-Args">Args</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Args</strong></code></li><li><a class="syn-name" href="#t-ArgsError">ArgsError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ArgsError</strong></code></li><li><a class="syn-name" href="#t-OptVal">OptVal</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">OptVal</strong></code></li><li><a class="syn-name" href="#v-args-options">args-options</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">args-options</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-OptVal" title="Text.Args.OptVal">OptVal</a></code></li><li><a class="syn-name" href="#v-args-values">args-values</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">args-values</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-opt-name">opt-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">opt-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-OptVal" title="Text.Args.OptVal">OptVal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-opt-value">opt-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">opt-value</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-OptVal" title="Text.Args.OptVal">OptVal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-parse-args">parse-args</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-args</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgSpec" title="Text.Args.ArgSpec">ArgSpec</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgsError" title="Text.Args.ArgsError">ArgsError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a></code></li><li><a class="syn-name" href="#v-render-args-error">render-args-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-args-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgsError" title="Text.Args.ArgsError">ArgsError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-render-argv">render-argv</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-argv</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-41726753706563"></a>
+# Types
 
-## `ArgSpec`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ArgSpec</span></code></pre>
+<article class="doc-entry" id="t-ArgSpec">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ArgSpec</strong></code><span class="doc-sig-links"><a href="#t-ArgSpec" title="Permalink">#</a><a href="/library/source/Text.Args/#L52" title="View source at line 52">Source</a></span></div>
+<div class="doc-body">
 
 One option's spec: a flag (no value), a value option, or a
 required wrapper around either.
 
-[Source](/reference-sources/Text.Args.cinch) · line 52
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-FlagSpec"><code><strong class="tok-constructor">FlagSpec</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgSpec" title="Text.Args.ArgSpec">ArgSpec</a></code></li><li id="k-ValueSpec"><code><strong class="tok-constructor">ValueSpec</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgSpec" title="Text.Args.ArgSpec">ArgSpec</a></code></li><li id="k-Required"><code><strong class="tok-constructor">Required</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgSpec" title="Text.Args.ArgSpec">ArgSpec</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgSpec" title="Text.Args.ArgSpec">ArgSpec</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">FlagSpec</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ValueSpec</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Required</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span>)</code></pre>
-
-<a id="type-41726773"></a>
-
-## `Args`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Args</span></code></pre>
+<article class="doc-entry" id="t-Args">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Args</strong></code><span class="doc-sig-links"><a href="#t-Args" title="Permalink">#</a><a href="/library/source/Text.Args/#L72" title="View source at line 72">Source</a></span></div>
+<div class="doc-body">
 
 The parse result: the option occurrences in argv order and the
 positional values in argv order.
 
-[Source](/reference-sources/Text.Args.cinch) · line 72
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Args"><code><strong class="tok-constructor">Args</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-OptVal" title="Text.Args.OptVal">OptVal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Args</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span>))</code></pre>
-
-<a id="type-417267734572726f72"></a>
-
-## `ArgsError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ArgsError</span></code></pre>
+<article class="doc-entry" id="t-ArgsError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ArgsError</strong></code><span class="doc-sig-links"><a href="#t-ArgsError" title="Permalink">#</a><a href="/library/source/Text.Args/#L86" title="View source at line 86">Source</a></span></div>
+<div class="doc-body">
 
 The named errors: an option the specs do not know, a value option
 without its value, a value on a flag, a required spec that did
 not occur.
 
-[Source](/reference-sources/Text.Args.cinch) · line 86
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-UnknownOption"><code><strong class="tok-constructor">UnknownOption</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgsError" title="Text.Args.ArgsError">ArgsError</a></code></li><li id="k-MissingValue"><code><strong class="tok-constructor">MissingValue</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgsError" title="Text.Args.ArgsError">ArgsError</a></code></li><li id="k-UnexpectedValue"><code><strong class="tok-constructor">UnexpectedValue</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgsError" title="Text.Args.ArgsError">ArgsError</a></code></li><li id="k-MissingRequired"><code><strong class="tok-constructor">MissingRequired</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgsError" title="Text.Args.ArgsError">ArgsError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnknownOption</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingValue</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedValue</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingRequired</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span>)</code></pre>
-
-<a id="type-4f707456616c"></a>
-
-## `OptVal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">OptVal</span></code></pre>
+<article class="doc-entry" id="t-OptVal">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">OptVal</strong></code><span class="doc-sig-links"><a href="#t-OptVal" title="Permalink">#</a><a href="/library/source/Text.Args/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 One option occurrence: its name and its value (a flag's value is
 `None`).
 
-[Source](/reference-sources/Text.Args.cinch) · line 59
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OptVal</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-OptVal"><code><strong class="tok-constructor">OptVal</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-OptVal" title="Text.Args.OptVal">OptVal</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-617267732d6f7074696f6e73"></a>
+<article class="doc-entry" id="v-args-options">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">args-options</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-OptVal" title="Text.Args.OptVal">OptVal</a></code><span class="doc-sig-links"><a href="#v-args-options" title="Permalink">#</a><a href="/library/source/Text.Args/#L75" title="View source at line 75">Source</a></span></div>
+</article>
 
-## `args-options`
+<article class="doc-entry" id="v-args-values">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">args-values</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-args-values" title="Permalink">#</a><a href="/library/source/Text.Args/#L79" title="View source at line 79">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">args-options</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span>))</code></pre>
+<article class="doc-entry" id="v-opt-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">opt-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-OptVal" title="Text.Args.OptVal">OptVal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-opt-name" title="Permalink">#</a><a href="/library/source/Text.Args/#L62" title="View source at line 62">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Args.cinch)
+<article class="doc-entry" id="v-opt-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">opt-value</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-OptVal" title="Text.Args.OptVal">OptVal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-opt-value" title="Permalink">#</a><a href="/library/source/Text.Args/#L66" title="View source at line 66">Source</a></span></div>
+</article>
 
-<a id="value-617267732d76616c756573"></a>
-
-## `args-values`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">args-values</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Args.cinch)
-
-<a id="value-6f70742d6e616d65"></a>
-
-## `opt-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">opt-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Args.cinch)
-
-<a id="value-6f70742d76616c7565"></a>
-
-## `opt-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">opt-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">OptVal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Args.cinch)
-
-<a id="value-70617273652d61726773"></a>
-
-## `parse-args`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-args</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgSpec</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span>)))</code></pre>
+<article class="doc-entry" id="v-parse-args">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-args</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgSpec" title="Text.Args.ArgSpec">ArgSpec</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgsError" title="Text.Args.ArgsError">ArgsError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a></code><span class="doc-sig-links"><a href="#v-parse-args" title="Permalink">#</a><a href="/library/source/Text.Args/#L124" title="View source at line 124">Source</a></span></div>
+<div class="doc-body">
 
 The argv walk: options and values accumulate in order; `--` ends
 the options.
 
-[Source](/reference-sources/Text.Args.cinch) · line 124
+</div>
+</article>
 
-<a id="value-72656e6465722d617267732d6572726f72"></a>
+<article class="doc-entry" id="v-render-args-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-args-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-ArgsError" title="Text.Args.ArgsError">ArgsError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-args-error" title="Permalink">#</a><a href="/library/source/Text.Args/#L92" title="View source at line 92">Source</a></span></div>
+</article>
 
-## `render-args-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-args-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">ArgsError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Args.cinch)
-
-<a id="value-72656e6465722d61726776"></a>
-
-## `render-argv`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-argv</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Args</span>.<span class="tok-constructor">Args</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-render-argv">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-argv</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Args/#t-Args" title="Text.Args.Args">Args</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-argv" title="Permalink">#</a><a href="/library/source/Text.Args/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 The canonical argv of one parse: `--name=value` per value
 occurrence, `--name` per flag, then the positional values.
 
-[Source](/reference-sources/Text.Args.cinch) · line 202
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Args.cinch`. Source SHA-256: `106fb5aa92d80c508d1047542d28cd0409801cf136e2a03c299532ccfa156496`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Args.cinch`](/library/source/Text.Args/). Source SHA-256: `106fb5aa92d80c508d1047542d28cd0409801cf136e2a03c299532ccfa156496`.

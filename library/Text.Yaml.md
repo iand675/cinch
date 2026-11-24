@@ -2,19 +2,21 @@
 
 The module's supported YAML subset, structured values, and named parse errors; not an assertion of every YAML feature.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Yaml</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Yaml/">View source</a><a href="/library/search/?q=%2BText.Yaml">Search module</a><a href="/reference-sources/Text.Yaml.cinch" download="Text.Yaml.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Yaml`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Yaml.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Yaml`: [Text.Yaml](Text.Yaml.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.Json](Data.Json.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Text/Yaml.cinch ./Text.Yaml.cinch
+```
 
-Non-embedded source closure: [Text.Yaml](Text.Yaml.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Yaml: the YAML safe data subset: text to `Json` values and back.
 
@@ -108,125 +110,81 @@ functions.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (9 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-YamlError">YamlError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">YamlError</strong></code></li><li><a class="syn-name" href="#t-YamlErrorKind">YamlErrorKind</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">YamlErrorKind</strong></code></li><li><a class="syn-name" href="#v-render-yaml-error">render-yaml-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-yaml-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-yaml-error-column">yaml-error-column</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">yaml-error-column</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-yaml-error-kind">yaml-error-kind</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">yaml-error-kind</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li><a class="syn-name" href="#v-yaml-error-line">yaml-error-line</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">yaml-error-line</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-yaml-error-message">yaml-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">yaml-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-yaml-parse">yaml-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">yaml-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li><a class="syn-name" href="#v-yaml-print">yaml-print</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">yaml-print</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-59616d6c4572726f72"></a>
+# Types
 
-## `YamlError`
+<article class="doc-entry" id="t-YamlError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">YamlError</strong></code><span class="doc-sig-links"><a href="#t-YamlError" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L134" title="View source at line 134">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-YamlError"><code><strong class="tok-constructor">YamlError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">YamlError</span></code></pre>
-
-[Source](/reference-sources/Text.Yaml.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlError</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span>))))</code></pre>
-
-<a id="type-59616d6c4572726f724b696e64"></a>
-
-## `YamlErrorKind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">YamlErrorKind</span></code></pre>
+<article class="doc-entry" id="t-YamlErrorKind">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">YamlErrorKind</strong></code><span class="doc-sig-links"><a href="#t-YamlErrorKind" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L119" title="View source at line 119">Source</a></span></div>
+<div class="doc-body">
 
 The error vocabulary: a named kind, the position, and the text the
 refusal is about.
 
-[Source](/reference-sources/Text.Yaml.cinch) · line 119
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlSyntaxError</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlIndentationError</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUnsupportedTag</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlObjectTag</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlMergeKey</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlMultiDocument</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUndefinedAlias</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlAliasCycle</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlDirective</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlComplexKey</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlDuplicateKey</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">YamlUnsupportedScalar</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-YamlSyntaxError"><code><strong class="tok-constructor">YamlSyntaxError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlIndentationError"><code><strong class="tok-constructor">YamlIndentationError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlUnsupportedTag"><code><strong class="tok-constructor">YamlUnsupportedTag</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlObjectTag"><code><strong class="tok-constructor">YamlObjectTag</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlMergeKey"><code><strong class="tok-constructor">YamlMergeKey</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlMultiDocument"><code><strong class="tok-constructor">YamlMultiDocument</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlUndefinedAlias"><code><strong class="tok-constructor">YamlUndefinedAlias</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlAliasCycle"><code><strong class="tok-constructor">YamlAliasCycle</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlDirective"><code><strong class="tok-constructor">YamlDirective</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlComplexKey"><code><strong class="tok-constructor">YamlComplexKey</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlDuplicateKey"><code><strong class="tok-constructor">YamlDuplicateKey</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li><li id="k-YamlUnsupportedScalar"><code><strong class="tok-constructor">YamlUnsupportedScalar</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Text.Yaml/#instances">Text.Yaml</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-72656e6465722d79616d6c2d6572726f72"></a>
+<article class="doc-entry" id="v-render-yaml-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-yaml-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-yaml-error" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L168" title="View source at line 168">Source</a></span></div>
+</article>
 
-## `render-yaml-error`
+<article class="doc-entry" id="v-yaml-error-column">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">yaml-error-column</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-yaml-error-column" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L144" title="View source at line 144">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-yaml-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-yaml-error-kind">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">yaml-error-kind</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code><span class="doc-sig-links"><a href="#v-yaml-error-kind" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L136" title="View source at line 136">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Yaml.cinch)
+<article class="doc-entry" id="v-yaml-error-line">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">yaml-error-line</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-yaml-error-line" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L140" title="View source at line 140">Source</a></span></div>
+</article>
 
-<a id="value-79616d6c2d6572726f722d636f6c756d6e"></a>
+<article class="doc-entry" id="v-yaml-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">yaml-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-yaml-error-message" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L148" title="View source at line 148">Source</a></span></div>
+</article>
 
-## `yaml-error-column`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-column</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Yaml.cinch)
-
-<a id="value-79616d6c2d6572726f722d6b696e64"></a>
-
-## `yaml-error-kind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-kind</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlErrorKind</span>)</code></pre>
-
-[Source](/reference-sources/Text.Yaml.cinch)
-
-<a id="value-79616d6c2d6572726f722d6c696e65"></a>
-
-## `yaml-error-line`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-line</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Yaml.cinch)
-
-<a id="value-79616d6c2d6572726f722d6d657373616765"></a>
-
-## `yaml-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Yaml.cinch)
-
-<a id="value-79616d6c2d7061727365"></a>
-
-## `yaml-parse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Yaml</span>.<span class="tok-constructor">YamlError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>))</code></pre>
+<article class="doc-entry" id="v-yaml-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">yaml-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlError" title="Text.Yaml.YamlError">YamlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#v-yaml-parse" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L1726" title="View source at line 1726">Source</a></span></div>
+<div class="doc-body">
 
 The two surface functions.
 
-[Source](/reference-sources/Text.Yaml.cinch) · line 1726
+</div>
+</article>
 
-<a id="value-79616d6c2d7072696e74"></a>
-
-## `yaml-print`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">yaml-print</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-yaml-print">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">yaml-print</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-yaml-print" title="Permalink">#</a><a href="/library/source/Text.Yaml/#L1573" title="View source at line 1573">Source</a></span></div>
+<div class="doc-body">
 
 Printing: block style, indentation carries the structure. Total
 (the header's law), so an ill-formed spine prints as one trailing
 item or entry under the empty key, like Text.Json's printer.
 
-[Source](/reference-sources/Text.Yaml.cinch) · line 1573
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Text.Yaml.Eq_YamlErrorKind` | `Relation.Eq.Eq Text.Yaml.YamlErrorKind` | Implicit |
+<ul class="doc-module-instances">
+<li id="i-Eq_YamlErrorKind"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Yaml.Eq_YamlErrorKind</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Yaml.cinch`. Source SHA-256: `1254ed227cac5d100c4132baa92d4ce0773cc78fd1669b269d022f2d5618e7d8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Yaml.cinch`](/library/source/Text.Yaml/). Source SHA-256: `1254ed227cac5d100c4132baa92d4ce0773cc78fd1669b269d022f2d5618e7d8`.

@@ -2,19 +2,22 @@
 
 Decode XML into namespace-aware tokens or element trees and encode tokens with escaping and indentation.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Xml</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Xml/">View source</a><a href="/library/search/?q=%2BText.Xml">Search module</a><a href="/reference-sources/Text.Xml.cinch" download="Text.Xml.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Xml`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Xml.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Xml`: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Xml](Text.Xml.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Text/Xml.cinch ./Text.Xml.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Xml](Text.Xml.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 XML 1.0 tokenizing, namespace-aware decoding, encoding and element trees.
 The decoder is an explicit state machine over the input bytes: each step
@@ -33,384 +36,320 @@ An element tree (a sibling spine of nodes) can be built from a document.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (33 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-XmlAttr">XmlAttr</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlAttr</strong></code></li><li><a class="syn-name" href="#t-XmlDecoder">XmlDecoder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlDecoder</strong></code></li><li><a class="syn-name" href="#t-XmlEncoder">XmlEncoder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlEncoder</strong></code></li><li><a class="syn-name" href="#t-XmlError">XmlError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlError</strong></code></li><li><a class="syn-name" href="#t-XmlName">XmlName</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlName</strong></code></li><li><a class="syn-name" href="#t-XmlNode">XmlNode</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlNode</strong></code></li><li><a class="syn-name" href="#t-XmlToken">XmlToken</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlToken</strong></code></li><li><a class="syn-name" href="#v-xml-attr">xml-attr</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-attr</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a></code></li><li><a class="syn-name" href="#v-xml-attr-name">xml-attr-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-attr-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a></code></li><li><a class="syn-name" href="#v-xml-attr-value">xml-attr-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-attr-value</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-xml-attribute">xml-attribute</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-attribute</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-xml-child-elements">xml-child-elements</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-child-elements</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li><li><a class="syn-name" href="#v-xml-decoder">xml-decoder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-decoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a></code></li><li><a class="syn-name" href="#v-xml-decoder-offset">xml-decoder-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-decoder-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-xml-decoder-with-depth-limit">xml-decoder-with-depth-limit</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-decoder-with-depth-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a></code></li><li><a class="syn-name" href="#v-xml-document">xml-document</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-document</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li><li><a class="syn-name" href="#v-xml-encode">xml-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-xml-encode-token">xml-encode-token</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-encode-token</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a></code></li><li><a class="syn-name" href="#v-xml-encoder">xml-encoder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-encoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a></code></li><li><a class="syn-name" href="#v-xml-encoder-close">xml-encoder-close</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-encoder-close</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-xml-encoder-indent">xml-encoder-indent</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-encoder-indent</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a></code></li><li><a class="syn-name" href="#v-xml-error-message">xml-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-xml-escape-attribute">xml-escape-attribute</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-escape-attribute</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-xml-escape-text">xml-escape-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-xml-name">xml-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a></code></li><li><a class="syn-name" href="#v-xml-name-local">xml-name-local</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-name-local</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-xml-name-space">xml-name-space</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-name-space</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-xml-next">xml-next</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-next</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a>))</code></li><li><a class="syn-name" href="#v-xml-next-raw">xml-next-raw</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-next-raw</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a>))</code></li><li><a class="syn-name" href="#v-xml-nodes">xml-nodes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-nodes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li><li><a class="syn-name" href="#v-xml-render">xml-render</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-render</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-xml-text">xml-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-xml-tokens">xml-tokens</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">xml-tokens</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a>)</code></li></ul>
+</details>
 
-<a id="type-586d6c41747472"></a>
+# Types
 
-## `XmlAttr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">XmlAttr</span></code></pre>
+<article class="doc-entry" id="t-XmlAttr">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlAttr</strong></code><span class="doc-sig-links"><a href="#t-XmlAttr" title="Permalink">#</a><a href="/library/source/Text.Xml/#L58" title="View source at line 58">Source</a></span></div>
+<div class="doc-body">
 
 Name, then value.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 58
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-XmlAttr"><code><strong class="tok-constructor">XmlAttr</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlAttr</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span>))</code></pre>
-
-<a id="type-586d6c4465636f646572"></a>
-
-## `XmlDecoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">XmlDecoder</span></code></pre>
+<article class="doc-entry" id="t-XmlDecoder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlDecoder</strong></code><span class="doc-sig-links"><a href="#t-XmlDecoder" title="Permalink">#</a><a href="/library/source/Text.Xml/#L127" title="View source at line 127">Source</a></span></div>
+<div class="doc-body">
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 127
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-XmlDecoder"><code><strong class="tok-constructor">XmlDecoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-constructor">Frame</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlDecoder</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">Frame</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span>))))))</code></pre>
-
-<a id="type-586d6c456e636f646572"></a>
-
-## `XmlEncoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">XmlEncoder</span></code></pre>
+<article class="doc-entry" id="t-XmlEncoder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlEncoder</strong></code><span class="doc-sig-links"><a href="#t-XmlEncoder" title="Permalink">#</a><a href="/library/source/Text.Xml/#L677" title="View source at line 677">Source</a></span></div>
+<div class="doc-body">
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 677
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-XmlEncoder"><code><strong class="tok-constructor">XmlEncoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlEncoder</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span>)))))))))))</code></pre>
-
-<a id="type-586d6c4572726f72"></a>
-
-## `XmlError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">XmlError</span></code></pre>
+<article class="doc-entry" id="t-XmlError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlError</strong></code><span class="doc-sig-links"><a href="#t-XmlError" title="Permalink">#</a><a href="/library/source/Text.Xml/#L88" title="View source at line 88">Source</a></span></div>
+<div class="doc-body">
 
 Why decoding or encoding failed.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 88
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-XmlSyntaxError"><code><strong class="tok-constructor">XmlSyntaxError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a></code></li><li id="k-XmlUnsupportedVersion"><code><strong class="tok-constructor">XmlUnsupportedVersion</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a></code></li><li id="k-XmlUnsupportedEncoding"><code><strong class="tok-constructor">XmlUnsupportedEncoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a></code></li><li id="k-XmlDepthLimit"><code><strong class="tok-constructor">XmlDepthLimit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a></code></li><li id="k-XmlEncodeError"><code><strong class="tok-constructor">XmlEncodeError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlSyntaxError</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlUnsupportedVersion</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlUnsupportedEncoding</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlDepthLimit</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlEncodeError</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span>)</code></pre>
-
-<a id="type-586d6c4e616d65"></a>
-
-## `XmlName`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">XmlName</span></code></pre>
+<article class="doc-entry" id="t-XmlName">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlName</strong></code><span class="doc-sig-links"><a href="#t-XmlName" title="Permalink">#</a><a href="/library/source/Text.Xml/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 Namespace, then local part.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 41
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-XmlName"><code><strong class="tok-constructor">XmlName</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlName</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span>))</code></pre>
-
-<a id="type-586d6c4e6f6465"></a>
-
-## `XmlNode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">XmlNode</span></code></pre>
+<article class="doc-entry" id="t-XmlNode">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlNode</strong></code><span class="doc-sig-links"><a href="#t-XmlNode" title="Permalink">#</a><a href="/library/source/Text.Xml/#L924" title="View source at line 924">Source</a></span></div>
+<div class="doc-body">
 
 A node in a sibling spine: each node holds the rest of its spine, and an element also holds the spine of
 its children.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 924
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-XmlElementNode"><code><strong class="tok-constructor">XmlElementNode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li><li id="k-XmlTextNode"><code><strong class="tok-constructor">XmlTextNode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li><li id="k-XmlCommentNode"><code><strong class="tok-constructor">XmlCommentNode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li><li id="k-XmlProcInstNode"><code><strong class="tok-constructor">XmlProcInstNode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li><li id="k-XmlDirectiveNode"><code><strong class="tok-constructor">XmlDirectiveNode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li><li id="k-XmlNodesEnd"><code><strong class="tok-constructor">XmlNodesEnd</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlElementNode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>))))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlTextNode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlCommentNode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlProcInstNode</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>)))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlDirectiveNode</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlNodesEnd</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span></code></pre>
-
-<a id="type-586d6c546f6b656e"></a>
-
-## `XmlToken`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">XmlToken</span></code></pre>
+<article class="doc-entry" id="t-XmlToken">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">XmlToken</strong></code><span class="doc-sig-links"><a href="#t-XmlToken" title="Permalink">#</a><a href="/library/source/Text.Xml/#L73" title="View source at line 73">Source</a></span></div>
+<div class="doc-body">
 
 One unit of an XML document.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 73
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlStartElement</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlEndElement</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlCharData</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlComment</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlProcInst</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">XmlDirective</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-XmlStartElement"><code><strong class="tok-constructor">XmlStartElement</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a></code></li><li id="k-XmlEndElement"><code><strong class="tok-constructor">XmlEndElement</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a></code></li><li id="k-XmlCharData"><code><strong class="tok-constructor">XmlCharData</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a></code></li><li id="k-XmlComment"><code><strong class="tok-constructor">XmlComment</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a></code></li><li id="k-XmlProcInst"><code><strong class="tok-constructor">XmlProcInst</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a></code></li><li id="k-XmlDirective"><code><strong class="tok-constructor">XmlDirective</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-786d6c2d61747472"></a>
-
-## `xml-attr`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-attr</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span>))</code></pre>
+<article class="doc-entry" id="v-xml-attr">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-attr</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a></code><span class="doc-sig-links"><a href="#v-xml-attr" title="Permalink">#</a><a href="/library/source/Text.Xml/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Make an attribute.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 61
+</div>
+</article>
 
-<a id="value-786d6c2d617474722d6e616d65"></a>
-
-## `xml-attr-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-attr-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span>)</code></pre>
+<article class="doc-entry" id="v-xml-attr-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-attr-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a></code><span class="doc-sig-links"><a href="#v-xml-attr-name" title="Permalink">#</a><a href="/library/source/Text.Xml/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 An attribute's name.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 65
+</div>
+</article>
 
-<a id="value-786d6c2d617474722d76616c7565"></a>
-
-## `xml-attr-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-attr-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlAttr</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-xml-attr-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-attr-value</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlAttr" title="Text.Xml.XmlAttr">XmlAttr</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-xml-attr-value" title="Permalink">#</a><a href="/library/source/Text.Xml/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 An attribute's value.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 69
+</div>
+</article>
 
-<a id="value-786d6c2d617474726962757465"></a>
-
-## `xml-attribute`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-attribute</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-xml-attribute">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-attribute</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-xml-attribute" title="Permalink">#</a><a href="/library/source/Text.Xml/#L1014" title="View source at line 1014">Source</a></span></div>
+<div class="doc-body">
 
 The value of an element's attribute with a local name and no namespace.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 1014
+</div>
+</article>
 
-<a id="value-786d6c2d6368696c642d656c656d656e7473"></a>
-
-## `xml-child-elements`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-child-elements</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>)))</code></pre>
+<article class="doc-entry" id="v-xml-child-elements">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-child-elements</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code><span class="doc-sig-links"><a href="#v-xml-child-elements" title="Permalink">#</a><a href="/library/source/Text.Xml/#L1000" title="View source at line 1000">Source</a></span></div>
+<div class="doc-body">
 
 The child elements of an element with a local name (any namespace), in order.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 1000
+</div>
+</article>
 
-<a id="value-786d6c2d6465636f646572"></a>
-
-## `xml-decoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-decoder</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span>)</code></pre>
+<article class="doc-entry" id="v-xml-decoder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-decoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a></code><span class="doc-sig-links"><a href="#v-xml-decoder" title="Permalink">#</a><a href="/library/source/Text.Xml/#L130" title="View source at line 130">Source</a></span></div>
+<div class="doc-body">
 
 A decoder at the start of a document, without a depth limit.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 130
+</div>
+</article>
 
-<a id="value-786d6c2d6465636f6465722d6f6666736574"></a>
-
-## `xml-decoder-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-decoder-offset</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-xml-decoder-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-decoder-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-xml-decoder-offset" title="Permalink">#</a><a href="/library/source/Text.Xml/#L138" title="View source at line 138">Source</a></span></div>
+<div class="doc-body">
 
 The byte offset of the next unread input.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 138
+</div>
+</article>
 
-<a id="value-786d6c2d6465636f6465722d776974682d64657074682d6c696d6974"></a>
-
-## `xml-decoder-with-depth-limit`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-decoder-with-depth-limit</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span>))</code></pre>
+<article class="doc-entry" id="v-xml-decoder-with-depth-limit">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-decoder-with-depth-limit</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a></code><span class="doc-sig-links"><a href="#v-xml-decoder-with-depth-limit" title="Permalink">#</a><a href="/library/source/Text.Xml/#L134" title="View source at line 134">Source</a></span></div>
+<div class="doc-body">
 
 A decoder that rejects elements nested deeper than the limit.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 134
+</div>
+</article>
 
-<a id="value-786d6c2d646f63756d656e74"></a>
-
-## `xml-document`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-document</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>))</code></pre>
+<article class="doc-entry" id="v-xml-document">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-document</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code><span class="doc-sig-links"><a href="#v-xml-document" title="Permalink">#</a><a href="/library/source/Text.Xml/#L944" title="View source at line 944">Source</a></span></div>
+<div class="doc-body">
 
 Parse a document into its top-level spine (the declaration, comments, the root element and any other nodes).
 
-[Source](/reference-sources/Text.Xml.cinch) · line 944
+</div>
+</article>
 
-<a id="value-786d6c2d656e636f6465"></a>
-
-## `xml-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-encode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-xml-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xml-encode" title="Permalink">#</a><a href="/library/source/Text.Xml/#L688" title="View source at line 688">Source</a></span></div>
+<div class="doc-body">
 
 Encode a token sequence and check that every element is closed.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 688
+</div>
+</article>
 
-<a id="value-786d6c2d656e636f64652d746f6b656e"></a>
-
-## `xml-encode-token`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-encode-token</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span>)))</code></pre>
+<article class="doc-entry" id="v-xml-encode-token">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-encode-token</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a></code><span class="doc-sig-links"><a href="#v-xml-encode-token" title="Permalink">#</a><a href="/library/source/Text.Xml/#L701" title="View source at line 701">Source</a></span></div>
+<div class="doc-body">
 
 Write one token.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 701
+</div>
+</article>
 
-<a id="value-786d6c2d656e636f646572"></a>
-
-## `xml-encoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-encoder</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span></code></pre>
+<article class="doc-entry" id="v-xml-encoder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-encoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a></code><span class="doc-sig-links"><a href="#v-xml-encoder" title="Permalink">#</a><a href="/library/source/Text.Xml/#L680" title="View source at line 680">Source</a></span></div>
+<div class="doc-body">
 
 An encoder that writes tokens without added white space.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 680
+</div>
+</article>
 
-<a id="value-786d6c2d656e636f6465722d636c6f7365"></a>
-
-## `xml-encoder-close`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-encoder-close</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-xml-encoder-close">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-encoder-close</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xml-encoder-close" title="Permalink">#</a><a href="/library/source/Text.Xml/#L694" title="View source at line 694">Source</a></span></div>
+<div class="doc-body">
 
 Finish: the bytes written, or an error naming the innermost unclosed tag.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 694
+</div>
+</article>
 
-<a id="value-786d6c2d656e636f6465722d696e64656e74"></a>
-
-## `xml-encoder-indent`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-encoder-indent</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span>))</code></pre>
+<article class="doc-entry" id="v-xml-encoder-indent">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-encoder-indent</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a></code><span class="doc-sig-links"><a href="#v-xml-encoder-indent" title="Permalink">#</a><a href="/library/source/Text.Xml/#L684" title="View source at line 684">Source</a></span></div>
+<div class="doc-body">
 
 An encoder that starts each element on a new line with the prefix and one indent per level.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 684
+</div>
+</article>
 
-<a id="value-786d6c2d6572726f722d6d657373616765"></a>
-
-## `xml-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-xml-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-xml-error-message" title="Permalink">#</a><a href="/library/source/Text.Xml/#L101" title="View source at line 101">Source</a></span></div>
+<div class="doc-body">
 
 Render an error.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 101
+</div>
+</article>
 
-<a id="value-786d6c2d6573636170652d617474726962757465"></a>
-
-## `xml-escape-attribute`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-escape-attribute</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-xml-escape-attribute">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-escape-attribute</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xml-escape-attribute" title="Permalink">#</a><a href="/library/source/Text.Xml/#L874" title="View source at line 874">Source</a></span></div>
+<div class="doc-body">
 
 Escape an attribute value or other quoted text (line feeds become references).
 
-[Source](/reference-sources/Text.Xml.cinch) · line 874
+</div>
+</article>
 
-<a id="value-786d6c2d6573636170652d74657874"></a>
-
-## `xml-escape-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-escape-text</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-xml-escape-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-escape-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xml-escape-text" title="Permalink">#</a><a href="/library/source/Text.Xml/#L870" title="View source at line 870">Source</a></span></div>
+<div class="doc-body">
 
 Escape character data (line feeds stay as they are).
 
-[Source](/reference-sources/Text.Xml.cinch) · line 870
+</div>
+</article>
 
-<a id="value-786d6c2d6e616d65"></a>
-
-## `xml-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-name</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span>))</code></pre>
+<article class="doc-entry" id="v-xml-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a></code><span class="doc-sig-links"><a href="#v-xml-name" title="Permalink">#</a><a href="/library/source/Text.Xml/#L44" title="View source at line 44">Source</a></span></div>
+<div class="doc-body">
 
 Make a name from a namespace and a local part.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 44
+</div>
+</article>
 
-<a id="value-786d6c2d6e616d652d6c6f63616c"></a>
-
-## `xml-name-local`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-name-local</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-xml-name-local">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-name-local</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-xml-name-local" title="Permalink">#</a><a href="/library/source/Text.Xml/#L52" title="View source at line 52">Source</a></span></div>
+<div class="doc-body">
 
 The local part.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 52
+</div>
+</article>
 
-<a id="value-786d6c2d6e616d652d7370616365"></a>
-
-## `xml-name-space`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-name-space</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlName</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-xml-name-space">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-name-space</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlName" title="Text.Xml.XmlName">XmlName</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-xml-name-space" title="Permalink">#</a><a href="/library/source/Text.Xml/#L48" title="View source at line 48">Source</a></span></div>
+<div class="doc-body">
 
 The namespace part.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 48
+</div>
+</article>
 
-<a id="value-786d6c2d6e657874"></a>
-
-## `xml-next`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-next</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span>))))</code></pre>
+<article class="doc-entry" id="v-xml-next">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-next</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a>))</code><span class="doc-sig-links"><a href="#v-xml-next" title="Permalink">#</a><a href="/library/source/Text.Xml/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-body">
 
 The next token with namespaces translated and end tags matched; None at the end of the document.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 169
+</div>
+</article>
 
-<a id="value-786d6c2d6e6578742d726177"></a>
-
-## `xml-next-raw`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-next-raw</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlDecoder</span>))))</code></pre>
+<article class="doc-entry" id="v-xml-next-raw">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-next-raw</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlDecoder" title="Text.Xml.XmlDecoder">XmlDecoder</a>))</code><span class="doc-sig-links"><a href="#v-xml-next-raw" title="Permalink">#</a><a href="/library/source/Text.Xml/#L154" title="View source at line 154">Source</a></span></div>
+<div class="doc-body">
 
 The next raw token: names keep their prefixes and end tags are not matched against start tags.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 154
+</div>
+</article>
 
-<a id="value-786d6c2d6e6f646573"></a>
-
-## `xml-nodes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-nodes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span>))</code></pre>
+<article class="doc-entry" id="v-xml-nodes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-nodes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a></code><span class="doc-sig-links"><a href="#v-xml-nodes" title="Permalink">#</a><a href="/library/source/Text.Xml/#L986" title="View source at line 986">Source</a></span></div>
+<div class="doc-body">
 
 The nodes of a spine as a list, in order.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 986
+</div>
+</article>
 
-<a id="value-786d6c2d72656e646572"></a>
-
-## `xml-render`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-render</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlEncoder</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-xml-render">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-render</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlEncoder" title="Text.Xml.XmlEncoder">XmlEncoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xml-render" title="Permalink">#</a><a href="/library/source/Text.Xml/#L1034" title="View source at line 1034">Source</a></span></div>
+<div class="doc-body">
 
 Encode a spine back to XML with an encoder. Names carry decoded namespace URLs, so qualified attributes
 (including namespace declarations, whose namespace is "xmlns") are written with generated prefixes.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 1034
+</div>
+</article>
 
-<a id="value-786d6c2d74657874"></a>
-
-## `xml-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-text</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlNode</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-xml-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlNode" title="Text.Xml.XmlNode">XmlNode</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-xml-text" title="Permalink">#</a><a href="/library/source/Text.Xml/#L1026" title="View source at line 1026">Source</a></span></div>
+<div class="doc-body">
 
 The character data of a node and its descendants, in document order.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 1026
+</div>
+</article>
 
-<a id="value-786d6c2d746f6b656e73"></a>
-
-## `xml-tokens`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">xml-tokens</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Xml</span>.<span class="tok-constructor">XmlToken</span>)))</code></pre>
+<article class="doc-entry" id="v-xml-tokens">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">xml-tokens</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlError" title="Text.Xml.XmlError">XmlError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Xml/#t-XmlToken" title="Text.Xml.XmlToken">XmlToken</a>)</code><span class="doc-sig-links"><a href="#v-xml-tokens" title="Permalink">#</a><a href="/library/source/Text.Xml/#L142" title="View source at line 142">Source</a></span></div>
+<div class="doc-body">
 
 Decode every token of a document.
 
-[Source](/reference-sources/Text.Xml.cinch) · line 142
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Xml.cinch`. Source SHA-256: `3f790721d3186a9a3a2c7cc288608b39d2565307f09f13bea1693ea0d83e681b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Xml.cinch`](/library/source/Text.Xml/). Source SHA-256: `3f790721d3186a9a3a2c7cc288608b39d2565307f09f13bea1693ea0d83e681b`.

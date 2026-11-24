@@ -2,17 +2,11 @@
 
 Lists refined by sortedness, with construction and combination that preserve ordering.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Sorted</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Sorted/">View source</a><a href="/library/search/?q=%2BData.Sorted">Search module</a><a href="/reference-sources/Data.Sorted.cinch" download="Data.Sorted.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Sorted`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md).
 
-[Download exact module source](/reference-sources/Data.Sorted.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Semigroup](Algebra.Semigroup.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Sorted: the sorted list as a refinement (refinement types
 design; decision D151).
@@ -36,48 +30,49 @@ together with the deliberately non-preserving reverse-append).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Sorted">Sorted</a><code class="syn-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">Sorted</strong> = <span class="tok-keyword">refine</span> (<span class="tok-variable">xs</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-keyword">with</span> Ordered xs</code></li><li><a class="syn-name" href="#v-merge">merge</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">merge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-to-sorted">to-sorted</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-sorted</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sorted/#t-Sorted" title="Data.Sorted.Sorted">Sorted</a></code></li></ul>
+</details>
 
-<a id="type-536f72746564"></a>
+# Types
 
-## `Sorted`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">type</span> <span class="tok-constructor">Sorted</span>  = <span class="tok-variable">refine</span> (<span class="tok-variable">xs</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) <span class="tok-keyword">with</span> <span class="tok-constructor">Ordered</span> <span class="tok-variable">xs</span></code></pre>
-
-[Source](/reference-sources/Data.Sorted.cinch)
+<article class="doc-entry" id="t-Sorted">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">Sorted</strong> = <span class="tok-keyword">refine</span> (<span class="tok-variable">xs</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-keyword">with</span> Ordered xs</code><span class="doc-sig-links"><a href="#t-Sorted" title="Permalink">#</a><a href="/library/source/Data.Sorted/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sorted/#t-Sorted" title="Data.Sorted.Sorted">Sorted</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Sorted/#instances">Data.Sorted</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6d65726765"></a>
-
-## `merge`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">merge</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-merge">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">merge</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-merge" title="Permalink">#</a><a href="/library/source/Data.Sorted/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
 
 The sorted merge: the output of merging sorted lists is sorted
 (preservation), and merge is associative (`Semigroup.assoc`);
 both checked sample-wise by the law layer.
 
-[Source](/reference-sources/Data.Sorted.cinch) · line 36
+</div>
+</article>
 
-<a id="value-746f2d736f72746564"></a>
-
-## `to-sorted`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-sorted</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Sorted</span>.<span class="tok-constructor">Sorted</span>)</code></pre>
+<article class="doc-entry" id="v-to-sorted">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-sorted</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sorted/#t-Sorted" title="Data.Sorted.Sorted">Sorted</a></code><span class="doc-sig-links"><a href="#v-to-sorted" title="Permalink">#</a><a href="/library/source/Data.Sorted/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
 
 The total constructor (refinement types design: the total API).
 
-[Source](/reference-sources/Data.Sorted.cinch) · line 28
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Sorted.Semigroup_Sorted` | `Algebra.Semigroup.Semigroup Data.Sorted.Sorted` | Implicit |
+<ul class="doc-module-instances">
+<li id="i-Semigroup_Sorted"><code><a class="doc-type-link tok-constructor" href="/library/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/library/Data.Sorted/#t-Sorted" title="Data.Sorted.Sorted">Sorted</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Sorted.Semigroup_Sorted</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Sorted.cinch`. Source SHA-256: `1ff30a4df1ec338e447e96442dd13c2cd6f58745f18164326eefe1d5ac692374`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Sorted.cinch`](/library/source/Data.Sorted/). Source SHA-256: `1ff30a4df1ec338e447e96442dd13c2cd6f58745f18164326eefe1d5ac692374`.

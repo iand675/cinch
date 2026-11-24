@@ -52,13 +52,16 @@ def main():
     assert 'support-tag--planned' in (DIST/'reference/16-support-and-roadmap/index.html').read_text()
     for file in [DIST/'learn/01-first-program/index.html',DIST/'reference/15-ffi-layout-and-attributes/index.html']:
         assert 'data-language="cinch"' in file.read_text(),'Cinch examples must render as highlighted code'
+    assert (DIST/'library'/'search'/'index.html').exists(),'Missing Hoogle API search page'
+    assert (DIST/'library-search-index.json').exists(),'Missing Hoogle API search index'
     sources=json.loads((SITE/'src/data/library-sources.json').read_text())['modules']
     for entry in sources:
         assert (DIST/'library'/entry['module']/'index.html').exists(),entry['module']
+        assert (DIST/'library'/'source'/entry['module']/'index.html').exists(),entry['module']
         assert (DIST/'reference-sources'/(entry['module']+'.cinch')).exists(),entry['module']
     if errors:
         for error in errors[:40]:print(error)
         raise AssertionError(f'{len(errors)} documentation link/anchor failures')
-    print(f'Checked {len(files)} reader/landing pages, {links} local links, {len(sources)} module pages/downloads, support labels, code rendering, and preserved archive routes')
+    print(f'Checked {len(files)} reader/landing pages, {links} local links, {len(sources)} module pages/source views/downloads, Hoogle search index, support labels, code rendering, and preserved archive routes')
 
 if __name__=='__main__':main()

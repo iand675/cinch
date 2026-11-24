@@ -2,19 +2,22 @@
 
 HTTP cookies: parse Set-Cookie and Cookie header lines, serialize cookies as Set-Cookie values and validate them.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Cookie</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Cookie/">View source</a><a href="/library/search/?q=%2BText.Cookie">Search module</a><a href="/reference-sources/Text.Cookie.cinch" download="Text.Cookie.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Cookie`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Cookie.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Cookie`: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Cookie](Text.Cookie.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Text/Cookie.cinch ./Text.Cookie.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Text.Cookie](Text.Cookie.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 HTTP cookies (RFC 6265): parsing Set-Cookie and Cookie header lines, serializing a cookie as a
 Set-Cookie value, and validating cookies.
@@ -30,324 +33,280 @@ Domain, and writes Expires only for years from 1601.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (29 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Cookie">Cookie</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Cookie</strong></code></li><li><a class="syn-name" href="#t-CookieError">CookieError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">CookieError</strong></code></li><li><a class="syn-name" href="#t-SameSite">SameSite</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">SameSite</strong></code></li><li><a class="syn-name" href="#v-cookie-ascii-lower">cookie-ascii-lower</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-ascii-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-domain">cookie-domain</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-domain</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-domain-valid">cookie-domain-valid</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-domain-valid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-cookie-error-message">cookie-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-expires">cookie-expires</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-expires</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-cookie-http-only">cookie-http-only</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-http-only</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-cookie-is-ipv4">cookie-is-ipv4</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-is-ipv4</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-cookie-max-age">cookie-max-age</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-max-age</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-cookie-name">cookie-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-new">cookie-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code></li><li><a class="syn-name" href="#v-cookie-parse">cookie-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a>)</code></li><li><a class="syn-name" href="#v-cookie-parse-set">cookie-parse-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-parse-set</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code></li><li><a class="syn-name" href="#v-cookie-partitioned">cookie-partitioned</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-partitioned</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-cookie-path">cookie-path</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-path</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-quoted">cookie-quoted</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-quoted</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-cookie-raw">cookie-raw</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-raw</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-raw-expires">cookie-raw-expires</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-raw-expires</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-read">cookie-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-read</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code></li><li><a class="syn-name" href="#v-cookie-same-site">cookie-same-site</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-same-site</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-SameSite" title="Text.Cookie.SameSite">SameSite</a></code></li><li><a class="syn-name" href="#v-cookie-secure">cookie-secure</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-secure</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-cookie-string">cookie-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-time-format">cookie-time-format</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-time-format</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-time-parse">cookie-time-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-time-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-cookie-unparsed">cookie-unparsed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-unparsed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-cookie-valid">cookie-valid</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-valid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-cookie-value">cookie-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cookie-value</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-436f6f6b6965"></a>
+# Types
 
-## `Cookie`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Cookie</span></code></pre>
+<article class="doc-entry" id="t-Cookie">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Cookie</strong></code><span class="doc-sig-links"><a href="#t-Cookie" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L52" title="View source at line 52">Source</a></span></div>
+<div class="doc-body">
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 52
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Cookie"><code><strong class="tok-constructor">Cookie</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-SameSite" title="Text.Cookie.SameSite">SameSite</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Cookie</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">SameSite</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span>))))))))))))))</code></pre>
-
-<a id="type-436f6f6b69654572726f72"></a>
-
-## `CookieError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CookieError</span></code></pre>
+<article class="doc-entry" id="t-CookieError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">CookieError</strong></code><span class="doc-sig-links"><a href="#t-CookieError" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L115" title="View source at line 115">Source</a></span></div>
+<div class="doc-body">
 
 Why a cookie line or cookie was refused.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 115
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-CookieBlank"><code><strong class="tok-constructor">CookieBlank</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a></code></li><li id="k-CookieNoEquals"><code><strong class="tok-constructor">CookieNoEquals</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a></code></li><li id="k-CookieBadName"><code><strong class="tok-constructor">CookieBadName</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a></code></li><li id="k-CookieBadValue"><code><strong class="tok-constructor">CookieBadValue</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a></code></li><li id="k-CookieInvalid"><code><strong class="tok-constructor">CookieInvalid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CookieBlank</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CookieNoEquals</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CookieBadName</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CookieBadValue</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CookieInvalid</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span>)</code></pre>
-
-<a id="type-53616d6553697465"></a>
-
-## `SameSite`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">SameSite</span></code></pre>
+<article class="doc-entry" id="t-SameSite">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">SameSite</strong></code><span class="doc-sig-links"><a href="#t-SameSite" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
 
 The SameSite attribute.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 35
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SameSiteUnset</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">SameSite</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SameSiteDefault</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">SameSite</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SameSiteLax</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">SameSite</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SameSiteStrict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">SameSite</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">SameSiteNone</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">SameSite</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-SameSiteUnset"><code><strong class="tok-constructor">SameSiteUnset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-SameSite" title="Text.Cookie.SameSite">SameSite</a></code></li><li id="k-SameSiteDefault"><code><strong class="tok-constructor">SameSiteDefault</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-SameSite" title="Text.Cookie.SameSite">SameSite</a></code></li><li id="k-SameSiteLax"><code><strong class="tok-constructor">SameSiteLax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-SameSite" title="Text.Cookie.SameSite">SameSite</a></code></li><li id="k-SameSiteStrict"><code><strong class="tok-constructor">SameSiteStrict</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-SameSite" title="Text.Cookie.SameSite">SameSite</a></code></li><li id="k-SameSiteNone"><code><strong class="tok-constructor">SameSiteNone</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-SameSite" title="Text.Cookie.SameSite">SameSite</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-636f6f6b69652d61736369692d6c6f776572"></a>
-
-## `cookie-ascii-lower`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-ascii-lower</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-cookie-ascii-lower">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-ascii-lower</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-ascii-lower" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 ASCII lower case, or None when the text has a non-ASCII byte.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 202
+</div>
+</article>
 
-<a id="value-636f6f6b69652d646f6d61696e"></a>
-
-## `cookie-domain`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-domain</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-domain">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-domain</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-domain" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 The Domain attribute.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 75
+</div>
+</article>
 
-<a id="value-636f6f6b69652d646f6d61696e2d76616c6964"></a>
-
-## `cookie-domain-valid`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-domain-valid</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-domain-valid">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-domain-valid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-cookie-domain-valid" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L565" title="View source at line 565">Source</a></span></div>
+<div class="doc-body">
 
 Whether a domain is a valid cookie domain: a host name (letters, digits, hyphens, labels of 1 to 63 bytes,
 at least one letter, at most 255 bytes, an optional leading dot) or an IPv4 address.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 565
+</div>
+</article>
 
-<a id="value-636f6f6b69652d6572726f722d6d657373616765"></a>
-
-## `cookie-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-error-message" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L128" title="View source at line 128">Source</a></span></div>
+<div class="doc-body">
 
 A readable description of an error.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 128
+</div>
+</article>
 
-<a id="value-636f6f6b69652d65787069726573"></a>
-
-## `cookie-expires`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-expires</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Int</span>))</code></pre>
+<article class="doc-entry" id="v-cookie-expires">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-expires</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-cookie-expires" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L79" title="View source at line 79">Source</a></span></div>
+<div class="doc-body">
 
 The expiry in Unix seconds.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 79
+</div>
+</article>
 
-<a id="value-636f6f6b69652d687474702d6f6e6c79"></a>
-
-## `cookie-http-only`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-http-only</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-http-only">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-http-only</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-cookie-http-only" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L95" title="View source at line 95">Source</a></span></div>
+<div class="doc-body">
 
 The HttpOnly attribute.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 95
+</div>
+</article>
 
-<a id="value-636f6f6b69652d69732d69707634"></a>
-
-## `cookie-is-ipv4`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-is-ipv4</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-is-ipv4">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-is-ipv4</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-cookie-is-ipv4" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L589" title="View source at line 589">Source</a></span></div>
+<div class="doc-body">
 
 Whether text is a dotted-decimal IPv4 address (four fields of 0 to 255 without leading zeros).
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 589
+</div>
+</article>
 
-<a id="value-636f6f6b69652d6d61782d616765"></a>
-
-## `cookie-max-age`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-max-age</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-max-age">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-max-age</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-cookie-max-age" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L87" title="View source at line 87">Source</a></span></div>
+<div class="doc-body">
 
 Max-Age: positive seconds, 0 for none, -1 for delete now.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 87
+</div>
+</article>
 
-<a id="value-636f6f6b69652d6e616d65"></a>
-
-## `cookie-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-name" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L59" title="View source at line 59">Source</a></span></div>
+<div class="doc-body">
 
 The name.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 59
+</div>
+</article>
 
-<a id="value-636f6f6b69652d6e6577"></a>
-
-## `cookie-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-new</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span>))</code></pre>
+<article class="doc-entry" id="v-cookie-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code><span class="doc-sig-links"><a href="#v-cookie-new" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L55" title="View source at line 55">Source</a></span></div>
+<div class="doc-body">
 
 A cookie with only a name and value.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 55
+</div>
+</article>
 
-<a id="value-636f6f6b69652d7061727365"></a>
-
-## `cookie-parse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span>)))</code></pre>
+<article class="doc-entry" id="v-cookie-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a>)</code><span class="doc-sig-links"><a href="#v-cookie-parse" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L264" title="View source at line 264">Source</a></span></div>
+<div class="doc-body">
 
 Parse a Cookie header line into its name-value pairs; any malformed pair refuses the line.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 264
+</div>
+</article>
 
-<a id="value-636f6f6b69652d70617273652d736574"></a>
-
-## `cookie-parse-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-parse-set</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span>))</code></pre>
+<article class="doc-entry" id="v-cookie-parse-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-parse-set</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code><span class="doc-sig-links"><a href="#v-cookie-parse-set" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L305" title="View source at line 305">Source</a></span></div>
+<div class="doc-body">
 
 Parse a Set-Cookie header line.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 305
+</div>
+</article>
 
-<a id="value-636f6f6b69652d706172746974696f6e6564"></a>
-
-## `cookie-partitioned`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-partitioned</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-partitioned">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-partitioned</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-cookie-partitioned" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-body">
 
 The Partitioned attribute.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 103
+</div>
+</article>
 
-<a id="value-636f6f6b69652d70617468"></a>
-
-## `cookie-path`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-path</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-path">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-path</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-path" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L71" title="View source at line 71">Source</a></span></div>
+<div class="doc-body">
 
 The Path attribute.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 71
+</div>
+</article>
 
-<a id="value-636f6f6b69652d71756f746564"></a>
-
-## `cookie-quoted`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-quoted</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-quoted">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-quoted</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-cookie-quoted" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L67" title="View source at line 67">Source</a></span></div>
+<div class="doc-body">
 
 Whether the value was quoted.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 67
+</div>
+</article>
 
-<a id="value-636f6f6b69652d726177"></a>
-
-## `cookie-raw`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-raw</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-raw">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-raw</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-raw" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L107" title="View source at line 107">Source</a></span></div>
+<div class="doc-body">
 
 The raw Set-Cookie line.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 107
+</div>
+</article>
 
-<a id="value-636f6f6b69652d7261772d65787069726573"></a>
-
-## `cookie-raw-expires`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-raw-expires</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-raw-expires">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-raw-expires</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-raw-expires" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 The raw Expires text.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 83
+</div>
+</article>
 
-<a id="value-636f6f6b69652d72656164"></a>
-
-## `cookie-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-read</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span>)))</code></pre>
+<article class="doc-entry" id="v-cookie-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-read</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a></code><span class="doc-sig-links"><a href="#v-cookie-read" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L287" title="View source at line 287">Source</a></span></div>
+<div class="doc-body">
 
 Read a Cookie header line leniently: malformed pairs are skipped; a non-empty filter keeps only that name.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 287
+</div>
+</article>
 
-<a id="value-636f6f6b69652d73616d652d73697465"></a>
-
-## `cookie-same-site`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-same-site</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">SameSite</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-same-site">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-same-site</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-SameSite" title="Text.Cookie.SameSite">SameSite</a></code><span class="doc-sig-links"><a href="#v-cookie-same-site" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L99" title="View source at line 99">Source</a></span></div>
+<div class="doc-body">
 
 The SameSite attribute.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 99
+</div>
+</article>
 
-<a id="value-636f6f6b69652d736563757265"></a>
-
-## `cookie-secure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-secure</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-secure">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-secure</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-cookie-secure" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L91" title="View source at line 91">Source</a></span></div>
+<div class="doc-body">
 
 The Secure attribute.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 91
+</div>
+</article>
 
-<a id="value-636f6f6b69652d737472696e67"></a>
-
-## `cookie-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-string</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-string" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L622" title="View source at line 622">Source</a></span></div>
+<div class="doc-body">
 
 The cookie as a Set-Cookie value (empty when the name is invalid).
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 622
+</div>
+</article>
 
-<a id="value-636f6f6b69652d74696d652d666f726d6174"></a>
-
-## `cookie-time-format`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-time-format</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-time-format">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-time-format</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-time-format" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L460" title="View source at line 460">Source</a></span></div>
+<div class="doc-body">
 
 Unix seconds as "Mon, 02 Jan 2006 15:04:05 GMT".
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 460
+</div>
+</article>
 
-<a id="value-636f6f6b69652d74696d652d7061727365"></a>
-
-## `cookie-time-parse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-time-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Int</span>))</code></pre>
+<article class="doc-entry" id="v-cookie-time-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-time-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-cookie-time-parse" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L486" title="View source at line 486">Source</a></span></div>
+<div class="doc-body">
 
 Parse "Mon, 02 Jan 2006 15:04:05 MST" or "Mon, 02-Jan-2006 15:04:05 MST" to Unix seconds.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 486
+</div>
+</article>
 
-<a id="value-636f6f6b69652d756e706172736564"></a>
-
-## `cookie-unparsed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-unparsed</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-cookie-unparsed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-unparsed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-unparsed" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L111" title="View source at line 111">Source</a></span></div>
+<div class="doc-body">
 
 The attributes that were not understood, in order.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 111
+</div>
+</article>
 
-<a id="value-636f6f6b69652d76616c6964"></a>
-
-## `cookie-valid`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-valid</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">CookieError</span> <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-cookie-valid">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-valid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-CookieError" title="Text.Cookie.CookieError">CookieError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-cookie-valid" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L664" title="View source at line 664">Source</a></span></div>
+<div class="doc-body">
 
 Check a cookie: a token name, an expiry from 1601 when set, value and path bytes, a valid domain, and Secure
 when Partitioned.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 664
+</div>
+</article>
 
-<a id="value-636f6f6b69652d76616c7565"></a>
-
-## `cookie-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cookie-value</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Cookie</span>.<span class="tok-constructor">Cookie</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-cookie-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cookie-value</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Cookie/#t-Cookie" title="Text.Cookie.Cookie">Cookie</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-cookie-value" title="Permalink">#</a><a href="/library/source/Text.Cookie/#L63" title="View source at line 63">Source</a></span></div>
+<div class="doc-body">
 
 The value.
 
-[Source](/reference-sources/Text.Cookie.cinch) · line 63
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Cookie.cinch`. Source SHA-256: `30a3d34e01b8800167c59dad6112b180b6a1185f80e2ed3d5cc2270efd2af216`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Cookie.cinch`](/library/source/Text.Cookie/). Source SHA-256: `30a3d34e01b8800167c59dad6112b180b6a1185f80e2ed3d5cc2270efd2af216`.

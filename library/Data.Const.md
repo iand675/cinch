@@ -2,17 +2,11 @@
 
 A constant container that retains its first parameter while ignoring the mapped value parameter.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Const</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Const/">View source</a><a href="/library/search/?q=%2BData.Const">Search module</a><a href="/reference-sources/Data.Const.cinch" download="Data.Const.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Const`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md).
 
-[Download exact module source](/reference-sources/Data.Const.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Category.Applicative](Category.Applicative.md), [Category.Functor](Category.Functor.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 The constant functor: `Const a b` carries an `a` and erases the `b`.
 It is the universal visitor for computations whose result type is
@@ -48,60 +42,50 @@ defined here.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Const">Const</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Const</strong> <span class="tok-variable">a</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-get-const">get-const</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">get-const</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-map-const">map-const</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-const</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">m</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span> <span class="tok-variable">b</span></code></li></ul>
+</details>
 
-<a id="type-436f6e7374"></a>
+# Types
 
-## `Const`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Const</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Const.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Const</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> . (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Const</span>.<span class="tok-constructor">Const</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>)</code></pre>
+<article class="doc-entry" id="t-Const">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Const</strong> <span class="tok-variable">a</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#t-Const" title="Permalink">#</a><a href="/library/source/Data.Const/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Const"><code><strong class="tok-constructor">Const</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">a</span> <span class="tok-variable">b</span></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span>)</code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Const/#instances">Data.Const</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span>)</code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Const/#instances">Data.Const</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6765742d636f6e7374"></a>
-
-## `get-const`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">get-const</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Const</span>.<span class="tok-constructor">Const</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-get-const">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">get-const</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-get-const" title="Permalink">#</a><a href="/library/source/Data.Const/#L43" title="View source at line 43">Source</a></span></div>
+<div class="doc-body">
 
 Elimination: the carried value.
 
-[Source](/reference-sources/Data.Const.cinch) · line 43
+</div>
+</article>
 
-<a id="value-6d61702d636f6e7374"></a>
-
-## `map-const`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-const</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">m</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Const</span>.<span class="tok-constructor">Const</span> <span class="tok-variable">m</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Const</span>.<span class="tok-constructor">Const</span> <span class="tok-variable">m</span> <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-map-const">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-const</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">m</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-map-const" title="Permalink">#</a><a href="/library/source/Data.Const/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 Functor body: the carried value is unchanged and the function is
 ignored (the constant functor).
 
-[Source](/reference-sources/Data.Const.cinch) · line 49
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Const.Applicative_Const` | `Category.Applicative.Applicative (Data.Const.Const m)` | Implicit |
-| `Data.Const.Functor_Const` | `Category.Functor.Functor (Data.Const.Const m)` | Implicit |
-
-**`Data.Const.Applicative_Const`**: The applicative (D157's waiter is discharged at the prelude
-split): `pure` fabricates the `Monoid` payload and `<*>` combines
-payloads under `Semigroup`. The instance states both constraints
-because a class constraint entails nothing (the standing
-no-superbundle rule). The combination is written in prefix form
-like the other instance bodies (decision D2's per-module fixity
-style keeps `<>` out of this module's parse).
-**`Data.Const.Functor_Const`**: The class instance (instances live with their type), defined
-through the body above.
+<ul class="doc-module-instances">
+<li id="i-Applicative_Const"><code><a class="doc-type-link tok-constructor" href="/library/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.Const.Applicative_Const</code></span><div class="doc-child-prose">The applicative (D157's waiter is discharged at the prelude split): pure fabricates the Monoid payload and &lt;&gt; combines payloads under Semigroup.</div></li>
+<li id="i-Functor_Const"><code><a class="doc-type-link tok-constructor" href="/library/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.Const.Functor_Const</code></span><div class="doc-child-prose">The class instance (instances live with their type), defined through the body above.</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Const.cinch`. Source SHA-256: `6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Const.cinch`](/library/source/Data.Const/). Source SHA-256: `6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c`.

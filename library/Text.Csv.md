@@ -2,19 +2,24 @@
 
 CSV parsing/rendering with explicit field, record, and malformed-input handling.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Csv</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Csv/">View source</a><a href="/library/search/?q=%2BText.Csv">Search module</a><a href="/reference-sources/Text.Csv.cinch" download="Text.Csv.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Csv`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Csv.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Csv`: [Text.Csv](Text.Csv.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Scan](Text.Scan.md).
 
-[Data.Bool](Data.Bool.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Text/Csv.cinch ./Text.Csv.cinch
+cp seed/prelude/Text/Lex.cinch ./Text.Lex.cinch
+cp seed/prelude/Text/Parse.cinch ./Text.Parse.cinch
+cp seed/prelude/Text/Scan.cinch ./Text.Scan.cinch
+```
 
-Non-embedded source closure: [Text.Csv](Text.Csv.md), [Text.Lex](Text.Lex.md), [Text.Parse](Text.Parse.md), [Text.Scan](Text.Scan.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Csv: RFC 4180 comma-separated text in, rows of fields out, and
 back out again.
@@ -96,108 +101,89 @@ empty field).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-CsvError">CsvError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">CsvError</strong></code></li><li><a class="syn-name" href="#v-csv-error-message">csv-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">csv-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-csv-error-span">csv-error-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">csv-error-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a></code></li><li><a class="syn-name" href="#v-csv-error-to-parse-error">csv-error-to-parse-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">csv-error-to-parse-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Parse/#t-ParseError" title="Text.Parse.ParseError">ParseError</a></code></li><li><a class="syn-name" href="#v-csv-parse">csv-parse</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">csv-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>))</code></li><li><a class="syn-name" href="#v-csv-parse-with-headers">csv-parse-with-headers</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">csv-parse-with-headers</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)))</code></li><li><a class="syn-name" href="#v-csv-print">csv-print</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">csv-print</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-render-csv-error">render-csv-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-csv-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-4373764572726f72"></a>
+# Types
 
-## `CsvError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">CsvError</span></code></pre>
+<article class="doc-entry" id="t-CsvError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">CsvError</strong></code><span class="doc-sig-links"><a href="#t-CsvError" title="Permalink">#</a><a href="/library/source/Text.Csv/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 The error vocabulary: one named variant per refusal, each carrying
 the `Span` it stands at, plus the bridge into `Text.Parse`'s
 vocabulary so `render-bundle` renders it (the `Text.Json` shape).
 
-[Source](/reference-sources/Text.Csv.cinch) · line 102
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvUnterminatedQuote</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvStrayQuote</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvTextAfterQuote</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvBareCarriageReturn</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">CsvRowArity</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span>)))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-CsvUnterminatedQuote"><code><strong class="tok-constructor">CsvUnterminatedQuote</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a></code></li><li id="k-CsvStrayQuote"><code><strong class="tok-constructor">CsvStrayQuote</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a></code></li><li id="k-CsvTextAfterQuote"><code><strong class="tok-constructor">CsvTextAfterQuote</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a></code></li><li id="k-CsvBareCarriageReturn"><code><strong class="tok-constructor">CsvBareCarriageReturn</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a></code></li><li id="k-CsvRowArity"><code><strong class="tok-constructor">CsvRowArity</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6373762d6572726f722d6d657373616765"></a>
-
-## `csv-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-csv-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">csv-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-csv-error-message" title="Permalink">#</a><a href="/library/source/Text.Csv/#L120" title="View source at line 120">Source</a></span></div>
+<div class="doc-body">
 
 The diagnostic line for a variant: what was refused, and (for the
 arity case) both counts, since the row alone does not say which
 side moved.
 
-[Source](/reference-sources/Text.Csv.cinch) · line 120
+</div>
+</article>
 
-<a id="value-6373762d6572726f722d7370616e"></a>
+<article class="doc-entry" id="v-csv-error-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">csv-error-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a></code><span class="doc-sig-links"><a href="#v-csv-error-span" title="Permalink">#</a><a href="/library/source/Text.Csv/#L109" title="View source at line 109">Source</a></span></div>
+</article>
 
-## `csv-error-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-error-span</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span>)</code></pre>
-
-[Source](/reference-sources/Text.Csv.cinch)
-
-<a id="value-6373762d6572726f722d746f2d70617273652d6572726f72"></a>
-
-## `csv-error-to-parse-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-error-to-parse-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Parse</span>.<span class="tok-constructor">ParseError</span>)</code></pre>
+<article class="doc-entry" id="v-csv-error-to-parse-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">csv-error-to-parse-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Parse/#t-ParseError" title="Text.Parse.ParseError">ParseError</a></code><span class="doc-sig-links"><a href="#v-csv-error-to-parse-error" title="Permalink">#</a><a href="/library/source/Text.Csv/#L134" title="View source at line 134">Source</a></span></div>
+<div class="doc-body">
 
 Every variant is a fancy error at its own span (nothing is an
 `EUnexpected`: the scanner's refusals are statements about the
 dialect, not a missing token).
 
-[Source](/reference-sources/Text.Csv.cinch) · line 134
+</div>
+</article>
 
-<a id="value-6373762d7061727365"></a>
+<article class="doc-entry" id="v-csv-parse">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">csv-parse</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>))</code><span class="doc-sig-links"><a href="#v-csv-parse" title="Permalink">#</a><a href="/library/source/Text.Csv/#L217" title="View source at line 217">Source</a></span></div>
+</article>
 
-## `csv-parse`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-parse</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))))</code></pre>
-
-[Source](/reference-sources/Text.Csv.cinch)
-
-<a id="value-6373762d70617273652d776974682d68656164657273"></a>
-
-## `csv-parse-with-headers`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-parse-with-headers</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span> ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>), (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))))))</code></pre>
+<article class="doc-entry" id="v-csv-parse-with-headers">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">csv-parse-with-headers</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)))</code><span class="doc-sig-links"><a href="#v-csv-parse-with-headers" title="Permalink">#</a><a href="/library/source/Text.Csv/#L225" title="View source at line 225">Source</a></span></div>
+<div class="doc-body">
 
 The header is the first row; every later row is keyed by it as
 (name, field) pairs in header order. A document with no rows has no
 header and no keyed rows.
 
-[Source](/reference-sources/Text.Csv.cinch) · line 225
+</div>
+</article>
 
-<a id="value-6373762d7072696e74"></a>
-
-## `csv-print`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">csv-print</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-csv-print">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">csv-print</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-csv-print" title="Permalink">#</a><a href="/library/source/Text.Csv/#L366" title="View source at line 366">Source</a></span></div>
+<div class="doc-body">
 
 The document's pieces are collected and flattened once: nesting
 `string-concat` would re-copy the rest of the document at every row
 and field.
 
-[Source](/reference-sources/Text.Csv.cinch) · line 366
+</div>
+</article>
 
-<a id="value-72656e6465722d6373762d6572726f72"></a>
-
-## `render-csv-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-csv-error</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Csv</span>.<span class="tok-constructor">CsvError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-render-csv-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-csv-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Csv/#t-CsvError" title="Text.Csv.CsvError">CsvError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-csv-error" title="Permalink">#</a><a href="/library/source/Text.Csv/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 The megaparsec-style rendering: the error against the source it
 came from (`Text.Parse.render-bundle`), the shape a grammar failure
 renders in.
 
-[Source](/reference-sources/Text.Csv.cinch) · line 140
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Csv.cinch`. Source SHA-256: `d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Csv.cinch`](/library/source/Text.Csv/). Source SHA-256: `d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455`.

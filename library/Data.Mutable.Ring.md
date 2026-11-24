@@ -2,19 +2,21 @@
 
 Mutable circular sequences with stable cursors, alias-preserving joins and splits, explicit value ownership and bounded arena growth.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Ring</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Mutable.Ring/">View source</a><a href="/library/search/?q=%2BData.Mutable.Ring">Search module</a><a href="/reference-sources/Data.Mutable.Ring.cinch" download="Data.Mutable.Ring.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Mutable.Ring`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Wide](Data.Wide.md).
 
-[Download exact module source](/reference-sources/Data.Mutable.Ring.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Mutable.Ring`: [Data.Mutable.Ring](Data.Mutable.Ring.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Wide](Data.Wide.md).
+```sh
+cp seed/prelude/Data/Mutable/Ring.cinch ./Data.Mutable.Ring.cinch
+```
 
-Non-embedded source closure: [Data.Mutable.Ring](Data.Mutable.Ring.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Mutable circular sequences with stable cursor aliases through joins and splits.
 Links are arena indices, so the structure creates no automatic ownership
@@ -25,81 +27,76 @@ subrings. Use ring-copy and release old aliases when only one cycle is needed.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (19 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Ring">Ring</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ring</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-RingError">RingError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">RingError</strong></code></li><li><a class="syn-name" href="#v-ring-copy">ring-copy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-copy</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-ring-for-each">ring-for-each</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-for-each</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-ring-from-list">ring-from-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></li><li><a class="syn-name" href="#v-ring-length">ring-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ring-link">ring-link</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-link</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-ring-move">ring-move</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-move</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-ring-new">ring-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></li><li><a class="syn-name" href="#v-ring-new-sized">ring-new-sized</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-new-sized</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></li><li><a class="syn-name" href="#v-ring-next">ring-next</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-next</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-ring-prev">ring-prev</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-prev</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-ring-retained-length">ring-retained-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-retained-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-ring-same">ring-same</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-same</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ring-set-value">ring-set-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-set-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-ring-singleton">ring-singleton</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-singleton</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-ring-to-list">ring-to-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-ring-unlink">ring-unlink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-unlink</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-ring-value">ring-value</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ring-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-52696e67"></a>
+# Types
 
-## `Ring`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ring</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Ring">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ring</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Ring" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 A nonempty circular-sequence cursor whose node identity survives arena forwarding.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 53
+</div>
+</article>
 
-<a id="type-52696e674572726f72"></a>
-
-## `RingError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">RingError</span></code></pre>
+<article class="doc-entry" id="t-RingError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">RingError</strong></code><span class="doc-sig-links"><a href="#t-RingError" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
 
 A checked allocation-size refusal that leaves all existing cycles unchanged.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 36
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RingCapacityExceeded</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">RingError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-RingCapacityExceeded"><code><strong class="tok-constructor">RingCapacityExceeded</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-72696e672d636f7079"></a>
-
-## `ring-copy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-copy</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-ring-copy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-copy</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-ring-copy" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L393" title="View source at line 393">Source</a></span></div>
+<div class="doc-body">
 
 Copy only the current cycle into a fresh arena, preserving ordinary value sharing without cursor aliasing.
 Releasing old cursors after this operation can release unrelated subrings
 retained by the old joined arena.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 393
+</div>
+</article>
 
-<a id="value-72696e672d666f722d65616368"></a>
-
-## `ring-for-each`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-for-each</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-ring-for-each">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-for-each</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-ring-for-each" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L427" title="View source at line 427">Source</a></span></div>
+<div class="doc-body">
 
 Visit at most the original cycle length through current links, with None performing no callbacks.
 Value mutations are observed at each visit. Structural callback mutations
 may change the visit set, but cannot create an unbounded traversal here.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 427
+</div>
+</article>
 
-<a id="value-72696e672d66726f6d2d6c697374"></a>
-
-## `ring-from-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">RingError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-ring-from-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-from-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code><span class="doc-sig-links"><a href="#v-ring-from-list" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L376" title="View source at line 376">Source</a></span></div>
+<div class="doc-body">
 
 Construct a circular sequence in source order, returning None for empty input.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 376
+</div>
+</article>
 
-<a id="value-72696e672d6c656e677468"></a>
-
-## `ring-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-ring-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ring-length" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L209" title="View source at line 209">Source</a></span></div>
+<div class="doc-body">
 
 Count one circular component in linear traversal time, or return zero for None.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 209
+</div>
+</article>
 
-<a id="value-72696e672d6c696e6b"></a>
-
-## `ring-link`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-link</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">RingError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-ring-link">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-link</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-ring-link" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L349" title="View source at line 349">Source</a></span></div>
+<div class="doc-body">
 
 Link the second cycle after the first cursor, or split when both cursors already share a cycle.
 None leaves links unchanged. The result always denotes the first cursor's
@@ -109,135 +106,124 @@ leaves the cycle unchanged. After resolving forwarding chains, same-arena
 link updates take constant time. Distinct-arena links move the smaller
 complete backing arena; forwarding depth grows at most logarithmically.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 349
+</div>
+</article>
 
-<a id="value-72696e672d6d6f7665"></a>
-
-## `ring-move`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-move</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Int</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-ring-move">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-move</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-ring-move" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L231" title="View source at line 231">Source</a></span></div>
+<div class="doc-body">
 
 Move by an arbitrary signed distance, preserving exact cyclic semantics for very large integers.
 Distances from -64 through 64 walk directly, so short moves do not scan
 a large cycle. Larger distances scan once, reduce before conversion and
 walk the shorter equivalent direction.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 231
+</div>
+</article>
 
-<a id="value-72696e672d6e6577"></a>
-
-## `ring-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">RingError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)))))</code></pre>
+<article class="doc-entry" id="v-ring-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code><span class="doc-sig-links"><a href="#v-ring-new" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L156" title="View source at line 156">Source</a></span></div>
+<div class="doc-body">
 
 Create a checked circular sequence; zero returns None and no arena.
 The initializer is shared as an ordinary value, while assigning one node's
 value later does not replace another node's value cell.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 156
+</div>
+</article>
 
-<a id="value-72696e672d6e65772d73697a6564"></a>
-
-## `ring-new-sized`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-new-sized</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">RingError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)))))</code></pre>
+<article class="doc-entry" id="v-ring-new-sized">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-new-sized</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-RingError" title="Data.Mutable.Ring.RingError">RingError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code><span class="doc-sig-links"><a href="#v-ring-new-sized" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L164" title="View source at line 164">Source</a></span></div>
+<div class="doc-body">
 
 Accept a signed external size, treating nonpositive sizes as an empty sequence before conversion.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 164
+</div>
+</article>
 
-<a id="value-72696e672d6e657874"></a>
-
-## `ring-next`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-next</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-ring-next">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-next</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-ring-next" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L178" title="View source at line 178">Source</a></span></div>
+<div class="doc-body">
 
 Return the following cursor without changing either node.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 178
+</div>
+</article>
 
-<a id="value-72696e672d70726576"></a>
-
-## `ring-prev`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-prev</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-ring-prev">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-prev</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-ring-prev" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L182" title="View source at line 182">Source</a></span></div>
+<div class="doc-body">
 
 Return the preceding cursor without changing either node.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 182
+</div>
+</article>
 
-<a id="value-72696e672d72657461696e65642d6c656e677468"></a>
-
-## `ring-retained-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-retained-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-ring-retained-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-retained-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-ring-retained-length" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L213" title="View source at line 213">Source</a></span></div>
+<div class="doc-body">
 
 Observe backing-arena retention, which may exceed the current component after a split.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 213
+</div>
+</article>
 
-<a id="value-72696e672d73616d65"></a>
-
-## `ring-same`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-same</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-ring-same">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-same</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ring-same" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L186" title="View source at line 186">Source</a></span></div>
+<div class="doc-body">
 
 Compare stable node identity after resolving any permanent arena forwarding.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 186
+</div>
+</article>
 
-<a id="value-72696e672d7365742d76616c7565"></a>
-
-## `ring-set-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-set-value</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-ring-set-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-set-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-ring-set-value" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L195" title="View source at line 195">Source</a></span></div>
+<div class="doc-body">
 
 Replace a cursor's value without changing its node identity, neighbors or aliases.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 195
+</div>
+</article>
 
-<a id="value-72696e672d73696e676c65746f6e"></a>
-
-## `ring-singleton`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-singleton</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-ring-singleton">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-singleton</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-ring-singleton" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L168" title="View source at line 168">Source</a></span></div>
+<div class="doc-body">
 
 Construct one nonempty, self-linked node without a fallible size conversion.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 168
+</div>
+</article>
 
-<a id="value-72696e672d746f2d6c697374"></a>
-
-## `ring-to-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-ring-to-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-ring-to-list" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L411" title="View source at line 411">Source</a></span></div>
+<div class="doc-body">
 
 Copy one cycle's current values into an immutable list, or return Nil for None.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 411
+</div>
+</article>
 
-<a id="value-72696e672d756e6c696e6b"></a>
-
-## `ring-unlink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-unlink</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Int</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))))</code></pre>
+<article class="doc-entry" id="v-ring-unlink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-unlink</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-ring-unlink" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L356" title="View source at line 356">Source</a></span></div>
+<div class="doc-body">
 
 Remove the positive count modulo the current cycle length, returning its original following cursor.
 Nonpositive counts return None unchanged. A positive multiple of the cycle
 length leaves links unchanged and still returns Some original-successor.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 356
+</div>
+</article>
 
-<a id="value-72696e672d76616c7565"></a>
-
-## `ring-value`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ring-value</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Ring</span>.<span class="tok-constructor">Ring</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-ring-value">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ring-value</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Ring/#t-Ring" title="Data.Mutable.Ring.Ring">Ring</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-ring-value" title="Permalink">#</a><a href="/library/source/Data.Mutable.Ring/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 Read a cursor's current value through its canonical node owner.
 
-[Source](/reference-sources/Data.Mutable.Ring.cinch) · line 191
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Ring.cinch`. Source SHA-256: `9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Ring.cinch`](/library/source/Data.Mutable.Ring/). Source SHA-256: `9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25`.

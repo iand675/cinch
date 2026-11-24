@@ -2,17 +2,11 @@
 
 A transactional variable that is either empty or full: take waits while empty, put waits while full. The building block for handoff and mutual exclusion inside transactions.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Stm.TMVar</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Stm.TMVar/">View source</a><a href="/library/search/?q=%2BEffect.Stm.TMVar">Search module</a><a href="/reference-sources/Effect.Stm.TMVar.cinch" download="Effect.Stm.TMVar.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Stm.TMVar`. Selected exports may already be in Prelude.
+**Dependencies:** [Effect.Stm](Effect.Stm.md).
 
-[Download exact module source](/reference-sources/Effect.Stm.TMVar.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Effect.Stm](Effect.Stm.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Stm.TMVar: a transactional variable that is either full or empty.
 
@@ -33,129 +27,102 @@ Module scheme (design/base-library.md): a concrete type over
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-TMVar">TMVar</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TMVar</strong> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tmvar-is-empty">tmvar-is-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-tmvar-new">tmvar-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-new</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-tmvar-new-empty">tmvar-new-empty</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-new-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-tmvar-new-empty-io">tmvar-new-empty-io</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-new-empty-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tmvar-new-io">tmvar-new-io</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-new-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tmvar-put">tmvar-put</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-put</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-tmvar-read">tmvar-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tmvar-swap">tmvar-swap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-swap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tmvar-take">tmvar-take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-tmvar-try-put">tmvar-try-put</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-try-put</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-tmvar-try-read">tmvar-try-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-try-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-tmvar-try-take">tmvar-try-take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tmvar-try-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code></li></ul>
+</details>
 
-<a id="type-544d566172"></a>
+# Types
 
-## `TMVar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TMVar</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Effect.Stm.TMVar.cinch)
+<article class="doc-entry" id="t-TMVar">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TMVar</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-TMVar" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L25" title="View source at line 25">Source</a></span></div>
+</article>
 
 # Values
 
-<a id="value-746d7661722d69732d656d707479"></a>
+<article class="doc-entry" id="v-tmvar-is-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-is-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-tmvar-is-empty" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L84" title="View source at line 84">Source</a></span></div>
+</article>
 
-## `tmvar-is-empty`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-is-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.TMVar.cinch)
-
-<a id="value-746d7661722d6e6577"></a>
-
-## `tmvar-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-tmvar-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-new</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tmvar-new" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L32" title="View source at line 32">Source</a></span></div>
+<div class="doc-body">
 
 A full variable holding `x`.
 
-[Source](/reference-sources/Effect.Stm.TMVar.cinch) · line 32
+</div>
+</article>
 
-<a id="value-746d7661722d6e65772d656d707479"></a>
+<article class="doc-entry" id="v-tmvar-new-empty">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-new-empty</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tmvar-new-empty" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L35" title="View source at line 35">Source</a></span></div>
+</article>
 
-## `tmvar-new-empty`
+<article class="doc-entry" id="v-tmvar-new-empty-io">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-new-empty-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tmvar-new-empty-io" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L41" title="View source at line 41">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-new-empty</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-tmvar-new-io">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-new-io</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/library/Effect.Stm/" title="STM">STM</a>} <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tmvar-new-io" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L38" title="View source at line 38">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Effect.Stm.TMVar.cinch)
-
-<a id="value-746d7661722d6e65772d656d7074792d696f"></a>
-
-## `tmvar-new-empty-io`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-new-empty-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">STM</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.TMVar.cinch)
-
-<a id="value-746d7661722d6e65772d696f"></a>
-
-## `tmvar-new-io`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-new-io</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">STM</span>} (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.TMVar.cinch)
-
-<a id="value-746d7661722d707574"></a>
-
-## `tmvar-put`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-put</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Unit</span>)))</code></pre>
+<article class="doc-entry" id="v-tmvar-put">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-put</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-tmvar-put" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 Fill the variable. Waits while it is full.
 
-[Source](/reference-sources/Effect.Stm.TMVar.cinch) · line 51
+</div>
+</article>
 
-<a id="value-746d7661722d72656164"></a>
-
-## `tmvar-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-tmvar-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tmvar-read" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 The value, leaving it in place. Waits while the variable is empty.
 
-[Source](/reference-sources/Effect.Stm.TMVar.cinch) · line 57
+</div>
+</article>
 
-<a id="value-746d7661722d73776170"></a>
-
-## `tmvar-swap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-tmvar-swap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-swap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tmvar-swap" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L63" title="View source at line 63">Source</a></span></div>
+<div class="doc-body">
 
 Replace the value and answer the old one. Waits while empty.
 
-[Source](/reference-sources/Effect.Stm.TMVar.cinch) · line 63
+</div>
+</article>
 
-<a id="value-746d7661722d74616b65"></a>
-
-## `tmvar-take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-tmvar-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-tmvar-take" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 The value, leaving the variable empty. Waits while it is empty.
 
-[Source](/reference-sources/Effect.Stm.TMVar.cinch) · line 45
+</div>
+</article>
 
-<a id="value-746d7661722d7472792d707574"></a>
-
-## `tmvar-try-put`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-try-put</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-tmvar-try-put">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-try-put</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-tmvar-try-put" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L76" title="View source at line 76">Source</a></span></div>
+<div class="doc-body">
 
 `tmvar-put` that answers whether it filled the variable instead of
 waiting.
 
-[Source](/reference-sources/Effect.Stm.TMVar.cinch) · line 76
+</div>
+</article>
 
-<a id="value-746d7661722d7472792d72656164"></a>
+<article class="doc-entry" id="v-tmvar-try-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-try-read</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tmvar-try-read" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L81" title="View source at line 81">Source</a></span></div>
+</article>
 
-## `tmvar-try-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-try-read</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Effect.Stm.TMVar.cinch)
-
-<a id="value-746d7661722d7472792d74616b65"></a>
-
-## `tmvar-try-take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tmvar-try-take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">TMVar</span>.<span class="tok-constructor">TMVar</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stm</span>.<span class="tok-constructor">STM</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-tmvar-try-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tmvar-try-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Effect.Stm.TMVar/#t-TMVar" title="Effect.Stm.TMVar.TMVar">TMVar</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-tmvar-try-take" title="Permalink">#</a><a href="/library/source/Effect.Stm.TMVar/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 `tmvar-take` that answers `None` instead of waiting.
 
-[Source](/reference-sources/Effect.Stm.TMVar.cinch) · line 69
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm/TMVar.cinch`. Source SHA-256: `6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stm/TMVar.cinch`](/library/source/Effect.Stm.TMVar/). Source SHA-256: `6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4`.

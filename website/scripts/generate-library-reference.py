@@ -302,251 +302,969 @@ DESCRIPTIONS = {
 }
 
 SUMMARIES={}
+SEARCH_INDEX = ROOT / 'website/public/library-search-index.json'
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import cinch_type_format as ctf
+
+BUILTIN_TYPE_LINKS = {
+    'Int': '/library/Data.Int/',
+    'Nat': '/library/Data.Nat/',
+    'Bool': '/library/Data.Bool/',
+    'Char': '/library/Data.Char/',
+    'String': '/library/Data.String/',
+    'Bytes': '/library/Data.Bytes/',
+    'Array': '/library/Data.Array/',
+    'Ordering': '/library/Data.Ordering/',
+    'Sym': '/library/Data.Sym/',
+    'Path': '/library/Data.Path/',
+    'Json': '/library/Data.Json/',
+    'I8': '/library/Data.Machine/',
+    'I16': '/library/Data.Machine/',
+    'I32': '/library/Data.Machine/',
+    'I64': '/library/Data.Machine/',
+    'Isize': '/library/Data.Machine/',
+    'U8': '/library/Data.Machine/',
+    'U16': '/library/Data.Machine/',
+    'U32': '/library/Data.Machine/',
+    'U64': '/library/Data.Machine/',
+    'Usize': '/library/Data.Machine/',
+    'F32': '/library/Data.Machine/',
+    'F64': '/library/Data.Machine/',
+    'I128': '/library/Data.Wide/',
+    'U128': '/library/Data.Wide/',
+    'Unit': '/reference/04-types-and-kinds/',
+    'Io': '/reference/09-effects-and-capabilities/',
+    'IO': '/reference/09-effects-and-capabilities/',
+    'Diverge': '/reference/09-effects-and-capabilities/',
+    'Mut': '/reference/10-ownership-and-memory/',
+    'Ref': '/reference/10-ownership-and-memory/',
+    'Async': '/reference/13-concurrency-and-runtime/',
+    'Cancel': '/reference/13-concurrency-and-runtime/',
+    'Scope': '/reference/13-concurrency-and-runtime/',
+    'STM': '/library/Effect.Stm/',
+    'TVar': '/library/Effect.Stm/',
+    'MVar': '/library/Effect.Concurrent.MVar/',
+}
+
 
 def describe(name):
     """Return the curated description, or the first sentence of the module's own documentation comment."""
     return DESCRIPTIONS.get(name) or SUMMARIES.get(name) or f'The {name} module.'
 
+
 def summarize(markdown):
     """First sentence (or line) of a module documentation comment, as one plain line."""
-    text=' '.join(markdown.strip().split())
-    match=re.match(r'(.+?[.!?])(\s|$)',text)
-    return match.group(1) if match else text
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', markdown)
+    text = re.sub(r'[`*_]', '', text)
+    text = ' '.join(text.strip().split())
+    match = re.match(r'(.+?[.!?])(\s|$)', text)
+    summary = match.group(1) if match else text
+    return summary[:220].rstrip() + ('…' if len(summary) > 220 else '')
+
 
 def sources():
     return {'.'.join(p.relative_to(PRELUDE).with_suffix('').parts): p for p in sorted(PRELUDE.rglob('*.cinch'))}
 
-def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
-def anchor(kind, name): return f'{kind}-{name.encode().hex()}'
-def heading(kind, name): return f'<a id="{anchor(kind, name)}"></a>\n\n## `{name}`\n'
-def code(text): return f'```cinch\n{text}\n```\n'
-def public_class(item): return bool(item.get('exports'))
-def markdown_text(text): return text.replace('|', '\\|').replace('\n', ' ')
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def anchor(kind, name):
+    prefix = {
+        'type': 't',
+        'ctor': 'k',
+        'class': 'c',
+        'method': 'm',
+        'value': 'v',
+        'instance': 'i',
+    }.get(kind, 'v')
+    if re.fullmatch(r'[A-Za-z0-9_-]+', name):
+        return f'{prefix}-{name}'
+    if '-' in name:
+        head, tail = name.split('-', 1)
+        if re.fullmatch(r'[A-Za-z0-9_]+', head) and tail and not re.search(r'[A-Za-z0-9]', tail):
+            return f'{prefix}-{head}-op-{tail.encode().hex()}'
+    if not re.search(r'[A-Za-z0-9]', name):
+        return f'{prefix}-op-{name.encode().hex()}'
+    safe = re.sub(r'[^A-Za-z0-9_-]', lambda m: f'_{m.group(0).encode().hex()}_', name).strip('_')
+    return f'{prefix}-{safe}'
+
+
+def alloc_anchor(used_ids, kind, name):
+    base = anchor(kind, name)
+    cand = base
+    n = 2
+    while cand in used_ids:
+        cand = f'{base}-{n}'
+        n += 1
+    used_ids.add(cand)
+    return cand
+
+
+def public_class(item):
+    return bool(item.get('exports'))
+
+
+def markdown_text(text):
+    return text.replace('|', '\\|').replace('\n', ' ')
+
+
+def esc_html(text):
+    return (
+        text.replace('&', '&amp;')
+        .replace('<', '&lt;')
+        .replace('>', '&gt;')
+        .replace('"', '&quot;')
+    )
+
 
 def flatten_decls(declarations):
     for decl in declarations:
         yield decl
         yield from flatten_decls(decl['children'])
 
-def doc_json(compiler, path, module, iface=None):
-    command=[str(compiler),'doc','extract',str(path),'--module',module,'--legacy']
-    if iface:command+=['--iface',str(iface)]
-    result=subprocess.run(command,capture_output=True,text=True,timeout=120)
-    if result.returncode not in (0,2):
+
+def doc_json(compiler, path, module, iface=None, allow_orphans=False):
+    command = [str(compiler), 'doc', 'extract', str(path), '--module', module, '--legacy']
+    if iface:
+        command += ['--iface', str(iface)]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+    ok_codes = (0, 1, 2) if allow_orphans else (0, 2)
+    if result.returncode not in ok_codes or not result.stdout.strip():
         raise RuntimeError(f'{path}: cinch doc extract failed\n{result.stderr}')
     return json.loads(result.stdout)
 
+
 def highlighted_markdown(compiler, text):
-    result=subprocess.run([str(compiler),'doc','markdown'],input=text,capture_output=True,text=True,timeout=120)
+    if '```cinch' not in text:
+        return text
+    result = subprocess.run([str(compiler), 'doc', 'markdown'], input=text, capture_output=True, text=True, timeout=120)
     if result.returncode:
         raise RuntimeError(f'cinch doc markdown failed\n{result.stderr}')
     return result.stdout
 
 
+def resolve_symbol_links(markdown, symbol_links):
+    """Turn `[label](symbol:Target)` links into real links when Target is known."""
+    def repl(match):
+        label, target = match.group(1), match.group(2)
+        href = symbol_links.get(target)
+        if href:
+            return f'[{label}]({href})'
+        return label
+    return re.sub(r'\[([^\]]+)\]\(symbol:([^)\s]+)\)', repl, markdown)
+
+
 def unpack(package, out):
     """Project a packed interface object into one canonical `.cinchif` document per module.
     Builds that still write loose interfaces beside the package are copied unchanged."""
-    loose=list(package.parent.glob('*.cinchif'))
-    for path in loose:shutil.copyfile(path,out/path.name)
-    if loose or not package.exists():return
-    sys.path.insert(0,str(ROOT/'tooling'))
+    loose = list(package.parent.glob('*.cinchif'))
+    for path in loose:
+        shutil.copyfile(path, out / path.name)
+    if loose or not package.exists():
+        return
+    sys.path.insert(0, str(ROOT / 'tooling'))
     from pack_interfaces import PackedInterfaces, canonical
-    for name,_,document in PackedInterfaces(package.read_bytes()).documents:
-        (out/(name+'.cinchif')).write_bytes(canonical(document))
+    for name, _, document in PackedInterfaces(package.read_bytes()).documents:
+        (out / (name + '.cinchif')).write_bytes(canonical(document))
 
-def collect_interfaces(compiler):
-    temp=tempfile.TemporaryDirectory(prefix='cinch-library-')
-    work=Path(temp.name);manifest=json.loads((PRELUDE/'cinch-base.cinchpkg').read_text())
-    embedded={m['name'] for m in manifest['modules']}
-    all_sources=sources()
-    for name,path in all_sources.items():
-        if name not in embedded:(work/(name+'.cinch')).write_bytes(path.read_bytes())
-    env={**os.environ,'CINCH_STORE':str(work/'store')}
-    entry=work/'Main.cinch'
-    ifaces=work/'interfaces';ifaces.mkdir()
-    def check(name):
-        entry.write_text('module Main where\n'+(f'  import {name}\n' if name else '')+'  main :: Int\n  main = 0\n')
-        result=subprocess.run([compiler,'check',str(entry)],cwd=work,env=env,capture_output=True,text=True,timeout=90)
-        if result.returncode: raise RuntimeError(f'Rust compiler rejected {name or "Prelude"}:\n{result.stderr}')
-        unpack(work/'build'/'Main.cpk',ifaces)
-        print('Checked '+(name or 'embedded base'),flush=True)
-    check(None)
-    for name in all_sources:
-        if name not in embedded:check(name)
-    return temp,ifaces
+
+def collect_interfaces(compiler, save_dir=None):
+    temp = tempfile.TemporaryDirectory(prefix='cinch-library-')
+    work = Path(temp.name)
+    manifest = json.loads((PRELUDE / 'cinch-base.cinchpkg').read_text())
+    embedded = {m['name'] for m in manifest['modules']}
+    all_sources = sources()
+    for name, path in all_sources.items():
+        if name not in embedded:
+            (work / (name + '.cinch')).write_bytes(path.read_bytes())
+    env = {**os.environ, 'CINCH_STORE': str(work / 'store'), 'RUST_MIN_STACK': '67108864'}
+    entry = work / 'Main.cinch'
+    ifaces = save_dir if save_dir else (work / 'interfaces')
+    ifaces.mkdir(parents=True, exist_ok=True)
+
+    def check_batch(names):
+        imports_src = ''.join(f'  import {n} as M{i}\n' for i, n in enumerate(names))
+        entry.write_text('module Main where\n' + imports_src + '  main :: Int\n  main = 0\n')
+        result = subprocess.run([compiler, 'check', str(entry)], cwd=work, env=env, capture_output=True, text=True, timeout=180)
+        if result.returncode:
+            return result.stderr
+        unpack(work / 'build' / 'Main.cpk', ifaces)
+        return None
+
+    # Always ensure embedded base interfaces exist
+    if not all((ifaces / (m + '.cinchif')).exists() for m in embedded):
+        err = check_batch([])
+        if err:
+            raise RuntimeError(f'Rust compiler rejected embedded base:\n{err}')
+        print('Checked embedded base', flush=True)
+
+    remaining = [n for n in sorted(all_sources) if n not in embedded and not (ifaces / (n + '.cinchif')).exists()]
+    batch_size = 24
+    for start in range(0, len(remaining), batch_size):
+        batch = [n for n in remaining[start:start + batch_size] if not (ifaces / (n + '.cinchif')).exists()]
+        if not batch:
+            continue
+        err = check_batch(batch)
+        if err is None:
+            print(f'Checked batch ({len(batch)} modules: {batch[0]} .. {batch[-1]})', flush=True)
+            continue
+        # Fallback to individual checks if a batch hits an instance/coherence clash
+        for name in batch:
+            if (ifaces / (name + '.cinchif')).exists():
+                continue
+            single_err = check_batch([name])
+            if single_err:
+                raise RuntimeError(f'Rust compiler rejected {name}:\n{single_err}')
+            print('Checked ' + name, flush=True)
+    return temp, ifaces
+
+
+def build_global_maps(all_sources, interfaces):
+    """Build cross-module type links, symbol links, and cross-module instance indices."""
+    type_links = dict(BUILTIN_TYPE_LINKS)
+    symbol_links = {}
+    instances_by_type = {}
+    instances_by_class = {}
+
+    # Priority: public non-Prelude non-Data.Core modules win short names first.
+    ordered_modules = sorted(
+        all_sources.keys(),
+        key=lambda m: (2 if m == 'Prelude' else 1 if m == 'Data.Core' else 0, m),
+    )
+
+    for mod in ordered_modules:
+        exp = interfaces[mod]['exports']
+        for ty in exp['types']:
+            if ty.get('kind') == 'signature':
+                continue
+            aid = anchor('type', ty['name'])
+            href = f'/library/{mod}/#{aid}'
+            ident = ty.get('identity', f'{mod}.{ty["name"]}')
+            # Prefer public home (e.g. Data.Result for Data.Core.Result)
+            if mod != 'Prelude':
+                type_links.setdefault(ident, href)
+                type_links.setdefault(f'{mod}.{ty["name"]}', href)
+                type_links.setdefault(ty['name'], href)
+                symbol_links.setdefault(ident, href)
+                symbol_links.setdefault(f'{mod}.{ty["name"]}', href)
+                symbol_links.setdefault(ty['name'], href)
+            for ctor in ty.get('ctors', []):
+                caid = anchor('ctor', ctor['name'])
+                chref = f'/library/{mod}/#{caid}'
+                cid = f'{mod}.{ty["name"]}.{ctor["name"]}'
+                if mod != 'Prelude':
+                    symbol_links.setdefault(cid, chref)
+                    symbol_links.setdefault(f'{mod}.{ctor["name"]}', chref)
+        for sig in exp['signatures']:
+            if not (public_class(sig) or any(m.get('exports') for m in sig['methods'])):
+                continue
+            aid = anchor('class', sig['name'])
+            href = f'/library/{mod}/#{aid}'
+            ident = sig.get('identity', f'{mod}.{sig["name"]}')
+            if mod != 'Prelude':
+                type_links.setdefault(ident, href)
+                type_links.setdefault(f'{mod}.{sig["name"]}', href)
+                type_links.setdefault(sig['name'], href)
+                symbol_links.setdefault(ident, href)
+                symbol_links.setdefault(f'{mod}.{sig["name"]}', href)
+                symbol_links.setdefault(sig['name'], href)
+            for method in sig['methods']:
+                if not method.get('exports'):
+                    continue
+                maid = anchor('method', f'{sig["name"]}-{method["name"]}')
+                mhref = f'/library/{mod}/#{maid}'
+                if mod != 'Prelude':
+                    symbol_links.setdefault(f'{ident}.{method["name"]}', mhref)
+                    symbol_links.setdefault(f'{mod}.{method["name"]}', mhref)
+        for val in exp['values']:
+            if mod == 'Prelude':
+                continue
+            aid = anchor('value', val['name'])
+            href = f'/library/{mod}/#{aid}'
+            sym = val.get('symbol', f'{mod}.{val["name"]}')
+            symbol_links.setdefault(sym, href)
+            symbol_links.setdefault(f'{mod}.{val["name"]}', href)
+            symbol_links.setdefault(val['name'], href)
+
+    # Collect cross-module instances (skip Prelude facade re-exports to avoid duplicates)
+    seen_inst = set()
+    for mod in sorted(all_sources.keys()):
+        if mod == 'Prelude':
+            continue
+        exp = interfaces[mod]['exports']
+        for inst in exp['instances']:
+            iid = inst.get('id', '')
+            target = inst.get('target', '')
+            key = (iid, target)
+            if key in seen_inst:
+                continue
+            seen_inst.add(key)
+            cls_name, ty_name = ctf.extract_instance_heads(target)
+            row = {
+                'id': iid,
+                'module': mod,
+                'target': target,
+                'implicit': bool(inst.get('implicit')),
+            }
+            if cls_name:
+                instances_by_class.setdefault(cls_name, []).append(row)
+            if ty_name:
+                instances_by_type.setdefault(ty_name, []).append(row)
+
+    return type_links, symbol_links, instances_by_type, instances_by_class
+
+
+def render_instances_drawer(rows, type_links):
+    if not rows:
+        return ''
+    items = []
+    for row in rows:
+        _, linked_target = ctf.link_instance_target(row['target'], type_links)
+        res = 'implicit' if row['implicit'] else 'explicit'
+        mod = row['module']
+        items.append(
+            f'<li><code>{linked_target}</code> '
+            f'<span class="doc-inst-meta">{res} · <a href="/library/{esc_html(mod)}/#instances">{esc_html(mod)}</a></span></li>'
+        )
+    return (
+        f'<details class="doc-instances">'
+        f'<summary>Instances ({len(rows)})</summary>'
+        f'<ul>{"".join(items)}</ul>'
+        f'</details>'
+    )
+
+
+def render_entry_block(aid, sig_html, body_md, src_mod, line, extra_html=''):
+    links = [f'<a href="#{esc_html(aid)}" title="Permalink">#</a>']
+    if src_mod:
+        src_href = f'/library/source/{esc_html(src_mod)}/' + (f'#L{line}' if line else '')
+        src_title = f'View source at line {line}' if line else 'View source'
+        links.append(f'<a href="{src_href}" title="{src_title}">Source</a>')
+    sig_bar = (
+        f'<div class="doc-sig-bar">'
+        f'<code class="doc-sig">{sig_html}</code>'
+        f'<span class="doc-sig-links">{"".join(links)}</span>'
+        f'</div>'
+    )
+    parts = [f'<article class="doc-entry" id="{esc_html(aid)}">', sig_bar]
+    if body_md.strip() or extra_html.strip():
+        parts.append('<div class="doc-body">')
+        if body_md.strip():
+            parts.append('')
+            parts.append(body_md.strip())
+            parts.append('')
+        if extra_html.strip():
+            parts.append(extra_html.strip())
+        parts.append('</div>')
+    parts.append('</article>')
+    parts.append('')
+    return '\n'.join(parts)
+
 
 def generate(ifaces, compiler):
-    all_sources=sources()
-    embedded={m['name'] for m in json.loads((PRELUDE/'cinch-base.cinchpkg').read_text())['modules']}
-    interfaces={name:json.loads((ifaces/(name+'.cinchif')).read_text()) for name in all_sources}
-    documents={name:doc_json(compiler,path,name,ifaces/(name+'.cinchif')) for name,path in all_sources.items()}
-    for name,parsed in documents.items():
-        if parsed['doc'] and parsed['doc']['markdown'].strip():SUMMARIES[name]=summarize(parsed['doc']['markdown'])
-    doc_by_id={decl['id']:decl for parsed in documents.values() for decl in flatten_decls(parsed['declarations'])}
-    comments={name:{decl['name']:{'line':decl['source']['line'],'doc':decl['doc']['markdown']} for decl in flatten_decls(parsed['declarations']) if decl['doc']} for name,parsed in documents.items()}
-    downloads=ROOT/'website/public/reference-sources';downloads.mkdir(parents=True,exist_ok=True)
-    def info(identity,name):
-        decl=doc_by_id.get(identity)
+    all_sources = sources()
+    embedded = {m['name'] for m in json.loads((PRELUDE / 'cinch-base.cinchpkg').read_text())['modules']}
+    interfaces = {name: json.loads((ifaces / (name + '.cinchif')).read_text()) for name in all_sources}
+    documents = {name: doc_json(compiler, path, name, ifaces / (name + '.cinchif')) for name, path in all_sources.items()}
+    for name, parsed in documents.items():
+        if parsed['doc'] and parsed['doc']['markdown'].strip():
+            SUMMARIES[name] = summarize(parsed['doc']['markdown'])
+
+    doc_by_id = {decl['id']: decl for parsed in documents.values() for decl in flatten_decls(parsed['declarations'])}
+    comments = {
+        name: {
+            decl['name']: {'line': decl['source']['line'], 'doc': decl['doc']['markdown']}
+            for decl in flatten_decls(parsed['declarations'])
+            if decl['doc']
+        }
+        for name, parsed in documents.items()
+    }
+    lines_by_id = {
+        decl['id']: decl['source']['line']
+        for parsed in documents.values()
+        for decl in flatten_decls(parsed['declarations'])
+    }
+    lines_by_mod_name = {
+        (name, decl['name']): decl['source']['line']
+        for name, parsed in documents.items()
+        for decl in flatten_decls(parsed['declarations'])
+    }
+
+    type_links, symbol_links, instances_by_type, instances_by_class = build_global_maps(all_sources, interfaces)
+
+    downloads = ROOT / 'website/public/reference-sources'
+    downloads.mkdir(parents=True, exist_ok=True)
+
+    def info(identity, name, fallback_mod=''):
+        decl = doc_by_id.get(identity)
         if decl and decl['doc']:
-            return {'line':decl['source']['line'],'doc':decl['doc']['markdown'],
-                    'params':decl['doc']['tags'].get('params',[]),
-                    'typeParams':decl['doc']['tags'].get('typeParams',[]),
-                    'fields':decl['doc']['tags'].get('fields',[]),
-                    'returns':decl['doc']['tags'].get('returns')}
-        module=identity.rsplit('.',1)[0] if '.' in identity else ''
-        return comments.get(module,{}).get(name,{})
-    def details(identity,name):
-        item=info(identity,name)
-        prose=item.get('doc','')
-        module=identity.rsplit('.',1)[0] if '.' in identity else ''
-        source_link=f'/reference-sources/{module}.cinch' if module in all_sources else ''
-        parts=[]
-        if prose:parts.append(prose)
-        extras=[]
-        for label,key in (('Parameters','params'),('Type parameters','typeParams'),('Fields','fields')):
-            entries=item.get(key)
-            if entries:
-                extras+=[f'**{label}**','']+[f"- `{entry['name']}`: {entry['text']}" for entry in entries]+['']
-        if item.get('returns'):
-            extras+=[f"**Returns:** {item['returns']}",'']
-        if extras:parts.append('\n'.join(extras))
-        if source_link:parts.append(f'[Source]({source_link})'+(f' · line {item["line"]}' if item.get('line') else ''))
-        return '\n\n'.join(parts)+'\n'
-    total_values=0;total_methods=0; entries=[]
-    for name,path in all_sources.items():
-        iface=interfaces[name];export=iface['exports'];text=path.read_text()
-        (downloads/(name+'.cinch')).write_text(text)
-        embedded_here=name in embedded
-        imports=sorted(set(re.findall(r'^  import ([\w.]+)',text,re.M)))
-        closure=set()
+            return {
+                'line': decl['source']['line'],
+                'doc': decl['doc']['markdown'],
+                'params': decl['doc']['tags'].get('params', []),
+                'typeParams': decl['doc']['tags'].get('typeParams', []),
+                'fields': decl['doc']['tags'].get('fields', []),
+                'returns': decl['doc']['tags'].get('returns'),
+                'safety': decl['doc']['tags'].get('safety'),
+                'errors': decl['doc']['tags'].get('errors'),
+                'laws': decl['doc']['tags'].get('laws', []),
+                'effects': decl['doc']['tags'].get('effects', []),
+                'since': decl['doc']['tags'].get('since'),
+                'deprecated': decl['doc']['tags'].get('deprecated'),
+                'experimental': decl['doc']['tags'].get('experimental'),
+            }
+        mod = identity.rsplit('.', 1)[0] if '.' in identity else fallback_mod
+        fallback = comments.get(mod, {}).get(name, {})
+        if fallback:
+            return fallback
+        line = lines_by_id.get(identity) or lines_by_mod_name.get((mod, name)) or lines_by_mod_name.get((fallback_mod, name)) or 0
+        return {'line': line, 'doc': ''}
+
+    def format_body(item):
+        prose = resolve_symbol_links(item.get('doc', ''), symbol_links)
+        parts = []
+        if prose.strip():
+            parts.append(prose.strip())
+        extras = []
+        for label, key in (('Parameters', 'params'), ('Type parameters', 'typeParams'), ('Fields', 'fields')):
+            rows = item.get(key)
+            if rows:
+                extras += [f'**{label}**', ''] + [
+                    f"- `{r['name']}`: {resolve_symbol_links(r['text'], symbol_links)}" for r in rows
+                ] + ['']
+        for label, key in (('Returns', 'returns'), ('Safety', 'safety'), ('Errors', 'errors')):
+            val = item.get(key)
+            if val:
+                extras += [f'**{label}:** {resolve_symbol_links(str(val), symbol_links)}', '']
+        for label, key in (('Laws', 'laws'), ('Effects', 'effects')):
+            rows = item.get(key)
+            if rows:
+                extras += [f'**{label}**', ''] + [f'- {resolve_symbol_links(str(r), symbol_links)}' for r in rows] + ['']
+        meta = []
+        if item.get('since'):
+            meta.append(f'Since `{item["since"]}`')
+        if item.get('deprecated'):
+            meta.append(f'Deprecated: {item["deprecated"]}')
+        if item.get('experimental'):
+            meta.append(f'Experimental: {item["experimental"]}')
+        if meta:
+            extras += [' · '.join(meta), '']
+        if extras:
+            parts.append('\n'.join(extras).strip())
+        return '\n\n'.join(parts)
+
+    total_values = 0
+    total_methods = 0
+    entries = []
+    search_entries = []
+
+    for name, path in all_sources.items():
+        iface = interfaces[name]
+        export = iface['exports']
+        text = path.read_text()
+        (downloads / (name + '.cinch')).write_text(text)
+        embedded_here = name in embedded
+        imports = sorted(set(re.findall(r'^  import ([\w.]+)', text, re.M)))
+        closure = set()
+
         def deps(module):
-            if module in closure or module in embedded or module not in all_sources:return
+            if module in closure or module in embedded or module not in all_sources:
+                return
             closure.add(module)
-            for child in re.findall(r'^  import ([\w.]+)',all_sources[module].read_text(),re.M):deps(child)
+            for child in re.findall(r'^  import ([\w.]+)', all_sources[module].read_text(), re.M):
+                deps(child)
+
         deps(name)
-        lines=[f'# {name}','',describe(name),'', '<span class="support-tag support-tag--current">Embedded</span> Available from the compiler\'s embedded base family.' if embedded_here else '<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.', '',f'Import with `import {name}`. '+('Selected exports may already be in Prelude.' if name!='Prelude' else 'This module is implicitly available.'),'',f'[Download exact module source](/reference-sources/{name}.cinch) · [How library modules are loaded](00-index.md)','']
-        if imports:lines+=['# Dependencies','',', '.join(f'[{i}]({i}.md)' if i in all_sources else f'`{i}` (compiler-generated vocabulary)' for i in imports)+'.','']
+
+        used_ids = {'synopsis', 'types', 'signatures', 'values', 'operator-fixities', 'instances', 'dependencies', 'reference-provenance'}
+
+        badge_html = (
+            '<span class="support-tag support-tag--current">Embedded</span>'
+            if embedded_here
+            else '<span class="support-tag support-tag--source">Ship source</span>'
+        )
+        import_note = (
+            'Implicitly in scope.' if name == 'Prelude' else f'<code>import {esc_html(name)}</code>'
+        )
+        mod_bar = (
+            f'<div class="doc-mod-bar">'
+            f'<div class="doc-mod-bar-primary">{badge_html} {import_note}</div>'
+            f'<div class="doc-mod-bar-links">'
+            f'<a href="/library/source/{esc_html(name)}/">View source</a>'
+            f'<a href="/library/search/?q=%2B{esc_html(name)}">Search module</a>'
+            f'<a href="/reference-sources/{esc_html(name)}.cinch" download="{esc_html(name)}.cinch">Download .cinch</a>'
+            f'<a href="/library/00-index/">All modules</a>'
+            f'</div></div>'
+        )
+
+        lines = [f'# {name}', '', describe(name), '', mod_bar, '']
+
+        if imports:
+            dep_links = ', '.join(
+                f'[{i}]({i}.md)' if i in all_sources else f'`{i}`'
+                for i in imports
+            )
+            lines += [f'**Dependencies:** {dep_links}.', '']
         if not embedded_here:
-            lines+=['Non-embedded source closure: '+', '.join(f'[{m}]({m}.md)' for m in sorted(closure))+'.','']
-        module_doc=documents[name]['doc']
-        header=module_doc['markdown'] if module_doc else ''
+            sorted_closure = sorted(closure)
+            closure_links = ', '.join(f'[{m}]({m}.md)' for m in sorted_closure)
+            copy_cmds = '\n'.join(
+                f'cp {all_sources[m].relative_to(ROOT)} ./{m}.cinch'
+                for m in sorted_closure
+            )
+            lines += [
+                f'<details class="doc-closure"><summary>Ship-source closure ({len(sorted_closure)} file{"s" if len(sorted_closure) != 1 else ""})</summary>',
+                '',
+                f'Copy these modules beside your entry file before importing `{name}`: {closure_links}.',
+                '',
+                '```sh',
+                copy_cmds,
+                '```',
+                '',
+                '</details>',
+                '',
+            ]
+
+        module_doc = documents[name]['doc']
+        header = module_doc['markdown'] if module_doc else ''
         if not header:
-            header=re.split(r'^module ', text, maxsplit=1, flags=re.M)[0]
-            header='\n'.join(re.sub(r'^-- ?', '',l) for l in header.splitlines()).strip()
-        if header:lines+=['<details><summary>Behaviour and boundary notes from the source</summary>','',header,'','</details>','']
-        lines+=['# Types and constructors','']
-        if not export['types']:lines+=['This module exports no type declarations.','']
-        for ty in export['types']:
-            if ty.get('kind')=='signature':continue
-            lines+=[heading('type',ty['name'])]
-            params=' '.join(f'({p["name"]} :: {p["kind"]})' for p in ty.get('parameters',[]))
-            refinement=ty.get('refinement')
+            header = re.split(r'^module ', text, maxsplit=1, flags=re.M)[0]
+            header = '\n'.join(re.sub(r'^-- ?', '', l) for l in header.splitlines()).strip()
+        if header:
+            header_resolved = resolve_symbol_links(header, symbol_links)
+            lines += ['<details class="doc-notes"><summary>Module notes</summary>', '', header_resolved, '', '</details>', '']
+
+        # Prepare sections & synopsis rows simultaneously
+        synopsis_rows = []
+        types_md = []
+        sigs_md = []
+        values_md = []
+
+        public_types = [ty for ty in export['types'] if ty.get('kind') != 'signature']
+        for ty in public_types:
+            aid = alloc_anchor(used_ids, 'type', ty['name'])
+            params_plain, params_html = ctf.format_type_params(ty.get('parameters', []))
+            refinement = ty.get('refinement')
             if refinement:
-                lines+=[code(f'type {ty["name"]} {params} = refine ({refinement["binder"]} :: {refinement["carrier"]}) with {refinement["predicate"]}')]
+                carrier_plain = ctf.pretty_scheme(refinement['carrier'])
+                carrier_html = ctf.scheme_to_html(refinement['carrier'], type_links)
+                pred_plain = refinement['predicate']
+                pred_html = esc_html(pred_plain)
+                plain_sig = f'type {ty["name"]} {params_plain}'.rstrip() + f' = refine ({refinement["binder"]} :: {carrier_plain}) with {pred_plain}'
+                sig_html = (
+                    f'<span class="tok-keyword">type</span> <strong class="doc-decl-name tok-constructor">{esc_html(ty["name"])}</strong>'
+                    + (f' {params_html}' if params_html else '')
+                    + f' = <span class="tok-keyword">refine</span> (<span class="tok-variable">{esc_html(refinement["binder"])}</span> :: {carrier_html}) '
+                    + f'<span class="tok-keyword">with</span> {pred_html}'
+                )
             else:
-                lines+=[code(f'{ty["kind"]} {ty["name"]} {params}'.rstrip())]
-            lines+=[details(ty.get('identity',name+'.'+ty['name']),ty['name'])]
-            for ctor in ty.get('ctors',[]):
-                lines+=[code(f'{ctor["name"]} :: {ctor.get("scheme") or " -> ".join(ctor.get("fields",[]) + [ty["name"]])}')]
-                doc=info(name+'.'+ty['name']+'.'+ctor['name'],ctor['name']).get('doc')
-                if doc:lines+=[doc,'']
-            if ty.get('fields'):
-                lines+=['Fields:','',code('\n'.join(f'{f["name"]} :: {f.get("ty",f.get("scheme",""))}' if isinstance(f,dict) else str(f) for f in ty['fields']))]
-        classes=[s for s in export['signatures'] if public_class(s) or any(m.get('exports') for m in s['methods'])]
-        if classes:lines+=['# Signatures and methods','']
+                plain_sig = f'{ty["kind"]} {ty["name"]} {params_plain}'.rstrip()
+                sig_html = (
+                    f'<span class="tok-keyword">{esc_html(ty["kind"])}</span> '
+                    f'<strong class="doc-decl-name tok-constructor">{esc_html(ty["name"])}</strong>'
+                    + (f' {params_html}' if params_html else '')
+                )
+
+            ident = ty.get('identity', f'{name}.{ty["name"]}')
+            src_mod = ident.rsplit('.', 1)[0] if '.' in ident and ident.rsplit('.', 1)[0] in all_sources else name
+            item = info(ident, ty['name'], name)
+            body_md = format_body(item)
+
+            # Nested constructors / fields
+            children_blocks = []
+            ctors = ty.get('ctors', [])
+            if ctors:
+                ctor_lis = []
+                for ctor in ctors:
+                    caid = alloc_anchor(used_ids, 'ctor', ctor['name'])
+                    raw_c_scheme = ctor.get('scheme') or ' -> '.join(ctor.get('fields', []) + [ty['name']])
+                    pretty_c = ctf.pretty_scheme(raw_c_scheme)
+                    c_html = (
+                        f'<strong class="tok-constructor">{esc_html(ctor["name"])}</strong> :: '
+                        f'{ctf.scheme_to_html(raw_c_scheme, type_links)}'
+                    )
+                    c_info = info(f'{name}.{ty["name"]}.{ctor["name"]}', ctor['name'], src_mod)
+                    c_doc = c_info.get('doc', '').strip()
+                    c_doc_html = f'<div class="doc-child-prose">{esc_html(summarize(c_doc))}</div>' if c_doc else ''
+                    ctor_lis.append(f'<li id="{esc_html(caid)}"><code>{c_html}</code>{c_doc_html}</li>')
+                    if name != 'Prelude':
+                        search_entries.append({
+                            'm': name,
+                            'n': ctor['name'],
+                            'k': 'k',
+                            's': f'{ctor["name"]} :: {pretty_c}',
+                            'd': summarize(c_doc) if c_doc else f'Constructor of {ty["name"]}.',
+                            'h': caid,
+                            'l': c_info.get('line', item.get('line', 0)) or 0,
+                            **({'sm': src_mod} if src_mod != name else {}),
+                            'e': 1 if embedded_here else 0,
+                        })
+                children_blocks.append(f'<div class="doc-children"><h4>Constructors</h4><ul>{"".join(ctor_lis)}</ul></div>')
+
+            fields = ty.get('fields', [])
+            if fields:
+                field_lis = []
+                for f in fields:
+                    if isinstance(f, dict):
+                        fname = f['name']
+                        fty = f.get('ty', f.get('scheme', ''))
+                        f_html = f'<span class="tok-variable">{esc_html(fname)}</span> :: {ctf.scheme_to_html(fty, type_links)}'
+                    else:
+                        f_html = esc_html(str(f))
+                    field_lis.append(f'<li><code>{f_html}</code></li>')
+                children_blocks.append(f'<div class="doc-children"><h4>Fields</h4><ul>{"".join(field_lis)}</ul></div>')
+
+            inst_html = render_instances_drawer(instances_by_type.get(ty['name'], []), type_links)
+            if inst_html:
+                children_blocks.append(inst_html)
+
+            types_md.append(render_entry_block(aid, sig_html, body_md, src_mod, item.get('line', 0), '\n'.join(children_blocks)))
+            synopsis_rows.append(f'<li><a class="syn-name" href="#{esc_html(aid)}">{esc_html(ty["name"])}</a><code class="syn-sig">{sig_html}</code></li>')
+
+            if name != 'Prelude':
+                search_entries.append({
+                    'm': name,
+                    'n': ty['name'],
+                    'k': 't',
+                    's': plain_sig,
+                    'd': summarize(item.get('doc', '')) if item.get('doc') else '',
+                    'h': aid,
+                    'l': item.get('line', 0) or 0,
+                    **({'sm': src_mod} if src_mod != name else {}),
+                    'e': 1 if embedded_here else 0,
+                })
+
+        classes = [s for s in export['signatures'] if public_class(s) or any(m.get('exports') for m in s['methods'])]
         for sig in classes:
-            lines+=[heading('class',sig['name']),code(f'signature {sig["name"]} '+ ' '.join(sig.get('params',[]))),details(sig.get('identity',name+'.'+sig['name']),sig['name'])]
+            aid = alloc_anchor(used_ids, 'class', sig['name'])
+            params_plain, params_html = ctf.format_type_params(sig.get('params', []))
+            plain_sig = f'signature {sig["name"]} {params_plain}'.rstrip()
+            sig_html = (
+                f'<span class="tok-keyword">signature</span> '
+                f'<strong class="doc-decl-name tok-constructor">{esc_html(sig["name"])}</strong>'
+                + (f' {params_html}' if params_html else '')
+            )
+            ident = sig.get('identity', f'{name}.{sig["name"]}')
+            src_mod = ident.rsplit('.', 1)[0] if '.' in ident and ident.rsplit('.', 1)[0] in all_sources else name
+            item = info(ident, sig['name'], name)
+            body_md = format_body(item)
+
+            method_lis = []
             for method in sig['methods']:
-                if not method.get('exports'):continue
-                total_methods+=1
-                lines+=[heading('method',sig['name']+'.'+method['name']),code(f'{method["name"]} :: {method["scheme"]}'),details(f"{sig.get('identity',name+'.'+sig['name'])}.{method['name']}",method['name'])]
-        if export['values']:lines+=['# Values','']
+                if not method.get('exports'):
+                    continue
+                total_methods += 1
+                maid = alloc_anchor(used_ids, 'method', f'{sig["name"]}-{method["name"]}')
+                pretty_m = ctf.pretty_scheme(method['scheme'])
+                m_html = (
+                    f'<strong class="tok-variable">{esc_html(method["name"])}</strong> :: '
+                    f'{ctf.scheme_to_html(method["scheme"], type_links)}'
+                )
+                m_info = info(f'{ident}.{method["name"]}', method['name'], src_mod)
+                m_line = m_info.get('line', 0) or item.get('line', 0)
+                m_src = f'/library/source/{esc_html(src_mod)}/' + (f'#L{m_line}' if m_line else '')
+                m_doc = m_info.get('doc', '').strip()
+                m_doc_html = f'<div class="doc-child-prose">{esc_html(summarize(m_doc))}</div>' if m_doc else ''
+                method_lis.append(
+                    f'<li id="{esc_html(maid)}"><div class="doc-method-row"><code>{m_html}</code>'
+                    f'<span class="doc-sig-links"><a href="#{esc_html(maid)}" title="Permalink">#</a>'
+                    f'<a href="{m_src}">Source</a></span></div>{m_doc_html}</li>'
+                )
+                synopsis_rows.append(
+                    f'<li class="syn-sub"><a class="syn-name" href="#{esc_html(maid)}">{esc_html(method["name"])}</a>'
+                    f'<code class="syn-sig">{m_html}</code></li>'
+                )
+                if name != 'Prelude':
+                    search_entries.append({
+                        'm': name,
+                        'n': method['name'],
+                        'k': 'm',
+                        's': f'{method["name"]} :: {pretty_m}',
+                        'd': summarize(m_doc) if m_doc else f'Method of {sig["name"]}.',
+                        'h': maid,
+                        'l': m_line or 0,
+                        **({'sm': src_mod} if src_mod != name else {}),
+                        'e': 1 if embedded_here else 0,
+                    })
+
+            extra_parts = []
+            if method_lis:
+                extra_parts.append(f'<div class="doc-children"><h4>Methods</h4><ul>{"".join(method_lis)}</ul></div>')
+            inst_html = render_instances_drawer(instances_by_class.get(sig['name'], []), type_links)
+            if inst_html:
+                extra_parts.append(inst_html)
+
+            sigs_md.append(render_entry_block(aid, sig_html, body_md, src_mod, item.get('line', 0), '\n'.join(extra_parts)))
+            synopsis_rows.insert(
+                len(synopsis_rows) - len(method_lis),
+                f'<li><a class="syn-name" href="#{esc_html(aid)}">{esc_html(sig["name"])}</a><code class="syn-sig">{sig_html}</code></li>',
+            )
+            if name != 'Prelude':
+                search_entries.append({
+                    'm': name,
+                    'n': sig['name'],
+                    'k': 'c',
+                    's': plain_sig,
+                    'd': summarize(item.get('doc', '')) if item.get('doc') else '',
+                    'h': aid,
+                    'l': item.get('line', 0) or 0,
+                    **({'sm': src_mod} if src_mod != name else {}),
+                    'e': 1 if embedded_here else 0,
+                })
+
         for value in export['values']:
-            total_values+=1
-            symbol=value.get('symbol',name+'.'+value['name'])
-            if name=='Prelude':continue
-            lines+=[heading('value',value['name']),code(f'{value["name"]} :: {value["scheme"]}'),details(symbol,value['name'])]
-        if name=='Prelude':
-            lines+=['This facade re-exports the following checked values. Follow a defining module for declaration documentation. Compiler-installed operations such as `ioWrite` have a [separate reference](../reference/20-compiler-vocabulary.md).','','| Value | Defining module |','| --- | --- |']
+            total_values += 1
+            if name == 'Prelude':
+                continue
+            aid = alloc_anchor(used_ids, 'value', value['name'])
+            symbol = value.get('symbol', f'{name}.{value["name"]}')
+            src_mod = symbol.rsplit('.', 1)[0] if '.' in symbol and symbol.rsplit('.', 1)[0] in all_sources else name
+            pretty_v = ctf.pretty_scheme(value['scheme'])
+            sig_html = (
+                f'<strong class="doc-decl-name tok-variable">{esc_html(value["name"])}</strong> :: '
+                f'{ctf.scheme_to_html(value["scheme"], type_links)}'
+            )
+            item = info(symbol, value['name'], name)
+            body_md = format_body(item)
+            values_md.append(render_entry_block(aid, sig_html, body_md, src_mod, item.get('line', 0)))
+            synopsis_rows.append(
+                f'<li><a class="syn-name" href="#{esc_html(aid)}">{esc_html(value["name"])}</a>'
+                f'<code class="syn-sig">{sig_html}</code></li>'
+            )
+            search_entries.append({
+                'm': name,
+                'n': value['name'],
+                'k': 'v',
+                's': f'{value["name"]} :: {pretty_v}',
+                'd': summarize(item.get('doc', '')) if item.get('doc') else '',
+                'h': aid,
+                'l': item.get('line', 0) or 0,
+                **({'sm': src_mod} if src_mod != name else {}),
+                'e': 1 if embedded_here else 0,
+            })
+
+        # Emit collapsible Synopsis
+        if synopsis_rows:
+            open_attr = ' open' if len(synopsis_rows) <= 18 else ''
+            lines += [
+                f'<details class="doc-synopsis"{open_attr}><summary>Synopsis ({len(synopsis_rows)} declarations)</summary>',
+                f'<ul class="doc-synopsis-list">{"".join(synopsis_rows)}</ul>',
+                '</details>',
+                '',
+            ]
+
+        if types_md:
+            lines += ['# Types', ''] + types_md
+        if sigs_md:
+            lines += ['# Signatures', ''] + sigs_md
+        if name == 'Prelude' and export['values']:
+            lines += [
+                '# Re-exported values',
+                '',
+                'Prelude re-exports a curated subset of the standard library. Follow the defining module link for documentation, or use [API Search](/library/search/) to query by type signature. Compiler-installed forms such as `ioWrite` are documented in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
+                '',
+                '| Value | Signature | Defining module |',
+                '| --- | --- | --- |',
+            ]
             for value in export['values']:
-                home=value.get('symbol','').rsplit('.',1)[0]
-                link=f'[{home}]({home}.md#{anchor("value",value["name"])})' if home in all_sources else f'`{home}`'
-                lines.append(f'| `{markdown_text(value["name"])}` | {link} |')
-            lines+=['']
+                home = value.get('symbol', '').rsplit('.', 1)[0]
+                link = f'[{home}]({home}.md#{anchor("value", value["name"])})' if home in all_sources else f'`{home}`'
+                pretty_v = ctf.pretty_scheme(value['scheme'])
+                lines.append(f'| `{markdown_text(value["name"])}` | `{markdown_text(pretty_v)}` | {link} |')
+            lines += ['']
+        elif values_md:
+            lines += ['# Values', ''] + values_md
+
         if export['fixities']:
-            lines+=['# Operator fixities','',code('\n'.join(f'{ {"left":"infixl","right":"infixr","none":"infix"}.get(f.get("assoc"), "infix")} {f.get("prec",0)} {f.get("op","")}' for f in export['fixities']))]
+            lines += [
+                '# Operator fixities',
+                '',
+                '| Operator | Associativity | Precedence |',
+                '| --- | --- | --- |',
+            ]
+            for f in export['fixities']:
+                assoc = {'left': 'infixl', 'right': 'infixr', 'none': 'infix'}.get(f.get('assoc'), 'infix')
+                lines.append(f'| `{markdown_text(f.get("op", ""))}` | `{assoc}` | `{f.get("prec", 0)}` |')
+            lines += ['']
+
         if export['instances']:
-            lines+=['# Instances','','These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).','','| Instance | Target | Resolution |','| --- | --- | --- |']
+            lines += [
+                '# Instances',
+                '',
+                'Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).',
+                '',
+                '<ul class="doc-module-instances">',
+            ]
             for inst in export['instances']:
-                lines.append(f'| `{markdown_text(inst["id"])}` | `{markdown_text(inst["target"])}` | '+('Implicit' if inst['implicit'] else 'Explicit')+' |')
-            lines+=['']
-            notes=[]
-            for inst in export['instances']:
-                decl=doc_by_id.get(inst.get('id',''))
+                iaid = alloc_anchor(used_ids, 'instance', inst['id'].rsplit('.', 1)[-1])
+                plain_t, linked_t = ctf.link_instance_target(inst['target'], type_links)
+                res = 'Implicit' if inst['implicit'] else 'Explicit'
+                decl = doc_by_id.get(inst.get('id', ''))
+                note_html = ''
                 if decl and decl['doc']:
-                    notes.append(f'**`{inst["id"]}`**: {decl["doc"]["markdown"]}')
-            if notes:lines+=notes+['']
-        lines+=['# Reference provenance','',f'Generated from the Rust compiler\'s checked exports and `seed/prelude/{path.relative_to(PRELUDE)}`. Source SHA-256: `{digest(path)}`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.','']
-        (OUTPUT/(name+'.md')).write_text(highlighted_markdown(compiler,'\n'.join(lines)))
-        entries.append({'module':name,'path':str(path.relative_to(ROOT)),'sha256':digest(path),'embedded':embedded_here,'values':len(export['values']),'public_methods':sum(bool(m.get('exports')) for s in export['signatures'] for m in s['methods'])})
-    manifest={'format':1,'base_manifest_sha256':digest(PRELUDE/'cinch-base.cinchpkg'),'modules':entries}
-    MANIFEST.write_text(json.dumps(manifest,indent=2)+'\n')
-    index=['# Built-in and shipped libraries','','The actual library source distributed with the **Rust compiler**, documented from checked compiler interfaces. This directory is separate from the website\'s [sample package catalogue](/packages/).','','# Choose a module','','Use site search to find a declaration by name or signature. The groups below distinguish embedded modules from source-distributed modules. Public types, constructors, values, methods, fixities, and instance entries come from `.cinchif` exports; source comments explain behaviour and named limits. Private class closure in an interface is not presented as a public method API.','','# Load embedded modules','','The compiler embeds the modules marked **Embedded**. Import their defining home when a name is absent from the curated Prelude. Compiler-installed special forms and operations such as `newIO`, `ioWrite`, `spawn`, and `decide` are documented in [compiler vocabulary](../reference/20-compiler-vocabulary.md).','','# Use source-distributed modules','','Modules marked **Ship source** are implemented and check with the Rust compiler, but are not embedded. Put their source and non-embedded dependency closure beside your entry file. For example, from the repository root:','','```sh','mkdir -p /tmp/cinch-json-example','cp seed/prelude/Text/Lex.cinch /tmp/cinch-json-example/Text.Lex.cinch','cp seed/prelude/Text/Scan.cinch /tmp/cinch-json-example/Text.Scan.cinch','cp seed/prelude/Text/Builder.cinch /tmp/cinch-json-example/Text.Builder.cinch','cp seed/prelude/Text/Parse.cinch /tmp/cinch-json-example/Text.Parse.cinch','cp seed/prelude/Text/Json.cinch /tmp/cinch-json-example/Text.Json.cinch','```','','Save a `Main.cinch` there and use `import Text.Json`. Each module page lists its actual imports and the complete non-embedded source closure. The module declaration determines identity; the dotted filenames above make the sibling-directory arrangement unambiguous. These copy commands do not install a remote package.','','<span class="support-tag support-tag--planned">Coming soon</span> a complete remote package-install/publish workflow and real binary release bundles. The current local package manifest/store is described in [modules](../reference/07-modules-and-packages.md) and [artifacts](../reference/18-artifacts-and-incremental.md).','','# Module directory','']
-    groups=['Prelude','Algebra','Category','Relation','Function','Crypto','Data','Text','Effect','Image']
+                    note_html = f'<div class="doc-child-prose">{esc_html(summarize(decl["doc"]["markdown"]))}</div>'
+                lines.append(
+                    f'<li id="{esc_html(iaid)}"><code>{linked_t}</code> '
+                    f'<span class="doc-inst-meta">{res} · <code>{esc_html(inst["id"])}</code></span>{note_html}</li>'
+                )
+                if name != 'Prelude':
+                    search_entries.append({
+                        'm': name,
+                        'n': inst['id'].rsplit('.', 1)[-1],
+                        'k': 'i',
+                        's': plain_t,
+                        'd': summarize(decl['doc']['markdown']) if decl and decl['doc'] else f'{res} instance in {name}.',
+                        'h': iaid,
+                        'l': decl['source']['line'] if decl else 0,
+                        'e': 1 if embedded_here else 0,
+                    })
+            lines += ['</ul>', '']
+
+        lines += [
+            '# Reference provenance',
+            '',
+            f'Generated from checked `.cinchif` exports and [`seed/prelude/{path.relative_to(PRELUDE)}`](/library/source/{name}/). Source SHA-256: `{digest(path)}`.',
+            '',
+        ]
+        (OUTPUT / (name + '.md')).write_text(highlighted_markdown(compiler, '\n'.join(lines)))
+        entries.append({
+            'module': name,
+            'path': str(path.relative_to(ROOT)),
+            'sha256': digest(path),
+            'embedded': embedded_here,
+            'types': len(public_types),
+            'values': len(export['values']),
+            'public_methods': sum(bool(m.get('exports')) for s in export['signatures'] for m in s['methods']),
+        })
+
+    manifest = {'format': 1, 'base_manifest_sha256': digest(PRELUDE / 'cinch-base.cinchpkg'), 'modules': entries}
+    MANIFEST.write_text(json.dumps(manifest, indent=2) + '\n')
+
+    search_payload = {
+        'schema': 1,
+        'moduleCount': len(entries),
+        'typeLinks': type_links,
+        'entries': search_entries,
+    }
+    SEARCH_INDEX.write_text(json.dumps(search_payload, separators=(',', ':')) + '\n')
+
+    embedded_count = sum(e['embedded'] for e in entries)
+    source_count = sum(not e['embedded'] for e in entries)
+
+    hoogle_widget = (
+        '<form class="doc-hoogle-box" action="/library/search/" method="get" role="search">\n'
+        '<label for="lib-index-search">Search by symbol name or type signature</label>\n'
+        '<div class="doc-hoogle-row">\n'
+        '<input id="lib-index-search" name="q" type="search" placeholder="e.g. (a -> b) -> List a -> List b, Result e a -> Option a, or +Data.Map" autocomplete="off" />\n'
+        '<button type="submit">Search API</button>\n'
+        '</div>\n'
+        '<div class="doc-hoogle-chips">\n'
+        '<a href="/library/search/?q=%28a+-%3E+b%29+-%3E+List+a+-%3E+List+b">(a -&gt; b) -&gt; List a -&gt; List b</a>\n'
+        '<a href="/library/search/?q=Result+e+a+-%3E+Option+a">Result e a -&gt; Option a</a>\n'
+        '<a href="/library/search/?q=Ord+a+%3D%3E+List+a+-%3E+List+a">Ord a =&gt; List a -&gt; List a</a>\n'
+        '<a href="/library/search/?q=Bytes+-%3E+Result">Bytes -&gt; Result</a>\n'
+        '<a href="/library/search/?q=is%3Aclass">is:class</a>\n'
+        '</div>\n'
+        '</form>'
+    )
+
+    index = [
+        '# Built-in and shipped libraries',
+        '',
+        f'Standard library API reference extracted from checked compiler interfaces across **{len(entries)} modules** (**{embedded_count} embedded** in the compiler, **{source_count} source-distributed**) and **{len(search_entries):,} indexed declarations**. Separate from the registry-backed [package catalogue](/packages/).',
+        '',
+        hoogle_widget,
+        '',
+        '# How modules are loaded',
+        '',
+        '- **Embedded** modules are compiled into `cinch` and ready to `import` immediately. `Prelude` is implicitly in scope; compiler-installed special forms live in [compiler vocabulary](../reference/20-compiler-vocabulary.md).',
+        '- **Ship source** modules check with the compiler today and ship under `seed/prelude/`. Copy a module and its non-embedded closure (listed on each module page) beside your entry file before importing it.',
+        '',
+        '# Module directory',
+        '',
+    ]
+    groups = ['Prelude', 'Algebra', 'Category', 'Relation', 'Function', 'Crypto', 'Data', 'Text', 'Effect', 'Image', 'Prim']
     for group in groups:
-        subset=[e for e in entries if e['module'].split('.')[0]==group]
-        index += [f'## {group}','','| Module | Distribution | Purpose |','| --- | --- | --- |']
+        subset = [e for e in entries if e['module'].split('.')[0] == group]
+        if not subset:
+            continue
+        index += [f'## {group}', '', '| Module | Distribution | Exports | Purpose |', '| --- | --- | --- | --- |']
         for e in subset:
-            name=e['module'];index.append(f'| [{name}]({name}.md) | '+('Embedded' if e['embedded'] else 'Ship source')+f' | {markdown_text(describe(name))} |')
-        index+=['']
-    index+=['# Scope and verification','',f'This generation covers **{len(entries)} source modules**: **{sum(e["embedded"] for e in entries)} embedded** and **{sum(not e["embedded"] for e in entries)} source-distributed**. Each source-distributed module was imported in an isolated consumer project and checked by the Rust compiler before extraction. Checking an import establishes accepted declarations; it is not an end-to-end runtime test of every function. Runnable tutorial examples are verified separately.','','Signatures preserve the compiler\'s rendered schemes, including constraints and effect rows. When a source comment and a checked scheme differ, treat the scheme and Rust behaviour as current and investigate the source note. Availability of a module does not imply every feature of another language\'s similarly named library (for example, plaintext HTTP is not TLS, and a YAML parser may support a subset).','','Regenerate with `python3 website/scripts/generate-library-reference.py --compiler /path/to/cinch`. Check source drift with `python3 website/scripts/generate-library-reference.py --check`.','']
-    (OUTPUT/'00-index.md').write_text('\n'.join(index))
-    print(f'Generated {len(entries)} module pages, {total_values} value exports, {total_methods} public method entries')
+            name = e['module']
+            dist_label = 'Embedded' if e['embedded'] else 'Ship source'
+            count = e['types'] + e['values'] + e['public_methods']
+            index.append(f'| [{name}]({name}.md) | {dist_label} | {count} | {markdown_text(describe(name))} |')
+        index += ['']
+
+    index += [
+        '# Regeneration and verification',
+        '',
+        'Every module page is generated from checked `.cinchif` interfaces and source comments, with clickable type links, cross-module instance indices, and line-numbered source views. Regenerate after changing `seed/prelude/` with `python3 website/scripts/generate-library-reference.py --compiler /path/to/cinch` and check for drift with `--check`.',
+        '',
+    ]
+    (OUTPUT / '00-index.md').write_text('\n'.join(index))
+    print(
+        f'Generated {len(entries)} module pages, {total_values} value exports, '
+        f'{total_methods} public methods, {len(search_entries)} Hoogle index entries'
+    )
+
 
 def main():
-    args=argparse.ArgumentParser(description=__doc__)
+    args = argparse.ArgumentParser(description=__doc__)
     args.add_argument('--compiler')
-    args.add_argument('--interfaces',type=Path,help='Use a previously checked interface directory from the same source snapshot')
-    args.add_argument('--check',action='store_true')
-    args.add_argument('--validate-docs',action='store_true',help='Parse documentation comments in every library source without regenerating pages')
-    options=args.parse_args()
+    args.add_argument('--interfaces', type=Path, help='Use a previously checked interface directory from the same source snapshot')
+    args.add_argument('--save-interfaces', type=Path, help='Persist extracted .cinchif files into this directory for fast regeneration')
+    args.add_argument('--check', action='store_true')
+    args.add_argument('--validate-docs', action='store_true', help='Parse documentation comments in every library source without regenerating pages')
+    options = args.parse_args()
     if options.validate_docs:
-        compiler=options.compiler or shutil.which('cinch')
-        if not compiler:args.error('supply --compiler with a built cinch executable')
-        compiler=str(Path(compiler).resolve())
-        diagnostics=0;orphans=0
-        library_sources=sources()
-        for name,path in library_sources.items():
-            parsed=doc_json(compiler,path,name)
+        compiler = options.compiler or shutil.which('cinch')
+        if not compiler:
+            args.error('supply --compiler with a built cinch executable')
+        compiler = str(Path(compiler).resolve())
+        diagnostics = 0
+        orphans = 0
+        library_sources = sources()
+        for name, path in library_sources.items():
+            parsed = doc_json(compiler, path, name, allow_orphans=True)
             for item in parsed['diagnostics']:
-                diagnostics+=1
+                diagnostics += 1
                 print(f'{path}:{item["line"]}: {item["code"]}: {item["message"]}')
             for item in parsed['orphans']:
-                orphans+=1
+                orphans += 1
                 print(f'{path}:{item["line"]}: orphan {item["kind"]} doc: {item["text"][:80]}')
         print(f'Validated documentation comments in {len(library_sources)} module sources: {diagnostics} diagnostics, {orphans} orphan docs')
         return 1 if diagnostics or orphans else 0
     if options.check:
-        recorded=json.loads(MANIFEST.read_text())
-        actual=sources()
-        assert set(actual)=={m['module'] for m in recorded['modules']},'Library source set changed; regenerate reference'
-        assert recorded['base_manifest_sha256']==digest(PRELUDE/'cinch-base.cinchpkg'),'Base manifest changed; regenerate reference'
+        recorded = json.loads(MANIFEST.read_text())
+        actual = sources()
+        assert set(actual) == {m['module'] for m in recorded['modules']}, 'Library source set changed; regenerate reference'
+        assert recorded['base_manifest_sha256'] == digest(PRELUDE / 'cinch-base.cinchpkg'), 'Base manifest changed; regenerate reference'
         for entry in recorded['modules']:
-            assert entry['sha256']==digest(actual[entry['module']]),f'{entry["module"]}: source changed; regenerate reference'
-            assert (OUTPUT/(entry['module']+'.md')).exists(),f'Missing module page: {entry["module"]}'
-            assert (ROOT/'website/public/reference-sources'/(entry['module']+'.cinch')).read_bytes()==actual[entry['module']].read_bytes(),f'Stale source download: {entry["module"]}'
-        print(f'Library reference matches all {len(actual)} module sources and the base manifest')
+            assert entry['sha256'] == digest(actual[entry['module']]), f'{entry["module"]}: source changed; regenerate reference'
+            assert (OUTPUT / (entry['module'] + '.md')).exists(), f'Missing module page: {entry["module"]}'
+            assert (ROOT / 'website/public/reference-sources' / (entry['module'] + '.cinch')).read_bytes() == actual[entry['module']].read_bytes(), f'Stale source download: {entry["module"]}'
+        assert SEARCH_INDEX.exists(), 'Missing Hoogle search index: website/public/library-search-index.json'
+        print(f'Library reference matches all {len(actual)} module sources, base manifest, and Hoogle search index')
         return
-    compiler=options.compiler or shutil.which('cinch')
-    if not compiler:args.error('supply --compiler to the Rust cinch executable')
-    compiler=str(Path(compiler).resolve())
-    temp=None
+    compiler = options.compiler or shutil.which('cinch')
+    if not compiler:
+        args.error('supply --compiler to the Rust cinch executable')
+    compiler = str(Path(compiler).resolve())
+    temp = None
     if options.interfaces:
-        ifaces=options.interfaces
+        ifaces = options.interfaces
     else:
-        temp,ifaces=collect_interfaces(compiler)
-    try:generate(ifaces,compiler)
+        temp, ifaces = collect_interfaces(compiler, save_dir=options.save_interfaces)
+    try:
+        generate(ifaces, compiler)
     finally:
-        if temp:temp.cleanup()
+        if temp:
+            temp.cleanup()
 
-if __name__=='__main__':main()
+
+if __name__ == '__main__':
+    raise SystemExit(main() or 0)

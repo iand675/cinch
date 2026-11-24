@@ -2,19 +2,30 @@
 
 Time zones: offsets for instants, resolution of civil times, and fixed or rule-based zones.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Zone</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Time.Zone/">View source</a><a href="/library/search/?q=%2BData.Time.Zone">Search module</a><a href="/reference-sources/Data.Time.Zone.cinch" download="Data.Time.Zone.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Time.Zone`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.Zone.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (10 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Time.Zone`: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md).
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Data/Time/Date.cinch ./Data.Time.Date.cinch
+cp seed/prelude/Data/Time/DateTime.cinch ./Data.Time.DateTime.cinch
+cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
+cp seed/prelude/Data/Time/Offset.cinch ./Data.Time.Offset.cinch
+cp seed/prelude/Data/Time/TimeOfDay.cinch ./Data.Time.TimeOfDay.cinch
+cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
+cp seed/prelude/Data/Time/Weekday.cinch ./Data.Time.Weekday.cinch
+cp seed/prelude/Data/Time/Zone.cinch ./Data.Time.Zone.cinch
+cp seed/prelude/Data/Time/Zone/Posix.cinch ./Data.Time.Zone.Posix.cinch
+cp seed/prelude/Data/Time/Zone/Types.cinch ./Data.Time.Zone.Types.cinch
+```
 
-Non-embedded source closure: [Data.Time.Date](Data.Time.Date.md), [Data.Time.DateTime](Data.Time.DateTime.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Offset](Data.Time.Offset.md), [Data.Time.TimeOfDay](Data.Time.TimeOfDay.md), [Data.Time.Timestamp](Data.Time.Timestamp.md), [Data.Time.Weekday](Data.Time.Weekday.md), [Data.Time.Zone](Data.Time.Zone.md), [Data.Time.Zone.Posix](Data.Time.Zone.Posix.md), [Data.Time.Zone.Types](Data.Time.Zone.Types.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time.Zone: time zones
 (design/datetime.md, layer L2, lane C).
@@ -79,128 +90,95 @@ NAMED REFUSALS:
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (43 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-AmbiguityError">AmbiguityError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">AmbiguityError</strong></code></li><li><a class="syn-name" href="#t-Ambiguous">Ambiguous</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ambiguous</strong></code></li><li><a class="syn-name" href="#t-Disambiguation">Disambiguation</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Disambiguation</strong></code></li><li><a class="syn-name" href="#t-OffsetInfo">OffsetInfo</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">OffsetInfo</strong></code></li><li><a class="syn-name" href="#t-TimeZone">TimeZone</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TimeZone</strong></code></li><li><a class="syn-name" href="#t-ZoneTableError">ZoneTableError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZoneTableError</strong></code></li><li><a class="syn-name" href="#v-ambiguous-compatible">ambiguous-compatible</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-compatible</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-ambiguous-earlier">ambiguous-earlier</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-earlier</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-ambiguous-from-lookups">ambiguous-from-lookups</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-from-lookups</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code></li><li><a class="syn-name" href="#v-ambiguous-is-ambiguous">ambiguous-is-ambiguous</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-is-ambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ambiguous-is-fold">ambiguous-is-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-is-fold</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ambiguous-is-gap">ambiguous-is-gap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-is-gap</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-ambiguous-later">ambiguous-later</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-later</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-ambiguous-offset">ambiguous-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-ambiguous-reject">ambiguous-reject</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-reject</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-ambiguous-resolve">ambiguous-resolve</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-resolve</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-ambiguous-unambiguous">ambiguous-unambiguous</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">ambiguous-unambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-offset-info">offset-info</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-info</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code></li><li><a class="syn-name" href="#v-offset-info-abbreviation">offset-info-abbreviation</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-info-abbreviation</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-offset-info-is-dst">offset-info-is-dst</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-info-is-dst</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-offset-info-offset">offset-info-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">offset-info-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-zone-fixed">zone-fixed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-fixed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code></li><li><a class="syn-name" href="#v-zone-fixed-named">zone-fixed-named</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-fixed-named</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code></li><li><a class="syn-name" href="#v-zone-fixed-offset">zone-fixed-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-fixed-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-zone-from-table">zone-from-table</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-from-table</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-ZoneTableError" title="Data.Time.Zone.ZoneTableError">ZoneTableError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code></li><li><a class="syn-name" href="#v-zone-info-at">zone-info-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-info-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code></li><li><a class="syn-name" href="#v-zone-info-at-unix-seconds">zone-info-at-unix-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-info-at-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code></li><li><a class="syn-name" href="#v-zone-name">zone-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-zone-next-transition">zone-next-transition</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-next-transition</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-zone-next-transition-unix-seconds">zone-next-transition-unix-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-next-transition-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-zone-offset-at">zone-offset-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-offset-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code></li><li><a class="syn-name" href="#v-zone-posix">zone-posix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-posix</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code></li><li><a class="syn-name" href="#v-zone-previous-transition">zone-previous-transition</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-previous-transition</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-zone-previous-transition-unix-seconds">zone-previous-transition-unix-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-previous-transition-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-zone-to-ambiguous">zone-to-ambiguous</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-to-ambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code></li><li><a class="syn-name" href="#v-zone-to-datetime">zone-to-datetime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-to-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code></li><li><a class="syn-name" href="#v-zone-to-timestamp">zone-to-timestamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-zone-to-timestamp-compatible">zone-to-timestamp-compatible</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp-compatible</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-zone-to-timestamp-earlier">zone-to-timestamp-earlier</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp-earlier</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-zone-to-timestamp-later">zone-to-timestamp-later</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp-later</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-zone-to-timestamp-reject">zone-to-timestamp-reject</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp-reject</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-zone-transition-count">zone-transition-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-transition-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-zone-utc">zone-utc</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zone-utc</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code></li></ul>
+</details>
 
-<a id="type-416d626967756974794572726f72"></a>
+# Types
 
-## `AmbiguityError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">AmbiguityError</span></code></pre>
+<article class="doc-entry" id="t-AmbiguityError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">AmbiguityError</strong></code><span class="doc-sig-links"><a href="#t-AmbiguityError" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L111" title="View source at line 111">Source</a></span></div>
+<div class="doc-body">
 
 Why a civil reading was not turned into an instant: `Reject` met a
 gap or a fold (the two offsets are the `Ambiguous` value's), or
 the instant is outside the timestamp range.
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 111
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-RejectedGap"><code><strong class="tok-constructor">RejectedGap</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a></code></li><li id="k-RejectedFold"><code><strong class="tok-constructor">RejectedFold</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a></code></li><li id="k-AmbiguityOutOfRange"><code><strong class="tok-constructor">AmbiguityOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RejectedGap</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RejectedFold</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">AmbiguityOutOfRange</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span></code></pre>
-
-<a id="type-416d626967756f7573"></a>
-
-## `Ambiguous`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Ambiguous</span></code></pre>
+<article class="doc-entry" id="t-Ambiguous">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Ambiguous</strong></code><span class="doc-sig-links"><a href="#t-Ambiguous" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L96" title="View source at line 96">Source</a></span></div>
+<div class="doc-body">
 
 The offsets a civil reading can have (T4). `Gap before after` and
 `Fold before after` name the offset in force before the
 transition and the one after it.
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 96
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Unambiguous"><code><strong class="tok-constructor">Unambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code></li><li id="k-Gap"><code><strong class="tok-constructor">Gap</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code></li><li id="k-Fold"><code><strong class="tok-constructor">Fold</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Unambiguous</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Gap</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Fold</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span>))</code></pre>
-
-<a id="type-446973616d626967756174696f6e"></a>
-
-## `Disambiguation`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Disambiguation</span></code></pre>
+<article class="doc-entry" id="t-Disambiguation">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Disambiguation</strong></code><span class="doc-sig-links"><a href="#t-Disambiguation" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 How to choose (the header's table).
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 102
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Compatible"><code><strong class="tok-constructor">Compatible</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a></code></li><li id="k-Earlier"><code><strong class="tok-constructor">Earlier</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a></code></li><li id="k-Later"><code><strong class="tok-constructor">Later</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a></code></li><li id="k-Reject"><code><strong class="tok-constructor">Reject</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Compatible</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Earlier</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Later</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Reject</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span></code></pre>
-
-<a id="type-4f6666736574496e666f"></a>
-
-## `OffsetInfo`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">OffsetInfo</span></code></pre>
+<article class="doc-entry" id="t-OffsetInfo">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">OffsetInfo</strong></code><span class="doc-sig-links"><a href="#t-OffsetInfo" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 What a zone says about one instant: the offset in force, whether
 it is daylight saving time, and the abbreviation ("EST", "+0330").
 Abstract; `offset-info` builds one (any three values are valid).
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 75
+</div>
+</article>
 
-<a id="type-54696d655a6f6e65"></a>
-
-## `TimeZone`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TimeZone</span></code></pre>
+<article class="doc-entry" id="t-TimeZone">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TimeZone</strong></code><span class="doc-sig-links"><a href="#t-TimeZone" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L106" title="View source at line 106">Source</a></span></div>
+<div class="doc-body">
 
 A zone (header). The constructors are not exported: a table zone
 is only made by `zone-from-table`, which checks it.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 106
+</div>
+</article>
 
-<a id="type-5a6f6e655461626c654572726f72"></a>
-
-## `ZoneTableError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZoneTableError</span></code></pre>
+<article class="doc-entry" id="t-ZoneTableError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZoneTableError</strong></code><span class="doc-sig-links"><a href="#t-ZoneTableError" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L117" title="View source at line 117">Source</a></span></div>
+<div class="doc-body">
 
 Why `zone-from-table` refused a table.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 117
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZoneNoTypes</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">ZoneTableError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZoneLengthMismatch</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">ZoneTableError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZoneUnsortedTransitions</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">ZoneTableError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZoneTypeIndexOutOfRange</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">ZoneTableError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ZoneNoTypes"><code><strong class="tok-constructor">ZoneNoTypes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-ZoneTableError" title="Data.Time.Zone.ZoneTableError">ZoneTableError</a></code></li><li id="k-ZoneLengthMismatch"><code><strong class="tok-constructor">ZoneLengthMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-ZoneTableError" title="Data.Time.Zone.ZoneTableError">ZoneTableError</a></code></li><li id="k-ZoneUnsortedTransitions"><code><strong class="tok-constructor">ZoneUnsortedTransitions</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-ZoneTableError" title="Data.Time.Zone.ZoneTableError">ZoneTableError</a></code></li><li id="k-ZoneTypeIndexOutOfRange"><code><strong class="tok-constructor">ZoneTypeIndexOutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-ZoneTableError" title="Data.Time.Zone.ZoneTableError">ZoneTableError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-616d626967756f75732d636f6d70617469626c65"></a>
-
-## `ambiguous-compatible`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-compatible</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-ambiguous-compatible">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-compatible</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-ambiguous-compatible" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L182" title="View source at line 182">Source</a></span></div>
+<div class="doc-body">
 
 The four strategies by name.
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 182
+</div>
+</article>
 
-<a id="value-616d626967756f75732d6561726c696572"></a>
+<article class="doc-entry" id="v-ambiguous-earlier">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-earlier</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-ambiguous-earlier" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L185" title="View source at line 185">Source</a></span></div>
+</article>
 
-## `ambiguous-earlier`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-earlier</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-616d626967756f75732d66726f6d2d6c6f6f6b757073"></a>
-
-## `ambiguous-from-lookups`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-from-lookups</span> :: ((<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>) -&gt; ((<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span>)))</code></pre>
+<article class="doc-entry" id="v-ambiguous-from-lookups">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-from-lookups</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code><span class="doc-sig-links"><a href="#v-ambiguous-from-lookups" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L217" title="View source at line 217">Source</a></span></div>
+<div class="doc-body">
 
 `ambiguous-from-lookups offset-at next x`: for a zone given by
 `offset-at` (the offset in force at a Unix second) and `next` (the
@@ -222,151 +200,108 @@ and stops at the latest once the period's end passes `l + 93599`,
 so the walk ends. All sums are of Unix seconds within +-3.8e11
 and offsets, so none wraps.
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 217
+</div>
+</article>
 
-<a id="value-616d626967756f75732d69732d616d626967756f7573"></a>
-
-## `ambiguous-is-ambiguous`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-is-ambiguous</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-ambiguous-is-ambiguous">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-is-ambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ambiguous-is-ambiguous" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L121" title="View source at line 121">Source</a></span></div>
+<div class="doc-body">
 
 A gap or a fold.
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 121
+</div>
+</article>
 
-<a id="value-616d626967756f75732d69732d666f6c64"></a>
+<article class="doc-entry" id="v-ambiguous-is-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-is-fold</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ambiguous-is-fold" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L133" title="View source at line 133">Source</a></span></div>
+</article>
 
-## `ambiguous-is-fold`
+<article class="doc-entry" id="v-ambiguous-is-gap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-is-gap</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-ambiguous-is-gap" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L127" title="View source at line 127">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-is-fold</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-ambiguous-later">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-later</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-ambiguous-later" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L188" title="View source at line 188">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-616d626967756f75732d69732d676170"></a>
-
-## `ambiguous-is-gap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-is-gap</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-616d626967756f75732d6c61746572"></a>
-
-## `ambiguous-later`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-later</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-616d626967756f75732d6f6666736574"></a>
-
-## `ambiguous-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-offset</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>)))</code></pre>
+<article class="doc-entry" id="v-ambiguous-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-ambiguous-offset" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L150" title="View source at line 150">Source</a></span></div>
+<div class="doc-body">
 
 The offset the strategy reads the civil value with (the header's
 table), or `None` when `Reject` meets a gap or a fold. Note that
 for a gap this is the offset the reading is INTERPRETED with; the
 resulting instant then displays with the other one.
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 150
+</div>
+</article>
 
-<a id="value-616d626967756f75732d72656a656374"></a>
+<article class="doc-entry" id="v-ambiguous-reject">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-reject</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-ambiguous-reject" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L191" title="View source at line 191">Source</a></span></div>
+</article>
 
-## `ambiguous-reject`
+<article class="doc-entry" id="v-ambiguous-resolve">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-resolve</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-ambiguous-resolve" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L173" title="View source at line 173">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-reject</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-616d626967756f75732d7265736f6c7665"></a>
-
-## `ambiguous-resolve`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-resolve</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-616d626967756f75732d756e616d626967756f7573"></a>
-
-## `ambiguous-unambiguous`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">ambiguous-unambiguous</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>))</code></pre>
+<article class="doc-entry" id="v-ambiguous-unambiguous">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">ambiguous-unambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-ambiguous-unambiguous" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 The one offset, when there is exactly one.
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch) · line 140
+</div>
+</article>
 
-<a id="value-6f66667365742d696e666f"></a>
+<article class="doc-entry" id="v-offset-info">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-info</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code><span class="doc-sig-links"><a href="#v-offset-info" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L78" title="View source at line 78">Source</a></span></div>
+</article>
 
-## `offset-info`
+<article class="doc-entry" id="v-offset-info-abbreviation">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-info-abbreviation</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-offset-info-abbreviation" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L89" title="View source at line 89">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-info</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span>)))</code></pre>
+<article class="doc-entry" id="v-offset-info-is-dst">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-info-is-dst</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-offset-info-is-dst" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L85" title="View source at line 85">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
+<article class="doc-entry" id="v-offset-info-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-info-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-offset-info-offset" title="Permalink">#</a><a href="/library/source/Data.Time.Zone.Types/#L81" title="View source at line 81">Source</a></span></div>
+</article>
 
-<a id="value-6f66667365742d696e666f2d616262726576696174696f6e"></a>
-
-## `offset-info-abbreviation`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-info-abbreviation</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-6f66667365742d696e666f2d69732d647374"></a>
-
-## `offset-info-is-dst`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-info-is-dst</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-6f66667365742d696e666f2d6f6666736574"></a>
-
-## `offset-info-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">offset-info-offset</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.Types.cinch)
-
-<a id="value-7a6f6e652d6669786564"></a>
-
-## `zone-fixed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-fixed</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span>)</code></pre>
+<article class="doc-entry" id="v-zone-fixed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-fixed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code><span class="doc-sig-links"><a href="#v-zone-fixed" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L138" title="View source at line 138">Source</a></span></div>
+<div class="doc-body">
 
 A fixed offset. Its name and abbreviation are the offset as
 `+hh:mm` (`+hh:mm:ss` when the seconds are not zero); offset zero
 is `zone-utc`.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 138
+</div>
+</article>
 
-<a id="value-7a6f6e652d66697865642d6e616d6564"></a>
-
-## `zone-fixed-named`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-fixed-named</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span>))</code></pre>
+<article class="doc-entry" id="v-zone-fixed-named">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-fixed-named</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code><span class="doc-sig-links"><a href="#v-zone-fixed-named" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L147" title="View source at line 147">Source</a></span></div>
+<div class="doc-body">
 
 A fixed offset under a name of the caller's choosing (also its
 abbreviation).
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 147
+</div>
+</article>
 
-<a id="value-7a6f6e652d66697865642d6f6666736574"></a>
-
-## `zone-fixed-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-fixed-offset</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>))</code></pre>
+<article class="doc-entry" id="v-zone-fixed-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-fixed-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-zone-fixed-offset" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L213" title="View source at line 213">Source</a></span></div>
+<div class="doc-body">
 
 The offset of a fixed-offset zone.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 213
+</div>
+</article>
 
-<a id="value-7a6f6e652d66726f6d2d7461626c65"></a>
-
-## `zone-from-table`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-from-table</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I64</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I64</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">ZoneTableError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span>))))))</code></pre>
+<article class="doc-entry" id="v-zone-from-table">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-from-table</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-ZoneTableError" title="Data.Time.Zone.ZoneTableError">ZoneTableError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code><span class="doc-sig-links"><a href="#v-zone-from-table" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 A table zone (the header's law). `instants` are Unix seconds and
 must be strictly ascending; `indices` gives each transition's
@@ -374,195 +309,175 @@ local time type as an index into `types`, which must not be
 empty and whose first element is the type before the first
 transition; `tail` is the rule after the last transition.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 159
+</div>
+</article>
 
-<a id="value-7a6f6e652d696e666f2d6174"></a>
-
-## `zone-info-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-info-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span>))</code></pre>
+<article class="doc-entry" id="v-zone-info-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-info-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code><span class="doc-sig-links"><a href="#v-zone-info-at" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L322" title="View source at line 322">Source</a></span></div>
+<div class="doc-body">
 
 Offset, daylight flag and abbreviation in force at an instant.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 322
+</div>
+</article>
 
-<a id="value-7a6f6e652d696e666f2d61742d756e69782d7365636f6e6473"></a>
-
-## `zone-info-at-unix-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-info-at-unix-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">OffsetInfo</span>))</code></pre>
+<article class="doc-entry" id="v-zone-info-at-unix-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-info-at-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a></code><span class="doc-sig-links"><a href="#v-zone-info-at-unix-seconds" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L268" title="View source at line 268">Source</a></span></div>
+<div class="doc-body">
 
 What the zone says at Unix second `t` (the header's law).
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 268
+</div>
+</article>
 
-<a id="value-7a6f6e652d6e616d65"></a>
-
-## `zone-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-name</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-zone-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-zone-name" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L206" title="View source at line 206">Source</a></span></div>
+<div class="doc-body">
 
 The zone's name: the IANA name it was looked up under, "UTC", a
 fixed offset's label, or whatever its maker called it.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 206
+</div>
+</article>
 
-<a id="value-7a6f6e652d6e6578742d7472616e736974696f6e"></a>
-
-## `zone-next-transition`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-next-transition</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-zone-next-transition">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-next-transition</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-zone-next-transition" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L374" title="View source at line 374">Source</a></span></div>
+<div class="doc-body">
 
 The first transition strictly after `t`; `None` when there is
 none (a fixed zone, a table without a rule past its end) or it is
 outside the timestamp range.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 374
+</div>
+</article>
 
-<a id="value-7a6f6e652d6e6578742d7472616e736974696f6e2d756e69782d7365636f6e6473"></a>
-
-## `zone-next-transition-unix-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-next-transition-unix-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-zone-next-transition-unix-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-next-transition-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-zone-next-transition-unix-seconds" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L281" title="View source at line 281">Source</a></span></div>
+<div class="doc-body">
 
 The first transition strictly after Unix second `t`.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 281
+</div>
+</article>
 
-<a id="value-7a6f6e652d6f66667365742d6174"></a>
+<article class="doc-entry" id="v-zone-offset-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-offset-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-zone-offset-at" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L325" title="View source at line 325">Source</a></span></div>
+</article>
 
-## `zone-offset-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-offset-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Offset</span>.<span class="tok-constructor">Offset</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Zone.cinch)
-
-<a id="value-7a6f6e652d706f736978"></a>
-
-## `zone-posix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-posix</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Posix</span>.<span class="tok-constructor">PosixRule</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span>))</code></pre>
+<article class="doc-entry" id="v-zone-posix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-posix</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone.Posix/#t-PosixRule" title="Data.Time.Zone.Posix.PosixRule">PosixRule</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code><span class="doc-sig-links"><a href="#v-zone-posix" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L151" title="View source at line 151">Source</a></span></div>
+<div class="doc-body">
 
 A zone that follows a POSIX rule for every instant.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 151
+</div>
+</article>
 
-<a id="value-7a6f6e652d70726576696f75732d7472616e736974696f6e"></a>
-
-## `zone-previous-transition`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-previous-transition</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-zone-previous-transition">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-previous-transition</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-zone-previous-transition" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L383" title="View source at line 383">Source</a></span></div>
+<div class="doc-body">
 
 The last transition strictly before `t`. A transition at `t`'s
 own whole second is before `t` exactly when `t` has a fractional
 part. The seconds are within +-3.8e11, so the increment cannot
 wrap.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 383
+</div>
+</article>
 
-<a id="value-7a6f6e652d70726576696f75732d7472616e736974696f6e2d756e69782d7365636f6e6473"></a>
-
-## `zone-previous-transition-unix-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-previous-transition-unix-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>)))</code></pre>
+<article class="doc-entry" id="v-zone-previous-transition-unix-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-previous-transition-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-zone-previous-transition-unix-seconds" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L295" title="View source at line 295">Source</a></span></div>
+<div class="doc-body">
 
 The last transition strictly before Unix second `t`. Past the
 table's end it is the rule's, unless the table's last transition
 is later than that.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 295
+</div>
+</article>
 
-<a id="value-7a6f6e652d746f2d616d626967756f7573"></a>
-
-## `zone-to-ambiguous`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-to-ambiguous</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Ambiguous</span>))</code></pre>
+<article class="doc-entry" id="v-zone-to-ambiguous">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-to-ambiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Ambiguous" title="Data.Time.Zone.Types.Ambiguous">Ambiguous</a></code><span class="doc-sig-links"><a href="#v-zone-to-ambiguous" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L340" title="View source at line 340">Source</a></span></div>
+<div class="doc-body">
 
 The offsets a civil reading can have in the zone (T4).
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 340
+</div>
+</article>
 
-<a id="value-7a6f6e652d746f2d6461746574696d65"></a>
-
-## `zone-to-datetime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-to-datetime</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span>))</code></pre>
+<article class="doc-entry" id="v-zone-to-datetime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-to-datetime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code><span class="doc-sig-links"><a href="#v-zone-to-datetime" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L329" title="View source at line 329">Source</a></span></div>
+<div class="doc-body">
 
 The civil reading of an instant in the zone.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 329
+</div>
+</article>
 
-<a id="value-7a6f6e652d746f2d74696d657374616d70"></a>
-
-## `zone-to-timestamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-to-timestamp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">Disambiguation</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))))</code></pre>
+<article class="doc-entry" id="v-zone-to-timestamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-Disambiguation" title="Data.Time.Zone.Types.Disambiguation">Disambiguation</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-zone-to-timestamp" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L348" title="View source at line 348">Source</a></span></div>
+<div class="doc-body">
 
 The instant of a civil reading, by the given strategy
 (`Data.Time.Zone.Types`' table).
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 348
+</div>
+</article>
 
-<a id="value-7a6f6e652d746f2d74696d657374616d702d636f6d70617469626c65"></a>
-
-## `zone-to-timestamp-compatible`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-to-timestamp-compatible</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-zone-to-timestamp-compatible">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp-compatible</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-zone-to-timestamp-compatible" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L352" title="View source at line 352">Source</a></span></div>
+<div class="doc-body">
 
 In a gap the later instant, in a fold the earlier one.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 352
+</div>
+</article>
 
-<a id="value-7a6f6e652d746f2d74696d657374616d702d6561726c696572"></a>
-
-## `zone-to-timestamp-earlier`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-to-timestamp-earlier</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-zone-to-timestamp-earlier">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp-earlier</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-zone-to-timestamp-earlier" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L356" title="View source at line 356">Source</a></span></div>
+<div class="doc-body">
 
 The earlier instant in a gap and in a fold.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 356
+</div>
+</article>
 
-<a id="value-7a6f6e652d746f2d74696d657374616d702d6c61746572"></a>
-
-## `zone-to-timestamp-later`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-to-timestamp-later</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-zone-to-timestamp-later">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp-later</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-zone-to-timestamp-later" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L360" title="View source at line 360">Source</a></span></div>
+<div class="doc-body">
 
 The later instant in a gap and in a fold.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 360
+</div>
+</article>
 
-<a id="value-7a6f6e652d746f2d74696d657374616d702d72656a656374"></a>
-
-## `zone-to-timestamp-reject`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-to-timestamp-reject</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">DateTime</span>.<span class="tok-constructor">DateTime</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">Types</span>.<span class="tok-constructor">AmbiguityError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-zone-to-timestamp-reject">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-to-timestamp-reject</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-AmbiguityError" title="Data.Time.Zone.Types.AmbiguityError">AmbiguityError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-zone-to-timestamp-reject" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L364" title="View source at line 364">Source</a></span></div>
+<div class="doc-body">
 
 Refuses a gap and a fold.
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 364
+</div>
+</article>
 
-<a id="value-7a6f6e652d7472616e736974696f6e2d636f756e74"></a>
-
-## `zone-transition-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-transition-count</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-zone-transition-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-transition-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-zone-transition-count" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L220" title="View source at line 220">Source</a></span></div>
+<div class="doc-body">
 
 How many transitions a table zone lists (0 for the other kinds).
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 220
+</div>
+</article>
 
-<a id="value-7a6f6e652d757463"></a>
-
-## `zone-utc`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zone-utc</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Zone</span>.<span class="tok-constructor">TimeZone</span></code></pre>
+<article class="doc-entry" id="v-zone-utc">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zone-utc</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Zone/#t-TimeZone" title="Data.Time.Zone.TimeZone">TimeZone</a></code><span class="doc-sig-links"><a href="#v-zone-utc" title="Permalink">#</a><a href="/library/source/Data.Time.Zone/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 UTC: offset zero, named and abbreviated "UTC".
 
-[Source](/reference-sources/Data.Time.Zone.cinch) · line 132
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/Zone.cinch`. Source SHA-256: `b97d1abcfcca9d51d317ac70f92284ebe6b3c408d260d1364bc25d73a0548415`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Zone.cinch`](/library/source/Data.Time.Zone/). Source SHA-256: `b97d1abcfcca9d51d317ac70f92284ebe6b3c408d260d1364bc25d73a0548415`.

@@ -2,17 +2,11 @@
 
 The direct, Result, and Option do providers. One lexical provider/container is selected per definition.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Sequencing</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Sequencing/">View source</a><a href="/library/search/?q=%2BEffect.Sequencing">Search module</a><a href="/reference-sources/Effect.Sequencing.cinch" download="Effect.Sequencing.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Sequencing`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Core](Data.Core.md).
 
-[Download exact module source](/reference-sources/Effect.Sequencing.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Core](Data.Core.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Sequencing: the `do` sequencing providers (decision D22).
 
@@ -31,15 +25,15 @@ the identity and its instance lives here with its class.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (9 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#c-DirectSequencing">DirectSequencing</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">DirectSequencing</strong></code></li><li class="syn-sub"><a class="syn-name" href="#m-DirectSequencing-pure">pure</a><code class="syn-sig"><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-DirectSequencing-bind">bind</a><code class="syn-sig"><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#c-OptionSequencing">OptionSequencing</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">OptionSequencing</strong></code></li><li class="syn-sub"><a class="syn-name" href="#m-OptionSequencing-pure">pure</a><code class="syn-sig"><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-OptionSequencing-bind">bind</a><code class="syn-sig"><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#c-ResultSequencing">ResultSequencing</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ResultSequencing</strong> <span class="tok-variable">e</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-ResultSequencing-pure">pure</a><code class="syn-sig"><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-ResultSequencing-bind">bind</a><code class="syn-sig"><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">b</span></code></li></ul>
+</details>
 
-# Signatures and methods
+# Signatures
 
-<a id="class-44697265637453657175656e63696e67"></a>
-
-## `DirectSequencing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">DirectSequencing</span> </code></pre>
+<article class="doc-entry" id="c-DirectSequencing">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">DirectSequencing</strong></code><span class="doc-sig-links"><a href="#c-DirectSequencing" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
 
 Sequencing providers for `do` notation (runtime capabilities,
 effects and sequencing specification, "Unqualified do through
@@ -48,80 +42,35 @@ types differently per provider: direct sequencing is the default and
 a `using` binder with a provider head selects another. `pure` and
 `bind` are the provider's class methods (decision D2).
 
-[Source](/reference-sources/Effect.Sequencing.cinch) · line 28
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-DirectSequencing-pure"><div class="doc-method-row"><code><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-DirectSequencing-pure" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L29">Source</a></span></div></li><li id="m-DirectSequencing-bind"><div class="doc-method-row"><code><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#m-DirectSequencing-bind" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L30">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Effect.Sequencing/#instances">Effect.Sequencing</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="method-44697265637453657175656e63696e672e70757265"></a>
+<article class="doc-entry" id="c-OptionSequencing">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">OptionSequencing</strong></code><span class="doc-sig-links"><a href="#c-OptionSequencing" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-OptionSequencing-pure"><div class="doc-method-row"><code><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-OptionSequencing-pure" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L41">Source</a></span></div></li><li id="m-OptionSequencing-bind"><div class="doc-method-row"><code><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#m-OptionSequencing-bind" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L42">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Option/#instances">Data.Option</a></span></li></ul></details>
+</div>
+</article>
 
-## `DirectSequencing.pure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
-
-
-
-<a id="method-44697265637453657175656e63696e672e62696e64"></a>
-
-## `DirectSequencing.bind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">DirectSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>) -&gt;{|<span class="tok-variable">ef</span>} <span class="tok-variable">b</span>))</code></pre>
-
-
-
-<a id="class-4f7074696f6e53657175656e63696e67"></a>
-
-## `OptionSequencing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">OptionSequencing</span> </code></pre>
-
-[Source](/reference-sources/Effect.Sequencing.cinch)
-
-<a id="method-4f7074696f6e53657175656e63696e672e70757265"></a>
-
-## `OptionSequencing.pure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-4f7074696f6e53657175656e63696e672e62696e64"></a>
-
-## `OptionSequencing.bind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">OptionSequencing</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)) -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">b</span>)))</code></pre>
-
-
-
-<a id="class-526573756c7453657175656e63696e67"></a>
-
-## `ResultSequencing`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span></code></pre>
-
-[Source](/reference-sources/Effect.Sequencing.cinch)
-
-<a id="method-526573756c7453657175656e63696e672e70757265"></a>
-
-## `ResultSequencing.pure`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pure</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; (<span class="tok-variable">a</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span>) <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="method-526573756c7453657175656e63696e672e62696e64"></a>
-
-## `ResultSequencing.bind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bind</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">e</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Sequencing</span>.<span class="tok-constructor">ResultSequencing</span> <span class="tok-variable">e</span>) =&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-variable">a</span> -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>)) -&gt;{|<span class="tok-variable">ef</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-variable">e</span> <span class="tok-variable">b</span>)))</code></pre>
-
-
+<article class="doc-entry" id="c-ResultSequencing">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">ResultSequencing</strong> <span class="tok-variable">e</span></code><span class="doc-sig-links"><a href="#c-ResultSequencing" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L36" title="View source at line 36">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-ResultSequencing-pure"><div class="doc-method-row"><code><strong class="tok-variable">pure</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-ResultSequencing-pure" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L37">Source</a></span></div></li><li id="m-ResultSequencing-bind"><div class="doc-method-row"><code><strong class="tok-variable">bind</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> (<span class="tok-variable">ef</span> :: <span class="tok-constructor">Row</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span>{|ef} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#m-ResultSequencing-bind" title="Permalink">#</a><a href="/library/source/Effect.Sequencing/#L38">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Result/#instances">Data.Result</a></span></li></ul></details>
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Effect.Sequencing.SeqDirect` | `Effect.Sequencing.DirectSequencing` | Implicit |
+<ul class="doc-module-instances">
+<li id="i-SeqDirect"><code><a class="doc-type-link tok-constructor" href="/library/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Sequencing.SeqDirect</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Sequencing.cinch`. Source SHA-256: `10cce786924bb5062ea0e099b048cc937394920b10c819c99e0a0bae8fdbbe09`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Sequencing.cinch`](/library/source/Effect.Sequencing/). Source SHA-256: `10cce786924bb5062ea0e099b048cc937394920b10c819c99e0a0bae8fdbbe09`.

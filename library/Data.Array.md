@@ -2,110 +2,76 @@
 
 Immutable contiguous arrays with optional failed reads, updates, slices, and ranges, plus list conversions.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Array</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Array/">View source</a><a href="/library/search/?q=%2BData.Array">Search module</a><a href="/reference-sources/Data.Array.cinch" download="Data.Array.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Array`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.FromList](Data.FromList.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Array.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Array`: [Data.Array](Data.Array.md).
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.FromList](Data.FromList.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
+```
 
-Non-embedded source closure: [Data.Array](Data.Array.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Immutable contiguous arrays. Failed reads/updates/ranges return None.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (9 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-array-append">array-append</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-append</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-array-from-list">array-from-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-from-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-array-get">array-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-get</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-array-length">array-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-length</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-array-replicate">array-replicate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-replicate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-array-set">array-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-set</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-array-slice">array-slice</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-slice</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-array-tabulate">array-tabulate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-tabulate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-array-to-list">array-to-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">array-to-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-61727261792d617070656e64"></a>
+<article class="doc-entry" id="v-array-append">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-append</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-array-append" title="Permalink">#</a><a href="/library/source/Data.Array/#L19" title="View source at line 19">Source</a></span></div>
+</article>
 
-## `array-append`
+<article class="doc-entry" id="v-array-from-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-array-from-list" title="Permalink">#</a><a href="/library/source/Data.Array/#L13" title="View source at line 13">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-append</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-array-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-get</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-array-get" title="Permalink">#</a><a href="/library/source/Data.Array/#L16" title="View source at line 16">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Array.cinch)
+<article class="doc-entry" id="v-array-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-length</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-array-length" title="Permalink">#</a><a href="/library/source/Data.Array/#L15" title="View source at line 15">Source</a></span></div>
+</article>
 
-<a id="value-61727261792d66726f6d2d6c697374"></a>
+<article class="doc-entry" id="v-array-replicate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-replicate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-array-replicate" title="Permalink">#</a><a href="/library/source/Data.Array/#L14" title="View source at line 14">Source</a></span></div>
+</article>
 
-## `array-from-list`
+<article class="doc-entry" id="v-array-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-set</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-array-set" title="Permalink">#</a><a href="/library/source/Data.Array/#L17" title="View source at line 17">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-from-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-array-slice">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-slice</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-array-slice" title="Permalink">#</a><a href="/library/source/Data.Array/#L18" title="View source at line 18">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Array.cinch)
+<article class="doc-entry" id="v-array-tabulate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-tabulate</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-array-tabulate" title="Permalink">#</a><a href="/library/source/Data.Array/#L21" title="View source at line 21">Source</a></span></div>
+</article>
 
-<a id="value-61727261792d676574"></a>
-
-## `array-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-get</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Array.cinch)
-
-<a id="value-61727261792d6c656e677468"></a>
-
-## `array-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Array.cinch)
-
-<a id="value-61727261792d7265706c6963617465"></a>
-
-## `array-replicate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-replicate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Array.cinch)
-
-<a id="value-61727261792d736574"></a>
-
-## `array-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-set</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)))))</code></pre>
-
-[Source](/reference-sources/Data.Array.cinch)
-
-<a id="value-61727261792d736c696365"></a>
-
-## `array-slice`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-slice</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)))))</code></pre>
-
-[Source](/reference-sources/Data.Array.cinch)
-
-<a id="value-61727261792d746162756c617465"></a>
-
-## `array-tabulate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-tabulate</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Nat</span> -&gt; <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Array.cinch)
-
-<a id="value-61727261792d746f2d6c697374"></a>
-
-## `array-to-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">array-to-list</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Array</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Data.Array.cinch)
+<article class="doc-entry" id="v-array-to-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-to-list</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-array-to-list" title="Permalink">#</a><a href="/library/source/Data.Array/#L27" title="View source at line 27">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Array.FromList_Array` | `Data.FromList.FromList (Array a) a` | Implicit |
+<ul class="doc-module-instances">
+<li id="i-FromList_Array"><code><a class="doc-type-link tok-constructor" href="/library/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">Implicit · <code>Data.Array.FromList_Array</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Array.cinch`. Source SHA-256: `3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Array.cinch`](/library/source/Data.Array/). Source SHA-256: `3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee`.

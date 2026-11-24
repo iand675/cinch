@@ -2,17 +2,11 @@
 
 Encoding/decoding signatures and codec helpers with explicit failure results.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Text.Codec</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Codec/">View source</a><a href="/library/search/?q=%2BText.Codec">Search module</a><a href="/reference-sources/Text.Codec.cinch" download="Text.Codec.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Codec`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Json](Data.Json.md), [Data.Result](Data.Result.md).
 
-[Download exact module source](/reference-sources/Text.Codec.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Json](Data.Json.md), [Data.Result](Data.Result.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Codec: conversion to and from `Bytes` and `Json`.
 
@@ -41,83 +35,47 @@ error vocabulary sits with the class, like `Text.Parse`'s
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-JsonDecodeError">JsonDecodeError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonDecodeError</strong></code></li><li><a class="syn-name" href="#c-Codec">Codec</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Codec</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Codec-encode">encode</a><code class="syn-sig"><strong class="tok-variable">encode</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-Codec" title="Text.Codec.Codec">Codec</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-Codec-decode">decode</a><code class="syn-sig"><strong class="tok-variable">decode</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-Codec" title="Text.Codec.Codec">Codec</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#c-JsonCodec">JsonCodec</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">JsonCodec</strong> <span class="tok-variable">a</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-JsonCodec-encode-json">encode-json</a><code class="syn-sig"><strong class="tok-variable">encode-json</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code></li><li class="syn-sub"><a class="syn-name" href="#m-JsonCodec-decode-json">decode-json</a><code class="syn-sig"><strong class="tok-variable">decode-json</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#t-JsonDecodeError" title="Text.Codec.JsonDecodeError">JsonDecodeError</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-json-error-message">json-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">json-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#t-JsonDecodeError" title="Text.Codec.JsonDecodeError">JsonDecodeError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-4a736f6e4465636f64654572726f72"></a>
+# Types
 
-## `JsonDecodeError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">JsonDecodeError</span></code></pre>
+<article class="doc-entry" id="t-JsonDecodeError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">JsonDecodeError</strong></code><span class="doc-sig-links"><a href="#t-JsonDecodeError" title="Permalink">#</a><a href="/library/source/Text.Codec/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
 
 The named decode errors: a wrong shape (the expected column kind)
 and a value outside the column's range.
 
-[Source](/reference-sources/Text.Codec.cinch) · line 40
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TypeMismatch"><code><strong class="tok-constructor">TypeMismatch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#t-JsonDecodeError" title="Text.Codec.JsonDecodeError">JsonDecodeError</a></code></li><li id="k-OutOfRange"><code><strong class="tok-constructor">OutOfRange</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#t-JsonDecodeError" title="Text.Codec.JsonDecodeError">JsonDecodeError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TypeMismatch</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonDecodeError</span>)</code></pre>
+# Signatures
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">OutOfRange</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonDecodeError</span>)</code></pre>
+<article class="doc-entry" id="c-Codec">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Codec</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-Codec" title="Permalink">#</a><a href="/library/source/Text.Codec/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Codec-encode"><div class="doc-method-row"><code><strong class="tok-variable">encode</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-Codec" title="Text.Codec.Codec">Codec</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#m-Codec-encode" title="Permalink">#</a><a href="/library/source/Text.Codec/#L35">Source</a></span></div></li><li id="m-Codec-decode"><div class="doc-method-row"><code><strong class="tok-variable">decode</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-Codec" title="Text.Codec.Codec">Codec</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-Codec-decode" title="Permalink">#</a><a href="/library/source/Text.Codec/#L36">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-Codec" title="Text.Codec.Codec">Codec</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-Codec" title="Text.Codec.Codec">Codec</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Machine/#instances">Data.Machine</a></span></li></ul></details>
+</div>
+</article>
 
-# Signatures and methods
-
-<a id="class-436f646563"></a>
-
-## `Codec`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Codec</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Text.Codec.cinch)
-
-<a id="method-436f6465632e656e636f6465"></a>
-
-## `Codec.encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">encode</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">Codec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-
-
-<a id="method-436f6465632e6465636f6465"></a>
-
-## `Codec.decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">decode</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">Codec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
-
-
-
-<a id="class-4a736f6e436f646563"></a>
-
-## `JsonCodec`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span></code></pre>
-
-[Source](/reference-sources/Text.Codec.cinch)
-
-<a id="method-4a736f6e436f6465632e656e636f64652d6a736f6e"></a>
-
-## `JsonCodec.encode-json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">encode-json</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span>)</code></pre>
-
-
-
-<a id="method-4a736f6e436f6465632e6465636f64652d6a736f6e"></a>
-
-## `JsonCodec.decode-json`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">decode-json</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonCodec</span> <span class="tok-variable">a</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Json</span>.<span class="tok-constructor">Json</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonDecodeError</span>) <span class="tok-variable">a</span>))</code></pre>
-
-
+<article class="doc-entry" id="c-JsonCodec">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">JsonCodec</strong> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#c-JsonCodec" title="Permalink">#</a><a href="/library/source/Text.Codec/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-JsonCodec-encode-json"><div class="doc-method-row"><code><strong class="tok-variable">encode-json</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code><span class="doc-sig-links"><a href="#m-JsonCodec-encode-json" title="Permalink">#</a><a href="/library/source/Text.Codec/#L50">Source</a></span></div></li><li id="m-JsonCodec-decode-json"><div class="doc-method-row"><code><strong class="tok-variable">decode-json</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <span class="tok-variable">a</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#t-JsonDecodeError" title="Text.Codec.JsonDecodeError">JsonDecodeError</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#m-JsonCodec-decode-json" title="Permalink">#</a><a href="/library/source/Text.Codec/#L51">Source</a></span></div></li></ul></div>
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Bool/#instances">Data.Bool</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Machine/#instances">Data.Machine</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <a class="doc-type-link tok-constructor" href="/library/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Text.Json/#instances">Text.Json</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6a736f6e2d6572726f722d6d657373616765"></a>
-
-## `json-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">json-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Codec</span>.<span class="tok-constructor">JsonDecodeError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Codec.cinch)
+<article class="doc-entry" id="v-json-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Codec/#t-JsonDecodeError" title="Text.Codec.JsonDecodeError">JsonDecodeError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-message" title="Permalink">#</a><a href="/library/source/Text.Codec/#L44" title="View source at line 44">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Codec.cinch`. Source SHA-256: `cf4fe97335cb544ed6801e2a770328f15a859371cc2572f54cd16919f719921b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Codec.cinch`](/library/source/Text.Codec/). Source SHA-256: `cf4fe97335cb544ed6801e2a770328f15a859371cc2572f54cd16919f719921b`.

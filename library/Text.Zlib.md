@@ -2,19 +2,21 @@
 
 Compression/decompression operations and named malformed/unsupported-stream results.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Zlib</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Zlib/">View source</a><a href="/library/search/?q=%2BText.Zlib">Search module</a><a href="/reference-sources/Text.Zlib.cinch" download="Text.Zlib.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Zlib`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md).
 
-[Download exact module source](/reference-sources/Text.Zlib.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Zlib`: [Text.Zlib](Text.Zlib.md).
 
-[Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bytes](Data.Bytes.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md).
+```sh
+cp seed/prelude/Text/Zlib.cinch ./Text.Zlib.cinch
+```
 
-Non-embedded source closure: [Text.Zlib](Text.Zlib.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Zlib: DEFLATE and its zlib wrapper (RFC 1951 under RFC 1950).
 
@@ -94,58 +96,50 @@ and the codes accumulate high-bit-first (`huff-walk`).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ZlibError">ZlibError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZlibError</strong></code></li><li><a class="syn-name" href="#v-adler32">adler32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">adler32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-crc32">crc32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">crc32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-deflate">deflate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deflate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-deflate-raw">deflate-raw</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deflate-raw</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-deflate-raw-rle">deflate-raw-rle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">deflate-raw-rle</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-inflate">inflate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">inflate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zlib/#t-ZlibError" title="Text.Zlib.ZlibError">ZlibError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-inflate-raw-at">inflate-raw-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">inflate-raw-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zlib/#t-ZlibError" title="Text.Zlib.ZlibError">ZlibError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code></li></ul>
+</details>
 
-<a id="type-5a6c69624572726f72"></a>
+# Types
 
-## `ZlibError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ZlibError</span></code></pre>
+<article class="doc-entry" id="t-ZlibError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ZlibError</strong></code><span class="doc-sig-links"><a href="#t-ZlibError" title="Permalink">#</a><a href="/library/source/Text.Zlib/#L101" title="View source at line 101">Source</a></span></div>
+<div class="doc-body">
 
 The named failure vocabulary (the header's four refusals). Every
 one is a value, never a fault: a malformed stream is an outcome
 the caller reads, and the whole result is discarded (no partial
 bytes cross the boundary).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 101
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadHeader</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadChecksum</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidCode</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TruncatedStream</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-BadHeader"><code><strong class="tok-constructor">BadHeader</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zlib/#t-ZlibError" title="Text.Zlib.ZlibError">ZlibError</a></code></li><li id="k-BadChecksum"><code><strong class="tok-constructor">BadChecksum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zlib/#t-ZlibError" title="Text.Zlib.ZlibError">ZlibError</a></code></li><li id="k-InvalidCode"><code><strong class="tok-constructor">InvalidCode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zlib/#t-ZlibError" title="Text.Zlib.ZlibError">ZlibError</a></code></li><li id="k-TruncatedStream"><code><strong class="tok-constructor">TruncatedStream</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Zlib/#t-ZlibError" title="Text.Zlib.ZlibError">ZlibError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-61646c65723332"></a>
-
-## `adler32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">adler32</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-adler32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">adler32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-adler32" title="Permalink">#</a><a href="/library/source/Text.Zlib/#L155" title="View source at line 155">Source</a></span></div>
+<div class="doc-body">
 
 The checksum's low 32 bits (both halves are below 65521, so the
 residue is the value itself; it is the conversion's evidence).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 155
+</div>
+</article>
 
-<a id="value-6372633332"></a>
-
-## `crc32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">crc32</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-crc32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">crc32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-crc32" title="Permalink">#</a><a href="/library/source/Text.Zlib/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-body">
 
 CRC-32: the IEEE 802.3 polynomial reflected (0xEDB88320), seeded
 all ones and finished inverted (the checksum gzip and PNG carry).
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 169
+</div>
+</article>
 
-<a id="value-6465666c617465"></a>
-
-## `deflate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-deflate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deflate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-deflate" title="Permalink">#</a><a href="/library/source/Text.Zlib/#L743" title="View source at line 743">Source</a></span></div>
+<div class="doc-body">
 
 The zlib stream for `src`: header 0x78 0x01 (CM 8, CINFO 7,
 FLEVEL 0, FDICT clear, FCHECK 1, the pair a multiple of 31), one
@@ -154,50 +148,47 @@ empty final block for no bytes: a stream still needs one), and the
 Adler-32 of `src` big-endian. The buffer is sized exactly, so
 nothing is copied twice.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 743
+</div>
+</article>
 
-<a id="value-6465666c6174652d726177"></a>
-
-## `deflate-raw`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-raw</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-deflate-raw">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deflate-raw</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-deflate-raw" title="Permalink">#</a><a href="/library/source/Text.Zlib/#L751" title="View source at line 751">Source</a></span></div>
+<div class="doc-body">
 
 Encode raw DEFLATE using stored blocks of up to 65535 bytes each.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 751
+</div>
+</article>
 
-<a id="value-6465666c6174652d7261772d726c65"></a>
-
-## `deflate-raw-rle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">deflate-raw-rle</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-deflate-raw-rle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">deflate-raw-rle</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-deflate-raw-rle" title="Permalink">#</a><a href="/library/source/Text.Zlib/#L756" title="View source at line 756">Source</a></span></div>
+<div class="doc-body">
 
 Encode a raw DEFLATE stream using fixed Huffman codes and distance-one
 runs of up to 258 bytes. Choose stored blocks when they would be smaller.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 756
+</div>
+</article>
 
-<a id="value-696e666c617465"></a>
-
-## `inflate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">inflate</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-inflate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">inflate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zlib/#t-ZlibError" title="Text.Zlib.ZlibError">ZlibError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-inflate" title="Permalink">#</a><a href="/library/source/Text.Zlib/#L457" title="View source at line 457">Source</a></span></div>
+<div class="doc-body">
 
 The whole stream: header, blocks, trailing Adler-32.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 457
+</div>
+</article>
 
-<a id="value-696e666c6174652d7261772d6174"></a>
-
-## `inflate-raw-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">inflate-raw-at</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Zlib</span>.<span class="tok-constructor">ZlibError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Nat</span>))))</code></pre>
+<article class="doc-entry" id="v-inflate-raw-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">inflate-raw-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Zlib/#t-ZlibError" title="Text.Zlib.ZlibError">ZlibError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>)</code><span class="doc-sig-links"><a href="#v-inflate-raw-at" title="Permalink">#</a><a href="/library/source/Text.Zlib/#L466" title="View source at line 466">Source</a></span></div>
+<div class="doc-body">
 
 Decode one raw DEFLATE stream at a byte offset. Return its bytes and the
 absolute offset following the final padded block. Leave trailing bytes unread.
 
-[Source](/reference-sources/Text.Zlib.cinch) · line 466
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Zlib.cinch`. Source SHA-256: `c39f929789f55ade95b2557d1311b7adf0fa2990be85cce753021af98bcdbeb4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Zlib.cinch`](/library/source/Text.Zlib/). Source SHA-256: `c39f929789f55ade95b2557d1311b7adf0fa2990be85cce753021af98bcdbeb4`.

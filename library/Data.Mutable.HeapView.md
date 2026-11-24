@@ -2,19 +2,21 @@
 
 In-place heap ordering and indexed repairs through explicit borrowed storage callbacks.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.HeapView</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Mutable.HeapView/">View source</a><a href="/library/search/?q=%2BData.Mutable.HeapView">Search module</a><a href="/reference-sources/Data.Mutable.HeapView.cinch" download="Data.Mutable.HeapView.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Mutable.HeapView`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
 
-[Download exact module source](/reference-sources/Data.Mutable.HeapView.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Mutable.HeapView`: [Data.Mutable.HeapView](Data.Mutable.HeapView.md).
 
-[Data.Bool](Data.Bool.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
+```sh
+cp seed/prelude/Data/Mutable/HeapView.cinch ./Data.Mutable.HeapView.cinch
+```
 
-Non-embedded source closure: [Data.Mutable.HeapView](Data.Mutable.HeapView.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Binary heap algorithms over caller-owned mutable indexed storage.
 The callbacks preserve application-specific element identities and index
@@ -26,94 +28,90 @@ or evaluated in SIMD lanes. Use Data.Mutable.Heap for dense owned storage.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (8 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-HeapView">HeapView</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HeapView</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-heap-view">heap-view</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">heap-view</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-heap-view-fix">heap-view-fix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">heap-view-fix</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-heap-view-init">heap-view-init</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">heap-view-init</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-heap-view-length">heap-view-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">heap-view-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-heap-view-pop">heap-view-pop</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">heap-view-pop</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-heap-view-push">heap-view-push</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">heap-view-push</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-heap-view-remove">heap-view-remove</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">heap-view-remove</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-4865617056696577"></a>
+# Types
 
-## `HeapView`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">HeapView</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-HeapView">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">HeapView</strong> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-HeapView" title="Permalink">#</a><a href="/library/source/Data.Mutable.HeapView/#L18" title="View source at line 18">Source</a></span></div>
+<div class="doc-body">
 
 An opaque set of mutable length, comparison, swap, append and remove-last callbacks.
 
-[Source](/reference-sources/Data.Mutable.HeapView.cinch) · line 18
+</div>
+</article>
 
 # Values
 
-<a id="value-686561702d76696577"></a>
-
-## `heap-view`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-view</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)) -&gt; ((<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)) -&gt; ((<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>) -&gt; ((<span class="tok-constructor">Unit</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">HeapView</span>.<span class="tok-constructor">HeapView</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>))))))</code></pre>
+<article class="doc-entry" id="v-heap-view">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">heap-view</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>) <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-heap-view" title="Permalink">#</a><a href="/library/source/Data.Mutable.HeapView/#L25" title="View source at line 25">Source</a></span></div>
+<div class="doc-body">
 
 Bind coherent indexed-storage callbacks without allocating or changing their sequence.
 The last callback returns None only for an empty sequence. Callback contract
 violations are application errors; this module never accesses raw storage.
 
-[Source](/reference-sources/Data.Mutable.HeapView.cinch) · line 25
+</div>
+</article>
 
-<a id="value-686561702d766965772d666978"></a>
-
-## `heap-view-fix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-view-fix</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">HeapView</span>.<span class="tok-constructor">HeapView</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-heap-view-fix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">heap-view-fix</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-heap-view-fix" title="Permalink">#</a><a href="/library/source/Data.Mutable.HeapView/#L91" title="View source at line 91">Source</a></span></div>
+<div class="doc-body">
 
 Repair a changed element in logarithmic work without removing or reappending it.
 False means the index was absent; no comparison or swap occurs in that case.
 
-[Source](/reference-sources/Data.Mutable.HeapView.cinch) · line 91
+</div>
+</article>
 
-<a id="value-686561702d766965772d696e6974"></a>
-
-## `heap-view-init`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-view-init</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">HeapView</span>.<span class="tok-constructor">HeapView</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>)</code></pre>
+<article class="doc-entry" id="v-heap-view-init">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">heap-view-init</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-heap-view-init" title="Permalink">#</a><a href="/library/source/Data.Mutable.HeapView/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 Restore every subtree bottom-up in linear comparison work.
 
-[Source](/reference-sources/Data.Mutable.HeapView.cinch) · line 49
+</div>
+</article>
 
-<a id="value-686561702d766965772d6c656e677468"></a>
-
-## `heap-view-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-view-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">HeapView</span>.<span class="tok-constructor">HeapView</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-heap-view-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">heap-view-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-heap-view-length" title="Permalink">#</a><a href="/library/source/Data.Mutable.HeapView/#L29" title="View source at line 29">Source</a></span></div>
+<div class="doc-body">
 
 Observe the current sequence length through its callback.
 
-[Source](/reference-sources/Data.Mutable.HeapView.cinch) · line 29
+</div>
+</article>
 
-<a id="value-686561702d766965772d706f70"></a>
-
-## `heap-view-pop`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-view-pop</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">HeapView</span>.<span class="tok-constructor">HeapView</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>))</code></pre>
+<article class="doc-entry" id="v-heap-view-pop">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">heap-view-pop</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-heap-view-pop" title="Permalink">#</a><a href="/library/source/Data.Mutable.HeapView/#L67" title="View source at line 67">Source</a></span></div>
+<div class="doc-body">
 
 Remove the first element, or return None without invoking swap/remove callbacks when empty.
 
-[Source](/reference-sources/Data.Mutable.HeapView.cinch) · line 67
+</div>
+</article>
 
-<a id="value-686561702d766965772d70757368"></a>
-
-## `heap-view-push`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-view-push</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">HeapView</span>.<span class="tok-constructor">HeapView</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Unit</span>))</code></pre>
+<article class="doc-entry" id="v-heap-view-push">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">heap-view-push</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-heap-view-push" title="Permalink">#</a><a href="/library/source/Data.Mutable.HeapView/#L60" title="View source at line 60">Source</a></span></div>
+<div class="doc-body">
 
 Append an element and repair its path toward the root in logarithmic work.
 
-[Source](/reference-sources/Data.Mutable.HeapView.cinch) · line 60
+</div>
+</article>
 
-<a id="value-686561702d766965772d72656d6f7665"></a>
-
-## `heap-view-remove`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">heap-view-remove</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">HeapView</span>.<span class="tok-constructor">HeapView</span> <span class="tok-variable">r</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-heap-view-remove">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">heap-view-remove</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.HeapView/#t-HeapView" title="Data.Mutable.HeapView.HeapView">HeapView</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-heap-view-remove" title="Permalink">#</a><a href="/library/source/Data.Mutable.HeapView/#L78" title="View source at line 78">Source</a></span></div>
+<div class="doc-body">
 
 Remove any existing position and repair the one displaced element.
 An out-of-range position returns None and invokes no mutation callback.
 
-[Source](/reference-sources/Data.Mutable.HeapView.cinch) · line 78
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/HeapView.cinch`. Source SHA-256: `89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/HeapView.cinch`](/library/source/Data.Mutable.HeapView/). Source SHA-256: `89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c`.

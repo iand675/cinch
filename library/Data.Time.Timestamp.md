@@ -2,19 +2,22 @@
 
 Instants on the Unix time line with nanosecond precision and checked arithmetic.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Time.Timestamp</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Time.Timestamp/">View source</a><a href="/library/search/?q=%2BData.Time.Timestamp">Search module</a><a href="/reference-sources/Data.Time.Timestamp.cinch" download="Data.Time.Timestamp.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Time.Timestamp`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
 
-[Download exact module source](/reference-sources/Data.Time.Timestamp.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Time.Timestamp`: [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Timestamp](Data.Time.Timestamp.md).
 
-[Data.Machine](Data.Machine.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Time.Duration](Data.Time.Duration.md), [Data.Wide](Data.Wide.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md).
+```sh
+cp seed/prelude/Data/Time/Duration.cinch ./Data.Time.Duration.cinch
+cp seed/prelude/Data/Time/Timestamp.cinch ./Data.Time.Timestamp.cinch
+```
 
-Non-embedded source closure: [Data.Time.Duration](Data.Time.Duration.md), [Data.Time.Timestamp](Data.Time.Timestamp.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Time.Timestamp: an instant on the Unix time line
 (design/datetime.md, layer L0 "machine time", lane A).
@@ -87,132 +90,114 @@ Naming: every export is prefixed `timestamp-` (the bounds are
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (24 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Timestamp">Timestamp</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Timestamp</strong></code></li><li><a class="syn-name" href="#v-max-timestamp">max-timestamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">max-timestamp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-min-timestamp">min-timestamp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">min-timestamp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-checked-add">timestamp-checked-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-checked-add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-checked-sub">timestamp-checked-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-checked-sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-cmp">timestamp-cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-timestamp-epoch">timestamp-epoch</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-epoch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-from-unix-micros">timestamp-from-unix-micros</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-micros</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-from-unix-millis">timestamp-from-unix-millis</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-millis</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-from-unix-nanos">timestamp-from-unix-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-from-unix-nanos-i128">timestamp-from-unix-nanos-i128</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-nanos-i128</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-from-unix-seconds">timestamp-from-unix-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-from-unix-seconds-and-nanos">timestamp-from-unix-seconds-and-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-seconds-and-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-saturating-add">timestamp-saturating-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-saturating-add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-saturating-sub">timestamp-saturating-sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-saturating-sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code></li><li><a class="syn-name" href="#v-timestamp-since">timestamp-since</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li><li><a class="syn-name" href="#v-timestamp-subsec-nanos">timestamp-subsec-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-subsec-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999999999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-timestamp-to-unix-micros">timestamp-to-unix-micros</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-micros</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-timestamp-to-unix-millis">timestamp-to-unix-millis</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-millis</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-timestamp-to-unix-nanos">timestamp-to-unix-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Wide/" title="I128">I128</a></code></li><li><a class="syn-name" href="#v-timestamp-to-unix-nanos-i64">timestamp-to-unix-nanos-i64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-nanos-i64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-timestamp-to-unix-seconds">timestamp-to-unix-seconds</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-timestamp-to-unix-seconds-and-nanos">timestamp-to-unix-seconds-and-nanos</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-seconds-and-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>)</code></li><li><a class="syn-name" href="#v-timestamp-until">timestamp-until</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">timestamp-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code></li></ul>
+</details>
 
-<a id="type-54696d657374616d70"></a>
+# Types
 
-## `Timestamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Timestamp</span></code></pre>
+<article class="doc-entry" id="t-Timestamp">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Timestamp</strong></code><span class="doc-sig-links"><a href="#t-Timestamp" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L98" title="View source at line 98">Source</a></span></div>
+<div class="doc-body">
 
 Nanoseconds since the Unix epoch. Not exported (the range
 invariant above); named apart from the type so that
 `export Timestamp` does not export it.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 98
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.Timestamp/#instances">Data.Time.Timestamp</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Time.Timestamp/#instances">Data.Time.Timestamp</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-6d61782d74696d657374616d70"></a>
-
-## `max-timestamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">max-timestamp</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span></code></pre>
+<article class="doc-entry" id="v-max-timestamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">max-timestamp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-max-timestamp" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L164" title="View source at line 164">Source</a></span></div>
+<div class="doc-body">
 
 9999-12-30T22:00:00.999999999Z.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 164
+</div>
+</article>
 
-<a id="value-6d696e2d74696d657374616d70"></a>
-
-## `min-timestamp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">min-timestamp</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span></code></pre>
+<article class="doc-entry" id="v-min-timestamp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">min-timestamp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-min-timestamp" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-body">
 
 -9999-01-02T01:59:59Z.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 160
+</div>
+</article>
 
-<a id="value-74696d657374616d702d636865636b65642d616464"></a>
-
-## `timestamp-checked-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-checked-add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-timestamp-checked-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-checked-add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-checked-add" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L241" title="View source at line 241">Source</a></span></div>
+<div class="doc-body">
 
 The instant `d` after `t` (before it for a negative `d`).
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 241
+</div>
+</article>
 
-<a id="value-74696d657374616d702d636865636b65642d737562"></a>
-
-## `timestamp-checked-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-checked-sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-timestamp-checked-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-checked-sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-checked-sub" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L247" title="View source at line 247">Source</a></span></div>
+<div class="doc-body">
 
 The instant `d` before `t`.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 247
+</div>
+</article>
 
-<a id="value-74696d657374616d702d636d70"></a>
-
-## `timestamp-cmp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-timestamp-cmp" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L274" title="View source at line 274">Source</a></span></div>
+<div class="doc-body">
 
 Order.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 274
+</div>
+</article>
 
-<a id="value-74696d657374616d702d65706f6368"></a>
-
-## `timestamp-epoch`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-epoch</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span></code></pre>
+<article class="doc-entry" id="v-timestamp-epoch">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-epoch</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-epoch" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L156" title="View source at line 156">Source</a></span></div>
+<div class="doc-body">
 
 1970-01-01T00:00:00Z.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 156
+</div>
+</article>
 
-<a id="value-74696d657374616d702d66726f6d2d756e69782d6d6963726f73"></a>
+<article class="doc-entry" id="v-timestamp-from-unix-micros">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-micros</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-from-unix-micros" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L174" title="View source at line 174">Source</a></span></div>
+</article>
 
-## `timestamp-from-unix-micros`
+<article class="doc-entry" id="v-timestamp-from-unix-millis">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-millis</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-from-unix-millis" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L171" title="View source at line 171">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-unix-micros</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Timestamp.cinch)
-
-<a id="value-74696d657374616d702d66726f6d2d756e69782d6d696c6c6973"></a>
-
-## `timestamp-from-unix-millis`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-unix-millis</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Timestamp.cinch)
-
-<a id="value-74696d657374616d702d66726f6d2d756e69782d6e616e6f73"></a>
-
-## `timestamp-from-unix-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-unix-nanos</span> :: (<span class="tok-constructor">I64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)</code></pre>
+<article class="doc-entry" id="v-timestamp-from-unix-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-from-unix-nanos" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L179" title="View source at line 179">Source</a></span></div>
+<div class="doc-body">
 
 Total: every `I64` nanosecond count (1677-09-21 to 2262-04-11) is
 inside the range, whose bounds are past `I64` on both sides.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 179
+</div>
+</article>
 
-<a id="value-74696d657374616d702d66726f6d2d756e69782d6e616e6f732d69313238"></a>
+<article class="doc-entry" id="v-timestamp-from-unix-nanos-i128">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-nanos-i128</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Wide/" title="I128">I128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-from-unix-nanos-i128" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L182" title="View source at line 182">Source</a></span></div>
+</article>
 
-## `timestamp-from-unix-nanos-i128`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-unix-nanos-i128</span> :: (<span class="tok-constructor">I128</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Timestamp.cinch)
-
-<a id="value-74696d657374616d702d66726f6d2d756e69782d7365636f6e6473"></a>
-
-## `timestamp-from-unix-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-unix-seconds</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-from-unix-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-from-unix-seconds" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L168" title="View source at line 168">Source</a></span></div>
+<div class="doc-body">
 
 `None` outside -377705023201..=253402207200.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 168
+</div>
+</article>
 
-<a id="value-74696d657374616d702d66726f6d2d756e69782d7365636f6e64732d616e642d6e616e6f73"></a>
-
-## `timestamp-from-unix-seconds-and-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-from-unix-seconds-and-nanos</span> :: (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>)))</code></pre>
+<article class="doc-entry" id="v-timestamp-from-unix-seconds-and-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-from-unix-seconds-and-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-from-unix-seconds-and-nanos" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L190" title="View source at line 190">Source</a></span></div>
+<div class="doc-body">
 
 `secs` whole seconds plus `nanos` nanoseconds. The two are added,
 so any `I64` nanosecond part is accepted and normalised (the pair
@@ -220,44 +205,37 @@ so any `I64` nanosecond part is accepted and normalised (the pair
 `to-unix-seconds-and-nanos` gives for it). The wrapping sum is
 exact: the seconds term is below 2^93 and the other below 2^63.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 190
+</div>
+</article>
 
-<a id="value-74696d657374616d702d73617475726174696e672d616464"></a>
-
-## `timestamp-saturating-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-saturating-add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-saturating-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-saturating-add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-saturating-add" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L253" title="View source at line 253">Source</a></span></div>
+<div class="doc-body">
 
 The same, clamped to `min-timestamp`/`max-timestamp`.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 253
+</div>
+</article>
 
-<a id="value-74696d657374616d702d73617475726174696e672d737562"></a>
+<article class="doc-entry" id="v-timestamp-saturating-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-saturating-sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code><span class="doc-sig-links"><a href="#v-timestamp-saturating-sub" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L256" title="View source at line 256">Source</a></span></div>
+</article>
 
-## `timestamp-saturating-sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-saturating-sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span>))</code></pre>
-
-[Source](/reference-sources/Data.Time.Timestamp.cinch)
-
-<a id="value-74696d657374616d702d73696e6365"></a>
-
-## `timestamp-since`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-since</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-since">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-since</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-timestamp-since" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L263" title="View source at line 263">Source</a></span></div>
+<div class="doc-body">
 
 `timestamp-since a b` is `a - b`: the time from `b` to `a`,
 positive when `a` is the later. Total: two counts in the range
 differ by at most 631107230401999999999 (below 2^70), so the
 wrapping subtraction is exact and far inside a duration's range.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 263
+</div>
+</article>
 
-<a id="value-74696d657374616d702d7375627365632d6e616e6f73"></a>
-
-## `timestamp-subsec-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-subsec-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">999999999</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-subsec-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-subsec-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 999999999 <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-timestamp-subsec-nanos" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L222" title="View source at line 222">Source</a></span></div>
+<div class="doc-body">
 
 The nanoseconds past the floored second: `0..=999999999`. The
 value is `n - floor(n / 10^9) * 10^9`, which is in that interval,
@@ -265,61 +243,49 @@ so both wrapping steps are exact; the guard restates the bound for
 the checker (a wide scalar has no solver sort) and its `else` arm
 is unreachable.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 222
+</div>
+</article>
 
-<a id="value-74696d657374616d702d746f2d756e69782d6d6963726f73"></a>
+<article class="doc-entry" id="v-timestamp-to-unix-micros">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-micros</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-timestamp-to-unix-micros" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L205" title="View source at line 205">Source</a></span></div>
+</article>
 
-## `timestamp-to-unix-micros`
+<article class="doc-entry" id="v-timestamp-to-unix-millis">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-millis</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-timestamp-to-unix-millis" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L202" title="View source at line 202">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-unix-micros</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Timestamp.cinch)
-
-<a id="value-74696d657374616d702d746f2d756e69782d6d696c6c6973"></a>
-
-## `timestamp-to-unix-millis`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-unix-millis</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
-
-[Source](/reference-sources/Data.Time.Timestamp.cinch)
-
-<a id="value-74696d657374616d702d746f2d756e69782d6e616e6f73"></a>
-
-## `timestamp-to-unix-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-unix-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">I128</span>)</code></pre>
+<article class="doc-entry" id="v-timestamp-to-unix-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Wide/" title="I128">I128</a></code><span class="doc-sig-links"><a href="#v-timestamp-to-unix-nanos" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L209" title="View source at line 209">Source</a></span></div>
+<div class="doc-body">
 
 The whole count, exactly.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 209
+</div>
+</article>
 
-<a id="value-74696d657374616d702d746f2d756e69782d6e616e6f732d693634"></a>
-
-## `timestamp-to-unix-nanos-i64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-unix-nanos-i64</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-to-unix-nanos-i64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-nanos-i64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-timestamp-to-unix-nanos-i64" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L214" title="View source at line 214">Source</a></span></div>
+<div class="doc-body">
 
 `None` outside `I64` nanoseconds (before 1677-09-21T00:12:43.145224192Z
 or after 2262-04-11T23:47:16.854775807Z).
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 214
+</div>
+</article>
 
-<a id="value-74696d657374616d702d746f2d756e69782d7365636f6e6473"></a>
-
-## `timestamp-to-unix-seconds`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-unix-seconds</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-timestamp-to-unix-seconds">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-seconds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-timestamp-to-unix-seconds" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L199" title="View source at line 199">Source</a></span></div>
+<div class="doc-body">
 
 Observation. Every conversion to a coarser unit floors (rounds
 toward the past), before the epoch as after it.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 199
+</div>
+</article>
 
-<a id="value-74696d657374616d702d746f2d756e69782d7365636f6e64732d616e642d6e616e6f73"></a>
-
-## `timestamp-to-unix-seconds-and-nanos`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-to-unix-seconds-and-nanos</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">I64</span>, <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-to-unix-seconds-and-nanos">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-to-unix-seconds-and-nanos</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>)</code><span class="doc-sig-links"><a href="#v-timestamp-to-unix-seconds-and-nanos" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L233" title="View source at line 233">Source</a></span></div>
+<div class="doc-body">
 
 The floored second and the nanoseconds past it (`0..=999999999`),
 together: what the zone layer splits an instant into. The second
@@ -327,27 +293,27 @@ component is a plain `I64` here (named refusal in the header);
 `timestamp-subsec-nanos` is the same number with its bound in the
 type.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 233
+</div>
+</article>
 
-<a id="value-74696d657374616d702d756e74696c"></a>
-
-## `timestamp-until`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">timestamp-until</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Timestamp</span>.<span class="tok-constructor">Timestamp</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Time</span>.<span class="tok-constructor">Duration</span>.<span class="tok-constructor">Duration</span>))</code></pre>
+<article class="doc-entry" id="v-timestamp-until">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">timestamp-until</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code><span class="doc-sig-links"><a href="#v-timestamp-until" title="Permalink">#</a><a href="/library/source/Data.Time.Timestamp/#L267" title="View source at line 267">Source</a></span></div>
+<div class="doc-body">
 
 `timestamp-until a b` is `b - a`: the time from `a` to `b`.
 
-[Source](/reference-sources/Data.Time.Timestamp.cinch) · line 267
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Time.Timestamp.Eq_Timestamp` | `Relation.Eq.Eq Data.Time.Timestamp.Timestamp` | Implicit |
-| `Data.Time.Timestamp.Ord_Timestamp` | `Relation.Ord.Ord Data.Time.Timestamp.Timestamp` | Implicit |
+<ul class="doc-module-instances">
+<li id="i-Eq_Timestamp"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Timestamp.Eq_Timestamp</code></span></li>
+<li id="i-Ord_Timestamp"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Time.Timestamp/#t-Timestamp" title="Data.Time.Timestamp.Timestamp">Timestamp</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Timestamp.Ord_Timestamp</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Time/Timestamp.cinch`. Source SHA-256: `c4ac068fadce1317eb55fe3e867e7c85e2e98449390bd95c01eb7c7982380614`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Timestamp.cinch`](/library/source/Data.Time.Timestamp/). Source SHA-256: `c4ac068fadce1317eb55fe3e867e7c85e2e98449390bd95c01eb7c7982380614`.

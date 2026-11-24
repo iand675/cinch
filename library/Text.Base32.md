@@ -2,19 +2,22 @@
 
 Configurable Base32 byte alphabets and padding, SIMD codecs, prefix/caller-buffer operations and persistent incremental states.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Base32</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Base32/">View source</a><a href="/library/search/?q=%2BText.Base32">Search module</a><a href="/reference-sources/Text.Base32.cinch" download="Text.Base32.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Base32`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Text.Base32.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (2 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Base32`: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Base32](Text.Base32.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Base32.cinch ./Text.Base32.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Base32](Text.Base32.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 RFC 4648 Base32 with fixed or custom byte alphabets and optional byte padding.
 Fixed-alphabet text conveniences accept uppercase symbols and return atomic
@@ -26,427 +29,371 @@ and SWAR; custom lookup tables are private, immutable copies of caller bytes.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (38 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Base32Alphabet">Base32Alphabet</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Alphabet</strong></code></li><li><a class="syn-name" href="#t-Base32ConfigError">Base32ConfigError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32ConfigError</strong></code></li><li><a class="syn-name" href="#t-Base32Decoder">Base32Decoder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Decoder</strong></code></li><li><a class="syn-name" href="#t-Base32Encoder">Base32Encoder</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Encoder</strong></code></li><li><a class="syn-name" href="#t-Base32Encoding">Base32Encoding</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Encoding</strong></code></li><li><a class="syn-name" href="#t-Base32Error">Base32Error</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Error</strong></code></li><li><a class="syn-name" href="#t-Base32InputError">Base32InputError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32InputError</strong></code></li><li><a class="syn-name" href="#v-base32-config-error-message">base32-config-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-config-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-base32-decode">base32-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Error" title="Text.Base32.Base32Error">Base32Error</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base32-decode-append">base32-decode-append</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decode-append</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code></li><li><a class="syn-name" href="#v-base32-decode-bytes">base32-decode-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base32-decode-into">base32-decode-into</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decode-into</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code></li><li><a class="syn-name" href="#v-base32-decode-prefix">base32-decode-prefix</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decode-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code></li><li><a class="syn-name" href="#v-base32-decode-text">base32-decode-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decode-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code></li><li><a class="syn-name" href="#v-base32-decoded-length">base32-decoded-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-base32-decoder">base32-decoder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a></code></li><li><a class="syn-name" href="#v-base32-decoder-error">base32-decoder-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decoder-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a></code></li><li><a class="syn-name" href="#v-base32-decoder-feed">base32-decoder-feed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a>)</code></li><li><a class="syn-name" href="#v-base32-decoder-finish">base32-decoder-finish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-decoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code></li><li><a class="syn-name" href="#v-base32-encode">base32-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-base32-encode-append">base32-encode-append</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encode-append</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base32-encode-bytes">base32-encode-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base32-encode-into">base32-encode-into</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encode-into</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-base32-encode-text">base32-encode-text</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encode-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-base32-encoded-length">base32-encoded-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-base32-encoder">base32-encoder</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a></code></li><li><a class="syn-name" href="#v-base32-encoder-feed">base32-encoder-feed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a>)</code></li><li><a class="syn-name" href="#v-base32-encoder-finish">base32-encoder-finish</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base32-encoding">base32-encoding</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code></li><li><a class="syn-name" href="#v-base32-encoding-alphabet">base32-encoding-alphabet</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encoding-alphabet</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base32-encoding-padding">base32-encoding-padding</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-encoding-padding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-base32-hex-encoding">base32-hex-encoding</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-hex-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code></li><li><a class="syn-name" href="#v-base32-input-error-message">base32-input-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-input-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-base32-input-error-offset">base32-input-error-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-input-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-base32-raw-decode">base32-raw-decode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-raw-decode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Error" title="Text.Base32.Base32Error">Base32Error</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-base32-raw-encode">base32-raw-encode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-raw-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-base32-standard-encoding">base32-standard-encoding</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-standard-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code></li><li><a class="syn-name" href="#v-base32-with-padding">base32-with-padding</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">base32-with-padding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code></li></ul>
+</details>
 
-<a id="type-426173653332416c706861626574"></a>
+# Types
 
-## `Base32Alphabet`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base32Alphabet</span></code></pre>
+<article class="doc-entry" id="t-Base32Alphabet">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Alphabet</strong></code><span class="doc-sig-links"><a href="#t-Base32Alphabet" title="Permalink">#</a><a href="/library/source/Text.Base32/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
 
 The fixed 32-symbol alphabet for a Base32 encoding.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 34
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Base32Standard"><code><strong class="tok-constructor">Base32Standard</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a></code></li><li id="k-Base32Hex"><code><strong class="tok-constructor">Base32Hex</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32Standard</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Alphabet</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32Hex</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Alphabet</span></code></pre>
-
-<a id="type-426173653332436f6e6669674572726f72"></a>
-
-## `Base32ConfigError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base32ConfigError</span></code></pre>
+<article class="doc-entry" id="t-Base32ConfigError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32ConfigError</strong></code><span class="doc-sig-links"><a href="#t-Base32ConfigError" title="Permalink">#</a><a href="/library/source/Text.Base32/#L450" title="View source at line 450">Source</a></span></div>
+<div class="doc-body">
 
 Invalid alphabet or padding configuration; construction never changes caller storage.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 450
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Base32AlphabetLength"><code><strong class="tok-constructor">Base32AlphabetLength</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a></code></li><li id="k-Base32AlphabetNewline"><code><strong class="tok-constructor">Base32AlphabetNewline</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a></code></li><li id="k-Base32AlphabetDuplicate"><code><strong class="tok-constructor">Base32AlphabetDuplicate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a></code></li><li id="k-Base32PaddingValue"><code><strong class="tok-constructor">Base32PaddingValue</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a></code></li><li id="k-Base32PaddingCollision"><code><strong class="tok-constructor">Base32PaddingCollision</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32AlphabetLength</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32AlphabetNewline</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32AlphabetDuplicate</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32PaddingValue</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32PaddingCollision</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span>)</code></pre>
-
-<a id="type-4261736533324465636f646572"></a>
-
-## `Base32Decoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base32Decoder</span></code></pre>
+<article class="doc-entry" id="t-Base32Decoder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Decoder</strong></code><span class="doc-sig-links"><a href="#t-Base32Decoder" title="Permalink">#</a><a href="/library/source/Text.Base32/#L714" title="View source at line 714">Source</a></span></div>
+<div class="doc-body">
 
 Persistent decoding continuation with a packed unfinished quantum and sticky failure.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 714
+</div>
+</article>
 
-<a id="type-426173653332456e636f646572"></a>
-
-## `Base32Encoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base32Encoder</span></code></pre>
+<article class="doc-entry" id="t-Base32Encoder">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Encoder</strong></code><span class="doc-sig-links"><a href="#t-Base32Encoder" title="Permalink">#</a><a href="/library/source/Text.Base32/#L690" title="View source at line 690">Source</a></span></div>
+<div class="doc-body">
 
 Persistent encoding continuation owning fewer than five pending input bytes.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 690
+</div>
+</article>
 
-<a id="type-426173653332456e636f64696e67"></a>
-
-## `Base32Encoding`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base32Encoding</span></code></pre>
+<article class="doc-entry" id="t-Base32Encoding">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Encoding</strong></code><span class="doc-sig-links"><a href="#t-Base32Encoding" title="Permalink">#</a><a href="/library/source/Text.Base32/#L445" title="View source at line 445">Source</a></span></div>
+<div class="doc-body">
 
 An immutable byte alphabet, inverse lookup and optional one-byte padding policy.
 Custom alphabets are copied. Fixed configurations use the existing SIMD classifiers.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 445
+</div>
+</article>
 
-<a id="type-4261736533324572726f72"></a>
-
-## `Base32Error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base32Error</span></code></pre>
+<article class="doc-entry" id="t-Base32Error">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32Error</strong></code><span class="doc-sig-links"><a href="#t-Base32Error" title="Permalink">#</a><a href="/library/source/Text.Base32/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 Malformed input for the fixed-alphabet text conveniences; errors carry no partial output.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 41
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-InvalidBase32Character"><code><strong class="tok-constructor">InvalidBase32Character</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Error" title="Text.Base32.Base32Error">Base32Error</a></code></li><li id="k-InvalidBase32Length"><code><strong class="tok-constructor">InvalidBase32Length</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Error" title="Text.Base32.Base32Error">Base32Error</a></code></li><li id="k-InvalidBase32Padding"><code><strong class="tok-constructor">InvalidBase32Padding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Error" title="Text.Base32.Base32Error">Base32Error</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase32Character</span> :: (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase32Length</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Error</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase32Padding</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Error</span></code></pre>
-
-<a id="type-426173653332496e7075744572726f72"></a>
-
-## `Base32InputError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Base32InputError</span></code></pre>
+<article class="doc-entry" id="t-Base32InputError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Base32InputError</strong></code><span class="doc-sig-links"><a href="#t-Base32InputError" title="Permalink">#</a><a href="/library/source/Text.Base32/#L657" title="View source at line 657">Source</a></span></div>
+<div class="doc-body">
 
 Invalid encoded bytes, an incomplete final quantum, or insufficient destination capacity.
 Input positions count original bytes, including ignored CR and LF.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 657
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidBase32Byte</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TruncatedBase32Quantum</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Base32ShortDestination</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>))</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-InvalidBase32Byte"><code><strong class="tok-constructor">InvalidBase32Byte</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a></code></li><li id="k-TruncatedBase32Quantum"><code><strong class="tok-constructor">TruncatedBase32Quantum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a></code></li><li id="k-Base32ShortDestination"><code><strong class="tok-constructor">Base32ShortDestination</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6261736533322d636f6e6669672d6572726f722d6d657373616765"></a>
-
-## `base32-config-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-config-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-base32-config-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-config-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-config-error-message" title="Permalink">#</a><a href="/library/source/Text.Base32/#L463" title="View source at line 463">Source</a></span></div>
+<div class="doc-body">
 
 Describe the precise alphabet offset or rejected padding value.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 463
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f6465"></a>
-
-## `base32-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Alphabet</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Error</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Error" title="Text.Base32.Base32Error">Base32Error</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-decode" title="Permalink">#</a><a href="/library/source/Text.Base32/#L198" title="View source at line 198">Source</a></span></div>
+<div class="doc-body">
 
 Decode padded Base32, ignoring CR/LF. Incomplete quanta, misplaced padding, lowercase and unknown symbols return named errors.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 198
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f64652d617070656e64"></a>
-
-## `base32-decode-append`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decode-append</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>)))))</code></pre>
+<article class="doc-entry" id="v-base32-decode-append">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-append</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-append" title="Permalink">#</a><a href="/library/source/Text.Base32/#L831" title="View source at line 831">Source</a></span></div>
+<div class="doc-body">
 
 Append completed decoded bytes to a copied prefix, retaining a later malformed-input error.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 831
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f64652d6279746573"></a>
-
-## `base32-decode-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decode-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-decode-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-decode-bytes" title="Permalink">#</a><a href="/library/source/Text.Base32/#L821" title="View source at line 821">Source</a></span></div>
+<div class="doc-body">
 
 Decode complete bytes atomically; use the prefix API when malformed-input progress is needed.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 821
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f64652d696e746f"></a>
-
-## `base32-decode-into`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decode-into</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>))))))</code></pre>
+<article class="doc-entry" id="v-base32-decode-into">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-into</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-into" title="Permalink">#</a><a href="/library/source/Text.Base32/#L838" title="View source at line 838">Source</a></span></div>
+<div class="doc-body">
 
 Decode into a checked destination and return progress plus a possible input error.
 The actual completed output must fit before mutation. Decoding completes before
 copying, so overlap is safe and valid padding never requires excess capacity.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 838
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f64652d707265666978"></a>
-
-## `base32-decode-prefix`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decode-prefix</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>))))</code></pre>
+<article class="doc-entry" id="v-base32-decode-prefix">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-prefix</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-prefix" title="Permalink">#</a><a href="/library/source/Text.Base32/#L815" title="View source at line 815">Source</a></span></div>
+<div class="doc-body">
 
 Decode bytes with precise original offsets and retain all preceding complete output on error.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 815
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f64652d74657874"></a>
-
-## `base32-decode-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decode-text</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>))))</code></pre>
+<article class="doc-entry" id="v-base32-decode-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decode-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decode-text" title="Permalink">#</a><a href="/library/source/Text.Base32/#L827" title="View source at line 827">Source</a></span></div>
+<div class="doc-body">
 
 Decode UTF-8 text while preserving complete output and counting original UTF-8 byte offsets.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 827
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f6465642d6c656e677468"></a>
-
-## `base32-decoded-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decoded-length</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-base32-decoded-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-decoded-length" title="Permalink">#</a><a href="/library/source/Text.Base32/#L563" title="View source at line 563">Source</a></span></div>
+<div class="doc-body">
 
 Maximum decoded byte count from an encoded byte count; this does not validate input.
 Newlines and padding can make the actual result shorter than this capacity bound.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 563
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f646572"></a>
-
-## `base32-decoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decoder</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Decoder</span>)</code></pre>
+<article class="doc-entry" id="v-base32-decoder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a></code><span class="doc-sig-links"><a href="#v-base32-decoder" title="Permalink">#</a><a href="/library/source/Text.Base32/#L719" title="View source at line 719">Source</a></span></div>
+<div class="doc-body">
 
 Begin a strict byte decoder. CR/LF are ignored; padding and final lengths are validated.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 719
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f6465722d6572726f72"></a>
-
-## `base32-decoder-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decoder-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Decoder</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>))</code></pre>
+<article class="doc-entry" id="v-base32-decoder-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a></code><span class="doc-sig-links"><a href="#v-base32-decoder-error" title="Permalink">#</a><a href="/library/source/Text.Base32/#L723" title="View source at line 723">Source</a></span></div>
+<div class="doc-body">
 
 Observe a sticky feed failure while retaining any output returned with that feed.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 723
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f6465722d66656564"></a>
-
-## `base32-decoder-feed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decoder-feed</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Decoder</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Decoder</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-decoder-feed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a>)</code><span class="doc-sig-links"><a href="#v-base32-decoder-feed" title="Permalink">#</a><a href="/library/source/Text.Base32/#L728" title="View source at line 728">Source</a></span></div>
+<div class="doc-body">
 
 Emit complete quanta, preserving their output alongside a later sticky decoding failure.
 An incomplete padded quantum is held until every required pad is validated.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 728
+</div>
+</article>
 
-<a id="value-6261736533322d6465636f6465722d66696e697368"></a>
-
-## `base32-decoder-finish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-decoder-finish</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Decoder</span> -&gt; (<span class="tok-constructor">Bytes</span>, (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-decoder-finish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-decoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Decoder" title="Text.Base32.Base32Decoder">Base32Decoder</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a>)</code><span class="doc-sig-links"><a href="#v-base32-decoder-finish" title="Permalink">#</a><a href="/library/source/Text.Base32/#L801" title="View source at line 801">Source</a></span></div>
+<div class="doc-body">
 
 Validate EOF and render an allowed unpadded tail. Lengths 1, 3 and 6 are rejected.
 Padded input requires every final pad; any data after a padded final quantum is invalid.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 801
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f6465"></a>
-
-## `base32-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Alphabet</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-base32-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-encode" title="Permalink">#</a><a href="/library/source/Text.Base32/#L111" title="View source at line 111">Source</a></span></div>
+<div class="doc-body">
 
 Encode with the selected alphabet and enough equals signs to complete an eight-character quantum. Empty input stays empty.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 111
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f64652d617070656e64"></a>
-
-## `base32-encode-append`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encode-append</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-encode-append">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-append</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encode-append" title="Permalink">#</a><a href="/library/source/Text.Base32/#L647" title="View source at line 647">Source</a></span></div>
+<div class="doc-body">
 
 Append encoded bytes to a copied prefix without mutating or retaining either caller buffer.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 647
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f64652d6279746573"></a>
-
-## `base32-encode-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encode-bytes</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-base32-encode-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encode-bytes" title="Permalink">#</a><a href="/library/source/Text.Base32/#L637" title="View source at line 637">Source</a></span></div>
+<div class="doc-body">
 
 Encode directly into fresh byte storage; arbitrary alphabet and padding bytes are preserved.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 637
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f64652d696e746f"></a>
-
-## `base32-encode-into`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encode-into</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span> <span class="tok-constructor">Nat</span>)))))</code></pre>
+<article class="doc-entry" id="v-base32-encode-into">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-into</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encode-into" title="Permalink">#</a><a href="/library/source/Text.Base32/#L681" title="View source at line 681">Source</a></span></div>
+<div class="doc-body">
 
 Encode into a complete checked destination interval, returning the written byte count.
 Capacity is checked before mutation; a source snapshot makes overlap safe.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 681
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f64652d74657874"></a>
-
-## `base32-encode-text`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encode-text</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-encode-text">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encode-text</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-encode-text" title="Permalink">#</a><a href="/library/source/Text.Base32/#L643" title="View source at line 643">Source</a></span></div>
+<div class="doc-body">
 
 Encode as text only when the exact encoded bytes form valid UTF-8.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 643
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f6465642d6c656e677468"></a>
-
-## `base32-encoded-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encoded-length</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-base32-encoded-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoded-length</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encoded-length" title="Permalink">#</a><a href="/library/source/Text.Base32/#L556" title="View source at line 556">Source</a></span></div>
+<div class="doc-body">
 
 Exact encoded byte count for an input length, including the selected padding policy.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 556
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f646572"></a>
-
-## `base32-encoder`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encoder</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoder</span>)</code></pre>
+<article class="doc-entry" id="v-base32-encoder">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a></code><span class="doc-sig-links"><a href="#v-base32-encoder" title="Permalink">#</a><a href="/library/source/Text.Base32/#L695" title="View source at line 695">Source</a></span></div>
+<div class="doc-body">
 
 Begin an independent encoding; finish explicitly to emit its final short quantum.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 695
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f6465722d66656564"></a>
-
-## `base32-encoder-feed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encoder-feed</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoder</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoder</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-encoder-feed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder-feed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a>)</code><span class="doc-sig-links"><a href="#v-base32-encoder-feed" title="Permalink">#</a><a href="/library/source/Text.Base32/#L699" title="View source at line 699">Source</a></span></div>
+<div class="doc-body">
 
 Emit all complete five-byte quanta, retaining only a copied tail of at most four bytes.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 699
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f6465722d66696e697368"></a>
-
-## `base32-encoder-finish`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encoder-finish</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoder</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-base32-encoder-finish">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoder-finish</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoder" title="Text.Base32.Base32Encoder">Base32Encoder</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encoder-finish" title="Permalink">#</a><a href="/library/source/Text.Base32/#L710" title="View source at line 710">Source</a></span></div>
+<div class="doc-body">
 
 Render the final short quantum and selected padding without changing the retained state.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 710
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f64696e67"></a>
-
-## `base32-encoding`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encoding</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span>))</code></pre>
+<article class="doc-entry" id="v-base32-encoding">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-encoding" title="Permalink">#</a><a href="/library/source/Text.Base32/#L495" title="View source at line 495">Source</a></span></div>
+<div class="doc-body">
 
 Validate 32 distinct non-newline bytes and create an independent padded encoding.
 Bytes above 127 retain their exact values. An equals-sign symbol is allowed;
 select another padding byte or no padding before requiring an invertible tail.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 495
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f64696e672d616c706861626574"></a>
-
-## `base32-encoding-alphabet`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encoding-alphabet</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-base32-encoding-alphabet">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding-alphabet</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-encoding-alphabet" title="Permalink">#</a><a href="/library/source/Text.Base32/#L515" title="View source at line 515">Source</a></span></div>
+<div class="doc-body">
 
 Return a fresh complete alphabet buffer, including for custom non-UTF-8 alphabets.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 515
+</div>
+</article>
 
-<a id="value-6261736533322d656e636f64696e672d70616464696e67"></a>
-
-## `base32-encoding-padding`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-encoding-padding</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-base32-encoding-padding">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-encoding-padding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-encoding-padding" title="Permalink">#</a><a href="/library/source/Text.Base32/#L523" title="View source at line 523">Source</a></span></div>
+<div class="doc-body">
 
 Observe the optional padding byte; None selects an unpadded encoding.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 523
+</div>
+</article>
 
-<a id="value-6261736533322d6865782d656e636f64696e67"></a>
-
-## `base32-hex-encoding`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-hex-encoding</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span></code></pre>
+<article class="doc-entry" id="v-base32-hex-encoding">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-hex-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-hex-encoding" title="Permalink">#</a><a href="/library/source/Text.Base32/#L476" title="View source at line 476">Source</a></span></div>
+<div class="doc-body">
 
 The extended-hex uppercase byte alphabet with equals-sign padding.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 476
+</div>
+</article>
 
-<a id="value-6261736533322d696e7075742d6572726f722d6d657373616765"></a>
-
-## `base32-input-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-input-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-base32-input-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-input-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-input-error-message" title="Permalink">#</a><a href="/library/source/Text.Base32/#L673" title="View source at line 673">Source</a></span></div>
+<div class="doc-body">
 
 Describe original-byte decoding failures or the complete required destination capacity.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 673
+</div>
+</article>
 
-<a id="value-6261736533322d696e7075742d6572726f722d6f6666736574"></a>
-
-## `base32-input-error-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-input-error-offset</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32InputError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-base32-input-error-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-input-error-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32InputError" title="Text.Base32.Base32InputError">Base32InputError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-base32-input-error-offset" title="Permalink">#</a><a href="/library/source/Text.Base32/#L666" title="View source at line 666">Source</a></span></div>
+<div class="doc-body">
 
 Original input position associated with a malformed quantum; capacity errors return zero.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 666
+</div>
+</article>
 
-<a id="value-6261736533322d7261772d6465636f6465"></a>
-
-## `base32-raw-decode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-raw-decode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Alphabet</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Error</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-raw-decode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-raw-decode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Error" title="Text.Base32.Base32Error">Base32Error</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-base32-raw-decode" title="Permalink">#</a><a href="/library/source/Text.Base32/#L202" title="View source at line 202">Source</a></span></div>
+<div class="doc-body">
 
 Decode unpadded Base32, ignoring CR/LF. Padding and impossible final-quantum lengths are errors.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 202
+</div>
+</article>
 
-<a id="value-6261736533322d7261772d656e636f6465"></a>
-
-## `base32-raw-encode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-raw-encode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Alphabet</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-base32-raw-encode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-raw-encode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Alphabet" title="Text.Base32.Base32Alphabet">Base32Alphabet</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base32-raw-encode" title="Permalink">#</a><a href="/library/source/Text.Base32/#L102" title="View source at line 102">Source</a></span></div>
+<div class="doc-body">
 
 Encode with the selected alphabet and no padding. The output length is ceil(8 * byte-count / 5).
 
-[Source](/reference-sources/Text.Base32.cinch) · line 102
+</div>
+</article>
 
-<a id="value-6261736533322d7374616e646172642d656e636f64696e67"></a>
-
-## `base32-standard-encoding`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-standard-encoding</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span></code></pre>
+<article class="doc-entry" id="v-base32-standard-encoding">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-standard-encoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-standard-encoding" title="Permalink">#</a><a href="/library/source/Text.Base32/#L472" title="View source at line 472">Source</a></span></div>
+<div class="doc-body">
 
 The standard uppercase byte alphabet with equals-sign padding.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 472
+</div>
+</article>
 
-<a id="value-6261736533322d776974682d70616464696e67"></a>
-
-## `base32-with-padding`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">base32-with-padding</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32ConfigError</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Base32</span>.<span class="tok-constructor">Base32Encoding</span>)))</code></pre>
+<article class="doc-entry" id="v-base32-with-padding">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base32-with-padding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32ConfigError" title="Text.Base32.Base32ConfigError">Base32ConfigError</a> <a class="doc-type-link tok-constructor" href="/library/Text.Base32/#t-Base32Encoding" title="Text.Base32.Base32Encoding">Base32Encoding</a></code><span class="doc-sig-links"><a href="#v-base32-with-padding" title="Permalink">#</a><a href="/library/source/Text.Base32/#L542" title="View source at line 542">Source</a></span></div>
+<div class="doc-body">
 
 Copy an encoding with validated one-byte padding, or disable padding with None.
 Newline values, values above 255 and alphabet collisions return named errors.
 
-[Source](/reference-sources/Text.Base32.cinch) · line 542
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Base32.cinch`. Source SHA-256: `e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Base32.cinch`](/library/source/Text.Base32/). Source SHA-256: `e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd`.

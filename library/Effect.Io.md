@@ -2,17 +2,11 @@
 
 A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Effect.Io</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Io/">View source</a><a href="/library/search/?q=%2BEffect.Io">Search module</a><a href="/reference-sources/Effect.Io.cinch" download="Effect.Io.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Io`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Effect.Fs](Effect.Fs.md).
 
-[Download exact module source](/reference-sources/Effect.Io.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Data.Path](Data.Path.md), [Data.Result](Data.Result.md), [Effect.Fs](Effect.Fs.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Io: the `Io r` worked vocabulary.
 
@@ -29,23 +23,22 @@ document is the payload, and an empty document is not a config.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (5 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Config">Config</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Config</strong></code></li><li><a class="syn-name" href="#t-ConfigError">ConfigError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ConfigError</strong></code></li><li><a class="syn-name" href="#t-Path">Path</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Path</strong></code></li><li><a class="syn-name" href="#v-parse-config">parse-config</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">parse-config</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Io/#t-ConfigError" title="Effect.Io.ConfigError">ConfigError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Io/#t-Config" title="Effect.Io.Config">Config</a></code></li><li><a class="syn-name" href="#v-read-config-bytes">read-config-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">read-config-bytes</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Io/#t-ConfigError" title="Effect.Io.ConfigError">ConfigError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-436f6e666967"></a>
+# Types
 
-## `Config`
+<article class="doc-entry" id="t-Config">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Config</strong></code><span class="doc-sig-links"><a href="#t-Config" title="Permalink">#</a><a href="/library/source/Effect.Io/#L34" title="View source at line 34">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Config"><code><strong class="tok-constructor">Config</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Io/#t-Config" title="Effect.Io.Config">Config</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Config</span></code></pre>
-
-[Source](/reference-sources/Effect.Io.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">Config</span>)</code></pre>
-
-<a id="type-436f6e6669674572726f72"></a>
-
-## `ConfigError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ConfigError</span></code></pre>
+<article class="doc-entry" id="t-ConfigError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ConfigError</strong></code><span class="doc-sig-links"><a href="#t-ConfigError" title="Permalink">#</a><a href="/library/source/Effect.Io/#L30" title="View source at line 30">Source</a></span></div>
+<div class="doc-body">
 
 The worked vocabulary of the sequencing chapter's `loadConfig`
 sketch (runtime capabilities, effects and sequencing
@@ -57,40 +50,30 @@ capability and reports a missing or unreadable file as a
 bootstrap's config document is the payload, and an empty
 document is not a config.
 
-[Source](/reference-sources/Effect.Io.cinch) · line 30
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-BadConfig"><code><strong class="tok-constructor">BadConfig</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Io/#t-ConfigError" title="Effect.Io.ConfigError">ConfigError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadConfig</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">ConfigError</span></code></pre>
-
-<a id="type-50617468"></a>
-
-## `Path`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Path</span></code></pre>
+<article class="doc-entry" id="t-Path">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Path</strong></code><span class="doc-sig-links"><a href="#t-Path" title="Permalink">#</a><a href="/library/source/Data.Path/#L48" title="View source at line 48">Source</a></span></div>
+<div class="doc-body">
 
 The path text (POSIX; UTF-8 at the boundary).
 
-[Source](/reference-sources/Data.Path.cinch) · line 48
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Path</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Path"><code><strong class="tok-constructor">Path</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-70617273652d636f6e666967"></a>
+<article class="doc-entry" id="v-parse-config">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">parse-config</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Io/#t-ConfigError" title="Effect.Io.ConfigError">ConfigError</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Io/#t-Config" title="Effect.Io.Config">Config</a></code><span class="doc-sig-links"><a href="#v-parse-config" title="Permalink">#</a><a href="/library/source/Effect.Io/#L41" title="View source at line 41">Source</a></span></div>
+</article>
 
-## `parse-config`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">parse-config</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">ConfigError</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">Config</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Io.cinch)
-
-<a id="value-726561642d636f6e6669672d6279746573"></a>
-
-## `read-config-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">read-config-bytes</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Path</span>.<span class="tok-constructor">Path</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Io</span>.<span class="tok-constructor">ConfigError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
-
-[Source](/reference-sources/Effect.Io.cinch)
+<article class="doc-entry" id="v-read-config-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">read-config-bytes</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Path/#t-Path" title="Data.Path.Path">Path</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Io/#t-ConfigError" title="Effect.Io.ConfigError">ConfigError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-read-config-bytes" title="Permalink">#</a><a href="/library/source/Effect.Io/#L36" title="View source at line 36">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Io.cinch`. Source SHA-256: `82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Io.cinch`](/library/source/Effect.Io/). Source SHA-256: `82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804`.

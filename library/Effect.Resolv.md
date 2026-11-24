@@ -2,19 +2,24 @@
 
 Hostname/address resolution through the runtime, with named failure results.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Resolv</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Resolv/">View source</a><a href="/library/search/?q=%2BEffect.Resolv">Search module</a><a href="/reference-sources/Effect.Resolv.cinch" download="Effect.Resolv.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Resolv`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Text.Scan](Text.Scan.md).
 
-[Download exact module source](/reference-sources/Effect.Resolv.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (4 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Resolv`: [Data.IpAddr](Data.IpAddr.md), [Effect.Net](Effect.Net.md), [Effect.Resolv](Effect.Resolv.md), [Text.Scan](Text.Scan.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.IpAddr](Data.IpAddr.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Effect.Net](Effect.Net.md), [Text.Scan](Text.Scan.md).
+```sh
+cp seed/prelude/Data/IpAddr.cinch ./Data.IpAddr.cinch
+cp seed/prelude/Effect/Net.cinch ./Effect.Net.cinch
+cp seed/prelude/Effect/Resolv.cinch ./Effect.Resolv.cinch
+cp seed/prelude/Text/Scan.cinch ./Text.Scan.cinch
+```
 
-Non-embedded source closure: [Data.IpAddr](Data.IpAddr.md), [Effect.Net](Effect.Net.md), [Effect.Resolv](Effect.Resolv.md), [Text.Scan](Text.Scan.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Effect.Resolv: name resolution as typed addresses, over the
 resolution intrinsic (`Effect.Net`'s `net-resolve`, the runtime's
@@ -74,13 +79,15 @@ Named refusals (boundaries this module deliberately does not cross):
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (6 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-ResolvError">ResolvError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ResolvError</strong></code></li><li><a class="syn-name" href="#v-answer-addresses">answer-addresses</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">answer-addresses</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code></li><li><a class="syn-name" href="#v-answer-family-count">answer-family-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">answer-family-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpFamily" title="Data.IpAddr.IpFamily">IpFamily</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-answer-has-family">answer-has-family</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">answer-has-family</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpFamily" title="Data.IpAddr.IpFamily">IpFamily</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-resolve">resolve</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resolve</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>))</code></li><li><a class="syn-name" href="#v-resolve-addresses">resolve-addresses</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">resolve-addresses</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>)</code></li></ul>
+</details>
 
-<a id="type-5265736f6c764572726f72"></a>
+# Types
 
-## `ResolvError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">ResolvError</span></code></pre>
+<article class="doc-entry" id="t-ResolvError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">ResolvError</strong></code><span class="doc-sig-links"><a href="#t-ResolvError" title="Permalink">#</a><a href="/library/source/Effect.Resolv/#L82" title="View source at line 82">Source</a></span></div>
+<div class="doc-body">
 
 What went wrong, named. The four shared platform names are the
 boundary's own vocabulary (`Effect.Net`'s `NetError`, the codes
@@ -90,55 +97,42 @@ boundary returned that is not a well-formed `<ip>:<port>`, which a
 well-behaved boundary never produces but which this parser refuses
 to turn into an invented address.
 
-[Source](/reference-sources/Effect.Resolv.cinch) · line 82
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvNotFound</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvPermissionDenied</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvInvalidArgument</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvIoError</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ResolvMalformedAnswer</span> :: <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ResolvNotFound"><code><strong class="tok-constructor">ResolvNotFound</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a></code></li><li id="k-ResolvPermissionDenied"><code><strong class="tok-constructor">ResolvPermissionDenied</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a></code></li><li id="k-ResolvInvalidArgument"><code><strong class="tok-constructor">ResolvInvalidArgument</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a></code></li><li id="k-ResolvIoError"><code><strong class="tok-constructor">ResolvIoError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a></code></li><li id="k-ResolvMalformedAnswer"><code><strong class="tok-constructor">ResolvMalformedAnswer</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-616e737765722d616464726573736573"></a>
-
-## `answer-addresses`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-addresses</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>)) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>))</code></pre>
+<article class="doc-entry" id="v-answer-addresses">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">answer-addresses</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a></code><span class="doc-sig-links"><a href="#v-answer-addresses" title="Permalink">#</a><a href="/library/source/Effect.Resolv/#L127" title="View source at line 127">Source</a></span></div>
+<div class="doc-body">
 
 The addresses alone, in the resolver's order.
 
-[Source](/reference-sources/Effect.Resolv.cinch) · line 127
+</div>
+</article>
 
-<a id="value-616e737765722d66616d696c792d636f756e74"></a>
-
-## `answer-family-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-family-count</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>)) -&gt; <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-answer-family-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">answer-family-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpFamily" title="Data.IpAddr.IpFamily">IpFamily</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-answer-family-count" title="Permalink">#</a><a href="/library/source/Effect.Resolv/#L131" title="View source at line 131">Source</a></span></div>
+<div class="doc-body">
 
 How many answers belong to `fam`.
 
-[Source](/reference-sources/Effect.Resolv.cinch) · line 131
+</div>
+</article>
 
-<a id="value-616e737765722d6861732d66616d696c79"></a>
-
-## `answer-has-family`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">answer-has-family</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpFamily</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>)) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-answer-has-family">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">answer-has-family</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpFamily" title="Data.IpAddr.IpFamily">IpFamily</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-answer-has-family" title="Permalink">#</a><a href="/library/source/Effect.Resolv/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 Whether any answer belongs to `fam`.
 
-[Source](/reference-sources/Effect.Resolv.cinch) · line 140
+</div>
+</article>
 
-<a id="value-7265736f6c7665"></a>
-
-## `resolve`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resolve</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>, <span class="tok-constructor">Nat</span>)))))</code></pre>
+<article class="doc-entry" id="v-resolve">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resolve</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>))</code><span class="doc-sig-links"><a href="#v-resolve" title="Permalink">#</a><a href="/library/source/Effect.Resolv/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-body">
 
 Resolve `host` (UTF-8 host text) at `port` (0..=65535) into the
 typed answer list, or the named error. Each `<ip>:<port>` line the
@@ -147,13 +141,12 @@ the parser cannot read is `ResolvMalformedAnswer` rather than a
 dropped answer, so the well-formedness of the result is a checked
 property and never a silent filter.
 
-[Source](/reference-sources/Effect.Resolv.cinch) · line 104
+</div>
+</article>
 
-<a id="value-7265736f6c76652d616464726573736573"></a>
-
-## `resolve-addresses`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">resolve-addresses</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Resolv</span>.<span class="tok-constructor">ResolvError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">IpAddr</span>.<span class="tok-constructor">IpAddr</span>)))</code></pre>
+<article class="doc-entry" id="v-resolve-addresses">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">resolve-addresses</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Resolv/#t-ResolvError" title="Effect.Resolv.ResolvError">ResolvError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.IpAddr/#t-IpAddr" title="Data.IpAddr.IpAddr">IpAddr</a>)</code><span class="doc-sig-links"><a href="#v-resolve-addresses" title="Permalink">#</a><a href="/library/source/Effect.Resolv/#L114" title="View source at line 114">Source</a></span></div>
+<div class="doc-body">
 
 The name-only convenience: `resolve host` at port 0 and the port
 discarded, so a caller that wants just the addresses (Ruby's
@@ -161,8 +154,9 @@ discarded, so a caller that wants just the addresses (Ruby's
 0 because resolution is port-independent (the port is only echoed
 onto each line); the addresses are the same for every port.
 
-[Source](/reference-sources/Effect.Resolv.cinch) · line 114
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Resolv.cinch`. Source SHA-256: `a965d0886171f2b2cb753518e0dc2dedf3442cb80fe6384d16b92804c61a05f0`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Resolv.cinch`](/library/source/Effect.Resolv/). Source SHA-256: `a965d0886171f2b2cb753518e0dc2dedf3442cb80fe6384d16b92804c61a05f0`.

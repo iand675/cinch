@@ -2,17 +2,11 @@
 
 Small reusable function operations such as identity, composition, argument manipulation, and application.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Function.Combinators</code></div><div class="doc-mod-bar-links"><a href="/library/source/Function.Combinators/">View source</a><a href="/library/search/?q=%2BFunction.Combinators">Search module</a><a href="/reference-sources/Function.Combinators.cinch" download="Function.Combinators.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Function.Combinators`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Relation.Eq](Relation.Eq.md).
 
-[Download exact module source](/reference-sources/Function.Combinators.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Relation.Eq](Relation.Eq.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Function.Combinators: combinators over plain functions.
 
@@ -25,142 +19,108 @@ the combinators around them, not list operations.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (13 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-apply-n-times">apply-n-times</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">apply-n-times</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-apply-to">apply-to</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">apply-to</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-both">both</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">both</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span>, <span class="tok-variable">c</span>)</code></li><li><a class="syn-name" href="#v-compose">compose</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">compose</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code></li><li><a class="syn-name" href="#v-const">const</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">const</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-curry">curry</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">curry</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code></li><li><a class="syn-name" href="#v-flip">flip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">flip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code></li><li><a class="syn-name" href="#v-fst">fst</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">fst</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-identity">identity</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-on">on</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">on</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code></li><li><a class="syn-name" href="#v-snd">snd</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">snd</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-swap">swap</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">swap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span>, <span class="tok-variable">a</span>)</code></li><li><a class="syn-name" href="#v-uncurry">uncurry</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">uncurry</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-6170706c792d6e2d74696d6573"></a>
-
-## `apply-n-times`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">apply-n-times</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)))</code></pre>
+<article class="doc-entry" id="v-apply-n-times">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">apply-n-times</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-apply-n-times" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L54" title="View source at line 54">Source</a></span></div>
+<div class="doc-body">
 
 `apply-n-times n f x` applies `f` to `x` `n` times: `f (f x)` at
 `n` = 2 and `x` at `n` = 0. The count is a `Nat`, so the base case
 is the zero test and the step decrements (the same `Nat` walk as
 `Data.List`'s `take`).
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 54
+</div>
+</article>
 
-<a id="value-6170706c792d746f"></a>
-
-## `apply-to`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">apply-to</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">b</span>))</code></pre>
+<article class="doc-entry" id="v-apply-to">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">apply-to</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-apply-to" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L47" title="View source at line 47">Source</a></span></div>
+<div class="doc-body">
 
 Reverse application: `apply-to x f` is `f x` (the `Data.Function.(&)`
 pipe). The name is `apply-to`, not an operator: `&` is bitwise AND
 (Algebra.Bits) and `|>` is not in the base fixity table, so an
 operator spelling would either collide or need a new table entry.
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 47
+</div>
+</article>
 
-<a id="value-626f7468"></a>
-
-## `both`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">both</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">c</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span>, <span class="tok-variable">c</span>))))</code></pre>
+<article class="doc-entry" id="v-both">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">both</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span>, <span class="tok-variable">c</span>)</code><span class="doc-sig-links"><a href="#v-both" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 `both f g x` is the pair of both projections of `x` (the fan-out
 combinator, the `(&&&)` shape without the arrow machinery).
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 61
+</div>
+</article>
 
-<a id="value-636f6d706f7365"></a>
-
-## `compose`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">compose</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">c</span>)))</code></pre>
+<article class="doc-entry" id="v-compose">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">compose</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#v-compose" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L28" title="View source at line 28">Source</a></span></div>
+<div class="doc-body">
 
 `compose h g` applies `g` then `h` (the functor composition law's
 named composition: a law equation states total function
 applications, never a lambda; primitive operations and inline
 target IR specification section 5).
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 28
+</div>
+</article>
 
-<a id="value-636f6e7374"></a>
+<article class="doc-entry" id="v-const">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">const</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-const" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L21" title="View source at line 21">Source</a></span></div>
+</article>
 
-## `const`
+<article class="doc-entry" id="v-curry">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">curry</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#v-curry" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L76" title="View source at line 76">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">const</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Function.Combinators.cinch)
-
-<a id="value-6375727279"></a>
-
-## `curry`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">curry</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). (((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">c</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)))</code></pre>
-
-[Source](/reference-sources/Function.Combinators.cinch)
-
-<a id="value-666c6970"></a>
-
-## `flip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">flip</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">c</span>)))</code></pre>
+<article class="doc-entry" id="v-flip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">flip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#v-flip" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-body">
 
 `flip f` swaps `f`'s two arguments, so `flip (-) x y` is `y - x`
 and `flip const x y` is `y` (`Data.Function.flip`).
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 33
+</div>
+</article>
 
-<a id="value-667374"></a>
+<article class="doc-entry" id="v-fst">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">fst</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-fst" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L64" title="View source at line 64">Source</a></span></div>
+</article>
 
-## `fst`
+<article class="doc-entry" id="v-identity">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">identity</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-identity" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L18" title="View source at line 18">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">fst</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">a</span>)</code></pre>
-
-[Source](/reference-sources/Function.Combinators.cinch)
-
-<a id="value-6964656e74697479"></a>
-
-## `identity`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">identity</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">a</span>)</code></pre>
-
-[Source](/reference-sources/Function.Combinators.cinch)
-
-<a id="value-6f6e"></a>
-
-## `on`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">on</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">c</span>))))</code></pre>
+<article class="doc-entry" id="v-on">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">on</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#v-on" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L40" title="View source at line 40">Source</a></span></div>
+<div class="doc-body">
 
 `on g k` compares two values through `k`'s projections: `on (<)
 fst` is the comparator on first components (the `Data.Function.on`
 combinator, prefix here since the surface declares no `on`
 fixity).
 
-[Source](/reference-sources/Function.Combinators.cinch) · line 40
+</div>
+</article>
 
-<a id="value-736e64"></a>
+<article class="doc-entry" id="v-snd">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">snd</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-snd" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L68" title="View source at line 68">Source</a></span></div>
+</article>
 
-## `snd`
+<article class="doc-entry" id="v-swap">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">swap</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span>, <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-swap" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L72" title="View source at line 72">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">snd</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">b</span>)</code></pre>
-
-[Source](/reference-sources/Function.Combinators.cinch)
-
-<a id="value-73776170"></a>
-
-## `swap`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">swap</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; (<span class="tok-variable">b</span>, <span class="tok-variable">a</span>))</code></pre>
-
-[Source](/reference-sources/Function.Combinators.cinch)
-
-<a id="value-756e6375727279"></a>
-
-## `uncurry`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">uncurry</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">c</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">b</span> -&gt; <span class="tok-variable">c</span>)) -&gt; ((<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) -&gt; <span class="tok-variable">c</span>))</code></pre>
-
-[Source](/reference-sources/Function.Combinators.cinch)
+<article class="doc-entry" id="v-uncurry">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uncurry</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#v-uncurry" title="Permalink">#</a><a href="/library/source/Function.Combinators/#L79" title="View source at line 79">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Function/Combinators.cinch`. Source SHA-256: `8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Function/Combinators.cinch`](/library/source/Function.Combinators/). Source SHA-256: `8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef`.

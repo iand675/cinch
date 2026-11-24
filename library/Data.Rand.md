@@ -2,19 +2,26 @@
 
 Pseudorandom sources as values (PCG and ChaCha8) and their distributions: bounded integers, floats, permutations, ziggurat normal and exponential variates, and Zipf.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Rand</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Rand/">View source</a><a href="/library/search/?q=%2BData.Rand">Search module</a><a href="/reference-sources/Data.Rand.cinch" download="Data.Rand.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Rand`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Array](Data.Array.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md).
 
-[Download exact module source](/reference-sources/Data.Rand.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Rand`: [Data.Array](Data.Array.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.Rand](Data.Rand.md).
 
-[Data.Array](Data.Array.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md).
+```sh
+cp seed/prelude/Data/Array.cinch ./Data.Array.cinch
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Data/ChaCha8.cinch ./Data.ChaCha8.cinch
+cp seed/prelude/Data/Float.cinch ./Data.Float.cinch
+cp seed/prelude/Data/Rand.cinch ./Data.Rand.cinch
+```
 
-Non-embedded source closure: [Data.Array](Data.Array.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.ChaCha8](Data.ChaCha8.md), [Data.Float](Data.Float.md), [Data.Rand](Data.Rand.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Pseudorandom generation over explicit sources: the PCG and ChaCha8 generators, and every distribution a
 program needs from them (uniform integers in a range, floats in [0, 1), permutations and shuffles, standard
@@ -41,298 +48,265 @@ PCG draw on amd64, where the reference's mutable generator takes about 2 ns. The
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (27 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Pcg">Pcg</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Pcg</strong></code></li><li><a class="syn-name" href="#t-PcgError">PcgError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PcgError</strong></code></li><li><a class="syn-name" href="#t-Zipf">Zipf</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Zipf</strong></code></li><li><a class="syn-name" href="#c-Source">Source</a><code class="syn-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Source</strong> <span class="tok-variable">s</span></code></li><li class="syn-sub"><a class="syn-name" href="#m-Source-source-uint64">source-uint64</a><code class="syn-sig"><strong class="tok-variable">source-uint64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-pcg-error-message">pcg-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pcg-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-PcgError" title="Data.Rand.PcgError">PcgError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-pcg-marshal">pcg-marshal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pcg-marshal</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-pcg-new">pcg-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pcg-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code></li><li><a class="syn-name" href="#v-pcg-seed">pcg-seed</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pcg-seed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code></li><li><a class="syn-name" href="#v-pcg-uint64">pcg-uint64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pcg-uint64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a>)</code></li><li><a class="syn-name" href="#v-pcg-unmarshal">pcg-unmarshal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pcg-unmarshal</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-PcgError" title="Data.Rand.PcgError">PcgError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code></li><li><a class="syn-name" href="#v-rand-exp-float64">rand-exp-float64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-exp-float64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-float32">rand-float32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-float32</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-float64">rand-float64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-float64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-int32">rand-int32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-int32</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-int32-n">rand-int32-n</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-int32-n</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-int64">rand-int64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-int64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-int64-n">rand-int64-n</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-int64-n</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-norm-float64">rand-norm-float64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-norm-float64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-perm">rand-perm</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-perm</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-shuffle">rand-shuffle</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-shuffle</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-uint32">rand-uint32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-uint32</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-uint32-n">rand-uint32-n</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-uint32-n</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-uint64">rand-uint64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-uint64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-rand-uint64-n">rand-uint64-n</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rand-uint64-n</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <span class="tok-variable">s</span>)</code></li><li><a class="syn-name" href="#v-zipf-new">zipf-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zipf-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Zipf" title="Data.Rand.Zipf">Zipf</a></code></li><li><a class="syn-name" href="#v-zipf-uint64">zipf-uint64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">zipf-uint64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Zipf" title="Data.Rand.Zipf">Zipf</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <span class="tok-variable">s</span>)</code></li></ul>
+</details>
 
-<a id="type-506367"></a>
+# Types
 
-## `Pcg`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Pcg</span></code></pre>
+<article class="doc-entry" id="t-Pcg">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Pcg</strong></code><span class="doc-sig-links"><a href="#t-Pcg" title="Permalink">#</a><a href="/library/source/Data.Rand/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 The state, high word first.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 53
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Pcg"><code><strong class="tok-constructor">Pcg</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Wide/" title="U128">U128</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Rand/#instances">Data.Rand</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Pcg</span> :: (<span class="tok-constructor">U128</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span>)</code></pre>
-
-<a id="type-5063674572726f72"></a>
-
-## `PcgError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PcgError</span></code></pre>
+<article class="doc-entry" id="t-PcgError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PcgError</strong></code><span class="doc-sig-links"><a href="#t-PcgError" title="Permalink">#</a><a href="/library/source/Data.Rand/#L56" title="View source at line 56">Source</a></span></div>
+<div class="doc-body">
 
 Why a PCG encoding was refused.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 56
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-PcgBadEncoding"><code><strong class="tok-constructor">PcgBadEncoding</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-PcgError" title="Data.Rand.PcgError">PcgError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PcgBadEncoding</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">PcgError</span></code></pre>
-
-<a id="type-5a697066"></a>
-
-## `Zipf`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Zipf</span></code></pre>
+<article class="doc-entry" id="t-Zipf">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Zipf</strong></code><span class="doc-sig-links"><a href="#t-Zipf" title="Permalink">#</a><a href="/library/source/Data.Rand/#L371" title="View source at line 371">Source</a></span></div>
+<div class="doc-body">
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 371
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Zipf"><code><strong class="tok-constructor">Zipf</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Zipf" title="Data.Rand.Zipf">Zipf</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Zipf</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Zipf</span>))))))))</code></pre>
+# Signatures
 
-# Signatures and methods
-
-<a id="class-536f75726365"></a>
-
-## `Source`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">Source</span> <span class="tok-variable">s</span></code></pre>
+<article class="doc-entry" id="c-Source">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">signature</span> <strong class="doc-decl-name tok-constructor">Source</strong> <span class="tok-variable">s</span></code><span class="doc-sig-links"><a href="#c-Source" title="Permalink">#</a><a href="/library/source/Data.Rand/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 A source of uniformly distributed 64-bit values: a draw and the source to draw from next.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 46
-
-<a id="method-536f757263652e736f757263652d75696e743634"></a>
-
-## `Source.source-uint64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">source-uint64</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">U64</span>, <span class="tok-variable">s</span>))</code></pre>
-
-The next uniform 64-bit value and the source after it.
+<div class="doc-children"><h4>Methods</h4><ul><li id="m-Source-source-uint64"><div class="doc-method-row"><code><strong class="tok-variable">source-uint64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">dict</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#m-Source-source-uint64" title="Permalink">#</a><a href="/library/source/Data.Rand/#L48">Source</a></span></div><div class="doc-child-prose">The next uniform 64-bit value and the source after it.</div></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <a class="doc-type-link tok-constructor" href="/library/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Rand/#instances">Data.Rand</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Rand/#instances">Data.Rand</a></span></li></ul></details>
+</div>
+</article>
 
 # Values
 
-<a id="value-7063672d6572726f722d6d657373616765"></a>
-
-## `pcg-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pcg-error-message</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">PcgError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-pcg-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pcg-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-PcgError" title="Data.Rand.PcgError">PcgError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-pcg-error-message" title="Permalink">#</a><a href="/library/source/Data.Rand/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 A readable description of an error.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 61
+</div>
+</article>
 
-<a id="value-7063672d6d61727368616c"></a>
-
-## `pcg-marshal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pcg-marshal</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-pcg-marshal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pcg-marshal</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-pcg-marshal" title="Permalink">#</a><a href="/library/source/Data.Rand/#L126" title="View source at line 126">Source</a></span></div>
+<div class="doc-body">
 
 The state encoding: "pcg:" and the two halves big-endian (20 bytes).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 126
+</div>
+</article>
 
-<a id="value-7063672d6e6577"></a>
-
-## `pcg-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pcg-new</span> :: (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span>))</code></pre>
+<article class="doc-entry" id="v-pcg-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pcg-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code><span class="doc-sig-links"><a href="#v-pcg-new" title="Permalink">#</a><a href="/library/source/Data.Rand/#L114" title="View source at line 114">Source</a></span></div>
+<div class="doc-body">
 
 A PCG generator from two seed words (the state's high and low halves).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 114
+</div>
+</article>
 
-<a id="value-7063672d73656564"></a>
-
-## `pcg-seed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pcg-seed</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span>)))</code></pre>
+<article class="doc-entry" id="v-pcg-seed">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pcg-seed</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code><span class="doc-sig-links"><a href="#v-pcg-seed" title="Permalink">#</a><a href="/library/source/Data.Rand/#L118" title="View source at line 118">Source</a></span></div>
+<div class="doc-body">
 
 The generator reseeded with two words (the same as a new generator).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 118
+</div>
+</article>
 
-<a id="value-7063672d75696e743634"></a>
-
-## `pcg-uint64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pcg-uint64</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span> -&gt; (<span class="tok-constructor">U64</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span>))</code></pre>
+<article class="doc-entry" id="v-pcg-uint64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pcg-uint64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a>)</code><span class="doc-sig-links"><a href="#v-pcg-uint64" title="Permalink">#</a><a href="/library/source/Data.Rand/#L122" title="View source at line 122">Source</a></span></div>
+<div class="doc-body">
 
 The next 64-bit value and generator.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 122
+</div>
+</article>
 
-<a id="value-7063672d756e6d61727368616c"></a>
-
-## `pcg-unmarshal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pcg-unmarshal</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">PcgError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Pcg</span>))</code></pre>
+<article class="doc-entry" id="v-pcg-unmarshal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pcg-unmarshal</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-PcgError" title="Data.Rand.PcgError">PcgError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code><span class="doc-sig-links"><a href="#v-pcg-unmarshal" title="Permalink">#</a><a href="/library/source/Data.Rand/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 A generator from its encoding.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 140
+</div>
+</article>
 
-<a id="value-72616e642d6578702d666c6f61743634"></a>
-
-## `rand-exp-float64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-exp-float64</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">F64</span>, <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="v-rand-exp-float64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-exp-float64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-exp-float64" title="Permalink">#</a><a href="/library/source/Data.Rand/#L345" title="View source at line 345">Source</a></span></div>
+<div class="doc-body">
 
 A standard exponential variate (rate 1).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 345
+</div>
+</article>
 
-<a id="value-72616e642d666c6f61743332"></a>
-
-## `rand-float32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-float32</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">F32</span>, <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="v-rand-float32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-float32</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-float32" title="Permalink">#</a><a href="/library/source/Data.Rand/#L233" title="View source at line 233">Source</a></span></div>
+<div class="doc-body">
 
 A uniform binary32 value in [0, 1) with 24 random bits.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 233
+</div>
+</article>
 
-<a id="value-72616e642d666c6f61743634"></a>
-
-## `rand-float64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-float64</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">F64</span>, <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="v-rand-float64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-float64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-float64" title="Permalink">#</a><a href="/library/source/Data.Rand/#L229" title="View source at line 229">Source</a></span></div>
+<div class="doc-body">
 
 A uniform value in [0, 1) with 53 random bits.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 229
+</div>
+</article>
 
-<a id="value-72616e642d696e743332"></a>
-
-## `rand-int32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-int32</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">I32</span>, <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="v-rand-int32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-int32</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-int32" title="Permalink">#</a><a href="/library/source/Data.Rand/#L171" title="View source at line 171">Source</a></span></div>
+<div class="doc-body">
 
 A uniform non-negative 32-bit integer (31 random bits).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 171
+</div>
+</article>
 
-<a id="value-72616e642d696e7433322d6e"></a>
-
-## `rand-int32-n`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-int32-n</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">I32</span>, <span class="tok-variable">s</span>))))</code></pre>
+<article class="doc-entry" id="v-rand-int32-n">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-int32-n</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-int32-n" title="Permalink">#</a><a href="/library/source/Data.Rand/#L221" title="View source at line 221">Source</a></span></div>
+<div class="doc-body">
 
 A uniform 32-bit integer in [0, n), or None when n is not positive.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 221
+</div>
+</article>
 
-<a id="value-72616e642d696e743634"></a>
-
-## `rand-int64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-int64</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">I64</span>, <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="v-rand-int64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-int64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-int64" title="Permalink">#</a><a href="/library/source/Data.Rand/#L163" title="View source at line 163">Source</a></span></div>
+<div class="doc-body">
 
 A uniform non-negative 64-bit integer (63 random bits).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 163
+</div>
+</article>
 
-<a id="value-72616e642d696e7436342d6e"></a>
-
-## `rand-int64-n`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-int64-n</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">I64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">I64</span>, <span class="tok-variable">s</span>))))</code></pre>
+<article class="doc-entry" id="v-rand-int64-n">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-int64-n</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-int64-n" title="Permalink">#</a><a href="/library/source/Data.Rand/#L213" title="View source at line 213">Source</a></span></div>
+<div class="doc-body">
 
 A uniform integer in [0, n), or None when n is not positive.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 213
+</div>
+</article>
 
-<a id="value-72616e642d6e6f726d2d666c6f61743634"></a>
-
-## `rand-norm-float64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-norm-float64</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">F64</span>, <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="v-rand-norm-float64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-norm-float64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-norm-float64" title="Permalink">#</a><a href="/library/source/Data.Rand/#L310" title="View source at line 310">Source</a></span></div>
+<div class="doc-body">
 
 A standard normal variate (mean 0, standard deviation 1).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 310
+</div>
+</article>
 
-<a id="value-72616e642d7065726d"></a>
-
-## `rand-perm`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-perm</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">I64</span>), <span class="tok-variable">s</span>)))</code></pre>
+<article class="doc-entry" id="v-rand-perm">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-perm</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-perm" title="Permalink">#</a><a href="/library/source/Data.Rand/#L245" title="View source at line 245">Source</a></span></div>
+<div class="doc-body">
 
 A random permutation of 0 .. n-1.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 245
+</div>
+</article>
 
-<a id="value-72616e642d73687566666c65"></a>
-
-## `rand-shuffle`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-shuffle</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-variable">a</span>), <span class="tok-variable">s</span>)))</code></pre>
+<article class="doc-entry" id="v-rand-shuffle">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-shuffle</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-shuffle" title="Permalink">#</a><a href="/library/source/Data.Rand/#L249" title="View source at line 249">Source</a></span></div>
+<div class="doc-body">
 
 The list's elements in a uniformly random order (the same order rand-perm's indices give).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 249
+</div>
+</article>
 
-<a id="value-72616e642d75696e743332"></a>
-
-## `rand-uint32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-uint32</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">U32</span>, <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="v-rand-uint32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-uint32</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-uint32" title="Permalink">#</a><a href="/library/source/Data.Rand/#L167" title="View source at line 167">Source</a></span></div>
+<div class="doc-body">
 
 A uniform 32-bit value (the draw's high half).
 
-[Source](/reference-sources/Data.Rand.cinch) · line 167
+</div>
+</article>
 
-<a id="value-72616e642d75696e7433322d6e"></a>
-
-## `rand-uint32-n`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-uint32-n</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">U32</span>, <span class="tok-variable">s</span>))))</code></pre>
+<article class="doc-entry" id="v-rand-uint32-n">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-uint32-n</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-uint32-n" title="Permalink">#</a><a href="/library/source/Data.Rand/#L217" title="View source at line 217">Source</a></span></div>
+<div class="doc-body">
 
 A uniform 32-bit value in [0, n), or None when n is 0.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 217
+</div>
+</article>
 
-<a id="value-72616e642d75696e743634"></a>
-
-## `rand-uint64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-uint64</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">U64</span>, <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="v-rand-uint64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-uint64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-uint64" title="Permalink">#</a><a href="/library/source/Data.Rand/#L159" title="View source at line 159">Source</a></span></div>
+<div class="doc-body">
 
 A uniform 64-bit value.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 159
+</div>
+</article>
 
-<a id="value-72616e642d75696e7436342d6e"></a>
-
-## `rand-uint64-n`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rand-uint64-n</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> (<span class="tok-constructor">U64</span>, <span class="tok-variable">s</span>))))</code></pre>
+<article class="doc-entry" id="v-rand-uint64-n">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rand-uint64-n</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-rand-uint64-n" title="Permalink">#</a><a href="/library/source/Data.Rand/#L209" title="View source at line 209">Source</a></span></div>
+<div class="doc-body">
 
 A uniform value in [0, n), or None when n is 0.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 209
+</div>
+</article>
 
-<a id="value-7a6970662d6e6577"></a>
-
-## `zipf-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zipf-new</span> :: (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">F64</span> -&gt; (<span class="tok-constructor">U64</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Zipf</span>))))</code></pre>
+<article class="doc-entry" id="v-zipf-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zipf-new</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Zipf" title="Data.Rand.Zipf">Zipf</a></code><span class="doc-sig-links"><a href="#v-zipf-new" title="Permalink">#</a><a href="/library/source/Data.Rand/#L382" title="View source at line 382">Source</a></span></div>
+<div class="doc-body">
 
 The distribution for s > 1 and v >= 1 (None otherwise) over [0, imax].
 
-[Source](/reference-sources/Data.Rand.cinch) · line 382
+</div>
+</article>
 
-<a id="value-7a6970662d75696e743634"></a>
-
-## `zipf-uint64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">zipf-uint64</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Source</span> <span class="tok-variable">s</span>) =&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rand</span>.<span class="tok-constructor">Zipf</span> -&gt; (<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">U64</span>, <span class="tok-variable">s</span>)))</code></pre>
+<article class="doc-entry" id="v-zipf-uint64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">zipf-uint64</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <span class="tok-keyword">using</span> (<span class="tok-variable">src</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <span class="tok-variable">s</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Zipf" title="Data.Rand.Zipf">Zipf</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U64">U64</a>, <span class="tok-variable">s</span>)</code><span class="doc-sig-links"><a href="#v-zipf-uint64" title="Permalink">#</a><a href="/library/source/Data.Rand/#L396" title="View source at line 396">Source</a></span></div>
+<div class="doc-body">
 
 A Zipf-distributed integer, by rejection-inversion.
 
-[Source](/reference-sources/Data.Rand.cinch) · line 396
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Rand.Source_ChaCha8` | `Data.Rand.Source Data.ChaCha8.ChaCha8` | Implicit |
-| `Data.Rand.Source_Pcg` | `Data.Rand.Source Data.Rand.Pcg` | Implicit |
-
-**`Data.Rand.Source_ChaCha8`**: ChaCha8 as a source.
-**`Data.Rand.Source_Pcg`**: PCG as a source.
+<ul class="doc-module-instances">
+<li id="i-Source_ChaCha8"><code><a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <a class="doc-type-link tok-constructor" href="/library/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rand.Source_ChaCha8</code></span><div class="doc-child-prose">ChaCha8 as a source.</div></li>
+<li id="i-Source_Pcg"><code><a class="doc-type-link tok-constructor" href="/library/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rand.Source_Pcg</code></span><div class="doc-child-prose">PCG as a source.</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Rand.cinch`. Source SHA-256: `36b9fee50dbb6086e686f303683d130764dd167aec5cd48dfb2efe3682677c53`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Rand.cinch`](/library/source/Data.Rand/). Source SHA-256: `36b9fee50dbb6086e686f303683d130764dd167aec5cd48dfb2efe3682677c53`.

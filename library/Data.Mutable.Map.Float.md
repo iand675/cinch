@@ -2,19 +2,25 @@
 
 Explicit IEEE floating key policies without global equality or hashing instances.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.Map.Float</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Mutable.Map.Float/">View source</a><a href="/library/search/?q=%2BData.Mutable.Map.Float">Search module</a><a href="/reference-sources/Data.Mutable.Map.Float.cinch" download="Data.Mutable.Map.Float.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Mutable.Map.Float`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Machine](Data.Machine.md), [Data.Mutable.Map](Data.Mutable.Map.md), [Data.Nat](Data.Nat.md).
 
-[Download exact module source](/reference-sources/Data.Mutable.Map.Float.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (5 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Mutable.Map.Float`: [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md), [Data.Mutable.Map](Data.Mutable.Map.md), [Data.Mutable.Map.Float](Data.Mutable.Map.Float.md), [Data.Mutable.Var](Data.Mutable.Var.md).
 
-[Data.Machine](Data.Machine.md), [Data.Mutable.Map](Data.Mutable.Map.md), [Data.Nat](Data.Nat.md).
+```sh
+cp seed/prelude/Data/Mutable/HashTable.cinch ./Data.Mutable.HashTable.cinch
+cp seed/prelude/Data/Mutable/LinkedList.cinch ./Data.Mutable.LinkedList.cinch
+cp seed/prelude/Data/Mutable/Map.cinch ./Data.Mutable.Map.cinch
+cp seed/prelude/Data/Mutable/Map/Float.cinch ./Data.Mutable.Map.Float.cinch
+cp seed/prelude/Data/Mutable/Var.cinch ./Data.Mutable.Var.cinch
+```
 
-Non-embedded source closure: [Data.Mutable.HashTable](Data.Mutable.HashTable.md), [Data.Mutable.LinkedList](Data.Mutable.LinkedList.md), [Data.Mutable.Map](Data.Mutable.Map.md), [Data.Mutable.Map.Float](Data.Mutable.Map.Float.md), [Data.Mutable.Var](Data.Mutable.Var.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Explicit IEEE floating key policies without global equality or hashing instances.
 Signed zeros share a digest and compare equally. NaNs remain non-reflexive:
@@ -22,32 +28,30 @@ they can be stored and enumerated but cannot be found or deleted by key.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (2 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-map-f32-ieee-policy">map-f32-ieee-policy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-f32-ieee-policy</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Map/#t-MapKeyPolicy" title="Data.Mutable.Map.MapKeyPolicy">MapKeyPolicy</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a></code></li><li><a class="syn-name" href="#v-map-f64-ieee-policy">map-f64-ieee-policy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">map-f64-ieee-policy</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Map/#t-MapKeyPolicy" title="Data.Mutable.Map.MapKeyPolicy">MapKeyPolicy</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-6d61702d6633322d696565652d706f6c696379"></a>
-
-## `map-f32-ieee-policy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-f32-ieee-policy</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">MapKeyPolicy</span> <span class="tok-constructor">F32</span>)</code></pre>
+<article class="doc-entry" id="v-map-f32-ieee-policy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-f32-ieee-policy</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Map/#t-MapKeyPolicy" title="Data.Mutable.Map.MapKeyPolicy">MapKeyPolicy</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F32">F32</a></code><span class="doc-sig-links"><a href="#v-map-f32-ieee-policy" title="Permalink">#</a><a href="/library/source/Data.Mutable.Map.Float/#L42" title="View source at line 42">Source</a></span></div>
+<div class="doc-body">
 
 Select binary32 IEEE equality explicitly, including non-reflexive NaN keys.
 
-[Source](/reference-sources/Data.Mutable.Map.Float.cinch) · line 42
+</div>
+</article>
 
-<a id="value-6d61702d6636342d696565652d706f6c696379"></a>
-
-## `map-f64-ieee-policy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">map-f64-ieee-policy</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">Map</span>.<span class="tok-constructor">MapKeyPolicy</span> <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-map-f64-ieee-policy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">map-f64-ieee-policy</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Mutable.Map/#t-MapKeyPolicy" title="Data.Mutable.Map.MapKeyPolicy">MapKeyPolicy</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-map-f64-ieee-policy" title="Permalink">#</a><a href="/library/source/Data.Mutable.Map.Float/#L46" title="View source at line 46">Source</a></span></div>
+<div class="doc-body">
 
 Select binary64 IEEE equality explicitly, including equivalent signed zeros.
 
-[Source](/reference-sources/Data.Mutable.Map.Float.cinch) · line 46
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/Map/Float.cinch`. Source SHA-256: `ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Map/Float.cinch`](/library/source/Data.Mutable.Map.Float/). Source SHA-256: `ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a`.

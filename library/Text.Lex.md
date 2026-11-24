@@ -2,19 +2,21 @@
 
 A source-distributed lexer toolkit: tokens, spans, and lexical errors for seed/parser clients.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Lex</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Lex/">View source</a><a href="/library/search/?q=%2BText.Lex">Search module</a><a href="/reference-sources/Text.Lex.cinch" download="Text.Lex.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Lex`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Lex.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Lex`: [Text.Lex](Text.Lex.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Text/Lex.cinch ./Text.Lex.cinch
+```
 
-Non-embedded source closure: [Text.Lex](Text.Lex.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Lex: token-level lexing and the layout pass.
 
@@ -79,107 +81,62 @@ this module has not learned.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (24 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-LToken">LToken</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LToken</strong></code></li><li><a class="syn-name" href="#t-LexError">LexError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LexError</strong></code></li><li><a class="syn-name" href="#t-LexErrorKind">LexErrorKind</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LexErrorKind</strong></code></li><li><a class="syn-name" href="#t-Lexed">Lexed</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Lexed</strong></code></li><li><a class="syn-name" href="#t-Span">Span</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Span</strong></code></li><li><a class="syn-name" href="#t-Token">Token</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Token</strong></code></li><li><a class="syn-name" href="#v-bytes-slice">bytes-slice</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-slice</strong> :: <span class="tok-variable">arg2</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-chars-bytes">chars-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">chars-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-eq-token">eq-token</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">eq-token</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-layout-tokens">layout-tokens</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">layout-tokens</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Lexed" title="Text.Lex.Lexed">Lexed</a></code></li><li><a class="syn-name" href="#v-lex-error-kind">lex-error-kind</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lex-error-kind</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexError" title="Text.Lex.LexError">LexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li><a class="syn-name" href="#v-lex-error-message">lex-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lex-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-lex-error-span">lex-error-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lex-error-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexError" title="Text.Lex.LexError">LexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a></code></li><li><a class="syn-name" href="#v-lex-source">lex-source</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lex-source</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Lexed" title="Text.Lex.Lexed">Lexed</a></code></li><li><a class="syn-name" href="#v-lex-tokens">lex-tokens</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lex-tokens</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Lexed" title="Text.Lex.Lexed">Lexed</a></code></li><li><a class="syn-name" href="#v-lt-span">lt-span</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lt-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a></code></li><li><a class="syn-name" href="#v-lt-token">lt-token</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lt-token</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li><a class="syn-name" href="#v-lt-virtual">lt-virtual</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">lt-virtual</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-render-token">render-token</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-token</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-span-col">span-col</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-col</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-span-end">span-end</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-span-line">span-line</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-line</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-span-start">span-start</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">span-start</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-token-kind-name">token-kind-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">token-kind-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-4c546f6b656e"></a>
+# Types
 
-## `LToken`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LToken</span></code></pre>
+<article class="doc-entry" id="t-LToken">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LToken</strong></code><span class="doc-sig-links"><a href="#t-LToken" title="Permalink">#</a><a href="/library/source/Text.Lex/#L179" title="View source at line 179">Source</a></span></div>
+<div class="doc-body">
 
 A token with its span; the flag marks `{`, `;`, `}` inserted by
 the layout pass (the compiler's `Token.virtual_`).
 
-[Source](/reference-sources/Text.Lex.cinch) · line 179
+</div>
+</article>
 
-<a id="type-4c65784572726f72"></a>
+<article class="doc-entry" id="t-LexError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LexError</strong></code><span class="doc-sig-links"><a href="#t-LexError" title="Permalink">#</a><a href="/library/source/Text.Lex/#L357" title="View source at line 357">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-LexError"><code><strong class="tok-constructor">LexError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexError" title="Text.Lex.LexError">LexError</a></code></li></ul></div>
+</div>
+</article>
 
-## `LexError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LexError</span></code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexError</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexError</span>))</code></pre>
-
-<a id="type-4c65784572726f724b696e64"></a>
-
-## `LexErrorKind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">LexErrorKind</span></code></pre>
+<article class="doc-entry" id="t-LexErrorKind">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">LexErrorKind</strong></code><span class="doc-sig-links"><a href="#t-LexErrorKind" title="Permalink">#</a><a href="/library/source/Text.Lex/#L336" title="View source at line 336">Source</a></span></div>
+<div class="doc-body">
 
 Every rejection this module can produce. The layout kinds carry
 the columns the compiler's diagnostics name; the refusal kinds are
 the named unproductions of the module header.
 
-[Source](/reference-sources/Text.Lex.cinch) · line 336
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TabInIndentation"><code><strong class="tok-constructor">TabInIndentation</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-UnterminatedComment"><code><strong class="tok-constructor">UnterminatedComment</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-UnterminatedString"><code><strong class="tok-constructor">UnterminatedString</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-UnterminatedChar"><code><strong class="tok-constructor">UnterminatedChar</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-BadEscape"><code><strong class="tok-constructor">BadEscape</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-MalformedUnicodeEscape"><code><strong class="tok-constructor">MalformedUnicodeEscape</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-NonScalarEscape"><code><strong class="tok-constructor">NonScalarEscape</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-MalformedNumber"><code><strong class="tok-constructor">MalformedNumber</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-UnexpectedChar"><code><strong class="tok-constructor">UnexpectedChar</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-MalformedTick"><code><strong class="tok-constructor">MalformedTick</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-LayoutTooShallow"><code><strong class="tok-constructor">LayoutTooShallow</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-MismatchedDelimiter"><code><strong class="tok-constructor">MismatchedDelimiter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-UnclosedDelimiter"><code><strong class="tok-constructor">UnclosedDelimiter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-InWithoutLet"><code><strong class="tok-constructor">InWithoutLet</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-InCrossesDelimiter"><code><strong class="tok-constructor">InCrossesDelimiter</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-RefusedAttr"><code><strong class="tok-constructor">RefusedAttr</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-RefusedPrim"><code><strong class="tok-constructor">RefusedPrim</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li><li id="k-RefusedTickName"><code><strong class="tok-constructor">RefusedTickName</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TabInIndentation</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
+<article class="doc-entry" id="t-Lexed">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Lexed</strong></code><span class="doc-sig-links"><a href="#t-Lexed" title="Permalink">#</a><a href="/library/source/Text.Lex/#L390" title="View source at line 390">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-LexedTokens"><code><strong class="tok-constructor">LexedTokens</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Lexed" title="Text.Lex.Lexed">Lexed</a></code></li><li id="k-LexedFail"><code><strong class="tok-constructor">LexedFail</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Lexed" title="Text.Lex.Lexed">Lexed</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedComment</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedString</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnterminatedChar</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BadEscape</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedUnicodeEscape</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">NonScalarEscape</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedNumber</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnexpectedChar</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedTick</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LayoutTooShallow</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MismatchedDelimiter</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnclosedDelimiter</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InWithoutLet</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InCrossesDelimiter</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RefusedAttr</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RefusedPrim</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RefusedTickName</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span></code></pre>
-
-<a id="type-4c65786564"></a>
-
-## `Lexed`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Lexed</span></code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexedTokens</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Lexed</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">LexedFail</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Lexed</span>))</code></pre>
-
-<a id="type-5370616e"></a>
-
-## `Span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Span</span></code></pre>
+<article class="doc-entry" id="t-Span">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Span</strong></code><span class="doc-sig-links"><a href="#t-Span" title="Permalink">#</a><a href="/library/source/Text.Lex/#L125" title="View source at line 125">Source</a></span></div>
+<div class="doc-body">
 
 A source span: byte offsets [start, end) and the start position as
 line and character column (the compiler's `Span` shape).
 
-[Source](/reference-sources/Text.Lex.cinch) · line 125
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Span"><code><strong class="tok-constructor">Span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Span</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span>))))</code></pre>
-
-<a id="type-546f6b656e"></a>
-
-## `Token`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Token</span></code></pre>
+<article class="doc-entry" id="t-Token">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Token</strong></code><span class="doc-sig-links"><a href="#t-Token" title="Permalink">#</a><a href="/library/source/Text.Lex/#L151" title="View source at line 151">Source</a></span></div>
+<div class="doc-body">
 
 One token of the surface grammar's tokenization: the lexical
 classes of "Layout and lexing" after the local amendments. The
@@ -189,182 +146,84 @@ underscores dropped, leading zeros stripped, a leading `-` for a
 signed literal), `TFloat` the scanned decimal text, `TStr` the
 decoded UTF-8 content, `TChar` the decoded scalar.
 
-[Source](/reference-sources/Text.Lex.cinch) · line 151
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TVar</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TCon</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TOp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TInt</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TFloat</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TStr</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TChar</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TWord</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TPunct</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TAttr</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TPrimFrag</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TTickName</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TTickType</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TEOF</span> :: <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TVar"><code><strong class="tok-constructor">TVar</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TCon"><code><strong class="tok-constructor">TCon</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TOp"><code><strong class="tok-constructor">TOp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TInt"><code><strong class="tok-constructor">TInt</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TFloat"><code><strong class="tok-constructor">TFloat</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TStr"><code><strong class="tok-constructor">TStr</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TChar"><code><strong class="tok-constructor">TChar</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TWord"><code><strong class="tok-constructor">TWord</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TPunct"><code><strong class="tok-constructor">TPunct</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TAttr"><code><strong class="tok-constructor">TAttr</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TPrimFrag"><code><strong class="tok-constructor">TPrimFrag</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TTickName"><code><strong class="tok-constructor">TTickName</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TTickType"><code><strong class="tok-constructor">TTickType</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li><li id="k-TEOF"><code><strong class="tok-constructor">TEOF</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-62797465732d736c696365"></a>
-
-## `bytes-slice`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-slice</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg2</span> <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Bytes</span>)))</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-63686172732d6279746573"></a>
-
-## `chars-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">chars-bytes</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Char</span>) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-65712d746f6b656e"></a>
-
-## `eq-token`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">eq-token</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span> -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c61796f75742d746f6b656e73"></a>
-
-## `layout-tokens`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">layout-tokens</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span>) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Lexed</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c65782d6572726f722d6b696e64"></a>
-
-## `lex-error-kind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-error-kind</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c65782d6572726f722d6d657373616765"></a>
-
-## `lex-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexErrorKind</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c65782d6572726f722d7370616e"></a>
-
-## `lex-error-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-error-span</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LexError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c65782d736f75726365"></a>
-
-## `lex-source`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-source</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Lexed</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c65782d746f6b656e73"></a>
-
-## `lex-tokens`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lex-tokens</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Lexed</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c742d7370616e"></a>
-
-## `lt-span`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-span</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c742d746f6b656e"></a>
-
-## `lt-token`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-token</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-6c742d7669727475616c"></a>
-
-## `lt-virtual`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">lt-virtual</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-72656e6465722d746f6b656e"></a>
-
-## `render-token`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-token</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">LToken</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-7370616e2d636f6c"></a>
-
-## `span-col`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-col</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-7370616e2d656e64"></a>
-
-## `span-end`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-end</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-7370616e2d6c696e65"></a>
-
-## `span-line`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-line</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-7370616e2d7374617274"></a>
-
-## `span-start`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">span-start</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Span</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
-
-<a id="value-746f6b656e2d6b696e642d6e616d65"></a>
-
-## `token-kind-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">token-kind-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Lex</span>.<span class="tok-constructor">Token</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Lex.cinch)
+<article class="doc-entry" id="v-bytes-slice">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-slice</strong> :: <span class="tok-variable">arg2</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-bytes-slice" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-chars-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">chars-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-chars-bytes" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-eq-token">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">eq-token</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-eq-token" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-layout-tokens">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">layout-tokens</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Lexed" title="Text.Lex.Lexed">Lexed</a></code><span class="doc-sig-links"><a href="#v-layout-tokens" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-lex-error-kind">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lex-error-kind</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexError" title="Text.Lex.LexError">LexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a></code><span class="doc-sig-links"><a href="#v-lex-error-kind" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-lex-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lex-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexErrorKind" title="Text.Lex.LexErrorKind">LexErrorKind</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-lex-error-message" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-lex-error-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lex-error-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LexError" title="Text.Lex.LexError">LexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a></code><span class="doc-sig-links"><a href="#v-lex-error-span" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-lex-source">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lex-source</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Lexed" title="Text.Lex.Lexed">Lexed</a></code><span class="doc-sig-links"><a href="#v-lex-source" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-lex-tokens">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lex-tokens</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Lexed" title="Text.Lex.Lexed">Lexed</a></code><span class="doc-sig-links"><a href="#v-lex-tokens" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-lt-span">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lt-span</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a></code><span class="doc-sig-links"><a href="#v-lt-span" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-lt-token">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lt-token</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a></code><span class="doc-sig-links"><a href="#v-lt-token" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-lt-virtual">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">lt-virtual</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-lt-virtual" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-render-token">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-token</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-LToken" title="Text.Lex.LToken">LToken</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-token" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-span-col">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-col</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-span-col" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-span-end">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-end</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-span-end" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-span-line">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-line</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-span-line" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-span-start">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">span-start</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Span" title="Text.Lex.Span">Span</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-span-start" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
+
+<article class="doc-entry" id="v-token-kind-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">token-kind-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-token-kind-name" title="Permalink">#</a><a href="/library/source/Text.Lex/" title="View source">Source</a></span></div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Lex.cinch`. Source SHA-256: `508d75917d6276c6436a6954e66353680a66b0af9653b6fd8cc6b0e1662147f3`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Lex.cinch`](/library/source/Text.Lex/). Source SHA-256: `508d75917d6276c6436a6954e66353680a66b0af9653b6fd8cc6b0e1662147f3`.

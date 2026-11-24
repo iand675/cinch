@@ -1,0 +1,220 @@
+---
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import PlatformLayout from '../../../layouts/PlatformLayout.astro';
+import librarySources from '../../../data/library-sources.json';
+
+type ModuleRecord = {
+  module: string;
+  path: string;
+  sha256: string;
+  embedded: boolean;
+  values: number;
+  public_methods: number;
+};
+
+export async function getStaticPaths() {
+  return (librarySources.modules as ModuleRecord[]).map((entry) => ({
+    params: { module: entry.module },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props as { entry: ModuleRecord };
+const SITE_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+const REPO_ROOT = path.dirname(SITE_ROOT);
+const sourcePath = path.join(REPO_ROOT, entry.path);
+const raw = await readFile(sourcePath, 'utf8');
+const lines = raw.replace(/\r\n/g, '\n').split('\n');
+if (lines.length > 0 && lines[lines.length - 1] === '') {
+  lines.pop();
+}
+
+const KEYWORDS = new Set([
+  'module', 'import', 'export', 'where', 'data', 'record', 'codata', 'signature',
+  'instance', 'implicit', 'foreign', 'type', 'opaque', 'forall', 'using', 'Sigma',
+  'refine', 'with', 'let', 'letrec', 'in', 'case', 'of', 'if', 'then', 'else',
+  'do', 'handle', 'effect', 'infix', 'infixl', 'infixr', 'stage', 'macro',
+  'generate', 'rewrite', 'upgrade', 'law', 'contract', 'prim', 'when', 'as',
+]);
+
+function esc(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+}
+
+function highlightLine(line: string): string {
+  if (!line) return ' ';
+  let out = '';
+  let i = 0;
+  const n = line.length;
+  while (i < n) {
+    if (line[i] === '-' && line[i + 1] === '-') {
+      out += `<span class="tok-comment">${esc(line.slice(i))}</span>`;
+      break;
+    }
+    if (line[i] === '"') {
+      let j = i + 1;
+      while (j < n) {
+        if (line[j] === '\\') { j += 2; continue; }
+        if (line[j] === '"') { j++; break; }
+        j++;
+      }
+      out += `<span class="tok-string">${esc(line.slice(i, j))}</span>`;
+      i = j;
+      continue;
+    }
+    if (line[i] === "'" && i + 2 < n && (line[i + 1] === '\\' || line[i + 2] === "'")) {
+      let j = i + 1;
+      if (line[j] === '\\') j += 2;
+      else j += 1;
+      if (line[j] === "'") j++;
+      out += `<span class="tok-char">${esc(line.slice(i, j))}</span>`;
+      i = j;
+      continue;
+    }
+    if (line[i] === '#' && line[i + 1] === '[') {
+      let j = i + 2;
+      while (j < n && line[j] !== ']') j++;
+      if (j < n) j++;
+      out += `<span class="tok-attribute">${esc(line.slice(i, j))}</span>`;
+      i = j;
+      continue;
+    }
+    if (/[0-9]/.test(line[i]!) && (i === 0 || !/[A-Za-z0-9_']/.test(line[i - 1]!))) {
+      let j = i + 1;
+      while (j < n && /[0-9A-Fa-fxob_.]/.test(line[j]!)) j++;
+      out += `<span class="tok-number">${esc(line.slice(i, j))}</span>`;
+      i = j;
+      continue;
+    }
+    if (/[A-Za-z_]/.test(line[i]!)) {
+      let j = i + 1;
+      while (j < n && (/[A-Za-z0-9_']/.test(line[j]!) || (line[j] === '-' && j + 1 < n && /[A-Za-z0-9_]/.test(line[j + 1]!)))) {
+        j++;
+      }
+      const word = line.slice(i, j);
+      if (KEYWORDS.has(word)) {
+        out += `<span class="tok-keyword">${esc(word)}</span>`;
+      } else if (/^[A-Z]/.test(word)) {
+        out += `<span class="tok-constructor">${esc(word)}</span>`;
+      } else {
+        out += esc(word);
+      }
+      i = j;
+      continue;
+    }
+    out += esc(line[i]!);
+    i++;
+  }
+  return out;
+}
+
+const highlightedLines = lines.map(highlightLine);
+const moduleDocUrl = `/library/${entry.module}/`;
+const rawDownloadUrl = `/reference-sources/${entry.module}.cinch`;
+const searchModuleUrl = `/library/search/?q=${encodeURIComponent(`+${entry.module}`)}`;
+---
+<PlatformLayout
+  title={`${entry.module} · Source`}
+  description={`Exact source listing for Cinch standard library module ${entry.module}.`}
+  section="docs"
+  sample={false}
+>
+  <div class="package-topbar">
+    <div>
+      <a href="/library/00-index/">Libraries</a>
+      <span>/</span>
+      <a href={moduleDocUrl}>{entry.module}</a>
+      <span>/</span>
+      <span>Source</span>
+    </div>
+    <span class="sample-badge">{entry.embedded ? 'EMBEDDED' : 'SHIP SOURCE'}</span>
+  </div>
+
+  <section class="source-page lib-source-page">
+    <div class="platform-eyebrow mono">
+      <span>{entry.path}</span>
+      <span>{lines.length} LINES · SHA-256 {entry.sha256.slice(0, 12)}</span>
+    </div>
+    <h1>{entry.module}</h1>
+    <div class="lib-source-actions mono">
+      <a href={moduleDocUrl}>← Module documentation</a>
+      <a href={searchModuleUrl}>Search symbols in {entry.module}</a>
+      <a href={rawDownloadUrl} download={`${entry.module}.cinch`}>Download .cinch ↓</a>
+    </div>
+    <div class="source-listing lib-source-listing">
+      {highlightedLines.map((html, index) => (
+        <div class="source-line" id={`L${index + 1}`}>
+          <a href={`#L${index + 1}`} aria-label={`Line ${index + 1}`}>{index + 1}</a>
+          <code set:html={html} />
+        </div>
+      ))}
+    </div>
+  </section>
+</PlatformLayout>
+
+<style is:global>
+  .lib-source-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2.2rem 4.5% 4rem;
+  }
+  .lib-source-page h1 {
+    font-size: clamp(2rem, 4vw, 3.4rem);
+    margin: 0.4rem 0 1rem;
+  }
+  .lib-source-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+    font-size: var(--small);
+  }
+  .lib-source-actions a {
+    color: var(--platform-accent);
+    text-decoration: none;
+  }
+  .lib-source-actions a:hover {
+    text-decoration: underline;
+  }
+  .lib-source-listing {
+    background: #1b2218;
+    color: #eee6d5;
+    border: 1px solid #59614b;
+    border-radius: 4px 24px 4px 4px;
+    padding: 1rem 0;
+    overflow-x: auto;
+    font: 0.82rem/1.6 'IBM Plex Mono', monospace;
+  }
+  .lib-source-listing .source-line {
+    display: grid;
+    grid-template-columns: 58px 1fr;
+    gap: 1rem;
+    padding: 0 1.2rem;
+    scroll-margin-top: 5rem;
+  }
+  .lib-source-listing .source-line:target {
+    background: rgba(239, 173, 120, 0.22);
+    outline: 1px solid rgba(239, 173, 120, 0.45);
+  }
+  .lib-source-listing .source-line a {
+    color: #8b9178;
+    text-align: right;
+    text-decoration: none;
+    user-select: none;
+  }
+  .lib-source-listing .source-line a:hover {
+    color: #efad78;
+  }
+  .lib-source-listing .source-line code {
+    white-space: pre;
+    color: #eee6d5;
+  }
+  .lib-source-listing .tok-keyword { color: #f0ac78; }
+  .lib-source-listing .tok-constructor { color: #e4c58f; }
+  .lib-source-listing .tok-string, .lib-source-listing .tok-char { color: #bacb9b; }
+  .lib-source-listing .tok-number { color: #f1ce94; }
+  .lib-source-listing .tok-comment { color: #96a085; }
+  .lib-source-listing .tok-attribute { color: #e4c58f; }
+</style>

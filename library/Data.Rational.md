@@ -2,19 +2,21 @@
 
 Rational numbers with explicit denominator/error policy and arithmetic operations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Rational</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Rational/">View source</a><a href="/library/search/?q=%2BData.Rational">Search module</a><a href="/reference-sources/Data.Rational.cinch" download="Data.Rational.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Rational`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Hash](Data.Hash.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Data.Rational.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Rational`: [Data.Rational](Data.Rational.md).
 
-[Data.Hash](Data.Hash.md), [Data.Int](Data.Int.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Data/Rational.cinch ./Data.Rational.cinch
+```
 
-Non-embedded source closure: [Data.Rational](Data.Rational.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Rational: the exact rational number over the bignum `Int`.
 
@@ -64,13 +66,15 @@ and the type's home carries its `Eq`/`Ord`/`Hash` instance family.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (14 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Rational">Rational</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rational</strong></code></li><li><a class="syn-name" href="#t-RationalError">RationalError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">RationalError</strong></code></li><li><a class="syn-name" href="#v-add">add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code></li><li><a class="syn-name" href="#v-denominator">denominator</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">denominator</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-div">div</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">div</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-RationalError" title="Data.Rational.RationalError">RationalError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code></li><li><a class="syn-name" href="#v-from-int">from-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-int</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code></li><li><a class="syn-name" href="#v-mul">mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mul</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code></li><li><a class="syn-name" href="#v-numerator">numerator</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">numerator</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-rational">rational</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rational</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-RationalError" title="Data.Rational.RationalError">RationalError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code></li><li><a class="syn-name" href="#v-rational-cmp">rational-cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">rational-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-render-rational-error">render-rational-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-rational-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-RationalError" title="Data.Rational.RationalError">RationalError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-sub">sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code></li><li><a class="syn-name" href="#v-to-f64">to-f64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-f64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-to-string">to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-526174696f6e616c"></a>
+# Types
 
-## `Rational`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rational</span></code></pre>
+<article class="doc-entry" id="t-Rational">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rational</strong></code><span class="doc-sig-links"><a href="#t-Rational" title="Permalink">#</a><a href="/library/source/Data.Rational/#L70" title="View source at line 70">Source</a></span></div>
+<div class="doc-body">
 
 The rational number: `Rat n d` is `n/d`, `d` strictly positive and
 `gcd(|n|, d)` equal to 1. The constructor is module-private: only
@@ -78,166 +82,130 @@ The rational number: `Rat n d` is `n/d`, `d` strictly positive and
 operations) builds one, so every value the surface hands out
 satisfies the invariant.
 
-[Source](/reference-sources/Data.Rational.cinch) · line 70
+<details class="doc-instances"><summary>Instances (3)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Rational/#instances">Data.Rational</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.Rational/#instances">Data.Rational</a></span></li></ul></details>
+</div>
+</article>
 
-<a id="type-526174696f6e616c4572726f72"></a>
-
-## `RationalError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">RationalError</span></code></pre>
+<article class="doc-entry" id="t-RationalError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">RationalError</strong></code><span class="doc-sig-links"><a href="#t-RationalError" title="Permalink">#</a><a href="/library/source/Data.Rational/#L76" title="View source at line 76">Source</a></span></div>
+<div class="doc-body">
 
 Why a rational is not a value or is not invertible: both refusals
 reach a zero denominator, and both are reported rather than
 faulted.
 
-[Source](/reference-sources/Data.Rational.cinch) · line 76
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">ZeroDenominator</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">DivideByZero</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-ZeroDenominator"><code><strong class="tok-constructor">ZeroDenominator</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-RationalError" title="Data.Rational.RationalError">RationalError</a></code></li><li id="k-DivideByZero"><code><strong class="tok-constructor">DivideByZero</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-RationalError" title="Data.Rational.RationalError">RationalError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-616464"></a>
-
-## `add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>))</code></pre>
+<article class="doc-entry" id="v-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code><span class="doc-sig-links"><a href="#v-add" title="Permalink">#</a><a href="/library/source/Data.Rational/#L141" title="View source at line 141">Source</a></span></div>
+<div class="doc-body">
 
 Exact arithmetic: one cross-product over the bignum, then one
 reduction. The denominators are positive products, and `normalise`
 resolves the sign the addition itself cannot introduce.
 
-[Source](/reference-sources/Data.Rational.cinch) · line 141
+</div>
+</article>
 
-<a id="value-64656e6f6d696e61746f72"></a>
+<article class="doc-entry" id="v-denominator">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">denominator</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-denominator" title="Permalink">#</a><a href="/library/source/Data.Rational/#L129" title="View source at line 129">Source</a></span></div>
+</article>
 
-## `denominator`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">denominator</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
-
-[Source](/reference-sources/Data.Rational.cinch)
-
-<a id="value-646976"></a>
-
-## `div`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>)))</code></pre>
+<article class="doc-entry" id="v-div">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">div</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-RationalError" title="Data.Rational.RationalError">RationalError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code><span class="doc-sig-links"><a href="#v-div" title="Permalink">#</a><a href="/library/source/Data.Rational/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-body">
 
 Division, the one partial operation: a zero divisor (a zero
 numerator on the right) is the named refusal, otherwise the cross
 product `n1*d2 / d1*n2` normalises.
 
-[Source](/reference-sources/Data.Rational.cinch) · line 160
+</div>
+</article>
 
-<a id="value-66726f6d2d696e74"></a>
-
-## `from-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>)</code></pre>
+<article class="doc-entry" id="v-from-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-int</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code><span class="doc-sig-links"><a href="#v-from-int" title="Permalink">#</a><a href="/library/source/Data.Rational/#L135" title="View source at line 135">Source</a></span></div>
+<div class="doc-body">
 
 The integer embedding `x/1`, already normalised (1 is coprime to
 every integer).
 
-[Source](/reference-sources/Data.Rational.cinch) · line 135
+</div>
+</article>
 
-<a id="value-6d756c"></a>
+<article class="doc-entry" id="v-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mul</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code><span class="doc-sig-links"><a href="#v-mul" title="Permalink">#</a><a href="/library/source/Data.Rational/#L153" title="View source at line 153">Source</a></span></div>
+</article>
 
-## `mul`
+<article class="doc-entry" id="v-numerator">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">numerator</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-numerator" title="Permalink">#</a><a href="/library/source/Data.Rational/#L125" title="View source at line 125">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>))</code></pre>
-
-[Source](/reference-sources/Data.Rational.cinch)
-
-<a id="value-6e756d657261746f72"></a>
-
-## `numerator`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">numerator</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
-
-[Source](/reference-sources/Data.Rational.cinch)
-
-<a id="value-726174696f6e616c"></a>
-
-## `rational`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rational</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>)))</code></pre>
+<article class="doc-entry" id="v-rational">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rational</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-RationalError" title="Data.Rational.RationalError">RationalError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code><span class="doc-sig-links"><a href="#v-rational" title="Permalink">#</a><a href="/library/source/Data.Rational/#L120" title="View source at line 120">Source</a></span></div>
+<div class="doc-body">
 
 The smart constructor and the only general route to a `Rational`:
 a zero denominator is the named refusal, everything else
 normalises.
 
-[Source](/reference-sources/Data.Rational.cinch) · line 120
+</div>
+</article>
 
-<a id="value-726174696f6e616c2d636d70"></a>
-
-## `rational-cmp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">rational-cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
+<article class="doc-entry" id="v-rational-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">rational-cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-rational-cmp" title="Permalink">#</a><a href="/library/source/Data.Rational/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-body">
 
 Order by cross multiplication: both denominators are positive, so
 `n1*d2` against `n2*d1` has the sign of `x - y`. `Relation.Ord`
 carries no `cmp` method, so this named comparison is the spelling,
 and the instance below derives the operators from it.
 
-[Source](/reference-sources/Data.Rational.cinch) · line 169
+</div>
+</article>
 
-<a id="value-72656e6465722d726174696f6e616c2d6572726f72"></a>
+<article class="doc-entry" id="v-render-rational-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-rational-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-RationalError" title="Data.Rational.RationalError">RationalError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-rational-error" title="Permalink">#</a><a href="/library/source/Data.Rational/#L204" title="View source at line 204">Source</a></span></div>
+</article>
 
-## `render-rational-error`
+<article class="doc-entry" id="v-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code><span class="doc-sig-links"><a href="#v-sub" title="Permalink">#</a><a href="/library/source/Data.Rational/#L147" title="View source at line 147">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-rational-error</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">RationalError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.Rational.cinch)
-
-<a id="value-737562"></a>
-
-## `sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span>))</code></pre>
-
-[Source](/reference-sources/Data.Rational.cinch)
-
-<a id="value-746f2d663634"></a>
-
-## `to-f64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-f64</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-to-f64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-f64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-to-f64" title="Permalink">#</a><a href="/library/source/Data.Rational/#L178" title="View source at line 178">Source</a></span></div>
+<div class="doc-body">
 
 The value as a machine float (see the boundary note in the
 header).
 
-[Source](/reference-sources/Data.Rational.cinch) · line 178
+</div>
+</article>
 
-<a id="value-746f2d737472696e67"></a>
-
-## `to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Rational</span>.<span class="tok-constructor">Rational</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-to-string" title="Permalink">#</a><a href="/library/source/Data.Rational/#L200" title="View source at line 200">Source</a></span></div>
+<div class="doc-body">
 
 The reduced rendering `n/d`: `1/2` for `Rational(1,2)`, `-1/2` for
 `Rational(-1,2)`, and `n/1` (not `n`) for a whole number, Ruby's
 spelling.
 
-[Source](/reference-sources/Data.Rational.cinch) · line 200
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Rational.Eq_Rational` | `Relation.Eq.Eq Data.Rational.Rational` | Implicit |
-| `Data.Rational.Hash_Rational` | `Data.Hash.Hash Data.Rational.Rational` | Implicit |
-| `Data.Rational.Ord_Rational` | `Relation.Ord.Ord Data.Rational.Rational` | Implicit |
-
-**`Data.Rational.Eq_Rational`**: Structural equality IS value equality: the invariant makes the
-representative unique, so equal values compare equal.
-**`Data.Rational.Hash_Rational`**: Equal values hash alike: the normalised pair is the canonical
-form, so mixing the two component hashes can never separate `r`
-from an `r == s` partner.
-**`Data.Rational.Ord_Rational`**: The order of the line, through the named comparison above.
+<ul class="doc-module-instances">
+<li id="i-Eq_Rational"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rational.Eq_Rational</code></span><div class="doc-child-prose">Structural equality IS value equality: the invariant makes the representative unique, so equal values compare equal.</div></li>
+<li id="i-Hash_Rational"><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rational.Hash_Rational</code></span><div class="doc-child-prose">Equal values hash alike: the normalised pair is the canonical form, so mixing the two component hashes can never separate r from an r == s partner.</div></li>
+<li id="i-Ord_Rational"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rational.Ord_Rational</code></span><div class="doc-child-prose">The order of the line, through the named comparison above.</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Rational.cinch`. Source SHA-256: `87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Rational.cinch`](/library/source/Data.Rational/). Source SHA-256: `87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac`.

@@ -2,19 +2,26 @@
 
 ML-KEM-768 and ML-KEM-1024 key encapsulation (FIPS 203) with branch-free SIMD lane kernels.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Crypto.MlKem</code></div><div class="doc-mod-bar-links"><a href="/library/source/Crypto.MlKem/">View source</a><a href="/library/search/?q=%2BCrypto.MlKem">Search module</a><a href="/reference-sources/Crypto.MlKem.cinch" download="Crypto.MlKem.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Crypto.MlKem`. Selected exports may already be in Prelude.
+**Dependencies:** [Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Sha3](Text.Sha3.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Crypto.MlKem.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (6 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Crypto.MlKem`: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.MlKem](Crypto.MlKem.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha3](Text.Sha3.md).
 
-[Crypto.ConstantTime](Crypto.ConstantTime.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Sha3](Text.Sha3.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Crypto/ConstantTime.cinch ./Crypto.ConstantTime.cinch
+cp seed/prelude/Crypto/MlKem.cinch ./Crypto.MlKem.cinch
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
+cp seed/prelude/Text/Sha3.cinch ./Text.Sha3.cinch
+```
 
-Non-embedded source closure: [Crypto.ConstantTime](Crypto.ConstantTime.md), [Crypto.MlKem](Crypto.MlKem.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Binary](Text.Binary.md), [Text.Sha3](Text.Sha3.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 ML-KEM (FIPS 203), the module-lattice key-encapsulation mechanism, with the ML-KEM-768 and ML-KEM-1024 parameter sets.
 A decapsulation key is derived from a 64-byte seed and kept as that seed (its
@@ -31,208 +38,182 @@ from the operating system.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (18 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-MlKemDecapsulationKey">MlKemDecapsulationKey</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MlKemDecapsulationKey</strong></code></li><li><a class="syn-name" href="#t-MlKemEncapsulationKey">MlKemEncapsulationKey</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MlKemEncapsulationKey</strong></code></li><li><a class="syn-name" href="#t-MlKemError">MlKemError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MlKemError</strong></code></li><li><a class="syn-name" href="#t-MlKemParameters">MlKemParameters</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MlKemParameters</strong></code></li><li><a class="syn-name" href="#v-mlkem-ciphertext-size">mlkem-ciphertext-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-ciphertext-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-mlkem-decapsulate">mlkem-decapsulate</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-decapsulate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-mlkem-decapsulation-key">mlkem-decapsulation-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-decapsulation-key</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a></code></li><li><a class="syn-name" href="#v-mlkem-decapsulation-key-bytes">mlkem-decapsulation-key-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-decapsulation-key-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-mlkem-decapsulation-key-parameters">mlkem-decapsulation-key-parameters</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-decapsulation-key-parameters</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a></code></li><li><a class="syn-name" href="#v-mlkem-encapsulate-with">mlkem-encapsulate-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulate-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-mlkem-encapsulation-key">mlkem-encapsulation-key</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a></code></li><li><a class="syn-name" href="#v-mlkem-encapsulation-key-bytes">mlkem-encapsulation-key-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-mlkem-encapsulation-key-of">mlkem-encapsulation-key-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key-of</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a></code></li><li><a class="syn-name" href="#v-mlkem-encapsulation-key-parameters">mlkem-encapsulation-key-parameters</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key-parameters</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a></code></li><li><a class="syn-name" href="#v-mlkem-encapsulation-key-size">mlkem-encapsulation-key-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-mlkem-error-message">mlkem-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-mlkem-seed-size">mlkem-seed-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-seed-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-mlkem-shared-key-size">mlkem-shared-key-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mlkem-shared-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li></ul>
+</details>
 
-<a id="type-4d6c4b656d446563617073756c6174696f6e4b6579"></a>
+# Types
 
-## `MlKemDecapsulationKey`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MlKemDecapsulationKey</span></code></pre>
-
-Fields in the order listed above.
-
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 103
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MlKemDecapsulationKey</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">Poly</span> -&gt; (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemEncapsulationKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemDecapsulationKey</span>))))</code></pre>
-
-<a id="type-4d6c4b656d456e63617073756c6174696f6e4b6579"></a>
-
-## `MlKemEncapsulationKey`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MlKemEncapsulationKey</span></code></pre>
+<article class="doc-entry" id="t-MlKemDecapsulationKey">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MlKemDecapsulationKey</strong></code><span class="doc-sig-links"><a href="#t-MlKemDecapsulationKey" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-body">
 
 Fields in the order listed above.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 98
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MlKemDecapsulationKey"><code><strong class="tok-constructor">MlKemDecapsulationKey</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-constructor">Poly</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MlKemEncapsulationKey</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">Poly</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">Poly</span>) -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemEncapsulationKey</span>)))))</code></pre>
+<article class="doc-entry" id="t-MlKemEncapsulationKey">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MlKemEncapsulationKey</strong></code><span class="doc-sig-links"><a href="#t-MlKemEncapsulationKey" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L98" title="View source at line 98">Source</a></span></div>
+<div class="doc-body">
 
-<a id="type-4d6c4b656d4572726f72"></a>
+Fields in the order listed above.
 
-## `MlKemError`
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MlKemEncapsulationKey"><code><strong class="tok-constructor">MlKemEncapsulationKey</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-constructor">Poly</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-constructor">Poly</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MlKemError</span></code></pre>
+<article class="doc-entry" id="t-MlKemError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MlKemError</strong></code><span class="doc-sig-links"><a href="#t-MlKemError" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L73" title="View source at line 73">Source</a></span></div>
+<div class="doc-body">
 
 A rejected input.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 73
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MlKemInvalidSeedSize"><code><strong class="tok-constructor">MlKemInvalidSeedSize</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a></code></li><li id="k-MlKemInvalidEncapsulationKey"><code><strong class="tok-constructor">MlKemInvalidEncapsulationKey</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a></code></li><li id="k-MlKemInvalidCiphertextSize"><code><strong class="tok-constructor">MlKemInvalidCiphertextSize</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a></code></li><li id="k-MlKemInvalidRandomnessSize"><code><strong class="tok-constructor">MlKemInvalidRandomnessSize</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MlKemInvalidSeedSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MlKemInvalidEncapsulationKey</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MlKemInvalidCiphertextSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MlKemInvalidRandomnessSize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span>)</code></pre>
-
-<a id="type-4d6c4b656d506172616d6574657273"></a>
-
-## `MlKemParameters`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">MlKemParameters</span></code></pre>
+<article class="doc-entry" id="t-MlKemParameters">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">MlKemParameters</strong></code><span class="doc-sig-links"><a href="#t-MlKemParameters" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-body">
 
 An ML-KEM parameter set.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 38
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MlKem768</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MlKem1024</span> :: <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MlKem768"><code><strong class="tok-constructor">MlKem768</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a></code></li><li id="k-MlKem1024"><code><strong class="tok-constructor">MlKem1024</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-6d6c6b656d2d636970686572746578742d73697a65"></a>
-
-## `mlkem-ciphertext-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-ciphertext-size</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-mlkem-ciphertext-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-ciphertext-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-mlkem-ciphertext-size" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Ciphertext bytes: 1088 for ML-KEM-768 and 1568 for ML-KEM-1024.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 69
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d646563617073756c617465"></a>
-
-## `mlkem-decapsulate`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-decapsulate</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemDecapsulationKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span> <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-mlkem-decapsulate">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-decapsulate</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mlkem-decapsulate" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L246" title="View source at line 246">Source</a></span></div>
+<div class="doc-body">
 
 Decapsulate (FIPS 203 Algorithm 18): the shared key, or the rejection key J(z || c) when the ciphertext
 does not re-encrypt to itself. The choice is made in constant time.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 246
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d646563617073756c6174696f6e2d6b6579"></a>
-
-## `mlkem-decapsulation-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-decapsulation-key</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemDecapsulationKey</span>)))</code></pre>
+<article class="doc-entry" id="v-mlkem-decapsulation-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-decapsulation-key</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a></code><span class="doc-sig-links"><a href="#v-mlkem-decapsulation-key" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L126" title="View source at line 126">Source</a></span></div>
+<div class="doc-body">
 
 Derive a decapsulation key from a 64-byte seed d || z (FIPS 203 Algorithms 13 and 16).
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 126
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d646563617073756c6174696f6e2d6b65792d6279746573"></a>
-
-## `mlkem-decapsulation-key-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-decapsulation-key-bytes</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemDecapsulationKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-mlkem-decapsulation-key-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-decapsulation-key-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mlkem-decapsulation-key-bytes" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L114" title="View source at line 114">Source</a></span></div>
+<div class="doc-body">
 
 The decapsulation key's 64-byte seed, from which it can be rebuilt.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 114
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d646563617073756c6174696f6e2d6b65792d706172616d6574657273"></a>
-
-## `mlkem-decapsulation-key-parameters`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-decapsulation-key-parameters</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemDecapsulationKey</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span>)</code></pre>
+<article class="doc-entry" id="v-mlkem-decapsulation-key-parameters">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-decapsulation-key-parameters</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a></code><span class="doc-sig-links"><a href="#v-mlkem-decapsulation-key-parameters" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L118" title="View source at line 118">Source</a></span></div>
+<div class="doc-body">
 
 The decapsulation key's parameter set.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 118
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d656e63617073756c6174652d77697468"></a>
-
-## `mlkem-encapsulate-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-encapsulate-with</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemEncapsulationKey</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Bytes</span>))))</code></pre>
+<article class="doc-entry" id="v-mlkem-encapsulate-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulate-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-mlkem-encapsulate-with" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L217" title="View source at line 217">Source</a></span></div>
+<div class="doc-body">
 
 Encapsulate with explicit 32-byte randomness m (FIPS 203 Algorithm 17): the shared key and the ciphertext.
 The randomness must be fresh and secret for each call; Effect.Crypto supplies it from the operating system.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 217
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d656e63617073756c6174696f6e2d6b6579"></a>
-
-## `mlkem-encapsulation-key`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-encapsulation-key</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span> <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemEncapsulationKey</span>)))</code></pre>
+<article class="doc-entry" id="v-mlkem-encapsulation-key">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a></code><span class="doc-sig-links"><a href="#v-mlkem-encapsulation-key" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L142" title="View source at line 142">Source</a></span></div>
+<div class="doc-body">
 
 Parse and check an encapsulation key: the right length, and every coefficient below q (FIPS 203 section 7.2).
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 142
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d656e63617073756c6174696f6e2d6b65792d6279746573"></a>
-
-## `mlkem-encapsulation-key-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-encapsulation-key-bytes</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemEncapsulationKey</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-mlkem-encapsulation-key-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-mlkem-encapsulation-key-bytes" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L110" title="View source at line 110">Source</a></span></div>
+<div class="doc-body">
 
 The encapsulation key's bytes.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 110
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d656e63617073756c6174696f6e2d6b65792d6f66"></a>
-
-## `mlkem-encapsulation-key-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-encapsulation-key-of</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemDecapsulationKey</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemEncapsulationKey</span>)</code></pre>
+<article class="doc-entry" id="v-mlkem-encapsulation-key-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key-of</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemDecapsulationKey" title="Crypto.MlKem.MlKemDecapsulationKey">MlKemDecapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a></code><span class="doc-sig-links"><a href="#v-mlkem-encapsulation-key-of" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L122" title="View source at line 122">Source</a></span></div>
+<div class="doc-body">
 
 The public encapsulation key of a decapsulation key.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 122
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d656e63617073756c6174696f6e2d6b65792d706172616d6574657273"></a>
-
-## `mlkem-encapsulation-key-parameters`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-encapsulation-key-parameters</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemEncapsulationKey</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span>)</code></pre>
+<article class="doc-entry" id="v-mlkem-encapsulation-key-parameters">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key-parameters</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemEncapsulationKey" title="Crypto.MlKem.MlKemEncapsulationKey">MlKemEncapsulationKey</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a></code><span class="doc-sig-links"><a href="#v-mlkem-encapsulation-key-parameters" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L106" title="View source at line 106">Source</a></span></div>
+<div class="doc-body">
 
 The encapsulation key's parameter set.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 106
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d656e63617073756c6174696f6e2d6b65792d73697a65"></a>
-
-## `mlkem-encapsulation-key-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-encapsulation-key-size</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemParameters</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-mlkem-encapsulation-key-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-encapsulation-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemParameters" title="Crypto.MlKem.MlKemParameters">MlKemParameters</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-mlkem-encapsulation-key-size" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 Encapsulation-key bytes: 1184 for ML-KEM-768 and 1568 for ML-KEM-1024.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 65
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d6572726f722d6d657373616765"></a>
-
-## `mlkem-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-error-message</span> :: (<span class="tok-constructor">Crypto</span>.<span class="tok-constructor">MlKem</span>.<span class="tok-constructor">MlKemError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-mlkem-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Crypto.MlKem/#t-MlKemError" title="Crypto.MlKem.MlKemError">MlKemError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-mlkem-error-message" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L84" title="View source at line 84">Source</a></span></div>
+<div class="doc-body">
 
 Render an error.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 84
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d736565642d73697a65"></a>
-
-## `mlkem-seed-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-seed-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-mlkem-seed-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-seed-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-mlkem-seed-size" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Decapsulation-key seeds are 64 bytes (d then z).
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 61
+</div>
+</article>
 
-<a id="value-6d6c6b656d2d7368617265642d6b65792d73697a65"></a>
-
-## `mlkem-shared-key-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mlkem-shared-key-size</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-mlkem-shared-key-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mlkem-shared-key-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-mlkem-shared-key-size" title="Permalink">#</a><a href="/library/source/Crypto.MlKem/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 Shared keys are 32 bytes.
 
-[Source](/reference-sources/Crypto.MlKem.cinch) · line 57
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/MlKem.cinch`. Source SHA-256: `130822b4a06af07c585a99e840d37c81576b642ae74a492e8d017c4a641bf6ed`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/MlKem.cinch`](/library/source/Crypto.MlKem/). Source SHA-256: `130822b4a06af07c585a99e840d37c81576b642ae74a492e8d017c4a641bf6ed`.

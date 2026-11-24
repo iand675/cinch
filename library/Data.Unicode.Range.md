@@ -2,19 +2,23 @@
 
 Immutable Unicode range tables with checked construction, exact membership and copied observations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Unicode.Range</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Unicode.Range/">View source</a><a href="/library/search/?q=%2BData.Unicode.Range">Search module</a><a href="/reference-sources/Data.Unicode.Range.cinch" download="Data.Unicode.Range.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Unicode.Range`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
 
-[Download exact module source](/reference-sources/Data.Unicode.Range.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Unicode.Range`: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Range](Data.Unicode.Range.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Data/Unicode/Range.cinch ./Data.Unicode.Range.cinch
+cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Range](Data.Unicode.Range.md), [Data.Unicode.Tables](Data.Unicode.Tables.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Immutable strided Unicode range tables with exact indexed observations.
 Numeric membership includes surrogate code points; scalar construction and
@@ -24,294 +28,260 @@ nonzero strides and Latin-1 metadata before creating private owned storage.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (27 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-UnicodeRange16">UnicodeRange16</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeRange16</strong></code></li><li><a class="syn-name" href="#t-UnicodeRange32">UnicodeRange32</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeRange32</strong></code></li><li><a class="syn-name" href="#t-UnicodeRangeError">UnicodeRangeError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeRangeError</strong></code></li><li><a class="syn-name" href="#t-UnicodeRangeTable">UnicodeRangeTable</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeRangeTable</strong></code></li><li><a class="syn-name" href="#v-unicode-builtin-range-table">unicode-builtin-range-table</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-builtin-range-table</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a></code></li><li><a class="syn-name" href="#v-unicode-in">unicode-in</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-in</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-in-code">unicode-in-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-in-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-one-of">unicode-is-one-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-one-of</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-is-one-of-code">unicode-is-one-of-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-is-one-of-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-latin-offset">unicode-latin-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-latin-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-unicode-range-contains">unicode-range-contains</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range-contains</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-range-contains-code">unicode-range-contains-code</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range-contains-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-range-error-index">unicode-range-error-index</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range-error-index</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-unicode-range-error-is-wide">unicode-range-error-is-wide</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range-error-is-wide</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-unicode-range-table">unicode-range-table</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range-table</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a></code></li><li><a class="syn-name" href="#v-unicode-range-table-clone">unicode-range-table-clone</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range-table-clone</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a></code></li><li><a class="syn-name" href="#v-unicode-range-table-with-offset">unicode-range-table-with-offset</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range-table-with-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a></code></li><li><a class="syn-name" href="#v-unicode-range16-at">unicode-range16-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range16-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a></code></li><li><a class="syn-name" href="#v-unicode-range16-count">unicode-range16-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range16-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-unicode-range16-high">unicode-range16-high</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range16-high</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-unicode-range16-low">unicode-range16-low</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range16-low</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-unicode-range16-stride">unicode-range16-stride</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range16-stride</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code></li><li><a class="syn-name" href="#v-unicode-range32-at">unicode-range32-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range32-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a></code></li><li><a class="syn-name" href="#v-unicode-range32-count">unicode-range32-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range32-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-unicode-range32-high">unicode-range32-high</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range32-high</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-range32-low">unicode-range32-low</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range32-low</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-unicode-range32-stride">unicode-range32-stride</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unicode-range32-stride</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li></ul>
+</details>
 
-<a id="type-556e69636f646552616e67653136"></a>
+# Types
 
-## `UnicodeRange16`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnicodeRange16</span></code></pre>
+<article class="doc-entry" id="t-UnicodeRange16">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeRange16</strong></code><span class="doc-sig-links"><a href="#t-UnicodeRange16" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 An inclusive 16-bit strided code-point interval, which may include surrogates.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 27
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MkUnicodeRange16"><code><strong class="tok-constructor">MkUnicodeRange16</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkUnicodeRange16</span> :: (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; (<span class="tok-constructor">U16</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange16</span>)))</code></pre>
-
-<a id="type-556e69636f646552616e67653332"></a>
-
-## `UnicodeRange32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnicodeRange32</span></code></pre>
+<article class="doc-entry" id="t-UnicodeRange32">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeRange32</strong></code><span class="doc-sig-links"><a href="#t-UnicodeRange32" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L32" title="View source at line 32">Source</a></span></div>
+<div class="doc-body">
 
 An inclusive supplementary-plane strided code-point interval.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 32
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MkUnicodeRange32"><code><strong class="tok-constructor">MkUnicodeRange32</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MkUnicodeRange32</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange32</span>)))</code></pre>
-
-<a id="type-556e69636f646552616e67654572726f72"></a>
-
-## `UnicodeRangeError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnicodeRangeError</span></code></pre>
+<article class="doc-entry" id="t-UnicodeRangeError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeRangeError</strong></code><span class="doc-sig-links"><a href="#t-UnicodeRangeError" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 A precise invalid custom interval or metadata observation.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 61
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-UnicodeRangeInvalidBounds"><code><strong class="tok-constructor">UnicodeRangeInvalidBounds</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a></code></li><li id="k-UnicodeRangeZeroStride"><code><strong class="tok-constructor">UnicodeRangeZeroStride</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a></code></li><li id="k-UnicodeRangeInvalidOrder"><code><strong class="tok-constructor">UnicodeRangeInvalidOrder</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a></code></li><li id="k-UnicodeRangeInvalidLatinOffset"><code><strong class="tok-constructor">UnicodeRangeInvalidLatinOffset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a></code></li><li id="k-UnicodeRangeTooManyRecords"><code><strong class="tok-constructor">UnicodeRangeTooManyRecords</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeRangeInvalidBounds</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeRangeZeroStride</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeRangeInvalidOrder</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span>))</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeRangeInvalidLatinOffset</span> :: (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnicodeRangeTooManyRecords</span> :: (<span class="tok-constructor">Bool</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span>))</code></pre>
-
-<a id="type-556e69636f646552616e67655461626c65"></a>
-
-## `UnicodeRangeTable`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnicodeRangeTable</span></code></pre>
+<article class="doc-entry" id="t-UnicodeRangeTable">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnicodeRangeTable</strong></code><span class="doc-sig-links"><a href="#t-UnicodeRangeTable" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L92" title="View source at line 92">Source</a></span></div>
+<div class="doc-body">
 
 An immutable built-in table or private copied custom interval storage.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 92
+</div>
+</article>
 
 # Values
 
-<a id="value-756e69636f64652d6275696c74696e2d72616e67652d7461626c65"></a>
-
-## `unicode-builtin-range-table`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-builtin-range-table</span> :: (<span class="tok-constructor">U32</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-builtin-range-table">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-builtin-range-table</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a></code><span class="doc-sig-links"><a href="#v-unicode-builtin-range-table" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L99" title="View source at line 99">Source</a></span></div>
+<div class="doc-body">
 
 Select one immutable built-in identity, rejecting out-of-range internal identifiers.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 99
+</div>
+</article>
 
-<a id="value-756e69636f64652d696e"></a>
-
-## `unicode-in`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-in</span> :: (<span class="tok-constructor">Char</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-in">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-in</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-in" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L306" title="View source at line 306">Source</a></span></div>
+<div class="doc-body">
 
 Test scalar membership in any supplied immutable table.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 306
+</div>
+</article>
 
-<a id="value-756e69636f64652d696e2d636f6465"></a>
-
-## `unicode-in-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-in-code</span> :: (<span class="tok-constructor">I32</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span>) -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-in-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-in-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-in-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L302" title="View source at line 302">Source</a></span></div>
+<div class="doc-body">
 
 Test numeric membership in any supplied immutable table, retaining invalid-input policy.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 302
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6f6e652d6f66"></a>
-
-## `unicode-is-one-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-one-of</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span>) -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-is-one-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-one-of</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-one-of" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L314" title="View source at line 314">Source</a></span></div>
+<div class="doc-body">
 
 Test a table list before a scalar, with the same union semantics as unicode-in.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 314
+</div>
+</article>
 
-<a id="value-756e69636f64652d69732d6f6e652d6f662d636f6465"></a>
-
-## `unicode-is-one-of-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-is-one-of-code</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span>) -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-is-one-of-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-is-one-of-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-is-one-of-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L310" title="View source at line 310">Source</a></span></div>
+<div class="doc-body">
 
 Test a table list before a numeric code point, with the same union semantics as unicode-in-code.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 310
+</div>
+</article>
 
-<a id="value-756e69636f64652d6c6174696e2d6f6666736574"></a>
-
-## `unicode-latin-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-latin-offset</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-latin-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-latin-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-unicode-latin-offset" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L119" title="View source at line 119">Source</a></span></div>
+<div class="doc-body">
 
 Observe the exact original built-in Latin offset, or the calculated custom prefix count.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 119
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e67652d636f6e7461696e73"></a>
-
-## `unicode-range-contains`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range-contains</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span> -&gt; (<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-range-contains">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range-contains</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-range-contains" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L298" title="View source at line 298">Source</a></span></div>
+<div class="doc-body">
 
 Test the membership of one valid scalar without copying or exposing a backing table.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 298
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e67652d636f6e7461696e732d636f6465"></a>
-
-## `unicode-range-contains-code`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range-contains-code</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span> -&gt; (<span class="tok-constructor">I32</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-unicode-range-contains-code">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range-contains-code</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-range-contains-code" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L287" title="View source at line 287">Source</a></span></div>
+<div class="doc-body">
 
 Test numeric membership, including surrogates and excluding negative or out-of-domain values.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 287
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e67652d6572726f722d696e646578"></a>
-
-## `unicode-range-error-index`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range-error-index</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range-error-index">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range-error-index</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-unicode-range-error-index" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L74" title="View source at line 74">Source</a></span></div>
+<div class="doc-body">
 
 Observe the zero-based invalid interval index; metadata-only failures return zero.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 74
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e67652d6572726f722d69732d77696465"></a>
-
-## `unicode-range-error-is-wide`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range-error-is-wide</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span> -&gt; <span class="tok-constructor">Bool</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range-error-is-wide">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range-error-is-wide</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-unicode-range-error-is-wide" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L83" title="View source at line 83">Source</a></span></div>
+<div class="doc-body">
 
 Identify an invalid interval in the supplementary-plane half; metadata-only failures return false.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 83
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e67652d7461626c65"></a>
-
-## `unicode-range-table`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range-table</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange16</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange32</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span>)))</code></pre>
+<article class="doc-entry" id="v-unicode-range-table">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range-table</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a></code><span class="doc-sig-links"><a href="#v-unicode-range-table" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L187" title="View source at line 187">Source</a></span></div>
+<div class="doc-body">
 
 Construct a validated custom code-point table, including legitimate surrogate intervals.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 187
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e67652d7461626c652d636c6f6e65"></a>
-
-## `unicode-range-table-clone`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range-table-clone</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range-table-clone">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range-table-clone</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a></code><span class="doc-sig-links"><a href="#v-unicode-range-table-clone" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L103" title="View source at line 103">Source</a></span></div>
+<div class="doc-body">
 
 Retain an independent immutable table value without copying private storage.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 103
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e67652d7461626c652d776974682d6f6666736574"></a>
-
-## `unicode-range-table-with-offset`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range-table-with-offset</span> :: (<span class="tok-constructor">I32</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange16</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange32</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span>))))</code></pre>
+<article class="doc-entry" id="v-unicode-range-table-with-offset">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range-table-with-offset</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I32">I32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeError" title="Data.Unicode.Range.UnicodeRangeError">UnicodeRangeError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a></code><span class="doc-sig-links"><a href="#v-unicode-range-table-with-offset" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L193" title="View source at line 193">Source</a></span></div>
+<div class="doc-body">
 
 Construct a custom table only when the explicit Latin prefix matches its validated metadata.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 193
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676531362d6174"></a>
-
-## `unicode-range16-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range16-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange16</span>)))</code></pre>
+<article class="doc-entry" id="v-unicode-range16-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range16-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a></code><span class="doc-sig-links"><a href="#v-unicode-range16-at" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L215" title="View source at line 215">Source</a></span></div>
+<div class="doc-body">
 
 Observe a 16-bit record by zero-based index; invalid indices return None.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 215
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676531362d636f756e74"></a>
-
-## `unicode-range16-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range16-count</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range16-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range16-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-unicode-range16-count" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L107" title="View source at line 107">Source</a></span></div>
+<div class="doc-body">
 
 Observe the original number of 16-bit records without materializing the table.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 107
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676531362d68696768"></a>
-
-## `unicode-range16-high`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range16-high</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range16-high">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range16-high</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-unicode-range16-high" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 The upper inclusive 16-bit bound, whether or not the stride lands on it.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 41
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676531362d6c6f77"></a>
-
-## `unicode-range16-low`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range16-low</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range16-low">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range16-low</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-unicode-range16-low" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 The lower inclusive 16-bit bound.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 37
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676531362d737472696465"></a>
-
-## `unicode-range16-stride`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range16-stride</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange16</span> -&gt; <span class="tok-constructor">U16</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range16-stride">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range16-stride</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange16" title="Data.Unicode.Range.UnicodeRange16">UnicodeRange16</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U16">U16</a></code><span class="doc-sig-links"><a href="#v-unicode-range16-stride" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 The exact original 16-bit stride.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 45
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676533322d6174"></a>
-
-## `unicode-range32-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range32-at</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange32</span>)))</code></pre>
+<article class="doc-entry" id="v-unicode-range32-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range32-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a></code><span class="doc-sig-links"><a href="#v-unicode-range32-at" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L222" title="View source at line 222">Source</a></span></div>
+<div class="doc-body">
 
 Observe a supplementary-plane record by zero-based index; invalid indices return None.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 222
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676533322d636f756e74"></a>
-
-## `unicode-range32-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range32-count</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRangeTable</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range32-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range32-count</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRangeTable" title="Data.Unicode.Range.UnicodeRangeTable">UnicodeRangeTable</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-unicode-range32-count" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L113" title="View source at line 113">Source</a></span></div>
+<div class="doc-body">
 
 Observe the original number of supplementary-plane records without materializing them.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 113
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676533322d68696768"></a>
-
-## `unicode-range32-high`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range32-high</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range32-high">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range32-high</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-range32-high" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 The upper inclusive supplementary-plane bound, whether or not the stride lands on it.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 53
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676533322d6c6f77"></a>
-
-## `unicode-range32-low`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range32-low</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range32-low">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range32-low</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-range32-low" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 The lower inclusive supplementary-plane bound.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 49
+</div>
+</article>
 
-<a id="value-756e69636f64652d72616e676533322d737472696465"></a>
-
-## `unicode-range32-stride`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unicode-range32-stride</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Unicode</span>.<span class="tok-constructor">Range</span>.<span class="tok-constructor">UnicodeRange32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
+<article class="doc-entry" id="v-unicode-range32-stride">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unicode-range32-stride</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Unicode/#t-UnicodeRange32" title="Data.Unicode.Range.UnicodeRange32">UnicodeRange32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-unicode-range32-stride" title="Permalink">#</a><a href="/library/source/Data.Unicode.Range/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 The exact original 32-bit stride, including values larger than the Unicode domain.
 
-[Source](/reference-sources/Data.Unicode.Range.cinch) · line 57
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Unicode/Range.cinch`. Source SHA-256: `36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Unicode/Range.cinch`](/library/source/Data.Unicode.Range/). Source SHA-256: `36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8`.

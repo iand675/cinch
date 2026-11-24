@@ -2,17 +2,11 @@
 
 Mutable byte buffers with length, construction, copy, and bounds/range-aware access operations.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Bytes</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Bytes/">View source</a><a href="/library/search/?q=%2BData.Bytes">Search module</a><a href="/reference-sources/Data.Bytes.cinch" download="Data.Bytes.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Bytes`. Selected exports may already be in Prelude.
+**Dependencies:** [Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md).
 
-[Download exact module source](/reference-sources/Data.Bytes.cinch) · [How library modules are loaded](00-index.md)
-
-# Dependencies
-
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md).
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Bytes: boxed byte buffers.
 
@@ -34,42 +28,38 @@ a plausible key: a compiler's names arrive as the lexer's bytes).
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (10 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-bytes-compare">bytes-compare</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-compare</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-bytes-copy-range">bytes-copy-range</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-copy-range</strong> :: (<span class="tok-variable">arg2</span> + <span class="tok-variable">arg4</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>), <span class="tok-variable">arg3</span> + <span class="tok-variable">arg4</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg1</span>)) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg4</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-bytes-data">bytes-data</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-data</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code></li><li><a class="syn-name" href="#v-bytes-from-list">bytes-from-list</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-from-list</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 255 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-bytes-from-u8s">bytes-from-u8s</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-from-u8s</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-bytes-get">bytes-get</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-get</strong> :: <span class="tok-variable">arg1</span> &lt; (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 255 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bytes-len">bytes-len</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-len</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9223372036854775807 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-bytes-new">bytes-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-new</strong> :: ((n :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) -&gt; (refined ((b.bytesLen cinch-result) == n) <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>))</code></li><li><a class="syn-name" href="#v-bytes-set">bytes-set</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">bytes-set</strong> :: <span class="tok-variable">arg1</span> &lt; (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 255 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code></li><li><a class="syn-name" href="#v-sha256-bytes">sha256-bytes</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha256-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
 # Values
 
-<a id="value-62797465732d636f6d70617265"></a>
-
-## `bytes-compare`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-compare</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">I64</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-compare">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-compare</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-bytes-compare" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L62" title="View source at line 62">Source</a></span></div>
+<div class="doc-body">
 
 The lexicographic order of two buffers' contents as the raw -1/0/1
 immediate (the `nat-cmp` convention), read in place: no copy and
 no allocation.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 62
+</div>
+</article>
 
-<a id="value-62797465732d636f70792d72616e6765"></a>
-
-## `bytes-copy-range`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-copy-range</span> :: <span class="tok-keyword">using</span> ((<span class="tok-variable">arg2</span> <span class="tok-operator">+</span> <span class="tok-variable">arg4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>), (<span class="tok-variable">arg3</span> <span class="tok-operator">+</span> <span class="tok-variable">arg4</span>) <span class="tok-operator">&lt;=</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg1</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg3</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg4</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>)))))</code></pre>
+<article class="doc-entry" id="v-bytes-copy-range">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-copy-range</strong> :: (<span class="tok-variable">arg2</span> + <span class="tok-variable">arg4</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>), <span class="tok-variable">arg3</span> + <span class="tok-variable">arg4</span> &lt;= (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg1</span>)) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg3</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg4</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-copy-range" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 `bytes-copy-range dst src di si n`: the `n` bytes of `src` from `si`
 into `dst` at `di`, as one runtime `memmove` (the two may be the
 same buffer and overlap). A copy loop written here would box a `Nat`
 for every index step, so every bulk copy goes through this.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 57
+</div>
+</article>
 
-<a id="value-62797465732d64617461"></a>
-
-## `bytes-data`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-data</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">I64</span>)</code></pre>
+<article class="doc-entry" id="v-bytes-data">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-data</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="I64">I64</a></code><span class="doc-sig-links"><a href="#v-bytes-data" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L51" title="View source at line 51">Source</a></span></div>
+<div class="doc-body">
 
 `bytes-data b`: the address of the buffer's payload as a machine
 word. This is how a buffer reaches the operating system: a `prim`
@@ -79,42 +69,35 @@ and the address is valid while the handle is live, so a caller that
 wants a C string NUL-terminates it itself (a fresh buffer one byte
 longer, the bytes copied in, the last byte zeroed).
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 51
+</div>
+</article>
 
-<a id="value-62797465732d66726f6d2d6c697374"></a>
-
-## `bytes-from-list`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-list</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>)) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-bytes-from-list">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-from-list</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 255 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-bytes-from-list" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L72" title="View source at line 72">Source</a></span></div>
+<div class="doc-body">
 
 Copy typed byte values in list order into one fresh mutable buffer.
 A tail count pass and checked tail stores keep construction stack bounded.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 72
+</div>
+</article>
 
-<a id="value-62797465732d66726f6d2d753873"></a>
-
-## `bytes-from-u8s`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-from-u8s</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">U8</span>) -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-bytes-from-u8s">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-from-u8s</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-bytes-from-u8s" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-body">
 
 Copy machine byte values into one fresh buffer without recursive unwinding.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 104
+</div>
+</article>
 
-<a id="value-62797465732d676574"></a>
+<article class="doc-entry" id="v-bytes-get">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-get</strong> :: <span class="tok-variable">arg1</span> &lt; (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 255 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bytes-get" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L41" title="View source at line 41">Source</a></span></div>
+</article>
 
-## `bytes-get`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-get</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>))</code></pre>
-
-[Source](/reference-sources/Data.Bytes.cinch)
-
-<a id="value-62797465732d6c656e"></a>
-
-## `bytes-len`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-len</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">9223372036854775807</span> <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-bytes-len">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-len</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 9223372036854775807 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-bytes-len" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L39" title="View source at line 39">Source</a></span></div>
+<div class="doc-body">
 
 `Bytes`: boxed byte buffers. `bytes-len` comes first: the other
 signatures name it. A length is an `i64` in the runtime, so it is at
@@ -125,58 +108,39 @@ bytes-len b)` supplies it. A string literal's read-only backing is
 never one of these buffers: it lives inside a `String`, and every
 conversion out of a `String` copies.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 39
+</div>
+</article>
 
-<a id="value-62797465732d6e6577"></a>
+<article class="doc-entry" id="v-bytes-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-new</strong> :: ((n :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) -&gt; (refined ((b.bytesLen cinch-result) == n) <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>))</code><span class="doc-sig-links"><a href="#v-bytes-new" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L40" title="View source at line 40">Source</a></span></div>
+</article>
 
-## `bytes-new`
+<article class="doc-entry" id="v-bytes-set">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">bytes-set</strong> :: <span class="tok-variable">arg1</span> &lt; (<span class="tok-constructor">bytes-len</span> <span class="tok-variable">arg0</span>) <span class="tok-operator">=&gt;</span> (<span class="tok-variable">arg0</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg1</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">arg2</span> :: <a class="doc-type-link tok-constructor" href="/library/Algebra.Arithmetic/#t-InRange" title="Algebra.Arithmetic.InRange">InRange</a> 0 255 <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-bytes-set" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L42" title="View source at line 42">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-new</span> :: ((<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) -&gt; (<span class="tok-variable">refined</span> ((<span class="tok-variable">b</span>.<span class="tok-variable">bytesLen</span> <span class="tok-variable">cinch-result</span>) <span class="tok-operator">==</span> <span class="tok-variable">n</span>) <span class="tok-constructor">Bytes</span>))</code></pre>
-
-[Source](/reference-sources/Data.Bytes.cinch)
-
-<a id="value-62797465732d736574"></a>
-
-## `bytes-set`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">bytes-set</span> :: <span class="tok-keyword">using</span> (<span class="tok-variable">arg1</span> <span class="tok-operator">&lt;</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Bytes</span>.<span class="tok-variable">bytes-len</span> <span class="tok-variable">arg0</span>)) =&gt; ((<span class="tok-variable">arg0</span> :: <span class="tok-constructor">Bytes</span>) -&gt; ((<span class="tok-variable">arg1</span> :: <span class="tok-constructor">Nat</span>) -&gt; ((<span class="tok-variable">arg2</span> :: <span class="tok-constructor">Algebra</span>.<span class="tok-constructor">Arithmetic</span>.<span class="tok-constructor">InRange</span> <span class="tok-number">0</span> <span class="tok-number">255</span> <span class="tok-constructor">Nat</span>) -&gt; <span class="tok-constructor">Unit</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Bytes.cinch)
-
-<a id="value-7368613235362d6279746573"></a>
-
-## `sha256-bytes`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha256-bytes</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-sha256-bytes">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha256-bytes</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-sha256-bytes" title="Permalink">#</a><a href="/library/source/Data.Bytes/#L68" title="View source at line 68">Source</a></span></div>
+<div class="doc-body">
 
 SHA-256 (FIPS 180-4) at content-addressing strength over a
 buffer (the P31 content identity; `seed/runtime/src/text.rs`,
 the `cinch.runtime.textSha256` intrinsic, nm-verified there): the
 digest as a fresh 32-byte buffer.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 68
+</div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.Bytes.Eq_Bytes` | `Relation.Eq.Eq Bytes` | Implicit |
-| `Data.Bytes.FromList_Bytes` | `Data.FromList.FromList Bytes U8` | Implicit |
-| `Data.Bytes.Hash_Bytes` | `Data.Hash.Hash Bytes` | Implicit |
-
-**`Data.Bytes.Eq_Bytes`**: Byte-for-byte equality over the backing: the in-place compare answers
-equal when the lengths agree and every byte agrees, reading the common
-prefix a word at a time. The keyed structures need `Eq` beside `Hash`
-(Data.HashMap's header): hashing alone cannot decide a digest
-collision, so an instance that hashes without comparing is not a
-key.
-**`Data.Bytes.Hash_Bytes`**: The buffer's digest (instances live with their type). `Data.String`
-hashes its UTF-8 backing through THIS instance, so a string and the
-bytes it converts to agree by construction rather than by two
-copies of one algorithm.
+<ul class="doc-module-instances">
+<li id="i-Eq_Bytes"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Bytes.Eq_Bytes</code></span><div class="doc-child-prose">Byte-for-byte equality over the backing: the in-place compare answers equal when the lengths agree and every byte agrees, reading the common prefix a word at a time.</div></li>
+<li id="i-FromList_Bytes"><code><a class="doc-type-link tok-constructor" href="/library/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Bytes.FromList_Bytes</code></span></li>
+<li id="i-Hash_Bytes"><code><a class="doc-type-link tok-constructor" href="/library/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Bytes.Hash_Bytes</code></span><div class="doc-child-prose">The buffer's digest (instances live with their type).</div></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes.cinch`. Source SHA-256: `24bb9f3ca7c5420b3abde122e05762f25adaa72df41d27557d22fc69370585da`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes.cinch`](/library/source/Data.Bytes/). Source SHA-256: `24bb9f3ca7c5420b3abde122e05762f25adaa72df41d27557d22fc69370585da`.

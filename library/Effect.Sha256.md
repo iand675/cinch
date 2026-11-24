@@ -2,19 +2,25 @@
 
 Inspectable SHA-224/SHA-256 states, generic digest sinks and bounded reader-to-hash copying with advanced source continuations.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Sha256</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Sha256/">View source</a><a href="/library/search/?q=%2BEffect.Sha256">Search module</a><a href="/reference-sources/Effect.Sha256.cinch" download="Effect.Sha256.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Sha256`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Sha256](Text.Sha256.md).
 
-[Download exact module source](/reference-sources/Effect.Sha256.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (5 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Sha256`: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Sha256](Effect.Sha256.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Sha256](Text.Sha256.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Effect.Stream](Effect.Stream.md), [Text.Sha256](Text.Sha256.md).
+```sh
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Effect/Sha256.cinch ./Effect.Sha256.cinch
+cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
+cp seed/prelude/Text/Binary.cinch ./Text.Binary.cinch
+cp seed/prelude/Text/Sha256.cinch ./Text.Sha256.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Word](Data.Bytes.Word.md), [Effect.Sha256](Effect.Sha256.md), [Effect.Stream](Effect.Stream.md), [Text.Binary](Text.Binary.md), [Text.Sha256](Text.Sha256.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Inspectable SHA-224/SHA-256 hashing sinks and bounded reader-to-digest copying.
 The immutable digest state is the sink handle. Writes accept every byte and
@@ -23,44 +29,41 @@ valid digest on failure, and never closes a borrowed source.
 
 </details>
 
-# Types and constructors
-
-This module exports no type declarations.
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#v-sha256-copy">sha256-copy</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha256-copy</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, (<a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span>, <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a>))</code></li><li><a class="syn-name" href="#v-sha256-hashing-writer">sha256-hashing-writer</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha256-hashing-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-sha256-write">sha256-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sha256-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a>)</code></li></ul>
+</details>
 
 # Values
 
-<a id="value-7368613235362d636f7079"></a>
-
-## `sha256-copy`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha256-copy</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha256</span>.<span class="tok-constructor">Sha256State</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> <span class="tok-constructor">Nat</span>), ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteReader</span> <span class="tok-variable">r</span>), <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha256</span>.<span class="tok-constructor">Sha256State</span>)))))</code></pre>
+<article class="doc-entry" id="v-sha256-copy">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha256-copy</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, (<a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteReader" title="Effect.Stream.ByteReader">ByteReader</a> <span class="tok-variable">r</span>, <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a>))</code><span class="doc-sig-links"><a href="#v-sha256-copy" title="Permalink">#</a><a href="/library/source/Effect.Sha256/#L27" title="View source at line 27">Source</a></span></div>
+<div class="doc-body">
 
 Hash successful reader chunks through EOF, preserving both advanced handles on errors.
 A zero chunk size is rejected before reading. Invalid source counts do not enter the digest.
 
-[Source](/reference-sources/Effect.Sha256.cinch) · line 27
+</div>
+</article>
 
-<a id="value-7368613235362d68617368696e672d777269746572"></a>
-
-## `sha256-hashing-writer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha256-hashing-writer</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha256</span>.<span class="tok-constructor">Sha256State</span> -&gt; (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-sha256-hashing-writer">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha256-hashing-writer</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-sha256-hashing-writer" title="Permalink">#</a><a href="/library/source/Effect.Sha256/#L21" title="View source at line 21">Source</a></span></div>
+<div class="doc-body">
 
 Adapt a digest state to the generic byte-writer protocol.
 Use the explicit state or sha256-copy when the advanced digest must be inspected.
 
-[Source](/reference-sources/Effect.Sha256.cinch) · line 21
+</div>
+</article>
 
-<a id="value-7368613235362d7772697465"></a>
-
-## `sha256-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sha256-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha256</span>.<span class="tok-constructor">Sha256State</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Nat</span>, <span class="tok-constructor">Text</span>.<span class="tok-constructor">Sha256</span>.<span class="tok-constructor">Sha256State</span>)))</code></pre>
+<article class="doc-entry" id="v-sha256-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sha256-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>, <a class="doc-type-link tok-constructor" href="/library/Text.Sha256/#t-Sha256State" title="Text.Sha256.Sha256State">Sha256State</a>)</code><span class="doc-sig-links"><a href="#v-sha256-write" title="Permalink">#</a><a href="/library/source/Effect.Sha256/#L16" title="View source at line 16">Source</a></span></div>
+<div class="doc-body">
 
 Hash a whole chunk, returning its accepted count and the advanced immutable state.
 
-[Source](/reference-sources/Effect.Sha256.cinch) · line 16
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Sha256.cinch`. Source SHA-256: `531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Sha256.cinch`](/library/source/Effect.Sha256/). Source SHA-256: `531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f`.

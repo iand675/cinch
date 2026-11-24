@@ -2,13 +2,9 @@
 
 Partial producer vocabulary, distinct from codata whose next observation is guaranteed productive.
 
-<span class="support-tag support-tag--current">Embedded</span> Available from the compiler's embedded base family.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--current">Embedded</span> <code>import Data.Producer</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Producer/">View source</a><a href="/library/search/?q=%2BData.Producer">Search module</a><a href="/reference-sources/Data.Producer.cinch" download="Data.Producer.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Producer`. Selected exports may already be in Prelude.
-
-[Download exact module source](/reference-sources/Data.Producer.cinch) · [How library modules are loaded](00-index.md)
-
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Producer: the vector step form and the producer library.
 
@@ -22,108 +18,76 @@ the sum modulo 2^32 over the borrowed vector.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (10 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-Producer">Producer</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Producer</strong> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-Step">Step</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Step</strong> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#t-TakeSt">TakeSt</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TakeSt</strong> <span class="tok-variable">s</span></code></li><li><a class="syn-name" href="#v-prod-fold">prod-fold</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">prod-fold</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-prod-fold-go">prod-fold-go</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">prod-fold-go</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-prod-map">prod-map</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">prod-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">b</span></code></li><li><a class="syn-name" href="#v-prod-take">prod-take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">prod-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-TakeSt" title="Data.Producer.TakeSt">TakeSt</a> <span class="tok-variable">s</span>) <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-prod-take-step">prod-take-step</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">prod-take-step</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. (<span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-TakeSt" title="Data.Producer.TakeSt">TakeSt</a> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-TakeSt" title="Data.Producer.TakeSt">TakeSt</a> <span class="tok-variable">s</span>) <span class="tok-variable">a</span></code></li><li><a class="syn-name" href="#v-scalar-sum-wrap32">scalar-sum-wrap32</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">scalar-sum-wrap32</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-variable">region</span>. <a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Ref">Ref</a> <span class="tok-variable">region</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-Vec" title="Vec">Vec</a> <span class="tok-variable">n</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code></li><li><a class="syn-name" href="#v-vec-stream">vec-stream</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">vec-stream</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-variable">region</span>. <a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Ref">Ref</a> <span class="tok-variable">region</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-Vec" title="Vec">Vec</a> <span class="tok-variable">n</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> (<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Ref">Ref</a> <span class="tok-variable">region</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-Vec" title="Vec">Vec</a> <span class="tok-variable">n</span> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code></li></ul>
+</details>
 
-<a id="type-50726f6475636572"></a>
+# Types
 
-## `Producer`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Producer</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Producer">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Producer</strong> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Producer" title="Permalink">#</a><a href="/library/source/Data.Producer/#L23" title="View source at line 23">Source</a></span></div>
+<div class="doc-body">
 
 A producer: a state with its step function.
 
-[Source](/reference-sources/Data.Producer.cinch) · line 23
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Producer"><code><strong class="tok-constructor">Producer</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. (<span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Producer</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . ((<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
-
-<a id="type-53746570"></a>
-
-## `Step`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Step</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-Step">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Step</strong> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#t-Step" title="Permalink">#</a><a href="/library/source/Data.Producer/#L17" title="View source at line 17">Source</a></span></div>
+<div class="doc-body">
 
 The vector step form (modules section 6): `Done`, `Skip(state)` and
 `Yield(value, state)`. Producer pipelines lower to state machines.
 
-[Source](/reference-sources/Data.Producer.cinch) · line 17
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-Done"><code><strong class="tok-constructor">Done</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li><li id="k-Skip"><code><strong class="tok-constructor">Skip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li><li id="k-Yield"><code><strong class="tok-constructor">Yield</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Done</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Skip</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">Yield</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> . (<span class="tok-variable">a</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>))</code></pre>
-
-<a id="type-54616b655374"></a>
-
-## `TakeSt`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TakeSt</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>)</code></pre>
-
-[Source](/reference-sources/Data.Producer.cinch)
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TakeSt</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> . (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>))</code></pre>
+<article class="doc-entry" id="t-TakeSt">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TakeSt</strong> <span class="tok-variable">s</span></code><span class="doc-sig-links"><a href="#t-TakeSt" title="Permalink">#</a><a href="/library/source/Data.Producer/#L35" title="View source at line 35">Source</a></span></div>
+<div class="doc-body">
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TakeSt"><code><strong class="tok-constructor">TakeSt</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-TakeSt" title="Data.Producer.TakeSt">TakeSt</a> <span class="tok-variable">s</span></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-70726f642d666f6c64"></a>
+<article class="doc-entry" id="v-prod-fold">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prod-fold</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-prod-fold" title="Permalink">#</a><a href="/library/source/Data.Producer/#L56" title="View source at line 56">Source</a></span></div>
+</article>
 
-## `prod-fold`
+<article class="doc-entry" id="v-prod-fold-go">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prod-fold-go</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-prod-fold-go" title="Permalink">#</a><a href="/library/source/Data.Producer/#L50" title="View source at line 50">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-fold</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-variable">b</span> -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; <span class="tok-variable">b</span>)))</code></pre>
+<article class="doc-entry" id="v-prod-map">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prod-map</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">b</span></code><span class="doc-sig-links"><a href="#v-prod-map" title="Permalink">#</a><a href="/library/source/Data.Producer/#L26" title="View source at line 26">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Data.Producer.cinch)
+<article class="doc-entry" id="v-prod-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prod-take</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-TakeSt" title="Data.Producer.TakeSt">TakeSt</a> <span class="tok-variable">s</span>) <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-prod-take" title="Permalink">#</a><a href="/library/source/Data.Producer/#L46" title="View source at line 46">Source</a></span></div>
+</article>
 
-<a id="value-70726f642d666f6c642d676f"></a>
+<article class="doc-entry" id="v-prod-take-step">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">prod-take-step</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>. (<span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-TakeSt" title="Data.Producer.TakeSt">TakeSt</a> <span class="tok-variable">s</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Step" title="Data.Producer.Step">Step</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-TakeSt" title="Data.Producer.TakeSt">TakeSt</a> <span class="tok-variable">s</span>) <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-prod-take-step" title="Permalink">#</a><a href="/library/source/Data.Producer/#L37" title="View source at line 37">Source</a></span></div>
+</article>
 
-## `prod-fold-go`
+<article class="doc-entry" id="v-scalar-sum-wrap32">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">scalar-sum-wrap32</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-variable">region</span>. <a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Ref">Ref</a> <span class="tok-variable">region</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-Vec" title="Vec">Vec</a> <span class="tok-variable">n</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="U32">U32</a></code><span class="doc-sig-links"><a href="#v-scalar-sum-wrap32" title="Permalink">#</a><a href="/library/source/Data.Producer/#L65" title="View source at line 65">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-fold-go</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>)) -&gt; (<span class="tok-variable">b</span> -&gt; (<span class="tok-variable">s</span> -&gt; <span class="tok-variable">b</span>))))</code></pre>
-
-[Source](/reference-sources/Data.Producer.cinch)
-
-<a id="value-70726f642d6d6170"></a>
-
-## `prod-map`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-map</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">b</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">a</span> -&gt; <span class="tok-variable">b</span>) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">b</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Producer.cinch)
-
-<a id="value-70726f642d74616b65"></a>
-
-## `prod-take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-take</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). (<span class="tok-constructor">Nat</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Producer.cinch)
-
-<a id="value-70726f642d74616b652d73746570"></a>
-
-## `prod-take-step`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">prod-take-step</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">s</span> :: <span class="tok-constructor">Type</span>) (<span class="tok-variable">a</span> :: <span class="tok-constructor">Type</span>). ((<span class="tok-variable">s</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> <span class="tok-variable">s</span> <span class="tok-variable">a</span>)) -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Step</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">TakeSt</span> <span class="tok-variable">s</span>) <span class="tok-variable">a</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Producer.cinch)
-
-<a id="value-7363616c61722d73756d2d777261703332"></a>
-
-## `scalar-sum-wrap32`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">scalar-sum-wrap32</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-constructor">U32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
-
-[Source](/reference-sources/Data.Producer.cinch)
-
-<a id="value-7665632d73747265616d"></a>
-
-## `vec-stream`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">vec-stream</span> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> (<span class="tok-variable">n</span> :: <span class="tok-constructor">Nat</span>) <span class="tok-variable">region</span> . (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-variable">a</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Producer</span>.<span class="tok-constructor">Producer</span> (<span class="tok-constructor">Ref</span> <span class="tok-variable">region</span> <span class="tok-constructor">Vec</span> <span class="tok-variable">n</span> <span class="tok-variable">a</span>) <span class="tok-variable">a</span>)</code></pre>
+<article class="doc-entry" id="v-vec-stream">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">vec-stream</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> (<span class="tok-variable">n</span> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a>) <span class="tok-variable">region</span>. <a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Ref">Ref</a> <span class="tok-variable">region</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-Vec" title="Vec">Vec</a> <span class="tok-variable">n</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Producer/#t-Producer" title="Data.Producer.Producer">Producer</a> (<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Ref">Ref</a> <span class="tok-variable">region</span> <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-Vec" title="Vec">Vec</a> <span class="tok-variable">n</span> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-vec-stream" title="Permalink">#</a><a href="/library/source/Data.Producer/#L62" title="View source at line 62">Source</a></span></div>
+<div class="doc-body">
 
 A producer over a borrowed vector: the block walk of the step form
 is the `vecStreamStep` intrinsic.
 
-[Source](/reference-sources/Data.Producer.cinch) · line 62
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Producer.cinch`. Source SHA-256: `47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Producer.cinch`](/library/source/Data.Producer/). Source SHA-256: `47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f`.

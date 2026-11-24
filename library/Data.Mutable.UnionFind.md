@@ -2,19 +2,21 @@
 
 Disjoint sets with union by size and path halving: near-constant find, union and same-set queries, and appendable elements.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.Mutable.UnionFind</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.Mutable.UnionFind/">View source</a><a href="/library/search/?q=%2BData.Mutable.UnionFind">Search module</a><a href="/reference-sources/Data.Mutable.UnionFind.cinch" download="Data.Mutable.UnionFind.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.Mutable.UnionFind`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
 
-[Download exact module source](/reference-sources/Data.Mutable.UnionFind.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.Mutable.UnionFind`: [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md).
 
-[Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
+```sh
+cp seed/prelude/Data/Mutable/UnionFind.cinch ./Data.Mutable.UnionFind.cinch
+```
 
-Non-embedded source closure: [Data.Mutable.UnionFind](Data.Mutable.UnionFind.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.Mutable.UnionFind: disjoint sets (union-find), as in every
 compiler's type unifier and every Kruskal.
@@ -32,99 +34,88 @@ the element count is written when its element is added.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (9 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-UnionFind">UnionFind</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnionFind</strong> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-union-find-add">union-find-add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">union-find-add</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-union-find-find">union-find-find</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">union-find-find</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-union-find-length">union-find-length</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">union-find-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-union-find-new">union-find-new</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">union-find-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span></code></li><li><a class="syn-name" href="#v-union-find-same">union-find-same</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">union-find-same</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-union-find-set-count">union-find-set-count</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">union-find-set-count</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-union-find-set-size">union-find-set-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">union-find-set-size</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-union-find-union">union-find-union</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">union-find-union</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li></ul>
+</details>
 
-<a id="type-556e696f6e46696e64"></a>
+# Types
 
-## `UnionFind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">UnionFind</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Type</span>)</code></pre>
+<article class="doc-entry" id="t-UnionFind">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">UnionFind</strong> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#t-UnionFind" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-body">
 
 The header (element count, set count) and one cell holding the
 words: parent of element i at 2i, size of the set rooted at i at
 2i + 1.
 
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch) · line 33
+</div>
+</article>
 
 # Values
 
-<a id="value-756e696f6e2d66696e642d616464"></a>
-
-## `union-find-add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-add</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-union-find-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">union-find-add</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-union-find-add" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L75" title="View source at line 75">Source</a></span></div>
+<div class="doc-body">
 
 A new singleton set: its element.
 
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch) · line 75
+</div>
+</article>
 
-<a id="value-756e696f6e2d66696e642d66696e64"></a>
-
-## `union-find-find`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-find</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-union-find-find">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">union-find-find</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-union-find-find" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L110" title="View source at line 110">Source</a></span></div>
+<div class="doc-body">
 
 The representative of x's set (`None` when x is not an element).
 
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch) · line 110
+</div>
+</article>
 
-<a id="value-756e696f6e2d66696e642d6c656e677468"></a>
+<article class="doc-entry" id="v-union-find-length">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">union-find-length</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-union-find-length" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L101" title="View source at line 101">Source</a></span></div>
+</article>
 
-## `union-find-length`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-length</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
-
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch)
-
-<a id="value-756e696f6e2d66696e642d6e6577"></a>
-
-## `union-find-new`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-new</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>))</code></pre>
+<article class="doc-entry" id="v-union-find-new">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">union-find-new</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span></code><span class="doc-sig-links"><a href="#v-union-find-new" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L60" title="View source at line 60">Source</a></span></div>
+<div class="doc-body">
 
 `n` singleton sets.
 
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch) · line 60
+</div>
+</article>
 
-<a id="value-756e696f6e2d66696e642d73616d65"></a>
+<article class="doc-entry" id="v-union-find-same">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">union-find-same</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-union-find-same" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L156" title="View source at line 156">Source</a></span></div>
+</article>
 
-## `union-find-same`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-same</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
-
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch)
-
-<a id="value-756e696f6e2d66696e642d7365742d636f756e74"></a>
-
-## `union-find-set-count`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-set-count</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-union-find-set-count">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">union-find-set-count</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-union-find-set-count" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L105" title="View source at line 105">Source</a></span></div>
+<div class="doc-body">
 
 The number of disjoint sets.
 
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch) · line 105
+</div>
+</article>
 
-<a id="value-756e696f6e2d66696e642d7365742d73697a65"></a>
-
-## `union-find-set-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-set-size</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Nat</span>))</code></pre>
+<article class="doc-entry" id="v-union-find-set-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">union-find-set-size</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-union-find-set-size" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L165" title="View source at line 165">Source</a></span></div>
+<div class="doc-body">
 
 The size of x's set (0 when x is not an element).
 
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch) · line 165
+</div>
+</article>
 
-<a id="value-756e696f6e2d66696e642d756e696f6e"></a>
-
-## `union-find-union`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">union-find-union</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Mutable</span>.<span class="tok-constructor">UnionFind</span>.<span class="tok-constructor">UnionFind</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt;{<span class="tok-constructor">Mut</span> <span class="tok-variable">r</span>} <span class="tok-constructor">Bool</span>)))</code></pre>
+<article class="doc-entry" id="v-union-find-union">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">union-find-union</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <a class="doc-type-link tok-constructor" href="/library/Data.Mutable/#t-UnionFind" title="Data.Mutable.UnionFind.UnionFind">UnionFind</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-union-find-union" title="Permalink">#</a><a href="/library/source/Data.Mutable.UnionFind/#L130" title="View source at line 130">Source</a></span></div>
+<div class="doc-body">
 
 Merge the sets of x and y: `True` when they were separate (and both
 are elements).
 
-[Source](/reference-sources/Data.Mutable.UnionFind.cinch) · line 130
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Mutable/UnionFind.cinch`. Source SHA-256: `727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/UnionFind.cinch`](/library/source/Data.Mutable.UnionFind/). Source SHA-256: `727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b`.

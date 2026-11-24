@@ -2,19 +2,21 @@
 
 Decimal arithmetic with explicit precision/scale and rounding/error behaviour in the exported API.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Data.BigDecimal</code></div><div class="doc-mod-bar-links"><a href="/library/source/Data.BigDecimal/">View source</a><a href="/library/search/?q=%2BData.BigDecimal">Search module</a><a href="/reference-sources/Data.BigDecimal.cinch" download="Data.BigDecimal.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Data.BigDecimal`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Data.BigDecimal.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Data.BigDecimal`: [Data.BigDecimal](Data.BigDecimal.md).
 
-[Data.Char](Data.Char.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Ordering](Data.Ordering.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Relation.Eq](Relation.Eq.md), [Relation.Ord](Relation.Ord.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Data/BigDecimal.cinch ./Data.BigDecimal.cinch
+```
 
-Non-embedded source closure: [Data.BigDecimal](Data.BigDecimal.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Data.BigDecimal: exact decimal arithmetic over the bignum `Int`.
 
@@ -84,113 +86,91 @@ numeric towers beyond `Semiring` as deliberately out).
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (19 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-BigDecimal">BigDecimal</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BigDecimal</strong></code></li><li><a class="syn-name" href="#t-BigDecimalError">BigDecimalError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BigDecimalError</strong></code></li><li><a class="syn-name" href="#t-Rounding">Rounding</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rounding</strong></code></li><li><a class="syn-name" href="#v-abs">abs</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">abs</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-add">add</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-big-decimal">big-decimal</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">big-decimal</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-cmp">cmp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code></li><li><a class="syn-name" href="#v-div">div</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">div</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-exponent">exponent</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">exponent</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-from-int">from-int</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-int</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-from-string">from-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">from-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimalError" title="Data.BigDecimal.BigDecimalError">BigDecimalError</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-mul">mul</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">mul</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-neg">neg</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">neg</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-render-big-decimal-error">render-big-decimal-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-big-decimal-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimalError" title="Data.BigDecimal.BigDecimalError">BigDecimalError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-round">round</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">round</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-sub">sub</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li><li><a class="syn-name" href="#v-to-f64">to-f64</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-f64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code></li><li><a class="syn-name" href="#v-to-string">to-string</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-unscaled">unscaled</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">unscaled</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li></ul>
+</details>
 
-<a id="type-426967446563696d616c"></a>
+# Types
 
-## `BigDecimal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BigDecimal</span></code></pre>
+<article class="doc-entry" id="t-BigDecimal">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BigDecimal</strong></code><span class="doc-sig-links"><a href="#t-BigDecimal" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L90" title="View source at line 90">Source</a></span></div>
+<div class="doc-body">
 
 The representation: unscaled times ten to the exponent. Not
 exported (the canonical-form invariant above is the reason; D143
 is the surface rule that makes the omission bind).
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 90
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-BigDecimal"><code><strong class="tok-constructor">BigDecimal</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code></li></ul></div>
+<details class="doc-instances"><summary>Instances (2)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.BigDecimal/#instances">Data.BigDecimal</a></span></li><li><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">implicit · <a href="/library/Data.BigDecimal/#instances">Data.BigDecimal</a></span></li></ul></details>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">BigDecimal</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
-
-<a id="type-426967446563696d616c4572726f72"></a>
-
-## `BigDecimalError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">BigDecimalError</span></code></pre>
+<article class="doc-entry" id="t-BigDecimalError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">BigDecimalError</strong></code><span class="doc-sig-links"><a href="#t-BigDecimalError" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L109" title="View source at line 109">Source</a></span></div>
+<div class="doc-body">
 
 The literal reader's only error. It carries the offending text so
 the caller's diagnostic can name it; there is no representation
 for "unparsed" that a value could be confused with.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 109
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MalformedLiteral"><code><strong class="tok-constructor">MalformedLiteral</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimalError" title="Data.BigDecimal.BigDecimalError">BigDecimalError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MalformedLiteral</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimalError</span>)</code></pre>
-
-<a id="type-526f756e64696e67"></a>
-
-## `Rounding`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">Rounding</span></code></pre>
+<article class="doc-entry" id="t-Rounding">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">Rounding</strong></code><span class="doc-sig-links"><a href="#t-Rounding" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L97" title="View source at line 97">Source</a></span></div>
+<div class="doc-body">
 
 The rounding modes (Ruby's `ROUND_*` constants, spelled as
 constructors per the house naming): away from zero, toward zero,
 tie away from zero, tie toward zero, tie to even, toward positive
 infinity, toward negative infinity.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 97
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundUp</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundDown</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfUp</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfDown</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundHalfEven</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundCeiling</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">RoundFloor</span> :: <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span></code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-RoundUp"><code><strong class="tok-constructor">RoundUp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a></code></li><li id="k-RoundDown"><code><strong class="tok-constructor">RoundDown</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a></code></li><li id="k-RoundHalfUp"><code><strong class="tok-constructor">RoundHalfUp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a></code></li><li id="k-RoundHalfDown"><code><strong class="tok-constructor">RoundHalfDown</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a></code></li><li id="k-RoundHalfEven"><code><strong class="tok-constructor">RoundHalfEven</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a></code></li><li id="k-RoundCeiling"><code><strong class="tok-constructor">RoundCeiling</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a></code></li><li id="k-RoundFloor"><code><strong class="tok-constructor">RoundFloor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-616273"></a>
+<article class="doc-entry" id="v-abs">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">abs</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-abs" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L183" title="View source at line 183">Source</a></span></div>
+</article>
 
-## `abs`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">abs</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)</code></pre>
-
-[Source](/reference-sources/Data.BigDecimal.cinch)
-
-<a id="value-616464"></a>
-
-## `add`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">add</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
+<article class="doc-entry" id="v-add">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">add</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-add" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L158" title="View source at line 158">Source</a></span></div>
+<div class="doc-body">
 
 Exact addition: both operands are read at the smaller exponent
 (the scaling is exact, a power of ten times a bignum), so every
 digit of either operand survives.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 158
+</div>
+</article>
 
-<a id="value-6269672d646563696d616c"></a>
-
-## `big-decimal`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">big-decimal</span> :: (<span class="tok-constructor">Int</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
+<article class="doc-entry" id="v-big-decimal">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">big-decimal</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-big-decimal" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L125" title="View source at line 125">Source</a></span></div>
+<div class="doc-body">
 
 The normalising smart constructor: the trailing zeros of the
 unscaled part move into the exponent, so `big-decimal 10 (-2)`,
 `big-decimal 1 (-1)` and `from-string "0.10"` are one value. Zero
 is `BigDecimal 0 0` whatever exponent it arrived with.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 125
+</div>
+</article>
 
-<a id="value-636d70"></a>
-
-## `cmp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">cmp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">Ordering</span>.<span class="tok-constructor">Ordering</span>))</code></pre>
+<article class="doc-entry" id="v-cmp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">cmp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code><span class="doc-sig-links"><a href="#v-cmp" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L191" title="View source at line 191">Source</a></span></div>
+<div class="doc-body">
 
 Comparison (the order `sub` induces).
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 191
+</div>
+</article>
 
-<a id="value-646976"></a>
-
-## `div`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">div</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)))))</code></pre>
+<article class="doc-entry" id="v-div">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">div</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-div" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L269" title="View source at line 269">Source</a></span></div>
+<div class="doc-body">
 
 `p` fractional digits, rounded by `mode`, then normalised.
 
@@ -204,69 +184,50 @@ infinity, and `RoundHalfUp` breaks a tie away from zero. A zero
 divisor is `None`: there is no result to return and no infinity
 to spell.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 269
+</div>
+</article>
 
-<a id="value-6578706f6e656e74"></a>
+<article class="doc-entry" id="v-exponent">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">exponent</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-exponent" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L138" title="View source at line 138">Source</a></span></div>
+</article>
 
-## `exponent`
+<article class="doc-entry" id="v-from-int">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-int</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-from-int" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L131" title="View source at line 131">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">exponent</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
-
-[Source](/reference-sources/Data.BigDecimal.cinch)
-
-<a id="value-66726f6d2d696e74"></a>
-
-## `from-int`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-int</span> :: (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)</code></pre>
-
-[Source](/reference-sources/Data.BigDecimal.cinch)
-
-<a id="value-66726f6d2d737472696e67"></a>
-
-## `from-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">from-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimalError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
+<article class="doc-entry" id="v-from-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">from-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimalError" title="Data.BigDecimal.BigDecimalError">BigDecimalError</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-from-string" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L400" title="View source at line 400">Source</a></span></div>
+<div class="doc-body">
 
 The literal reader: `[+-]? ( digits ( "." digits )? | "." digits )`.
 Every other shape (empty, a lone sign, a lone point, a trailing
 point, trailing junk, an exponent part) is `MalformedLiteral`
 carrying the text.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 400
+</div>
+</article>
 
-<a id="value-6d756c"></a>
-
-## `mul`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">mul</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
+<article class="doc-entry" id="v-mul">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mul</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-mul" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L174" title="View source at line 174">Source</a></span></div>
+<div class="doc-body">
 
 Exact multiplication: the unscaled parts multiply and the
 exponents add, which is the representation's own product rule.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 174
+</div>
+</article>
 
-<a id="value-6e6567"></a>
+<article class="doc-entry" id="v-neg">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">neg</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-neg" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L179" title="View source at line 179">Source</a></span></div>
+</article>
 
-## `neg`
+<article class="doc-entry" id="v-render-big-decimal-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-big-decimal-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimalError" title="Data.BigDecimal.BigDecimalError">BigDecimalError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-big-decimal-error" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L112" title="View source at line 112">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">neg</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)</code></pre>
-
-[Source](/reference-sources/Data.BigDecimal.cinch)
-
-<a id="value-72656e6465722d6269672d646563696d616c2d6572726f72"></a>
-
-## `render-big-decimal-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-big-decimal-error</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimalError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Data.BigDecimal.cinch)
-
-<a id="value-726f756e64"></a>
-
-## `round`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">round</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">Rounding</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>)))</code></pre>
+<article class="doc-entry" id="v-round">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">round</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-Rounding" title="Data.BigDecimal.Rounding">Rounding</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-round" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L283" title="View source at line 283">Source</a></span></div>
+<div class="doc-body">
 
 Rounding a value to `p` fractional digits: the division by one at
 the same precision, written without a divisor test. With `k`
@@ -275,65 +236,54 @@ divisor is `10^j` and the quotient is `j` divisions by the numeral
 ten (truncation toward zero composes), so no runtime zero test
 stands between `round` and its result.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 283
+</div>
+</article>
 
-<a id="value-737562"></a>
-
-## `sub`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">sub</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span>))</code></pre>
+<article class="doc-entry" id="v-sub">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">sub</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code><span class="doc-sig-links"><a href="#v-sub" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L169" title="View source at line 169">Source</a></span></div>
+<div class="doc-body">
 
 Subtraction is addition of the negation: the alignment above is
 the only place exponents are reconciled, and a negated value is
 still canonical, so the exactness argument is the same one.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 169
+</div>
+</article>
 
-<a id="value-746f2d663634"></a>
-
-## `to-f64`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-f64</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">F64</span>)</code></pre>
+<article class="doc-entry" id="v-to-f64">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-f64</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Machine/" title="F64">F64</a></code><span class="doc-sig-links"><a href="#v-to-f64" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L393" title="View source at line 393">Source</a></span></div>
+<div class="doc-body">
 
 The one conversion to a binary float: the exact decimal text,
 read by the runtime's correctly-rounded decimal parser. Nothing
 else in this module sees an `F64`.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 393
+</div>
+</article>
 
-<a id="value-746f2d737472696e67"></a>
-
-## `to-string`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">to-string</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-to-string">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">to-string</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-to-string" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L367" title="View source at line 367">Source</a></span></div>
+<div class="doc-body">
 
 The plain decimal: no exponent notation, sign first, a leading
 `0.` when the fraction is wider than the digit run.
 
-[Source](/reference-sources/Data.BigDecimal.cinch) · line 367
+</div>
+</article>
 
-<a id="value-756e7363616c6564"></a>
-
-## `unscaled`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">unscaled</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">BigDecimal</span>.<span class="tok-constructor">BigDecimal</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
-
-[Source](/reference-sources/Data.BigDecimal.cinch)
+<article class="doc-entry" id="v-unscaled">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">unscaled</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-unscaled" title="Permalink">#</a><a href="/library/source/Data.BigDecimal/#L134" title="View source at line 134">Source</a></span></div>
+</article>
 
 # Instances
 
-These are checked exported instance entries. Law/sample-check status is separate from the existence of an instance; see [laws and optimization](../reference/12-rewrites-and-optimization.md).
+Exported checked instances declared in this module. For law checking, see [rewrites and optimization](../reference/12-rewrites-and-optimization.md).
 
-| Instance | Target | Resolution |
-| --- | --- | --- |
-| `Data.BigDecimal.Eq_BigDecimal` | `Relation.Eq.Eq Data.BigDecimal.BigDecimal` | Implicit |
-| `Data.BigDecimal.Ord_BigDecimal` | `Relation.Ord.Ord Data.BigDecimal.BigDecimal` | Implicit |
-
-**`Data.BigDecimal.Eq_BigDecimal`**: The class spellings of `cmp`: canonical form makes the recursive
-field comparison agree, and routing both through `cmp` is what
-keeps `Eq`/`Ord` and the function surface one relation rather than
-two that could drift.
+<ul class="doc-module-instances">
+<li id="i-Eq_BigDecimal"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">Implicit · <code>Data.BigDecimal.Eq_BigDecimal</code></span><div class="doc-child-prose">The class spellings of cmp: canonical form makes the recursive field comparison agree, and routing both through cmp is what keeps Eq/Ord and the function surface one relation rather than two that could drift.</div></li>
+<li id="i-Ord_BigDecimal"><code><a class="doc-type-link tok-constructor" href="/library/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/library/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">Implicit · <code>Data.BigDecimal.Ord_BigDecimal</code></span></li>
+</ul>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/BigDecimal.cinch`. Source SHA-256: `0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Data/BigDecimal.cinch`](/library/source/Data.BigDecimal/). Source SHA-256: `0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c`.

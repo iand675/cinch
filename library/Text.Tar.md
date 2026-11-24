@@ -2,19 +2,23 @@
 
 Read V7, USTAR, PAX and GNU tape archives and write USTAR or PAX archives, with SIMD header checksums.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Tar</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Tar/">View source</a><a href="/library/search/?q=%2BText.Tar">Search module</a><a href="/reference-sources/Text.Tar.cinch" download="Text.Tar.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Tar`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
 
-[Download exact module source](/reference-sources/Text.Tar.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (3 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Tar`: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Tar](Text.Tar.md).
 
-[Data.Bytes](Data.Bytes.md), [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Int](Data.Int.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md).
+```sh
+cp seed/prelude/Data/Bytes/Build.cinch ./Data.Bytes.Build.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Text/Tar.cinch ./Text.Tar.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Build](Data.Bytes.Build.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Text.Tar](Text.Tar.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Tape archives: read V7, USTAR, PAX and GNU tar streams and write USTAR or PAX archives.
 An archive is a sequence of 512-byte header blocks, each followed by its
@@ -30,452 +34,404 @@ times are whole seconds. Names, links and owner names are raw bytes.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (43 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-TarEntry">TarEntry</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TarEntry</strong></code></li><li><a class="syn-name" href="#t-TarError">TarError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TarError</strong></code></li><li><a class="syn-name" href="#t-TarHeader">TarHeader</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TarHeader</strong></code></li><li><a class="syn-name" href="#v-tar-block">tar-block</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-block</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-char">tar-char</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-char</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-contiguous">tar-contiguous</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-contiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-devmajor">tar-devmajor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-devmajor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-devminor">tar-devminor</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-devminor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-directory">tar-directory</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-directory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-entry">tar-entry</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-entry</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a></code></li><li><a class="syn-name" href="#v-tar-entry-data">tar-entry-data</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-entry-data</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-tar-entry-header">tar-entry-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-entry-header</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code></li><li><a class="syn-name" href="#v-tar-error-message">tar-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-tar-fifo">tar-fifo</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-fifo</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-format">tar-format</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-format</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-format-gnu">tar-format-gnu</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-format-gnu</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-format-pax">tar-format-pax</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-format-pax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-format-ustar">tar-format-ustar</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-format-ustar</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-format-v7">tar-format-v7</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-format-v7</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-gid">tar-gid</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-gid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-gname">tar-gname</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-gname</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-tar-hardlink">tar-hardlink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-hardlink</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-header">tar-header</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-header</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code></li><li><a class="syn-name" href="#v-tar-kind">tar-kind</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-kind</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-link">tar-link</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-link</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-tar-mode">tar-mode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-mtime">tar-mtime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-mtime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code></li><li><a class="syn-name" href="#v-tar-name">tar-name</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-tar-pax">tar-pax</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-pax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code></li><li><a class="syn-name" href="#v-tar-pax-global">tar-pax-global</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-pax-global</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-read">tar-read</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-read</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a>)</code></li><li><a class="syn-name" href="#v-tar-regular">tar-regular</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-regular</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-size">tar-size</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-symlink">tar-symlink</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-symlink</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-uid">tar-uid</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-uid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-tar-uname">tar-uname</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-uname</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li><li><a class="syn-name" href="#v-tar-with-device">tar-with-device</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-with-device</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code></li><li><a class="syn-name" href="#v-tar-with-link">tar-with-link</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-with-link</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code></li><li><a class="syn-name" href="#v-tar-with-mode">tar-with-mode</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-with-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code></li><li><a class="syn-name" href="#v-tar-with-mtime">tar-with-mtime</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-with-mtime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code></li><li><a class="syn-name" href="#v-tar-with-owner">tar-with-owner</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-with-owner</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code></li><li><a class="syn-name" href="#v-tar-with-pax">tar-with-pax</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-with-pax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code></li><li><a class="syn-name" href="#v-tar-write">tar-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">tar-write</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code></li></ul>
+</details>
 
-<a id="type-546172456e747279"></a>
+# Types
 
-## `TarEntry`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TarEntry</span></code></pre>
+<article class="doc-entry" id="t-TarEntry">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TarEntry</strong></code><span class="doc-sig-links"><a href="#t-TarEntry" title="Permalink">#</a><a href="/library/source/Text.Tar/#L91" title="View source at line 91">Source</a></span></div>
+<div class="doc-body">
 
 One archive member: its header and its data (empty for links, directories and devices).
 
-[Source](/reference-sources/Text.Tar.cinch) · line 91
+</div>
+</article>
 
-<a id="type-5461724572726f72"></a>
-
-## `TarError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TarError</span></code></pre>
+<article class="doc-entry" id="t-TarError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TarError</strong></code><span class="doc-sig-links"><a href="#t-TarError" title="Permalink">#</a><a href="/library/source/Text.Tar/#L192" title="View source at line 192">Source</a></span></div>
+<div class="doc-body">
 
 A malformed archive or an entry that cannot be written.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 192
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-TarBadHeader"><code><strong class="tok-constructor">TarBadHeader</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a></code></li><li id="k-TarBadChecksum"><code><strong class="tok-constructor">TarBadChecksum</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a></code></li><li id="k-TarTruncated"><code><strong class="tok-constructor">TarTruncated</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a></code></li><li id="k-TarFieldTooLong"><code><strong class="tok-constructor">TarFieldTooLong</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a></code></li><li id="k-TarBadPax"><code><strong class="tok-constructor">TarBadPax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a></code></li></ul></div>
+</div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TarBadHeader</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TarBadChecksum</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TarTruncated</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TarFieldTooLong</span> :: (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">TarBadPax</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span>)</code></pre>
-
-<a id="type-546172486561646572"></a>
-
-## `TarHeader`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">TarHeader</span></code></pre>
+<article class="doc-entry" id="t-TarHeader">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">TarHeader</strong></code><span class="doc-sig-links"><a href="#t-TarHeader" title="Permalink">#</a><a href="/library/source/Text.Tar/#L86" title="View source at line 86">Source</a></span></div>
+<div class="doc-body">
 
 Entry metadata: type byte, name, link target, mode, user and group ids, data size, modification
 time in seconds since 1970, user and group names, device numbers, PAX records and the format read.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 86
+</div>
+</article>
 
 # Values
 
-<a id="value-7461722d626c6f636b"></a>
-
-## `tar-block`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-block</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-block">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-block</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-block" title="Permalink">#</a><a href="/library/source/Text.Tar/#L49" title="View source at line 49">Source</a></span></div>
+<div class="doc-body">
 
 Block device, type byte '4'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 49
+</div>
+</article>
 
-<a id="value-7461722d63686172"></a>
-
-## `tar-char`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-char</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-char">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-char</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-char" title="Permalink">#</a><a href="/library/source/Text.Tar/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 Character device, type byte '3'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 45
+</div>
+</article>
 
-<a id="value-7461722d636f6e746967756f7573"></a>
-
-## `tar-contiguous`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-contiguous</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-contiguous">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-contiguous</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-contiguous" title="Permalink">#</a><a href="/library/source/Text.Tar/#L61" title="View source at line 61">Source</a></span></div>
+<div class="doc-body">
 
 Contiguous file, type byte '7', read as a regular file.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 61
+</div>
+</article>
 
-<a id="value-7461722d6465766d616a6f72"></a>
-
-## `tar-devmajor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-devmajor</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-tar-devmajor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-devmajor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-devmajor" title="Permalink">#</a><a href="/library/source/Text.Tar/#L152" title="View source at line 152">Source</a></span></div>
+<div class="doc-body">
 
 Device major number.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 152
+</div>
+</article>
 
-<a id="value-7461722d6465766d696e6f72"></a>
-
-## `tar-devminor`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-devminor</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-tar-devminor">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-devminor</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-devminor" title="Permalink">#</a><a href="/library/source/Text.Tar/#L156" title="View source at line 156">Source</a></span></div>
+<div class="doc-body">
 
 Device minor number.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 156
+</div>
+</article>
 
-<a id="value-7461722d6469726563746f7279"></a>
-
-## `tar-directory`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-directory</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-directory">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-directory</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-directory" title="Permalink">#</a><a href="/library/source/Text.Tar/#L53" title="View source at line 53">Source</a></span></div>
+<div class="doc-body">
 
 Directory, type byte '5'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 53
+</div>
+</article>
 
-<a id="value-7461722d656e747279"></a>
-
-## `tar-entry`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-entry</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarEntry</span>))</code></pre>
+<article class="doc-entry" id="v-tar-entry">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-entry</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a></code><span class="doc-sig-links"><a href="#v-tar-entry" title="Permalink">#</a><a href="/library/source/Text.Tar/#L100" title="View source at line 100">Source</a></span></div>
+<div class="doc-body">
 
 Pair a header with data; the written size is always the data length.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 100
+</div>
+</article>
 
-<a id="value-7461722d656e7472792d64617461"></a>
-
-## `tar-entry-data`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-entry-data</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarEntry</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-tar-entry-data">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-entry-data</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-tar-entry-data" title="Permalink">#</a><a href="/library/source/Text.Tar/#L108" title="View source at line 108">Source</a></span></div>
+<div class="doc-body">
 
 An entry's data.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 108
+</div>
+</article>
 
-<a id="value-7461722d656e7472792d686561646572"></a>
-
-## `tar-entry-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-entry-header</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarEntry</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span>)</code></pre>
+<article class="doc-entry" id="v-tar-entry-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-entry-header</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code><span class="doc-sig-links"><a href="#v-tar-entry-header" title="Permalink">#</a><a href="/library/source/Text.Tar/#L104" title="View source at line 104">Source</a></span></div>
+<div class="doc-body">
 
 An entry's header.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 104
+</div>
+</article>
 
-<a id="value-7461722d6572726f722d6d657373616765"></a>
-
-## `tar-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-tar-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-tar-error-message" title="Permalink">#</a><a href="/library/source/Text.Tar/#L205" title="View source at line 205">Source</a></span></div>
+<div class="doc-body">
 
 Render a tar error.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 205
+</div>
+</article>
 
-<a id="value-7461722d6669666f"></a>
-
-## `tar-fifo`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-fifo</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-fifo">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-fifo</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-fifo" title="Permalink">#</a><a href="/library/source/Text.Tar/#L57" title="View source at line 57">Source</a></span></div>
+<div class="doc-body">
 
 Named pipe, type byte '6'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 57
+</div>
+</article>
 
-<a id="value-7461722d666f726d6174"></a>
-
-## `tar-format`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-format</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-tar-format">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-format</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-format" title="Permalink">#</a><a href="/library/source/Text.Tar/#L164" title="View source at line 164">Source</a></span></div>
+<div class="doc-body">
 
 Format bits observed when reading; zero for headers built in memory.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 164
+</div>
+</article>
 
-<a id="value-7461722d666f726d61742d676e75"></a>
-
-## `tar-format-gnu`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-format-gnu</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-format-gnu">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-format-gnu</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-format-gnu" title="Permalink">#</a><a href="/library/source/Text.Tar/#L81" title="View source at line 81">Source</a></span></div>
+<div class="doc-body">
 
 Format bit: GNU extensions.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 81
+</div>
+</article>
 
-<a id="value-7461722d666f726d61742d706178"></a>
-
-## `tar-format-pax`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-format-pax</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-format-pax">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-format-pax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-format-pax" title="Permalink">#</a><a href="/library/source/Text.Tar/#L77" title="View source at line 77">Source</a></span></div>
+<div class="doc-body">
 
 Format bit: POSIX PAX extended headers.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 77
+</div>
+</article>
 
-<a id="value-7461722d666f726d61742d7573746172"></a>
-
-## `tar-format-ustar`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-format-ustar</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-format-ustar">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-format-ustar</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-format-ustar" title="Permalink">#</a><a href="/library/source/Text.Tar/#L73" title="View source at line 73">Source</a></span></div>
+<div class="doc-body">
 
 Format bit: POSIX USTAR.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 73
+</div>
+</article>
 
-<a id="value-7461722d666f726d61742d7637"></a>
-
-## `tar-format-v7`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-format-v7</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-format-v7">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-format-v7</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-format-v7" title="Permalink">#</a><a href="/library/source/Text.Tar/#L69" title="View source at line 69">Source</a></span></div>
+<div class="doc-body">
 
 Format bit: original Unix V7 headers.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 69
+</div>
+</article>
 
-<a id="value-7461722d676964"></a>
-
-## `tar-gid`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-gid</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-tar-gid">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-gid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-gid" title="Permalink">#</a><a href="/library/source/Text.Tar/#L132" title="View source at line 132">Source</a></span></div>
+<div class="doc-body">
 
 Owner group id.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 132
+</div>
+</article>
 
-<a id="value-7461722d676e616d65"></a>
-
-## `tar-gname`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-gname</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-tar-gname">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-gname</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-tar-gname" title="Permalink">#</a><a href="/library/source/Text.Tar/#L148" title="View source at line 148">Source</a></span></div>
+<div class="doc-body">
 
 Owner group name.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 148
+</div>
+</article>
 
-<a id="value-7461722d686172646c696e6b"></a>
-
-## `tar-hardlink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-hardlink</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-hardlink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-hardlink</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-hardlink" title="Permalink">#</a><a href="/library/source/Text.Tar/#L37" title="View source at line 37">Source</a></span></div>
+<div class="doc-body">
 
 Hard link to an earlier entry, type byte '1'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 37
+</div>
+</article>
 
-<a id="value-7461722d686561646572"></a>
-
-## `tar-header`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-header</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span>))</code></pre>
+<article class="doc-entry" id="v-tar-header">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-header</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code><span class="doc-sig-links"><a href="#v-tar-header" title="Permalink">#</a><a href="/library/source/Text.Tar/#L96" title="View source at line 96">Source</a></span></div>
+<div class="doc-body">
 
 A header of the given type and name with mode 0644 (0755 for directories) and every other field zero or empty.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 96
+</div>
+</article>
 
-<a id="value-7461722d6b696e64"></a>
-
-## `tar-kind`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-kind</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-tar-kind">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-kind</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-kind" title="Permalink">#</a><a href="/library/source/Text.Tar/#L112" title="View source at line 112">Source</a></span></div>
+<div class="doc-body">
 
 Type byte.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 112
+</div>
+</article>
 
-<a id="value-7461722d6c696e6b"></a>
-
-## `tar-link`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-link</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-tar-link">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-link</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-tar-link" title="Permalink">#</a><a href="/library/source/Text.Tar/#L120" title="View source at line 120">Source</a></span></div>
+<div class="doc-body">
 
 Link target for hard and symbolic links.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 120
+</div>
+</article>
 
-<a id="value-7461722d6d6f6465"></a>
-
-## `tar-mode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-mode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-tar-mode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-mode" title="Permalink">#</a><a href="/library/source/Text.Tar/#L124" title="View source at line 124">Source</a></span></div>
+<div class="doc-body">
 
 Permission and mode bits.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 124
+</div>
+</article>
 
-<a id="value-7461722d6d74696d65"></a>
-
-## `tar-mtime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-mtime</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Int</span>)</code></pre>
+<article class="doc-entry" id="v-tar-mtime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-mtime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a></code><span class="doc-sig-links"><a href="#v-tar-mtime" title="Permalink">#</a><a href="/library/source/Text.Tar/#L140" title="View source at line 140">Source</a></span></div>
+<div class="doc-body">
 
 Modification time in whole seconds since 1970-01-01 UTC.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 140
+</div>
+</article>
 
-<a id="value-7461722d6e616d65"></a>
-
-## `tar-name`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-name</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-tar-name">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-name</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-tar-name" title="Permalink">#</a><a href="/library/source/Text.Tar/#L116" title="View source at line 116">Source</a></span></div>
+<div class="doc-body">
 
 Entry name, after any USTAR prefix, GNU long name or PAX path.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 116
+</div>
+</article>
 
-<a id="value-7461722d706178"></a>
-
-## `tar-pax`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-pax</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Bytes</span>)))</code></pre>
+<article class="doc-entry" id="v-tar-pax">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-pax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>)</code><span class="doc-sig-links"><a href="#v-tar-pax" title="Permalink">#</a><a href="/library/source/Text.Tar/#L160" title="View source at line 160">Source</a></span></div>
+<div class="doc-body">
 
 PAX records that apply to this entry and are not represented by another field, in archive order.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 160
+</div>
+</article>
 
-<a id="value-7461722d7061782d676c6f62616c"></a>
-
-## `tar-pax-global`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-pax-global</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-pax-global">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-pax-global</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-pax-global" title="Permalink">#</a><a href="/library/source/Text.Tar/#L65" title="View source at line 65">Source</a></span></div>
+<div class="doc-body">
 
 PAX global header, type byte 'g'. Read as an entry holding only its name and records, with no data.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 65
+</div>
+</article>
 
-<a id="value-7461722d72656164"></a>
-
-## `tar-read`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-read</span> :: (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span> (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarEntry</span>)))</code></pre>
+<article class="doc-entry" id="v-tar-read">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-read</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a> (<a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a>)</code><span class="doc-sig-links"><a href="#v-tar-read" title="Permalink">#</a><a href="/library/source/Text.Tar/#L329" title="View source at line 329">Source</a></span></div>
+<div class="doc-body">
 
 Read every entry of a complete archive, stopping at the first zero block (normally one of two).
 
-[Source](/reference-sources/Text.Tar.cinch) · line 329
+</div>
+</article>
 
-<a id="value-7461722d726567756c6172"></a>
-
-## `tar-regular`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-regular</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-regular">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-regular</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-regular" title="Permalink">#</a><a href="/library/source/Text.Tar/#L33" title="View source at line 33">Source</a></span></div>
+<div class="doc-body">
 
 Regular file, type byte '0'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 33
+</div>
+</article>
 
-<a id="value-7461722d73697a65"></a>
-
-## `tar-size`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-size</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-tar-size">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-size</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-size" title="Permalink">#</a><a href="/library/source/Text.Tar/#L136" title="View source at line 136">Source</a></span></div>
+<div class="doc-body">
 
 Data size in bytes as recorded in the archive.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 136
+</div>
+</article>
 
-<a id="value-7461722d73796d6c696e6b"></a>
-
-## `tar-symlink`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-symlink</span> :: <span class="tok-constructor">Nat</span></code></pre>
+<article class="doc-entry" id="v-tar-symlink">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-symlink</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-symlink" title="Permalink">#</a><a href="/library/source/Text.Tar/#L41" title="View source at line 41">Source</a></span></div>
+<div class="doc-body">
 
 Symbolic link, type byte '2'.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 41
+</div>
+</article>
 
-<a id="value-7461722d756964"></a>
-
-## `tar-uid`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-uid</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Nat</span>)</code></pre>
+<article class="doc-entry" id="v-tar-uid">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-uid</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tar-uid" title="Permalink">#</a><a href="/library/source/Text.Tar/#L128" title="View source at line 128">Source</a></span></div>
+<div class="doc-body">
 
 Owner user id.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 128
+</div>
+</article>
 
-<a id="value-7461722d756e616d65"></a>
-
-## `tar-uname`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-uname</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; <span class="tok-constructor">Bytes</span>)</code></pre>
+<article class="doc-entry" id="v-tar-uname">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-uname</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-tar-uname" title="Permalink">#</a><a href="/library/source/Text.Tar/#L144" title="View source at line 144">Source</a></span></div>
+<div class="doc-body">
 
 Owner user name.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 144
+</div>
+</article>
 
-<a id="value-7461722d776974682d646576696365"></a>
-
-## `tar-with-device`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-with-device</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span>)))</code></pre>
+<article class="doc-entry" id="v-tar-with-device">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-with-device</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code><span class="doc-sig-links"><a href="#v-tar-with-device" title="Permalink">#</a><a href="/library/source/Text.Tar/#L184" title="View source at line 184">Source</a></span></div>
+<div class="doc-body">
 
 Set device major and minor numbers.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 184
+</div>
+</article>
 
-<a id="value-7461722d776974682d6c696e6b"></a>
-
-## `tar-with-link`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-with-link</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span>))</code></pre>
+<article class="doc-entry" id="v-tar-with-link">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-with-link</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code><span class="doc-sig-links"><a href="#v-tar-with-link" title="Permalink">#</a><a href="/library/source/Text.Tar/#L168" title="View source at line 168">Source</a></span></div>
+<div class="doc-body">
 
 Set the link target.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 168
+</div>
+</article>
 
-<a id="value-7461722d776974682d6d6f6465"></a>
-
-## `tar-with-mode`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-with-mode</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span>))</code></pre>
+<article class="doc-entry" id="v-tar-with-mode">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-with-mode</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code><span class="doc-sig-links"><a href="#v-tar-with-mode" title="Permalink">#</a><a href="/library/source/Text.Tar/#L172" title="View source at line 172">Source</a></span></div>
+<div class="doc-body">
 
 Set the mode bits.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 172
+</div>
+</article>
 
-<a id="value-7461722d776974682d6d74696d65"></a>
-
-## `tar-with-mtime`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-with-mtime</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; (<span class="tok-constructor">Int</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span>))</code></pre>
+<article class="doc-entry" id="v-tar-with-mtime">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-with-mtime</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Int/" title="Int">Int</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code><span class="doc-sig-links"><a href="#v-tar-with-mtime" title="Permalink">#</a><a href="/library/source/Text.Tar/#L180" title="View source at line 180">Source</a></span></div>
+<div class="doc-body">
 
 Set the modification time in seconds since 1970.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 180
+</div>
+</article>
 
-<a id="value-7461722d776974682d6f776e6572"></a>
-
-## `tar-with-owner`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-with-owner</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; (<span class="tok-constructor">Bytes</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span>)))))</code></pre>
+<article class="doc-entry" id="v-tar-with-owner">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-with-owner</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code><span class="doc-sig-links"><a href="#v-tar-with-owner" title="Permalink">#</a><a href="/library/source/Text.Tar/#L176" title="View source at line 176">Source</a></span></div>
+<div class="doc-body">
 
 Set user and group ids and names.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 176
+</div>
+</article>
 
-<a id="value-7461722d776974682d706178"></a>
-
-## `tar-with-pax`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-with-pax</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> (<span class="tok-constructor">Bytes</span>, <span class="tok-constructor">Bytes</span>)) -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarHeader</span>))</code></pre>
+<article class="doc-entry" id="v-tar-with-pax">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-with-pax</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> (<a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>, <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarHeader" title="Text.Tar.TarHeader">TarHeader</a></code><span class="doc-sig-links"><a href="#v-tar-with-pax" title="Permalink">#</a><a href="/library/source/Text.Tar/#L188" title="View source at line 188">Source</a></span></div>
+<div class="doc-body">
 
 Set extra PAX records written with the entry (forcing a PAX header) and reported when read back.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 188
+</div>
+</article>
 
-<a id="value-7461722d7772697465"></a>
-
-## `tar-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">tar-write</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarEntry</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Tar</span>.<span class="tok-constructor">TarError</span> <span class="tok-constructor">Bytes</span>))</code></pre>
+<article class="doc-entry" id="v-tar-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tar-write</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarEntry" title="Text.Tar.TarEntry">TarEntry</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Tar/#t-TarError" title="Text.Tar.TarError">TarError</a> <a class="doc-type-link tok-constructor" href="/library/Data.Bytes/" title="Bytes">Bytes</a></code><span class="doc-sig-links"><a href="#v-tar-write" title="Permalink">#</a><a href="/library/source/Text.Tar/#L549" title="View source at line 549">Source</a></span></div>
+<div class="doc-body">
 
 Write entries as a complete archive ending in two zero blocks. Each entry is written as USTAR
 when every field fits and otherwise with a preceding PAX extended header.
 
-[Source](/reference-sources/Text.Tar.cinch) · line 549
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Tar.cinch`. Source SHA-256: `b1a5b11b1e6ca35103897fdf97fdb2bcbda0486175b98c020684efe5dd73eb37`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Tar.cinch`](/library/source/Text.Tar/). Source SHA-256: `b1a5b11b1e6ca35103897fdf97fdb2bcbda0486175b98c020684efe5dd73eb37`.

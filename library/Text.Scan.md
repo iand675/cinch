@@ -2,19 +2,21 @@
 
 Scanning primitives over input text and the shared position/error vocabulary.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Text.Scan</code></div><div class="doc-mod-bar-links"><a href="/library/source/Text.Scan/">View source</a><a href="/library/search/?q=%2BText.Scan">Search module</a><a href="/reference-sources/Text.Scan.cinch" download="Text.Scan.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Text.Scan`. Selected exports may already be in Prelude.
+**Dependencies:** [Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
 
-[Download exact module source](/reference-sources/Text.Scan.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (1 file)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Text.Scan`: [Text.Scan](Text.Scan.md).
 
-[Data.Bool](Data.Bool.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.List](Data.List.md), [Data.Machine](Data.Machine.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Data.Result](Data.Result.md), [Data.String](Data.String.md), [Text.Show](Text.Show.md).
+```sh
+cp seed/prelude/Text/Scan.cinch ./Text.Scan.cinch
+```
 
-Non-embedded source closure: [Text.Scan](Text.Scan.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 Text.Scan: the literal-string scanning and formatting utilities
 (the Ruby String surface, redesigned where our principles say so).
@@ -57,281 +59,212 @@ provided: CRLF and lone CR line endings fold to LF.
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis"><summary>Synopsis (31 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-FormatError">FormatError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FormatError</strong></code></li><li><a class="syn-name" href="#v-format">format</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">format</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Scan/#t-FormatError" title="Text.Scan.FormatError">FormatError</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-render-format-error">render-format-error</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">render-format-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Scan/#t-FormatError" title="Text.Scan.FormatError">FormatError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-capitalize-ascii">string-capitalize-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-capitalize-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-center">string-center</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-center</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-char-index-of">string-char-index-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-char-index-of</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-string-chomp">string-chomp</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-chomp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-chop">string-chop</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-chop</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-contains">string-contains</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-contains</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-string-downcase-ascii">string-downcase-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-downcase-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-drop">string-drop</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-drop</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-drop-while">string-drop-while</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-drop-while</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-ends-with">string-ends-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-ends-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-string-index-of">string-index-of</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-index-of</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code></li><li><a class="syn-name" href="#v-string-join">string-join</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-join</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-lines">string-lines</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-lines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-lstrip">string-lstrip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-lstrip</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-normalize-newlines">string-normalize-newlines</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-normalize-newlines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-pad-left">string-pad-left</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-pad-left</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-pad-right">string-pad-right</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-pad-right</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-rstrip">string-rstrip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-rstrip</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-split-at">string-split-at</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-split-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)</code></li><li><a class="syn-name" href="#v-string-split-on">string-split-on</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-split-on</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-starts-with">string-starts-with</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-starts-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code></li><li><a class="syn-name" href="#v-string-strip">string-strip</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-strip</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-take">string-take</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-take</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-take-while">string-take-while</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-take-while</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-unlines">string-unlines</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-unlines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-unwords">string-unwords</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-unwords</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-upcase-ascii">string-upcase-ascii</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-upcase-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-string-words">string-words</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">string-words</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li></ul>
+</details>
 
-<a id="type-466f726d61744572726f72"></a>
+# Types
 
-## `FormatError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">FormatError</span></code></pre>
+<article class="doc-entry" id="t-FormatError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">FormatError</strong></code><span class="doc-sig-links"><a href="#t-FormatError" title="Permalink">#</a><a href="/library/source/Text.Scan/#L401" title="View source at line 401">Source</a></span></div>
+<div class="doc-body">
 
 `format`: template interpolation over `{}` holes (the sprintf
 replacement; the arguments render themselves at their own
 types).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 401
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">MissingFormatArgument</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnusedFormatArgument</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">UnmatchedFormatBrace</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-MissingFormatArgument"><code><strong class="tok-constructor">MissingFormatArgument</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Scan/#t-FormatError" title="Text.Scan.FormatError">FormatError</a></code></li><li id="k-UnusedFormatArgument"><code><strong class="tok-constructor">UnusedFormatArgument</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Scan/#t-FormatError" title="Text.Scan.FormatError">FormatError</a></code></li><li id="k-UnmatchedFormatBrace"><code><strong class="tok-constructor">UnmatchedFormatBrace</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Scan/#t-FormatError" title="Text.Scan.FormatError">FormatError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-666f726d6174"></a>
+<article class="doc-entry" id="v-format">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">format</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Text.Scan/#t-FormatError" title="Text.Scan.FormatError">FormatError</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-format" title="Permalink">#</a><a href="/library/source/Text.Scan/#L412" title="View source at line 412">Source</a></span></div>
+</article>
 
-## `format`
+<article class="doc-entry" id="v-render-format-error">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-format-error</strong> :: <a class="doc-type-link tok-constructor" href="/library/Text.Scan/#t-FormatError" title="Text.Scan.FormatError">FormatError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-format-error" title="Permalink">#</a><a href="/library/source/Text.Scan/#L406" title="View source at line 406">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">format</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-string-capitalize-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-capitalize-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-capitalize-ascii" title="Permalink">#</a><a href="/library/source/Text.Scan/#L336" title="View source at line 336">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-72656e6465722d666f726d61742d6572726f72"></a>
-
-## `render-format-error`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">render-format-error</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Scan</span>.<span class="tok-constructor">FormatError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d6361706974616c697a652d6173636969"></a>
-
-## `string-capitalize-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-capitalize-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d63656e746572"></a>
-
-## `string-center`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-center</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-string-center">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-center</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-center" title="Permalink">#</a><a href="/library/source/Text.Scan/#L362" title="View source at line 362">Source</a></span></div>
+<div class="doc-body">
 
 Center in `w` scalars; the extra space of an odd pad goes right.
 
-[Source](/reference-sources/Text.Scan.cinch) · line 362
+</div>
+</article>
 
-<a id="value-737472696e672d636861722d696e6465782d6f66"></a>
-
-## `string-char-index-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-char-index-of</span> :: (<span class="tok-constructor">Char</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-string-char-index-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-char-index-of</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-string-char-index-of" title="Permalink">#</a><a href="/library/source/Text.Scan/#L154" title="View source at line 154">Source</a></span></div>
+<div class="doc-body">
 
 The scalar index of the first occurrence of a single scalar (the
 one-scalar special case of `string-index-of`; `None` when the
 scalar is absent, so it never coincides with the empty-needle
 rule above).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 154
+</div>
+</article>
 
-<a id="value-737472696e672d63686f6d70"></a>
-
-## `string-chomp`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-chomp</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-chomp">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-chomp</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-chomp" title="Permalink">#</a><a href="/library/source/Text.Scan/#L309" title="View source at line 309">Source</a></span></div>
+<div class="doc-body">
 
 Drop one trailing line ending: LF, CRLF or CR.
 
-[Source](/reference-sources/Text.Scan.cinch) · line 309
+</div>
+</article>
 
-<a id="value-737472696e672d63686f70"></a>
-
-## `string-chop`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-chop</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-chop">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-chop</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-chop" title="Permalink">#</a><a href="/library/source/Text.Scan/#L323" title="View source at line 323">Source</a></span></div>
+<div class="doc-body">
 
 Drop the last scalar.
 
-[Source](/reference-sources/Text.Scan.cinch) · line 323
+</div>
+</article>
 
-<a id="value-737472696e672d636f6e7461696e73"></a>
+<article class="doc-entry" id="v-string-contains">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-contains</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-string-contains" title="Permalink">#</a><a href="/library/source/Text.Scan/#L145" title="View source at line 145">Source</a></span></div>
+</article>
 
-## `string-contains`
+<article class="doc-entry" id="v-string-downcase-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-downcase-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-downcase-ascii" title="Permalink">#</a><a href="/library/source/Text.Scan/#L333" title="View source at line 333">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-contains</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
+<article class="doc-entry" id="v-string-drop">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-drop</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-drop" title="Permalink">#</a><a href="/library/source/Text.Scan/#L268" title="View source at line 268">Source</a></span></div>
+</article>
 
-[Source](/reference-sources/Text.Scan.cinch)
+<article class="doc-entry" id="v-string-drop-while">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-drop-while</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-drop-while" title="Permalink">#</a><a href="/library/source/Text.Scan/#L277" title="View source at line 277">Source</a></span></div>
+</article>
 
-<a id="value-737472696e672d646f776e636173652d6173636969"></a>
+<article class="doc-entry" id="v-string-ends-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-ends-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-string-ends-with" title="Permalink">#</a><a href="/library/source/Text.Scan/#L165" title="View source at line 165">Source</a></span></div>
+</article>
 
-## `string-downcase-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-downcase-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d64726f70"></a>
-
-## `string-drop`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-drop</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d64726f702d7768696c65"></a>
-
-## `string-drop-while`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-drop-while</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d656e64732d77697468"></a>
-
-## `string-ends-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-ends-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d696e6465782d6f66"></a>
-
-## `string-index-of`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-index-of</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Option</span> <span class="tok-constructor">Nat</span>)))</code></pre>
+<article class="doc-entry" id="v-string-index-of">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-index-of</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-string-index-of" title="Permalink">#</a><a href="/library/source/Text.Scan/#L135" title="View source at line 135">Source</a></span></div>
+<div class="doc-body">
 
 The scalar index where `needle` first occurs in `s` (an empty
 needle occurs at 0).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 135
+</div>
+</article>
 
-<a id="value-737472696e672d6a6f696e"></a>
-
-## `string-join`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-join</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-string-join">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-join</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-join" title="Permalink">#</a><a href="/library/source/Text.Scan/#L204" title="View source at line 204">Source</a></span></div>
+<div class="doc-body">
 
 Join with a separator between every pair.
 
-[Source](/reference-sources/Text.Scan.cinch) · line 204
+</div>
+</article>
 
-<a id="value-737472696e672d6c696e6573"></a>
-
-## `string-lines`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-lines</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-string-lines">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-lines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-lines" title="Permalink">#</a><a href="/library/source/Text.Scan/#L217" title="View source at line 217">Source</a></span></div>
+<div class="doc-body">
 
 The lines of a string: the segments between LF scalars, with one
 trailing empty segment dropped when the string ends in LF (an
 empty string has no lines).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 217
+</div>
+</article>
 
-<a id="value-737472696e672d6c7374726970"></a>
+<article class="doc-entry" id="v-string-lstrip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-lstrip</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-lstrip" title="Permalink">#</a><a href="/library/source/Text.Scan/#L297" title="View source at line 297">Source</a></span></div>
+</article>
 
-## `string-lstrip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-lstrip</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d6e6f726d616c697a652d6e65776c696e6573"></a>
-
-## `string-normalize-newlines`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-normalize-newlines</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-normalize-newlines">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-normalize-newlines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-normalize-newlines" title="Permalink">#</a><a href="/library/source/Text.Scan/#L378" title="View source at line 378">Source</a></span></div>
+<div class="doc-body">
 
 Line-ending normalization (the one normalization the UTF-8
 layers permit: CRLF and lone CR fold to LF).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 378
+</div>
+</article>
 
-<a id="value-737472696e672d7061642d6c656674"></a>
-
-## `string-pad-left`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-pad-left</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-string-pad-left">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-pad-left</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-pad-left" title="Permalink">#</a><a href="/library/source/Text.Scan/#L351" title="View source at line 351">Source</a></span></div>
+<div class="doc-body">
 
 Padding (scalar widths, spaces).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 351
+</div>
+</article>
 
-<a id="value-737472696e672d7061642d7269676874"></a>
+<article class="doc-entry" id="v-string-pad-right">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-pad-right</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-pad-right" title="Permalink">#</a><a href="/library/source/Text.Scan/#L356" title="View source at line 356">Source</a></span></div>
+</article>
 
-## `string-pad-right`
+<article class="doc-entry" id="v-string-rstrip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-rstrip</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-rstrip" title="Permalink">#</a><a href="/library/source/Text.Scan/#L300" title="View source at line 300">Source</a></span></div>
+</article>
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-pad-right</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d727374726970"></a>
-
-## `string-rstrip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-rstrip</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d73706c69742d6174"></a>
-
-## `string-split-at`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-split-at</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>, <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-string-split-at">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-split-at</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> (<a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>, <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a>)</code><span class="doc-sig-links"><a href="#v-string-split-at" title="Permalink">#</a><a href="/library/source/Text.Scan/#L262" title="View source at line 262">Source</a></span></div>
+<div class="doc-body">
 
 Splitting at a scalar count, over scalar boundaries (a count past
 the end puts everything in the first part; 0 puts everything in
 the second).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 262
+</div>
+</article>
 
-<a id="value-737472696e672d73706c69742d6f6e"></a>
-
-## `string-split-on`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-split-on</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)))</code></pre>
+<article class="doc-entry" id="v-string-split-on">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-split-on</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-split-on" title="Permalink">#</a><a href="/library/source/Text.Scan/#L172" title="View source at line 172">Source</a></span></div>
+<div class="doc-body">
 
 Split at every occurrence of the separator (the separators are
 removed). Trailing empty pieces are dropped (Ruby's default) and
 an empty separator splits into single-scalar strings (Ruby's
 `split("")`).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 172
+</div>
+</article>
 
-<a id="value-737472696e672d7374617274732d77697468"></a>
+<article class="doc-entry" id="v-string-starts-with">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-starts-with</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a></code><span class="doc-sig-links"><a href="#v-string-starts-with" title="Permalink">#</a><a href="/library/source/Text.Scan/#L162" title="View source at line 162">Source</a></span></div>
+</article>
 
-## `string-starts-with`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-starts-with</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Bool</span>))</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d7374726970"></a>
-
-## `string-strip`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-strip</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-strip">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-strip</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-strip" title="Permalink">#</a><a href="/library/source/Text.Scan/#L294" title="View source at line 294">Source</a></span></div>
+<div class="doc-body">
 
 Trimming and case (ASCII).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 294
+</div>
+</article>
 
-<a id="value-737472696e672d74616b65"></a>
+<article class="doc-entry" id="v-string-take">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-take</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-take" title="Permalink">#</a><a href="/library/source/Text.Scan/#L265" title="View source at line 265">Source</a></span></div>
+</article>
 
-## `string-take`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-take</span> :: (<span class="tok-constructor">Nat</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
-
-[Source](/reference-sources/Text.Scan.cinch)
-
-<a id="value-737472696e672d74616b652d7768696c65"></a>
-
-## `string-take-while`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-take-while</span> :: ((<span class="tok-constructor">Char</span> -&gt; <span class="tok-constructor">Bool</span>) -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-string-take-while">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-take-while</strong> :: (<a class="doc-type-link tok-constructor" href="/library/Data.Char/" title="Char">Char</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.Bool/" title="Bool">Bool</a>) <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-take-while" title="Permalink">#</a><a href="/library/source/Text.Scan/#L274" title="View source at line 274">Source</a></span></div>
+<div class="doc-body">
 
 The longest prefix (suffix) whose scalars all satisfy `p`; unlike
 `string-take`/`string-drop` the cut is predicate-driven, so the
 caller supplies the scalar test.
 
-[Source](/reference-sources/Text.Scan.cinch) · line 274
+</div>
+</article>
 
-<a id="value-737472696e672d756e6c696e6573"></a>
-
-## `string-unlines`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-unlines</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-unlines">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-unlines</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-unlines" title="Permalink">#</a><a href="/library/source/Text.Scan/#L246" title="View source at line 246">Source</a></span></div>
+<div class="doc-body">
 
 The inverse of `string-lines`: every line followed by LF, so
 `string-unlines (string-lines s)` is `s` with exactly one trailing
@@ -339,40 +272,38 @@ LF (and the empty list is the empty string, matching
 `string-lines ""`). It cannot be a bare join: a join would leave
 the last line unterminated.
 
-[Source](/reference-sources/Text.Scan.cinch) · line 246
+</div>
+</article>
 
-<a id="value-737472696e672d756e776f726473"></a>
-
-## `string-unwords`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-unwords</span> :: ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>) -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-unwords">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-unwords</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-unwords" title="Permalink">#</a><a href="/library/source/Text.Scan/#L256" title="View source at line 256">Source</a></span></div>
+<div class="doc-body">
 
 The inverse of `string-words`: a single space between elements
 (the empty list is the empty string, matching `string-words ""`).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 256
+</div>
+</article>
 
-<a id="value-737472696e672d7570636173652d6173636969"></a>
-
-## `string-upcase-ascii`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-upcase-ascii</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-string-upcase-ascii">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-upcase-ascii</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-upcase-ascii" title="Permalink">#</a><a href="/library/source/Text.Scan/#L330" title="View source at line 330">Source</a></span></div>
+<div class="doc-body">
 
 ASCII case mapping only (the honest boundary: no Unicode case
 data exists in the UTF-8 layers).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 330
+</div>
+</article>
 
-<a id="value-737472696e672d776f726473"></a>
-
-## `string-words`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">string-words</span> :: (<span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span> -&gt; (<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">List</span> <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>))</code></pre>
+<article class="doc-entry" id="v-string-words">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">string-words</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-string-words" title="Permalink">#</a><a href="/library/source/Text.Scan/#L229" title="View source at line 229">Source</a></span></div>
+<div class="doc-body">
 
 The whitespace-separated words (ASCII whitespace runs delimit).
 
-[Source](/reference-sources/Text.Scan.cinch) · line 229
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Text/Scan.cinch`. Source SHA-256: `bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Text/Scan.cinch`](/library/source/Text.Scan/). Source SHA-256: `bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208`.

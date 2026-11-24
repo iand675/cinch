@@ -2,19 +2,28 @@
 
 Validated envelope output through explicit advanced writer continuations, bounded chunks and linear short-write draining.
 
-<span class="support-tag support-tag--source">Ship source</span> Copy this module and its non-embedded dependency closure beside your entry file. An import does not download it.
+<div class="doc-mod-bar"><div class="doc-mod-bar-primary"><span class="support-tag support-tag--source">Ship source</span> <code>import Effect.Pem</code></div><div class="doc-mod-bar-links"><a href="/library/source/Effect.Pem/">View source</a><a href="/library/search/?q=%2BEffect.Pem">Search module</a><a href="/reference-sources/Effect.Pem.cinch" download="Effect.Pem.cinch">Download .cinch</a><a href="/library/00-index/">All modules</a></div></div>
 
-Import with `import Effect.Pem`. Selected exports may already be in Prelude.
+**Dependencies:** [Text.Pem](Text.Pem.md).
 
-[Download exact module source](/reference-sources/Effect.Pem.cinch) · [How library modules are loaded](00-index.md)
+<details class="doc-closure"><summary>Ship-source closure (8 files)</summary>
 
-# Dependencies
+Copy these modules beside your entry file before importing `Effect.Pem`: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Pem](Effect.Pem.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Pem](Text.Pem.md).
 
-[Text.Pem](Text.Pem.md).
+```sh
+cp seed/prelude/Data/Bytes/Utf8.cinch ./Data.Bytes.Utf8.cinch
+cp seed/prelude/Data/Bytes/Word.cinch ./Data.Bytes.Word.cinch
+cp seed/prelude/Data/Unicode/Kernel.cinch ./Data.Unicode.Kernel.cinch
+cp seed/prelude/Data/Unicode/Tables.cinch ./Data.Unicode.Tables.cinch
+cp seed/prelude/Effect/Pem.cinch ./Effect.Pem.cinch
+cp seed/prelude/Effect/Stream.cinch ./Effect.Stream.cinch
+cp seed/prelude/Text/Base64/Encoding.cinch ./Text.Base64.Encoding.cinch
+cp seed/prelude/Text/Pem.cinch ./Text.Pem.cinch
+```
 
-Non-embedded source closure: [Data.Bytes.Utf8](Data.Bytes.Utf8.md), [Data.Bytes.Word](Data.Bytes.Word.md), [Data.Unicode.Kernel](Data.Unicode.Kernel.md), [Data.Unicode.Tables](Data.Unicode.Tables.md), [Effect.Pem](Effect.Pem.md), [Effect.Stream](Effect.Stream.md), [Text.Base64.Encoding](Text.Base64.Encoding.md), [Text.Pem](Text.Pem.md).
+</details>
 
-<details><summary>Behaviour and boundary notes from the source</summary>
+<details class="doc-notes"><summary>Module notes</summary>
 
 One-shot PEM writing with bounded payload chunks and explicit advanced sink continuations.
 Validation happens before output. Positive short writes are drained; transport
@@ -22,47 +31,45 @@ failure returns the advanced sink without closing or flushing borrowed resources
 
 </details>
 
-# Types and constructors
+<details class="doc-synopsis" open><summary>Synopsis (3 declarations)</summary>
+<ul class="doc-synopsis-list"><li><a class="syn-name" href="#t-PemError">PemError</a><code class="syn-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PemError</strong></code></li><li><a class="syn-name" href="#v-pem-error-message">pem-error-message</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pem-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code></li><li><a class="syn-name" href="#v-pem-write">pem-write</a><code class="syn-sig"><strong class="doc-decl-name tok-variable">pem-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span>)</code></li></ul>
+</details>
 
-<a id="type-50656d4572726f72"></a>
+# Types
 
-## `PemError`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">data</span> <span class="tok-constructor">PemError</span></code></pre>
+<article class="doc-entry" id="t-PemError">
+<div class="doc-sig-bar"><code class="doc-sig"><span class="tok-keyword">data</span> <strong class="doc-decl-name tok-constructor">PemError</strong></code><span class="doc-sig-links"><a href="#t-PemError" title="Permalink">#</a><a href="/library/source/Text.Pem/#L38" title="View source at line 38">Source</a></span></div>
+<div class="doc-body">
 
 Encoding validation or transport failure, with no implicit sink closure.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 38
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PemInvalidHeaderKey</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Pem</span>.<span class="tok-constructor">PemError</span>)</code></pre>
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">PemOutputError</span> :: (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">StreamError</span> -&gt; <span class="tok-constructor">Text</span>.<span class="tok-constructor">Pem</span>.<span class="tok-constructor">PemError</span>)</code></pre>
+<div class="doc-children"><h4>Constructors</h4><ul><li id="k-PemInvalidHeaderKey"><code><strong class="tok-constructor">PemInvalidHeaderKey</strong> :: <a class="doc-type-link tok-constructor" href="/library/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a></code></li><li id="k-PemOutputError"><code><strong class="tok-constructor">PemOutputError</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-StreamError" title="Effect.Stream.StreamError">StreamError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a></code></li></ul></div>
+</div>
+</article>
 
 # Values
 
-<a id="value-70656d2d6572726f722d6d657373616765"></a>
-
-## `pem-error-message`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pem-error-message</span> :: (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Pem</span>.<span class="tok-constructor">PemError</span> -&gt; <span class="tok-constructor">Data</span>.<span class="tok-constructor">String</span>.<span class="tok-constructor">String</span>)</code></pre>
+<article class="doc-entry" id="v-pem-error-message">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/library/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-pem-error-message" title="Permalink">#</a><a href="/library/source/Text.Pem/#L45" title="View source at line 45">Source</a></span></div>
+<div class="doc-body">
 
 Explain a header refusal or identify a retained underlying stream failure.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 45
+</div>
+</article>
 
-<a id="value-70656d2d7772697465"></a>
-
-## `pem-write`
-
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">pem-write</span> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <span class="tok-constructor">Io</span> <span class="tok-variable">r</span>) =&gt; ((<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>) -&gt; (<span class="tok-constructor">Text</span>.<span class="tok-constructor">Pem</span>.<span class="tok-constructor">PemBlock</span> -&gt;{<span class="tok-constructor">IO</span> <span class="tok-variable">r</span>} ((<span class="tok-constructor">Data</span>.<span class="tok-constructor">Core</span>.<span class="tok-constructor">Result</span> <span class="tok-constructor">Text</span>.<span class="tok-constructor">Pem</span>.<span class="tok-constructor">PemError</span> <span class="tok-constructor">Unit</span>), (<span class="tok-constructor">Effect</span>.<span class="tok-constructor">Stream</span>.<span class="tok-constructor">ByteWriter</span> <span class="tok-variable">r</span>))))</code></pre>
+<article class="doc-entry" id="v-pem-write">
+<div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">pem-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>). <span class="tok-keyword">using</span> (<span class="tok-variable">io</span> :: <a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="Io">Io</a> <span class="tok-variable">r</span>) <span class="tok-operator">=&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/library/Text.Pem/#t-PemBlock" title="Text.Pem.PemBlock">PemBlock</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/09-effects-and-capabilities/" title="IO">IO</a> r} (<a class="doc-type-link tok-constructor" href="/library/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/library/Effect.Pem/#t-PemError" title="Text.Pem.PemError">PemError</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a>, <a class="doc-type-link tok-constructor" href="/library/Effect.Stream/#t-ByteWriter" title="Effect.Stream.ByteWriter">ByteWriter</a> <span class="tok-variable">r</span>)</code><span class="doc-sig-links"><a href="#v-pem-write" title="Permalink">#</a><a href="/library/source/Text.Pem/#L753" title="View source at line 753">Source</a></span></div>
+<div class="doc-body">
 
 Write an envelope with bounded payload storage and explicit continuation ownership.
 Validate all keys before any callback. Positive short writes are retried; zero progress,
 invalid counts and sink errors preserve the advanced writer and never replay accepted
 output. Chunk boundaries are unspecified. This operation never flushes or closes its sink.
 
-[Source](/reference-sources/Text.Pem.cinch) · line 753
+</div>
+</article>
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Pem.cinch`. Source SHA-256: `47dfe3101d486d89c2b6e2b78700b36c4c4c3ed80cf467de347ef7ba6ffc2bb4`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Pem.cinch`](/library/source/Effect.Pem/). Source SHA-256: `47dfe3101d486d89c2b6e2b78700b36c4c4c3ed80cf467de347ef7ba6ffc2bb4`.
