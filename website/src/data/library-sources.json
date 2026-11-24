@@ -1379,6 +1379,14 @@
       "public_methods": 0
     },
     {
+      "module": "Effect.Smtp",
+      "path": "seed/prelude/Effect/Smtp.cinch",
+      "sha256": "03aabb42280978376631405c057b4e0dc6bc306e3d1beda841644e14034c42cf",
+      "embedded": false,
+      "values": 14,
+      "public_methods": 0
+    },
+    {
       "module": "Effect.Stm.TBQueue",
       "path": "seed/prelude/Effect/Stm/TBQueue.cinch",
       "sha256": "07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe",
@@ -2001,6 +2009,14 @@
       "embedded": true,
       "values": 6,
       "public_methods": 1
+    },
+    {
+      "module": "Text.Smtp",
+      "path": "seed/prelude/Text/Smtp.cinch",
+      "sha256": "ab46aeac80b9aa3bcb33399324012c1533fb999ecbf5c9012df64a01130da419",
+      "embedded": false,
+      "values": 14,
+      "public_methods": 0
     },
     {
       "module": "Text.TabWriter",

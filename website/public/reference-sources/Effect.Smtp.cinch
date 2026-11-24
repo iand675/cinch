@@ -1,0 +1,325 @@
+-- | An SMTP client over Effect.Net (RFC 5321): greeting, EHLO with a HELO fallback, extensions,
+-- PLAIN and CRAM-MD5 authentication, envelope commands, message data, verification, reset and quit,
+-- plus a one-call send-mail.
+--
+-- A client is an explicit value: the socket, the bytes read ahead of the current reply, the server's
+-- name, the name to greet with, the greeting state and whether the client is still open. Every operation
+-- returns its result together with the next client, so the greeting state machine (not greeted, greeted
+-- with or without extensions, or greeting failed for good) is visible in the types. The first command
+-- that needs a greeting sends EHLO, falling back to HELO when EHLO is refused; a failed greeting is
+-- remembered and returned by every later command. TLS is not available, so PLAIN authentication is only
+-- offered to the local machine.
+module Effect.Smtp where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Effect.Net
+  import Text.Base64 (base64-encode, base64-decode)
+  import Text.Smtp
+
+  export SmtpClient, smtp-dial, smtp-hello, smtp-extension, smtp-auth, smtp-mail, smtp-rcpt, smtp-data
+  export smtp-verify, smtp-reset, smtp-noop, smtp-quit, smtp-close, smtp-send-mail, smtp-auth-offered
+
+  -- | How far the greeting has got.
+  data Greeting where
+    -- | No greeting sent yet.
+    NotGreeted :: Greeting
+    -- | Greeted with EHLO (its extensions, latest first) or with HELO (no extensions).
+    Greeted :: Option (List (String, String)) -> Greeting
+    -- | Both EHLO and HELO failed; the error is returned from now on.
+    GreetFailed :: SmtpError -> Greeting
+
+  -- | A client: socket, unread input, server name, local name, greeting and whether it is open.
+  data SmtpClient where
+    -- | Fields in the order listed above.
+    SmtpClient :: Socket -> Bytes -> String -> String -> Greeting -> Bool -> SmtpClient
+
+  -- | The server name.
+  server-name :: SmtpClient -> String
+  server-name c = case c of SmtpClient s b sv l g o -> sv
+
+  -- | The client with another greeting state.
+  with-greeting :: SmtpClient -> Greeting -> SmtpClient
+  with-greeting c g = case c of SmtpClient s b sv l old o -> SmtpClient s b sv l g o
+
+  -- | Connect to a server and read its 220 greeting. The host is also the name authentication checks against.
+  smtp-dial :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result SmtpError SmtpClient
+  smtp-dial host port = case net-connect host port of
+    Err e -> Err (SmtpNetError (net-text e))
+    Ok sock ->
+      let c = SmtpClient sock (bytes-new 0) host "localhost" NotGreeted True in
+      (case read-reply c 220 of
+        (Ok r, c2) -> Ok c2
+        (Err e, c2) -> let closed = net-close sock in Err e)
+
+  -- | A network error's text.
+  net-text :: NetError -> String
+  net-text e = case e of
+    NetNotFound -> "smtp: not found"
+    NetPermissionDenied -> "smtp: permission denied"
+    NetInvalidArgument -> "smtp: invalid network argument"
+    NetIoError -> "smtp: network I/O error"
+
+  -- | Read one line (without its line end), reading more from the socket as needed; a final unterminated line
+  -- is returned as it is, and an exhausted stream is SmtpEof.
+  read-line :: forall r. using (io :: Io r) => SmtpClient ->{IO r} (Result SmtpError String, SmtpClient)
+  read-line c = case c of
+    SmtpClient sock pending sv local g open ->
+      if not open then (Err SmtpClosed, c)
+      else case newline-at pending 0 of
+        Some i -> (Ok (smtp-strip-line (slice pending 0 (i + 1))), SmtpClient sock (slice pending (i + 1) (minus (bytes-len pending) (i + 1))) sv local g open)
+        None -> (case net-read sock 4096 of
+          Err e -> (Err (SmtpNetError (net-text e)), c)
+          Ok more ->
+            if bytes-len more == 0 then (if bytes-len pending == 0 then (Err SmtpEof, c) else (Ok (smtp-strip-line pending), SmtpClient sock (bytes-new 0) sv local g open))
+            else read-line (SmtpClient sock (bytes-concat [pending, more]) sv local g open))
+
+  -- | The first LF from i.
+  newline-at :: Bytes -> Nat -> Option Nat
+  newline-at b i = if i >= bytes-len b then None else if bytes-get b i == 10 then Some i else newline-at b (i + 1)
+
+  -- | n bytes from an offset, copied.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b o n = let out = bytes-new n in let c = (if o + n <= bytes-len b then bytes-copy-range out b 0 o n else ()) in out
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | Read a complete reply with an expected code (0 accepts any).
+  read-reply :: forall r. using (io :: Io r) => SmtpClient -> Nat ->{IO r} (Result SmtpError SmtpReply, SmtpClient)
+  read-reply c expect = feed c (smtp-reply-reader expect)
+
+  -- | Feed lines to a reply reader until the reply completes.
+  feed :: forall r. using (io :: Io r) => SmtpClient -> ReplyReader ->{IO r} (Result SmtpError SmtpReply, SmtpClient)
+  feed c reader = case read-line c of
+    (Err e, c2) -> (Err e, c2)
+    (Ok line, c2) -> (case smtp-reply-line reader line of
+      NeedLine next -> feed c2 next
+      ReplyDone r -> (r, c2))
+
+  -- | Send one command line and read its reply.
+  cmd :: forall r. using (io :: Io r) => SmtpClient -> Nat -> String ->{IO r} (Result SmtpError SmtpReply, SmtpClient)
+  cmd c expect line = case c of
+    SmtpClient sock pending sv local g open ->
+      if not open then (Err SmtpClosed, c)
+      else case net-write sock (string-to-bytes (string-concat line "\r\n")) of
+        Err e -> (Err (SmtpNetError (net-text e)), c)
+        Ok n -> read-reply c expect
+
+  -- | Greet the server if no greeting has been made: EHLO, then HELO when EHLO fails. Returns the greeting's
+  -- outcome, which is remembered.
+  greet :: forall r. using (io :: Io r) => SmtpClient ->{IO r} (Result SmtpError Unit, SmtpClient)
+  greet c = case c of
+    SmtpClient sock pending sv local g open -> (case g of
+      Greeted exts -> (Ok (), c)
+      GreetFailed e -> (Err e, c)
+      NotGreeted -> (case cmd c 250 (string-concat "EHLO " local) of
+        (Ok r, c2) -> (Ok (), with-greeting c2 (Greeted (Some (smtp-extensions (smtp-reply-message r)))))
+        (Err e, c2) -> (case cmd c2 250 (string-concat "HELO " local) of
+          (Ok r, c3) -> (Ok (), with-greeting c3 (Greeted None))
+          (Err e2, c3) -> (Err e2, with-greeting c3 (GreetFailed e2)))))
+
+  -- | The extensions once greeted (None before, after a HELO greeting, or after a failed one).
+  extensions :: SmtpClient -> Option (List (String, String))
+  extensions c = case c of
+    SmtpClient sock pending sv local g open -> (case g of
+      Greeted exts -> exts
+      other -> None)
+
+  -- | Choose the name to greet with; refused once the server has been greeted.
+  smtp-hello :: forall r. using (io :: Io r) => SmtpClient -> String ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-hello c name = case smtp-validate-line name of
+    Err e -> (Err e, c)
+    Ok u -> (case c of
+      SmtpClient sock pending sv local g open -> (case g of
+        NotGreeted -> greet (SmtpClient sock pending sv name g open)
+        other -> (Err SmtpHelloTooLate, c)))
+
+  -- | Whether the server offers an extension, and its parameters (greeting first if needed).
+  smtp-extension :: forall r. using (io :: Io r) => SmtpClient -> String ->{IO r} (Option String, SmtpClient)
+  smtp-extension c name = case greet c of
+    (Err e, c2) -> (None, c2)
+    (Ok u, c2) -> (case extensions c2 of
+      None -> (None, c2)
+      Some exts -> (smtp-extension-lookup exts name, c2))
+
+  -- | The authentication mechanisms the server offers.
+  smtp-auth-offered :: SmtpClient -> List String
+  smtp-auth-offered c = case extensions c of
+    None -> Nil
+    Some exts -> smtp-auth-mechanisms exts
+
+  -- | Authenticate. A refusal on this side, or any failure during the exchange, cancels it with "*" and quits.
+  smtp-auth :: forall r. using (io :: Io r) => SmtpClient -> SmtpAuth ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-auth c auth = case greet c of
+    (Err e, c2) -> (Err e, c2)
+    (Ok u, c2) -> (case smtp-auth-start auth (server-name c2) False of
+      Err e -> (Err e, snd-client (smtp-quit c2))
+      Ok start -> (case start of
+        (mech, resp) ->
+          let first = if bytes-len resp == 0 then string-concat "AUTH " mech else string-concat "AUTH " (string-concat mech (string-concat " " (base64-encode resp))) in
+          exchange auth (cmd c2 0 first)))
+
+  -- | One round of the authentication exchange: decode the server's reply and answer it.
+  exchange :: forall r. using (io :: Io r) => SmtpAuth -> (Result SmtpError SmtpReply, SmtpClient) ->{IO r} (Result SmtpError Unit, SmtpClient)
+  exchange auth sent = case sent of
+    (Err e, c) -> (Err e, c)
+    (Ok r, c) ->
+      let code = smtp-reply-code r in
+      let message = (if code == 334 then decode-challenge (smtp-reply-message r) else if code == 235 then Ok (string-to-bytes (smtp-reply-message r)) else Err (SmtpReplyError code (smtp-reply-message r))) in
+      (case message of
+        Err e -> abort c e
+        Ok m -> (case smtp-auth-next auth m (code == 334) of
+          Err e -> abort c e
+          Ok next -> (case next of
+            None -> (Ok (), c)
+            Some resp -> exchange auth (cmd c 0 (base64-encode resp)))))
+
+  -- | A decoded base64 challenge.
+  decode-challenge :: String -> Result SmtpError Bytes
+  decode-challenge text = case base64-decode text of
+    Ok b -> Ok b
+    Err e -> Err SmtpBadChallenge
+
+  -- | Cancel an exchange with "*", quit, and report the error.
+  abort :: forall r. using (io :: Io r) => SmtpClient -> SmtpError ->{IO r} (Result SmtpError Unit, SmtpClient)
+  abort c e = case cmd c 501 "*" of
+    (r, c2) -> (Err e, snd-client (smtp-quit c2))
+
+  -- | The client of a result pair.
+  snd-client :: (Result SmtpError Unit, SmtpClient) -> SmtpClient
+  snd-client p = case p of
+    (r, c) -> c
+
+  -- | The client of a reply pair, ignoring the reply.
+  drop-reply :: (Result SmtpError SmtpReply, SmtpClient) -> (Result SmtpError Unit, SmtpClient)
+  drop-reply p = case p of
+    (Ok r, c) -> (Ok (), c)
+    (Err e, c) -> (Err e, c)
+
+  -- | Start a mail transaction from a sender (greeting first if needed); BODY=8BITMIME and SMTPUTF8 are
+  -- requested when the server offers them.
+  smtp-mail :: forall r. using (io :: Io r) => SmtpClient -> String ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-mail c from = case smtp-validate-line from of
+    Err e -> (Err e, c)
+    Ok u -> (case greet c of
+      (Err e, c2) -> (Err e, c2)
+      (Ok v, c2) -> drop-reply (cmd c2 250 (string-concat (string-concat "MAIL FROM:<" (string-concat from ">")) (mail-params (extensions c2)))))
+
+  -- | The MAIL parameters for the offered extensions.
+  mail-params :: Option (List (String, String)) -> String
+  mail-params exts = case exts of
+    None -> ""
+    Some e ->
+      let eight = (case smtp-extension-lookup e "8BITMIME" of
+        Some v -> " BODY=8BITMIME"
+        None -> "") in
+      string-concat eight (case smtp-extension-lookup e "SMTPUTF8" of
+        Some v -> " SMTPUTF8"
+        None -> "")
+
+  -- | Add a recipient (any 25x reply accepts it).
+  smtp-rcpt :: forall r. using (io :: Io r) => SmtpClient -> String ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-rcpt c rcpts = case smtp-validate-line rcpts of
+    Err e -> (Err e, c)
+    Ok u -> drop-reply (cmd c 25 (string-concat "RCPT TO:<" (string-concat rcpts ">")))
+
+  -- | Send the message: DATA, the transparency-encoded body and its end, then the server's 250.
+  smtp-data :: forall r. using (io :: Io r) => SmtpClient -> Bytes ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-data c message = case cmd c 354 "DATA" of
+    (Err e, c2) -> (Err e, c2)
+    (Ok r, c2) -> (case c2 of
+      SmtpClient sock pending sv local g open -> (case net-write sock (smtp-dot-encode message) of
+        Err e -> (Err (SmtpNetError (net-text e)), c2)
+        Ok n -> drop-reply (read-reply c2 250)))
+
+  -- | Ask the server to verify an address.
+  smtp-verify :: forall r. using (io :: Io r) => SmtpClient -> String ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-verify c address = case smtp-validate-line address of
+    Err e -> (Err e, c)
+    Ok u -> greeted-cmd c (string-concat "VRFY " address)
+
+  -- | Abort the current mail transaction.
+  smtp-reset :: forall r. using (io :: Io r) => SmtpClient ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-reset c = greeted-cmd c "RSET"
+
+  -- | Check the connection.
+  smtp-noop :: forall r. using (io :: Io r) => SmtpClient ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-noop c = greeted-cmd c "NOOP"
+
+  -- | Greet if needed, then send a command that expects 250.
+  greeted-cmd :: forall r. using (io :: Io r) => SmtpClient -> String ->{IO r} (Result SmtpError Unit, SmtpClient)
+  greeted-cmd c line = case greet c of
+    (Err e, c2) -> (Err e, c2)
+    (Ok u, c2) -> drop-reply (cmd c2 250 line)
+
+  -- | Quit: QUIT and the server's 221, then close the connection (it stays open when the reply is wrong).
+  smtp-quit :: forall r. using (io :: Io r) => SmtpClient ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-quit c = case greet c of
+    (g, c2) -> (case cmd c2 221 "QUIT" of
+      (Err e, c3) -> (Err e, c3)
+      (Ok r, c3) -> smtp-close c3)
+
+  -- | Close the connection without quitting.
+  smtp-close :: forall r. using (io :: Io r) => SmtpClient ->{IO r} (Result SmtpError Unit, SmtpClient)
+  smtp-close c = case c of
+    SmtpClient sock pending sv local g open ->
+      if not open then (Ok (), c)
+      else (case net-close sock of
+        Ok u -> (Ok (), SmtpClient sock (bytes-new 0) sv local g False)
+        Err e -> (Err (SmtpNetError (net-text e)), SmtpClient sock (bytes-new 0) sv local g False))
+
+  -- | Send one message: connect, greet, authenticate when asked (the server must offer AUTH), give the sender
+  -- and recipients, send the data and quit.
+  smtp-send-mail :: forall r. using (io :: Io r) => String -> Nat -> Option SmtpAuth -> String -> List String -> Bytes ->{IO r} Result SmtpError Unit
+  smtp-send-mail host port auth from rcpts message = case valid-all (Cons from rcpts) of
+    Err e -> Err e
+    Ok u -> (case smtp-dial host port of
+      Err e -> Err e
+      Ok c -> (case greet c of
+        (Err e, c2) -> Err e
+        (Ok v, c2) -> (case authenticate c2 auth of
+          (Err e, c3) -> Err e
+          (Ok w, c3) -> deliver c3 from rcpts message)))
+
+  -- | Refuse when any address contains CR or LF.
+  valid-all :: List String -> Result SmtpError Unit
+  valid-all addresses = case addresses of
+    Nil -> Ok ()
+    Cons a rest -> (case smtp-validate-line a of
+      Err e -> Err e
+      Ok u -> valid-all rest)
+
+  -- | Authenticate when asked to.
+  authenticate :: forall r. using (io :: Io r) => SmtpClient -> Option SmtpAuth ->{IO r} (Result SmtpError Unit, SmtpClient)
+  authenticate c auth = case auth of
+    None -> (Ok (), c)
+    Some a -> (case extensions c of
+      None -> (Err SmtpNoAuth, c)
+      Some exts -> (case smtp-extension-lookup exts "AUTH" of
+        None -> (Err SmtpNoAuth, c)
+        Some v -> smtp-auth c a))
+
+  -- | The envelope, the data and quit.
+  deliver :: forall r. using (io :: Io r) => SmtpClient -> String -> List String -> Bytes ->{IO r} Result SmtpError Unit
+  deliver c from rcpts message = case smtp-mail c from of
+    (Err e, c2) -> Err e
+    (Ok u, c2) -> (case recipients c2 rcpts of
+      (Err e, c3) -> Err e
+      (Ok v, c3) -> (case smtp-data c3 message of
+        (Err e, c4) -> Err e
+        (Ok w, c4) -> (case smtp-quit c4 of
+          (r, c5) -> r)))
+
+  -- | Every recipient in order.
+  recipients :: forall r. using (io :: Io r) => SmtpClient -> List String ->{IO r} (Result SmtpError Unit, SmtpClient)
+  recipients c rcpts = case rcpts of
+    Nil -> (Ok (), c)
+    Cons a rest -> (case smtp-rcpt c a of
+      (Err e, c2) -> (Err e, c2)
+      (Ok u, c2) -> recipients c2 rest)

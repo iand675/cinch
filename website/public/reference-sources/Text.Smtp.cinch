@@ -1,0 +1,398 @@
+-- | The SMTP protocol without a connection (RFC 5321, with the AUTH extension's PLAIN and CRAM-MD5
+-- mechanisms): reply reading, command lines, extension lists, the message body's transparency
+-- encoding and authentication exchanges. Effect.Smtp runs these over a socket.
+--
+-- A reply is read one line at a time through an explicit state machine: a three-digit code followed by a
+-- space ends a reply and a hyphen continues it; continuation lines join the message with newlines, a line
+-- with another code (or none) joins it whole, and a reply whose first code is not the expected one becomes
+-- an error carrying the complete message. The body encoding is a four-state machine: line ends become CR LF,
+-- a dot that starts a line is doubled, and the body is closed with CR LF "." CR LF. Commands refuse
+-- arguments that contain CR or LF, so no argument can inject a second command.
+module Text.Smtp where
+
+  import Data.Bytes
+  import Data.Bytes.Build
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Data.String
+  import Text.Base64 (base64-encode, base64-decode)
+  import Text.Hex (hex-encode)
+  import Text.Md5 (md5-sum)
+  import Text.Show (nat-to-string)
+
+  export SmtpError, SmtpReplyError, SmtpProtocolError, SmtpEof, SmtpNetError, SmtpBadLine, SmtpAuthRefused
+  export SmtpHelloTooLate, SmtpNoAuth, SmtpBadChallenge, SmtpClosed, smtp-error-message
+  export SmtpReply, smtp-reply-code, smtp-reply-message
+  export ReplyReader, ReplyStep, NeedLine, ReplyDone, smtp-reply-reader, smtp-reply-line
+  export smtp-validate-line, smtp-strip-line, smtp-dot-encode, smtp-extensions, smtp-extension-lookup, smtp-auth-mechanisms
+  export SmtpAuth, SmtpPlainAuth, SmtpCramMd5Auth, smtp-auth-start, smtp-auth-next, smtp-is-localhost
+
+  -- ---------------------------------------------------------------------
+  -- Errors and replies.
+  -- ---------------------------------------------------------------------
+
+  -- | Why an SMTP exchange failed.
+  data SmtpError where
+    -- | The server replied with an unexpected code; the message has every line of the reply.
+    SmtpReplyError :: Nat -> String -> SmtpError
+    -- | The server sent a line that is not a reply ("short response: ..." or "invalid response code: ...").
+    SmtpProtocolError :: String -> SmtpError
+    -- | The connection ended before a complete reply.
+    SmtpEof :: SmtpError
+    -- | The socket failed; the text describes how.
+    SmtpNetError :: String -> SmtpError
+    -- | An argument contains CR or LF.
+    SmtpBadLine :: SmtpError
+    -- | The client refused to authenticate (an unencrypted remote server, the wrong host, or a challenge the
+    -- mechanism cannot answer); the text says which.
+    SmtpAuthRefused :: String -> SmtpError
+    -- | Hello was asked for after other commands had already greeted the server.
+    SmtpHelloTooLate :: SmtpError
+    -- | The server does not offer authentication.
+    SmtpNoAuth :: SmtpError
+    -- | A server challenge is not valid base64.
+    SmtpBadChallenge :: SmtpError
+    -- | The client has already quit or closed.
+    SmtpClosed :: SmtpError
+
+  -- | The error's text: replies as "%03d message", the rest as the protocol's standard wording.
+  smtp-error-message :: SmtpError -> String
+  smtp-error-message e = case e of
+    SmtpReplyError code message -> string-concat (code-text code) (string-concat " " message)
+    SmtpProtocolError text -> text
+    SmtpEof -> "EOF"
+    SmtpNetError text -> text
+    SmtpBadLine -> "smtp: A line must not contain CR or LF"
+    SmtpAuthRefused text -> text
+    SmtpHelloTooLate -> "smtp: Hello called after other methods"
+    SmtpNoAuth -> "smtp: server doesn't support AUTH"
+    SmtpBadChallenge -> "smtp: invalid base64 challenge"
+    SmtpClosed -> "smtp: connection closed"
+
+  -- | A reply code as at least three digits.
+  code-text :: Nat -> String
+  code-text code =
+    let digits = nat-text code in
+    if code < 10 then string-concat "00" digits else if code < 100 then string-concat "0" digits else digits
+
+  -- | A natural number in decimal.
+  nat-text :: Nat -> String
+  nat-text n = nat-to-string n
+
+  -- | Bytes as text (bytes that are not UTF-8 give the empty string; replies and lines are ASCII).
+  text-of :: Bytes -> String
+  text-of b = case string-from-bytes b of
+    Some s -> s
+    None -> ""
+
+  -- | A complete reply: its code and its message lines joined by newlines.
+  data SmtpReply where
+    -- | Code and message.
+    SmtpReply :: Nat -> String -> SmtpReply
+
+  -- | The reply code.
+  smtp-reply-code :: SmtpReply -> Nat
+  smtp-reply-code r = case r of SmtpReply c m -> c
+
+  -- | The reply message.
+  smtp-reply-message :: SmtpReply -> String
+  smtp-reply-message r = case r of SmtpReply c m -> m
+
+  -- | Reading a reply: before its first line (with the expected code: 0 accepts any, one or two digits match a
+  -- prefix), or within a multi-line reply (code, message so far, and whether the first code was unexpected).
+  data ReplyReader where
+    -- | Waiting for the first line.
+    First :: Nat -> ReplyReader
+    -- | Within a continued reply.
+    More :: Nat -> String -> Bool -> ReplyReader
+
+  -- | What one line does to a reply in progress.
+  data ReplyStep where
+    -- | The reply continues; feed the next line.
+    NeedLine :: ReplyReader -> ReplyStep
+    -- | The reply is complete, or failed.
+    ReplyDone :: Result SmtpError SmtpReply -> ReplyStep
+
+  -- | A reader for a reply with an expected code.
+  smtp-reply-reader :: Nat -> ReplyReader
+  smtp-reply-reader expect = First expect
+
+  -- | A parsed code line: code, whether it continues, message, and whether the code was unexpected.
+  data CodeLine where
+    -- | A well-formed line.
+    CodeLine :: Nat -> Bool -> String -> Bool -> CodeLine
+    -- | A malformed line, with the protocol error's text.
+    BadLine :: String -> CodeLine
+
+  -- | Feed one line (without its line end) to a reply in progress.
+  smtp-reply-line :: ReplyReader -> String -> ReplyStep
+  smtp-reply-line reader line = case reader of
+    First expect -> (case code-line line expect of
+      BadLine text -> ReplyDone (Err (SmtpProtocolError text))
+      CodeLine code continued message unexpected ->
+        if continued then NeedLine (More code message unexpected)
+        else if unexpected then ReplyDone (Err (SmtpReplyError code message))
+        else ReplyDone (Ok (SmtpReply code message)))
+    More code message unexpected -> (case code-line line 0 of
+      BadLine text -> NeedLine (More code (join-line message line) unexpected)
+      CodeLine code2 continued more bad ->
+        if not (code2 == code) then NeedLine (More code (join-line message line) unexpected)
+        else
+          let joined = join-line message more in
+          if continued then NeedLine (More code joined unexpected)
+          else if unexpected then ReplyDone (Err (SmtpReplyError code joined))
+          else ReplyDone (Ok (SmtpReply code joined)))
+
+  -- | A message with one more line.
+  join-line :: String -> String -> String
+  join-line message line = string-concat message (string-concat "\n" line)
+
+  -- | Parse a code line against an expected code.
+  code-line :: String -> Nat -> CodeLine
+  code-line line expect =
+    let b = string-to-bytes line in
+    if bytes-len b < 4 || not (at b 3 == 32 || at b 3 == 45) then BadLine (string-concat "short response: " line)
+    else if not (digit (at b 0) && digit (at b 1) && digit (at b 2)) || at b 0 == 48 then BadLine (string-concat "invalid response code: " line)
+    else
+      let code = 100 * minus (at b 0) 48 + 10 * minus (at b 1) 48 + minus (at b 2) 48 in
+      let unexpected = (expect >= 1 && expect < 10 && not (nat-div code 100 == expect)) || (expect >= 10 && expect < 100 && not (nat-div code 10 == expect)) || (expect >= 100 && expect < 1000 && not (code == expect)) in
+      CodeLine code (at b 3 == 45) (text-of (slice b 4 (minus (bytes-len b) 4))) unexpected
+
+  -- | Whether a byte is an ASCII digit.
+  digit :: Nat -> Bool
+  digit c = c >= 48 && c <= 57
+
+  -- | The byte at an offset, zero outside the buffer.
+  at :: Bytes -> Nat -> Nat
+  at b i = if i < bytes-len b then bytes-get b i else 0
+
+  -- | Saturating subtraction.
+  minus :: Nat -> Nat -> Nat
+  minus a b = if b <= a then a - b else 0
+
+  -- | n bytes from an offset, copied.
+  slice :: Bytes -> Nat -> Nat -> Bytes
+  slice b o n = let out = bytes-new n in let c = (if o + n <= bytes-len b then bytes-copy-range out b 0 o n else ()) in out
+
+  -- | A received line without its LF and a CR before it.
+  smtp-strip-line :: Bytes -> String
+  smtp-strip-line b =
+    let n = if bytes-len b > 0 && at b (minus (bytes-len b) 1) == 10 then minus (bytes-len b) 1 else bytes-len b in
+    let m = if n > 0 && at b (minus n 1) == 13 then minus n 1 else n in
+    text-of (slice b 0 m)
+
+  -- ---------------------------------------------------------------------
+  -- Commands, extensions and the message body.
+  -- ---------------------------------------------------------------------
+
+  -- | Refuse a command argument that contains CR or LF.
+  smtp-validate-line :: String -> Result SmtpError Unit
+  smtp-validate-line s = if has-break (string-to-bytes s) 0 then Err SmtpBadLine else Ok ()
+
+  -- | Whether bytes from i hold CR or LF.
+  has-break :: Bytes -> Nat -> Bool
+  has-break b i = if i >= bytes-len b then False else at b i == 13 || at b i == 10 || has-break b (i + 1)
+
+  -- | The extensions of an EHLO reply: each line after the first as (keyword, parameters), latest first so a
+  -- repeated keyword's last parameters win.
+  smtp-extensions :: String -> List (String, String)
+  smtp-extensions message = extension-lines (drop-first (split-lines (string-to-bytes message) 0 0 Nil)) Nil
+
+  -- | The lines of a message (split at newlines), in order.
+  split-lines :: Bytes -> Nat -> Nat -> List String -> List String
+  split-lines b start i acc =
+    if i >= bytes-len b then reverse (Cons (text-of (slice b start (minus i start))) acc)
+    else if at b i == 10 then split-lines b (i + 1) (i + 1) (Cons (text-of (slice b start (minus i start))) acc)
+    else split-lines b start (i + 1) acc
+
+  -- | A list without its first element.
+  drop-first :: List String -> List String
+  drop-first l = case l of
+    Nil -> Nil
+    Cons x rest -> rest
+
+  -- | Keyword and parameters of each line, prepended.
+  extension-lines :: List String -> List (String, String) -> List (String, String)
+  extension-lines lines acc = case lines of
+    Nil -> acc
+    Cons line rest -> extension-lines rest (Cons (cut-space line) acc)
+
+  -- | A line split at its first space (parameters empty when there is none).
+  cut-space :: String -> (String, String)
+  cut-space line =
+    let b = string-to-bytes line in
+    case first-space b 0 of
+      Some i -> (text-of (slice b 0 i), text-of (slice b (i + 1) (minus (bytes-len b) (i + 1))))
+      None -> (line, "")
+
+  -- | The first space from i.
+  first-space :: Bytes -> Nat -> Option Nat
+  first-space b i = if i >= bytes-len b then None else if at b i == 32 then Some i else first-space b (i + 1)
+
+  -- | The parameters of an extension keyword (compared after upper-casing the query).
+  smtp-extension-lookup :: List (String, String) -> String -> Option String
+  smtp-extension-lookup exts name =
+    let key = upper name in
+    case exts of
+      Nil -> None
+      Cons e rest -> (case e of
+        (k, v) -> if k == key then Some v else smtp-extension-lookup rest name)
+
+  -- | ASCII upper case.
+  upper :: String -> String
+  upper s =
+    let b = string-to-bytes s in
+    let out = bytes-new (bytes-len b) in
+    let filled = upper-from b out 0 in
+    text-of out
+
+  -- | Upper-case bytes from i.
+  upper-from :: Bytes -> Bytes -> Nat -> Unit
+  upper-from b out i = if i >= bytes-len b || i >= bytes-len out then ()
+    else
+      let c = at b i in
+      let v = if c >= 97 && c <= 122 then minus c 32 else c in
+      let s = if v < 256 then bytes-set out i v else () in
+      upper-from b out (i + 1)
+
+  -- | The authentication mechanisms an extension list offers (the AUTH keyword's space-separated parameters).
+  smtp-auth-mechanisms :: List (String, String) -> List String
+  smtp-auth-mechanisms exts = case smtp-extension-lookup exts "AUTH" of
+    Some v -> split-spaces (string-to-bytes v) 0 0 Nil
+    None -> Nil
+
+  -- | Space-separated words (empty words kept), in order.
+  split-spaces :: Bytes -> Nat -> Nat -> List String -> List String
+  split-spaces b start i acc =
+    if i >= bytes-len b then reverse (Cons (text-of (slice b start (minus i start))) acc)
+    else if at b i == 32 then split-spaces b (i + 1) (i + 1) (Cons (text-of (slice b start (minus i start))) acc)
+    else split-spaces b start (i + 1) acc
+
+  -- | Where the body encoder is: at the very beginning, at the start of a line, within a line, or just after a CR.
+  data DotState where
+    -- | Nothing written yet.
+    AtBegin :: DotState
+    -- | Just after a line end.
+    AtLineStart :: DotState
+    -- | Within a line.
+    InLine :: DotState
+    -- | Just after a CR.
+    AfterCr :: DotState
+
+  -- | The transparency encoding of a message body: a lone LF becomes CR LF, a dot that starts a line is doubled,
+  -- and the end-of-data line follows (after a CR LF unless the body already ends with one).
+  smtp-dot-encode :: Bytes -> Bytes
+  smtp-dot-encode body =
+    let out = bytes-new (2 * bytes-len body + 5) in
+    let n = dot-from body out 0 0 AtBegin in
+    slice out 0 n
+
+  -- | Encode bytes from i, writing at o in a state; returns the length written.
+  dot-from :: Bytes -> Bytes -> Nat -> Nat -> DotState -> Nat
+  dot-from body out i o state =
+    if i >= bytes-len body then dot-close out o state
+    else
+      let c = at body i in
+      case state of
+        AfterCr ->
+          let w = put out o c in
+          dot-from body out (i + 1) (o + 1) (if c == 10 then AtLineStart else InLine)
+        other ->
+          let o1 = if (is-start state) && c == 46 then o + put-count out o 46 else o in
+          if c == 10 then
+            let r = put out o1 13 in
+            let w = put out (o1 + 1) 10 in
+            dot-from body out (i + 1) (o1 + 2) AtLineStart
+          else
+            let w = put out o1 c in
+            dot-from body out (i + 1) (o1 + 1) (if c == 13 then AfterCr else InLine)
+
+  -- | Whether a state is at the start of a line.
+  is-start :: DotState -> Bool
+  is-start state = case state of
+    AtBegin -> True
+    AtLineStart -> True
+    other -> False
+
+  -- | Store a byte and count it.
+  put-count :: Bytes -> Nat -> Nat -> Nat
+  put-count out o c = let w = put out o c in 1
+
+  -- | Store a byte when it fits.
+  put :: Bytes -> Nat -> Nat -> Unit
+  put b i v = if i < bytes-len b && v < 256 then bytes-set b i v else ()
+
+  -- | The end of data: CR LF "." CR LF, or only what the state still needs before the dot line.
+  dot-close :: Bytes -> Nat -> DotState -> Nat
+  dot-close out o state = case state of
+    AtLineStart -> o + write-tail out o [46, 13, 10]
+    AfterCr -> o + write-tail out o [10, 46, 13, 10]
+    other -> o + write-tail out o [13, 10, 46, 13, 10]
+
+  -- | Store bytes from an offset and count them.
+  write-tail :: Bytes -> Nat -> List Nat -> Nat
+  write-tail out o bs = case bs of
+    Nil -> 0
+    Cons x rest -> let w = put out o x in 1 + write-tail out (o + 1) rest
+
+  -- ---------------------------------------------------------------------
+  -- Authentication.
+  -- ---------------------------------------------------------------------
+
+  -- | A way to authenticate.
+  data SmtpAuth where
+    -- | PLAIN (RFC 4616): authorization identity, user, password, and the host the client must be connected to.
+    -- It is refused over unencrypted connections except to the local machine.
+    SmtpPlainAuth :: String -> String -> String -> String -> SmtpAuth
+    -- | CRAM-MD5 (RFC 2195): user and shared secret.
+    SmtpCramMd5Auth :: String -> String -> SmtpAuth
+
+  -- | Whether a server name is the local machine.
+  smtp-is-localhost :: String -> Bool
+  smtp-is-localhost name = name == "localhost" || name == "127.0.0.1" || name == "::1"
+
+  -- | Start an exchange with a server (its name and whether the connection is encrypted): the mechanism and the
+  -- initial response (empty when the mechanism sends none).
+  smtp-auth-start :: SmtpAuth -> String -> Bool -> Result SmtpError (String, Bytes)
+  smtp-auth-start auth server tls = case auth of
+    SmtpPlainAuth identity user password host ->
+      if not tls && not (smtp-is-localhost server) then Err (SmtpAuthRefused "unencrypted connection")
+      else if not (server == host) then Err (SmtpAuthRefused "wrong host name")
+      else Ok ("PLAIN", bytes-concat [string-to-bytes identity, bytes-new 1, string-to-bytes user, bytes-new 1, string-to-bytes password])
+    SmtpCramMd5Auth user secret -> Ok ("CRAM-MD5", bytes-new 0)
+
+  -- | Answer a server message (decoded) that is a challenge when more is set: the next response, or None when the
+  -- exchange is complete on this side.
+  smtp-auth-next :: SmtpAuth -> Bytes -> Bool -> Result SmtpError (Option Bytes)
+  smtp-auth-next auth message more = case auth of
+    SmtpPlainAuth identity user password host -> if more then Err (SmtpAuthRefused "unexpected server challenge") else Ok None
+    SmtpCramMd5Auth user secret ->
+      if more then Ok (Some (string-to-bytes (string-concat user (string-concat " " (hex-encode (hmac-md5 (string-to-bytes secret) message))))))
+      else Ok None
+
+  -- | HMAC-MD5 (key then message) with 64-byte blocks.
+  hmac-md5 :: Bytes -> Bytes -> Bytes
+  hmac-md5 key message =
+    let k = if bytes-len key > 64 then md5-sum key else key in
+    md5-sum (bytes-concat [pad k 92, md5-sum (bytes-concat [pad k 54, message])])
+
+  -- | A 64-byte block of the key (zero-padded) with every byte XORed with a constant.
+  pad :: Bytes -> Nat -> Bytes
+  pad key c =
+    let out = bytes-new 64 in
+    let filled = pad-from key c out 0 in
+    out
+
+  -- | Pad bytes from i.
+  pad-from :: Bytes -> Nat -> Bytes -> Nat -> Unit
+  pad-from key c out i = if i >= 64 then ()
+    else
+      let v = u8-to-nat (bit-xor-u8 (byte (at key i)) (byte c)) in
+      let s = if i < bytes-len out then bytes-set out i v else () in
+      pad-from key c out (i + 1)
+
+  -- | A number below 256 as a byte.
+  byte :: Nat -> U8
+  byte n = if n < 256 then wrapping-i64-to-u8 (nat-to-i64 n) else 0

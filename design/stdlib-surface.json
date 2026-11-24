@@ -2143,10 +2143,27 @@
     },
     {
       "reference_package": "net/smtp",
-      "status": "unreviewed",
-      "cinch_modules": [],
-      "remaining": [],
-      "reference_declarations": 27
+      "status": "partial",
+      "cinch_modules": [
+        "Effect.Smtp",
+        "Text.Smtp"
+      ],
+      "remaining": [
+        "StartTLS and TLSConnectionState (no TLS implementation yet)",
+        "NewClient over an arbitrary connection value"
+      ],
+      "reference_declarations": 27,
+      "tests": [
+        "lib_smtp"
+      ],
+      "capability_mapping": {
+        "Dial/Client.Close": "smtp-dial host port reads the 220 greeting; smtp-close",
+        "Hello/Extension/Verify/Reset/Noop/Quit": "smtp-hello (refused after the greeting), smtp-extension, smtp-verify, smtp-reset, smtp-noop and smtp-quit; each returns the next SmtpClient",
+        "Auth/PlainAuth/CRAMMD5Auth/ServerInfo": "smtp-auth with SmtpPlainAuth (refused over unencrypted connections except to the local machine, and for the wrong host) or SmtpCramMd5Auth; Text.Smtp exposes the exchange as smtp-auth-start and smtp-auth-next",
+        "Mail/Rcpt/Data": "smtp-mail (BODY=8BITMIME and SMTPUTF8 when offered), smtp-rcpt and smtp-data with the transparency encoding",
+        "SendMail": "smtp-send-mail host port (Option SmtpAuth) sender recipients message"
+      },
+      "review": "The protocol core is pure: an explicit reply state machine (continuations, foreign-code lines folded into the message, the expected-code error carrying the full message), CR/LF line validation, extension parsing and a four-state body encoder; the client threads its socket, read-ahead buffer and greeting state (not greeted, greeted with or without extensions, or failed for good) through every call. Nineteen scenarios replayed from the reference client's transcripts (EHLO and the HELO fallback, both authentication mechanisms and their refusals and aborts, rejected recipients and data, multi-line, mismatched and malformed replies, injected line breaks, late Hello, dot-stuffing and line-end repair) produce byte-identical client output and identical results. TLS remains."
     },
     {
       "reference_package": "net/textproto",
