@@ -199,7 +199,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_Weekday"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Weekday.Eq_Weekday</code></span></li>
 <li id="i-Ord_Weekday"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Weekday/#t-Weekday" title="Data.Time.Weekday.Weekday">Weekday</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Weekday.Ord_Weekday</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Weekday.cinch`](/packages/stdlib/Data.Time.Weekday/source/). Source SHA-256: `5f0d65473156ec4f948989a0a1bf99b155c644495f8d29da28f5b31e0e6ddaf8`.

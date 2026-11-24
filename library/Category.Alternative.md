@@ -44,7 +44,3 @@ prelude split (Data.List/Data.Option).
 | Operator | Associativity | Precedence |
 | --- | --- | --- |
 | `<\|>` | `infixl` | `3` |
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Category/Alternative.cinch`](/packages/stdlib/Category.Alternative/source/). Source SHA-256: `4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc`.

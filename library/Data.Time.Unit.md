@@ -263,7 +263,3 @@ refused.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Unit.cinch`](/packages/stdlib/Data.Time.Unit/source/). Source SHA-256: `f2dfb80db9ec3788b0d698bb055050c8842b44d14bf47ee8a7c72762175cc8ab`.

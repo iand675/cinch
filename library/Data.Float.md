@@ -753,7 +753,3 @@ The Bessel function of the second kind of integer order n; NaN for negative x.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Float.cinch`](/packages/stdlib/Data.Float/source/). Source SHA-256: `ed1856b6e134453e2e8b1efa30c70515d533ce4d2b4a5d6a981fe4d7c9777d1a`.

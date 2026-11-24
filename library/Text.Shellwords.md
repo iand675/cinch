@@ -118,7 +118,3 @@ scalars).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Shellwords.cinch`](/packages/stdlib/Text.Shellwords/source/). Source SHA-256: `04b6373930f8b453c532abfa2fa2e52461c7308a62e2c1c00c64eb21411bd5f1`.

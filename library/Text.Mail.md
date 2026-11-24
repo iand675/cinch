@@ -209,7 +209,3 @@ an empty name is skipped, and leading blanks are removed from values.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Mail.cinch`](/packages/stdlib/Text.Mail/source/). Source SHA-256: `1885b646b2bcd7e39ad20326334b337c32e134496b8b0dc0cac4e14bea486090`.

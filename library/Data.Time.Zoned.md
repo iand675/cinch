@@ -238,7 +238,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-Eq_Zoned"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned/#t-Zoned" title="Data.Time.Zoned.Zoned">Zoned</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Zoned.Eq_Zoned</code></span><div class="doc-child-prose">The same instant in a zone of the same name.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Zoned.cinch`](/packages/stdlib/Data.Time.Zoned/source/). Source SHA-256: `399a55deb46acb1139e9c71c041af7242622cb6f9d798114bdc0e04d561c1de0`.

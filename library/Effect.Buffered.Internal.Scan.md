@@ -46,7 +46,3 @@ Find a byte in a checked half-open owner span, returning its absolute offset or 
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Buffered/Internal/Scan.cinch`](/packages/stdlib/Effect.Buffered.Internal.Scan/source/). Source SHA-256: `027cfc4371a5d8d9f876582c684035fe180b8158e8aacc85a67efeee3f67153e`.

@@ -37,7 +37,3 @@ Format a finite binary32 as its shortest exact JSON decimal, preserving negative
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Json/Binary32.cinch`](/packages/stdlib/Text.Json.Binary32/source/). Source SHA-256: `ad2ac932fc7da1befe03fefc9fdf84b98c7276f7af996ed9d3617bfd635d2693`.

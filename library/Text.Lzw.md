@@ -95,7 +95,3 @@ Render an LZW error.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Lzw.cinch`](/packages/stdlib/Text.Lzw/source/). Source SHA-256: `afc9d6247c42c1a0e7acd3cedbd0febb7fdfe91b87de5092078a9d731ec734c4`.

@@ -37,7 +37,3 @@ Immutable row-major arrays, with checked runtime shapes of any rank.
 <article class="doc-entry" id="v-tensor-shape">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">tensor-shape</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. <span class="tok-constructor">Tensor</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code><span class="doc-sig-links"><a href="#v-tensor-shape" title="Permalink">#</a><a href="/packages/stdlib/Data.Tensor/source/#L8" title="View source at line 8">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Tensor.cinch`](/packages/stdlib/Data.Tensor/source/). Source SHA-256: `caeef1f823e842a73b16519af6e7baa9de0ac0ddb00d31472ed9461116836eb7`.

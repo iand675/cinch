@@ -1269,7 +1269,3 @@ The invariant exact integer-zero number, usable as a total descriptor default.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Json/Value.cinch`](/packages/stdlib/Text.Json.Value/source/). Source SHA-256: `21a53224006fad8dea23f64b7fd1ffee7961eaf5ccf7f4dc6c7b9e1e5a3a9eb0`.

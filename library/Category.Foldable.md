@@ -237,7 +237,3 @@ of `sum`: the same walk with an explicit starting value.
 <article class="doc-entry" id="v-worse">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">worse</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-worse" title="Permalink">#</a><a href="/packages/stdlib/Category.Foldable/source/#L172" title="View source at line 172">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Category/Foldable.cinch`](/packages/stdlib/Category.Foldable/source/). Source SHA-256: `6ca66ed68587a97bcf1e3e69c64f47942be1743f898fad08d9020f6bc9f39e33`.

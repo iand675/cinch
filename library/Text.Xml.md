@@ -338,7 +338,3 @@ Decode every token of a document.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Xml.cinch`](/packages/stdlib/Text.Xml/source/). Source SHA-256: `3f790721d3186a9a3a2c7cc288608b39d2565307f09f13bea1693ea0d83e681b`.

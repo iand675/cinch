@@ -41,7 +41,3 @@ A PCG generator seeded with 128 bits of operating-system entropy.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Rand.cinch`](/packages/stdlib/Effect.Rand/source/). Source SHA-256: `1849a085f5e7c61bd4d30491b389f120737eeaee6049ff0839e428e717b7efdf`.

@@ -272,7 +272,3 @@ Observe the advanced sink, including its accepted prefix after a failed write.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Csv.cinch`](/packages/stdlib/Effect.Csv/source/). Source SHA-256: `115546a78f2887a0c90afee36770a12bb8df504ef53c76af994a5453a26a2605`.

@@ -240,7 +240,3 @@ A safe encoded byte bound, including a full five-symbol final allocation.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Ascii85.cinch`](/packages/stdlib/Text.Ascii85/source/). Source SHA-256: `6550cb8d1b45de4b2d0ca392ad31b6cae716213b003f1789ae7d0281948d222b`.

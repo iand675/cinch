@@ -140,7 +140,3 @@ The path's text.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Path.cinch`](/packages/stdlib/Data.Path/source/). Source SHA-256: `1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772`.

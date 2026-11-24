@@ -107,7 +107,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Semiring_Int"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Int.Semiring_Int</code></span><div class="doc-child-prose">The semiring of integers: addition and multiplication with their identities (see the header).</div></li>
 <li id="i-Sub_Int"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Int/" title="Int">Int</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Int.Sub_Int</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Int.cinch`](/packages/stdlib/Data.Int/source/). Source SHA-256: `4936154410419ff4f5a7b052e2e06ad5d272f541cfd026867f4192549b8a3319`.

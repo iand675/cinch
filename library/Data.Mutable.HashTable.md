@@ -255,7 +255,3 @@ An empty table that holds `n` entries before its first growth.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/HashTable.cinch`](/packages/stdlib/Data.Mutable.HashTable/source/). Source SHA-256: `c57f816af4f97eea433112fc430685e554b6fca74cc34406fdbfd840e1f642b1`.

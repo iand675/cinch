@@ -477,7 +477,3 @@ Render text records in order with a consistent delimiter and LF/CRLF policy.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Csv/Record.cinch`](/packages/stdlib/Text.Csv.Record/source/). Source SHA-256: `a9f4220c17a27ef09808c2835109cf7b5e9e83fddae72d23bc649e0923c11806`.

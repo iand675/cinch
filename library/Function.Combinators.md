@@ -120,7 +120,3 @@ fixity).
 <article class="doc-entry" id="v-uncurry">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uncurry</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span> <span class="tok-variable">c</span>. (<span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span>) <span class="tok-operator">-&gt;</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>) <span class="tok-operator">-&gt;</span> <span class="tok-variable">c</span></code><span class="doc-sig-links"><a href="#v-uncurry" title="Permalink">#</a><a href="/packages/stdlib/Function.Combinators/source/#L79" title="View source at line 79">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Function/Combinators.cinch`](/packages/stdlib/Function.Combinators/source/). Source SHA-256: `8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef`.

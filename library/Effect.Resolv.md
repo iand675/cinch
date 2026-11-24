@@ -143,7 +143,3 @@ onto each line); the addresses are the same for every port.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Resolv.cinch`](/packages/stdlib/Effect.Resolv/source/). Source SHA-256: `a965d0886171f2b2cb753518e0dc2dedf3442cb80fe6384d16b92804c61a05f0`.

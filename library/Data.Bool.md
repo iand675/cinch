@@ -113,7 +113,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-JsonCodec_Bool"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Bool.JsonCodec_Bool</code></span><div class="doc-child-prose">The A6 JSON column codec for booleans (decision D65's covered set): JsonCodec's round-trip law (decode-json (encode-json x) is Ok x).</div></li>
 <li id="i-Ord_Bool"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bool/" title="Bool">Bool</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Bool.Ord_Bool</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bool.cinch`](/packages/stdlib/Data.Bool/source/). Source SHA-256: `b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5`.

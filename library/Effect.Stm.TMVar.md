@@ -122,7 +122,3 @@ waiting.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stm/TMVar.cinch`](/packages/stdlib/Effect.Stm.TMVar/source/). Source SHA-256: `6b18623aeea5cc48d7e0b68c901b7242d38f9ca28f142d9a8f609a6771f9fba4`.

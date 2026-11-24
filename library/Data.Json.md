@@ -42,7 +42,3 @@ the payloads stay inside the family.
 <details class="doc-instances"><summary>Instances (1)</summary><ul><li><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code> <span class="doc-inst-meta">implicit · <a href="/packages/stdlib/Text.Json/#instances">Text.Json</a></span></li></ul></details>
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Json.cinch`](/packages/stdlib/Data.Json/source/). Source SHA-256: `6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b`.

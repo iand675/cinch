@@ -57,7 +57,3 @@ Find the last exact byte value without decoding or changing the input.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Search.cinch`](/packages/stdlib/Data.Bytes.Search/source/). Source SHA-256: `65b8c75745399b692031aff515386ffaed14ad9f50b4e4a644a8f3ce259c5256`.

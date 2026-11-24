@@ -72,7 +72,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-Semigroup_Sorted"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sorted/#t-Sorted" title="Data.Sorted.Sorted">Sorted</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Sorted.Semigroup_Sorted</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Sorted.cinch`](/packages/stdlib/Data.Sorted/source/). Source SHA-256: `1ff30a4df1ec338e447e96442dd13c2cd6f58745f18164326eefe1d5ac692374`.

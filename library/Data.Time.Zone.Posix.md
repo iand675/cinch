@@ -140,7 +140,3 @@ The offsets a civil reading can have under the rule.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Zone/Posix.cinch`](/packages/stdlib/Data.Time.Zone.Posix/source/). Source SHA-256: `ab9f6f5fe7365fcf24af9c6d156b80f1de73e01b0edf070d1daf0b430d521ce9`.

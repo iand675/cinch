@@ -269,7 +269,3 @@ The exact original 32-bit stride, including values larger than the Unicode domai
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Unicode/Range.cinch`](/packages/stdlib/Data.Unicode.Range/source/). Source SHA-256: `36f645bc334d75474d5dd70f1aa680d330a97476a89a41ee872d880620c036c8`.

@@ -126,7 +126,3 @@ The entries from the most recently used to the least.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/LruCache.cinch`](/packages/stdlib/Data.Mutable.LruCache/source/). Source SHA-256: `4ade3198bc4fd7a8686d5c6ffa38a61a80dfaa62153c15bd9543a4d10e5116de`.

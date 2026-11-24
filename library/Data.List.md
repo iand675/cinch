@@ -460,7 +460,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Semigroup_List"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">t</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.List.Semigroup_List</code></span><div class="doc-child-prose">Semigroup under append: associative because list concatenation is (moved from Algebra.Semigroup at the prelude split).</div></li>
 <li id="i-Traversable_List"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a></code> <span class="doc-inst-meta">Implicit · <code>Data.List.Traversable_List</code></span><div class="doc-child-prose">Left-to-right; the whole list rebuilds under one f (moved from Category.Traversable).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/List.cinch`](/packages/stdlib/Data.List/source/). Source SHA-256: `f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d`.

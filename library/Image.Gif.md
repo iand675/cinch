@@ -251,7 +251,3 @@ Screen width.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Image/Gif.cinch`](/packages/stdlib/Image.Gif/source/). Source SHA-256: `ff3c8851f3f303ba6dd255d062414ba3fb90b555e403a852f245d25589aeaeeb`.

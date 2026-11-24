@@ -214,7 +214,3 @@ bytes leaves buffer and cursor unchanged.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/StringIo.cinch`](/packages/stdlib/Data.StringIo/source/). Source SHA-256: `9eaf153aa82781838f853ea18293df64e0bda38a2055952c74da9dd84e94c4e1`.

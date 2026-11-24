@@ -295,7 +295,3 @@ The value.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Cookie.cinch`](/packages/stdlib/Text.Cookie/source/). Source SHA-256: `30a3d34e01b8800167c59dad6112b180b6a1185f80e2ed3d5cc2270efd2af216`.

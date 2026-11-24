@@ -166,7 +166,3 @@ array.
 <article class="doc-entry" id="v-warn">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">warn</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Log/#t-LogLevel" title="Effect.Log.LogLevel">LogLevel</a></code><span class="doc-sig-links"><a href="#v-warn" title="Permalink">#</a><a href="/packages/stdlib/Effect.Log/source/#L48" title="View source at line 48">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Log.cinch`](/packages/stdlib/Effect.Log/source/). Source SHA-256: `c32dae495122e7b3963d8fa2fd19fab81031f29093493080206d0191e7db09ed`.

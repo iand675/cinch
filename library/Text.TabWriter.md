@@ -165,7 +165,3 @@ A writer with nothing buffered.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/TabWriter.cinch`](/packages/stdlib/Text.TabWriter/source/). Source SHA-256: `e13da1b41483f29493fe929ca885b7a91a5483f3a3b11ff56482fc034161acc5`.

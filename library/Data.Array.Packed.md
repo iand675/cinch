@@ -70,7 +70,3 @@ format travels with the buffer, so generic reads and updates preserve it.
 <article class="doc-entry" id="v-array-from-usizes">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">array-from-usizes</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code><span class="doc-sig-links"><a href="#v-array-from-usizes" title="Permalink">#</a><a href="/packages/stdlib/Data.Array.Packed/source/#L19" title="View source at line 19">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Array/Packed.cinch`](/packages/stdlib/Data.Array.Packed/source/). Source SHA-256: `799f936d2712685f6ade99dd777c79c7c039c1e7ca28b8988700fde0f104b364`.

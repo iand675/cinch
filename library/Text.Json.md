@@ -244,7 +244,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-JsonCodec_Json"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Codec/#c-JsonCodec" title="Text.Codec.JsonCodec">JsonCodec</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Json/#t-Json" title="Data.Json.Json">Json</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Json.JsonCodec_Json</code></span><div class="doc-child-prose">JsonCodec's identity column (the class and its decode-error vocabulary live in Text.Codec; the I64/Bool instances live with their types in Data.Machine/Data.Bool).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Json.cinch`](/packages/stdlib/Text.Json/source/). Source SHA-256: `2293f2ddacb0a057f8c34771b1a069ab844f420f4b96029c15c74bcce2730089`.

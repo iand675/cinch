@@ -166,7 +166,3 @@ XChaCha20-Poly1305 sealing with a 24-byte nonce.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/ChaCha20Poly1305.cinch`](/packages/stdlib/Crypto.ChaCha20Poly1305/source/). Source SHA-256: `196fddc50996e7438fb32c0c994df4a1201f453f85d0669293a933a2d04db699`.

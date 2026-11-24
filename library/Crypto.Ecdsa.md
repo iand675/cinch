@@ -109,7 +109,3 @@ Verify a DER signature; any encoding that is not strict DER fails.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Ecdsa.cinch`](/packages/stdlib/Crypto.Ecdsa/source/). Source SHA-256: `6f15ab42fb1c78de630051e078c31260bdc5b3aa416ac90423471f79e171ffa1`.

@@ -276,7 +276,3 @@ Validate a sink's signed report before advancing any buffered byte interval.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Buffered/Core.cinch`](/packages/stdlib/Effect.Buffered.Core/source/). Source SHA-256: `5c63e279b003fbc6ace432fa73821711e5072d651be7736ad53ce64583a9b951`.

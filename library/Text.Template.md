@@ -249,7 +249,3 @@ Escape for a URL query component: letters, digits and "-_.~" stay, a space becom
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Template.cinch`](/packages/stdlib/Text.Template/source/). Source SHA-256: `c88aa762a5a75fd763c618f7aacebe7540ce8bc76b0f87e1472752c5b36a3fc6`.

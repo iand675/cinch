@@ -510,7 +510,3 @@ Retain an explicitly checked half-open owner range, including empty ranges at th
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/View.cinch`](/packages/stdlib/Data.Bytes.View/source/). Source SHA-256: `3e3335b571ed40d23013ebdeb851311cbb8ad85d32e2841450050e5b5a332aeb`.

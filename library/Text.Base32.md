@@ -382,7 +382,3 @@ Newline values, values above 255 and alphabet collisions return named errors.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Base32.cinch`](/packages/stdlib/Text.Base32/source/). Source SHA-256: `e901c7d08842d6580c765eefac5ad5d7ab48078c6fc46dbb963e3abafd55acbd`.

@@ -36,7 +36,3 @@ constraints it uses. Instances live with their type.
 | --- | --- | --- |
 | `/=` | `infix` | `3` |
 | `==` | `infix` | `3` |
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Relation/Eq.cinch`](/packages/stdlib/Relation.Eq/source/). Source SHA-256: `a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c`.

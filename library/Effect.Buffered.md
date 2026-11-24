@@ -75,7 +75,3 @@ Observe the current writer component without performing I/O or implicitly flushi
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Buffered.cinch`](/packages/stdlib/Effect.Buffered/source/). Source SHA-256: `a9669f4c6996da84707ead19c237498e0b043fcac8dc1e4cc945ccaecff22054`.

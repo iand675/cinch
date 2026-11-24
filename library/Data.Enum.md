@@ -64,7 +64,3 @@ one.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Enum.cinch`](/packages/stdlib/Data.Enum/source/). Source SHA-256: `ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8`.

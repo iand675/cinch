@@ -55,7 +55,3 @@ Replace the initialized value, retaining the replacement and releasing the previ
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Buffered/Internal/Cell.cinch`](/packages/stdlib/Effect.Buffered.Internal.Cell/source/). Source SHA-256: `3c33309272f788521ec17bf6fa60ccd331afdb311049bb2977cedaf0ac067564`.

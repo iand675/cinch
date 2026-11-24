@@ -159,7 +159,3 @@ Expand a key that always uses the constant-time portable rounds, whatever the pr
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Aes.cinch`](/packages/stdlib/Crypto.Aes/source/). Source SHA-256: `8371f72bd9bf1bdffc8d8e61702a064e82d3e0a0388f1b35eb0ec1aa33f990be`.

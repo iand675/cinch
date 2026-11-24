@@ -374,7 +374,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_MimeKey"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <span class="tok-constructor">MimeKey</span></code> <span class="doc-inst-meta">Implicit · <code>Text.Mime.Eq_MimeKey</code></span><div class="doc-child-prose">Compare only private immutable key contents, without changing buffer equality policies.</div></li>
 <li id="i-Hash_MimeKey"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <span class="tok-constructor">MimeKey</span></code> <span class="doc-inst-meta">Implicit · <code>Text.Mime.Hash_MimeKey</code></span><div class="doc-child-prose">Reuse stable byte hashing only over immutable privately owned snapshots.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Mime.cinch`](/packages/stdlib/Text.Mime/source/). Source SHA-256: `399fb3c576ab4f4c13a0749dfa25dc72af00078636758a86e73c942018fd46a6`.

@@ -247,7 +247,3 @@ written loops).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Prim/Sys/Darwin.cinch`](/packages/stdlib/Prim.Sys.Darwin/source/). Source SHA-256: `9bff58d77c388a55aeacf09f90e66094177e2a6ea64025674ee9a20e6c453616`.

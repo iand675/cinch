@@ -202,7 +202,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-FromList_Set"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Set/#t-Set" title="Data.Set.Set">Set</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">Implicit · <code>Data.Set.FromList_Set</code></span><div class="doc-child-prose">Collection literals at Set (surface grammar local amendments section 10).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Set.cinch`](/packages/stdlib/Data.Set/source/). Source SHA-256: `1c762cb524ccc587696d8927ad46d3fd2c83e42cb7d8590fe096277b45eb6161`.

@@ -132,7 +132,3 @@ checked family only, per the primitive types specification.
 | `+` | `infixl` | `8` |
 | `-` | `infixl` | `8` |
 | `/` | `infixl` | `9` |
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Algebra/Arithmetic.cinch`](/packages/stdlib/Algebra.Arithmetic/source/). Source SHA-256: `2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0`.

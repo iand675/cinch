@@ -182,7 +182,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Hash_Char"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Char.Hash_Char</code></span><div class="doc-child-prose">The scalar value is the digest (instances live with their type).</div></li>
 <li id="i-Ord_Char"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Char/" title="Char">Char</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Char.Ord_Char</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Char.cinch`](/packages/stdlib/Data.Char/source/). Source SHA-256: `217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb`.

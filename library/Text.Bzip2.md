@@ -60,7 +60,3 @@ Render a bzip2 error.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Bzip2.cinch`](/packages/stdlib/Text.Bzip2/source/). Source SHA-256: `ac64666d69ed61d0f44e7ae56cbb1a840564046919b9da0718ae7b8e50bc9283`.

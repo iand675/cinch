@@ -184,7 +184,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Ord_Ipv4"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv4" title="Data.IpAddr.Ipv4">Ipv4</a></code> <span class="doc-inst-meta">Implicit · <code>Data.IpAddr.Ord_Ipv4</code></span></li>
 <li id="i-Ord_Ipv6"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.IpAddr/#t-Ipv6" title="Data.IpAddr.Ipv6">Ipv6</a></code> <span class="doc-inst-meta">Implicit · <code>Data.IpAddr.Ord_Ipv6</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/IpAddr.cinch`](/packages/stdlib/Data.IpAddr/source/). Source SHA-256: `05576a008c5e1b982453d2d7b1e404fc56e21b038d69fbefe6ad6bc3845980ba`.

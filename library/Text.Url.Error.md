@@ -186,7 +186,3 @@ Produce an ASCII byte-exact quoted diagnostic; non-ASCII bytes use hexadecimal e
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Error.cinch`](/packages/stdlib/Text.Url.Error/source/). Source SHA-256: `93da213a73d120c7bb2d0b5651b52a28646a13727582d49bb0d70600a92fc56f`.

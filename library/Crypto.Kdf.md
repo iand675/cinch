@@ -98,7 +98,3 @@ Derive a positive-length key with at least one iteration. At most
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Kdf.cinch`](/packages/stdlib/Crypto.Kdf/source/). Source SHA-256: `ee877d5b4b05c5425637d29b05dd35b3012f291e16bb67d159fe820484033291`.

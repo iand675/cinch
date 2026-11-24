@@ -58,7 +58,3 @@ Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= byt
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Word.cinch`](/packages/stdlib/Data.Bytes.Word/source/). Source SHA-256: `a67d8ecfa74d6b11039d13408f3efe7e8222de631b86a4e455f0976d8104f7d8`.

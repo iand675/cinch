@@ -122,7 +122,3 @@ here) and only keeps the propagation total.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Random.cinch`](/packages/stdlib/Effect.Random/source/). Source SHA-256: `75d3f181771dfa42e5c912f04c9a003e943b3e6eb7ebabe45eefa9e028be9216`.

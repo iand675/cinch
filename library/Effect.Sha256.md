@@ -49,7 +49,3 @@ Hash a whole chunk, returning its accepted count and the advanced immutable stat
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Sha256.cinch`](/packages/stdlib/Effect.Sha256/source/). Source SHA-256: `531b0b74ab549b22d7ee6837eb4090db8b31800860afa8bec249f2f4fd64048f`.

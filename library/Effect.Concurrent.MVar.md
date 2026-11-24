@@ -177,7 +177,3 @@ Remove and return an immediately available value, or return None without waiting
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Concurrent/MVar.cinch`](/packages/stdlib/Effect.Concurrent.MVar/source/). Source SHA-256: `1367ee0fbdb4b2ca7e6bb42c760182a437f1ad3b2f4f83d83cadfae83719f52e`.

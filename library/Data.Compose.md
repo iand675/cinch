@@ -37,7 +37,3 @@ family's shape is complete.
 <article class="doc-entry" id="v-get-compose">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">get-compose</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">f</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) (<span class="tok-variable">g</span> :: <span class="tok-constructor">Type</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Type</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compose/#t-Compose" title="Data.Compose.Compose">Compose</a> <span class="tok-variable">f</span> <span class="tok-variable">g</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">f</span> (<span class="tok-variable">g</span> <span class="tok-variable">a</span>)</code><span class="doc-sig-links"><a href="#v-get-compose" title="Permalink">#</a><a href="/packages/stdlib/Data.Compose/source/#L16" title="View source at line 16">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Compose.cinch`](/packages/stdlib/Data.Compose/source/). Source SHA-256: `e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80`.

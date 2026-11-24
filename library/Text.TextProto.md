@@ -223,7 +223,3 @@ Remove leading and trailing ASCII whitespace (space, tab, CR, LF).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/TextProto.cinch`](/packages/stdlib/Text.TextProto/source/). Source SHA-256: `3bbe1d9e1cb3ceec6392119510c325ef7cac6357b3cd43a891cd7ce424c06a1b`.

@@ -278,7 +278,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_TimeOfDay"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.TimeOfDay.Eq_TimeOfDay</code></span></li>
 <li id="i-Ord_TimeOfDay"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.TimeOfDay.Ord_TimeOfDay</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/TimeOfDay.cinch`](/packages/stdlib/Data.Time.TimeOfDay/source/). Source SHA-256: `c5a8af68643957b15c1eabba4f52a562b75b064188e6e588624d7cc415090296`.

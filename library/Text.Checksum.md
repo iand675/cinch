@@ -145,7 +145,3 @@ Continue a finished CRC-64 with the same reflected polynomial and additional byt
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Checksum.cinch`](/packages/stdlib/Text.Checksum/source/). Source SHA-256: `6f645a7b6fd84e7edbd8b66d0ec3bf721621deb409d3f89affddac9df7f4f684`.

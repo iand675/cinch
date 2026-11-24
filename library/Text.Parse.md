@@ -452,7 +452,3 @@ stands (the handler is tried once: one-shot recovery).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Parse.cinch`](/packages/stdlib/Text.Parse/source/). Source SHA-256: `4fe975aa19fd3e43909a368f57dd13e11e86a5ab90192834a9591e27e448da6b`.

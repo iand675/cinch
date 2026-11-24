@@ -65,7 +65,3 @@ Resolve an already parsed reference against a base with independent immutable re
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Resolve.cinch`](/packages/stdlib/Text.Url.Resolve/source/). Source SHA-256: `5fd9ec9bddbd778d81d392e1e0e18b6be2f037cbd0f1b15fe1811e4eaf91613e`.

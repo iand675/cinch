@@ -208,7 +208,3 @@ Refuse a command argument that contains CR or LF.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Smtp.cinch`](/packages/stdlib/Text.Smtp/source/). Source SHA-256: `ab46aeac80b9aa3bcb33399324012c1533fb999ecbf5c9012df64a01130da419`.

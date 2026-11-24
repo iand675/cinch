@@ -72,7 +72,3 @@ A host name with every non-ASCII label encoded as "xn--" and its Punycode.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Punycode.cinch`](/packages/stdlib/Text.Punycode/source/). Source SHA-256: `c27491d86e8dfe07722cadc036211354ecff896d53959e94b6d534e7a72da3b6`.

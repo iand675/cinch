@@ -105,7 +105,3 @@ are elements).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/UnionFind.cinch`](/packages/stdlib/Data.Mutable.UnionFind/source/). Source SHA-256: `727e954bd65cccc23e096583f2e09110a598ca323a6a4170d7d3270a230afe1b`.

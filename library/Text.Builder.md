@@ -175,7 +175,3 @@ The exact total byte length of the flattened result, without flattening
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Builder.cinch`](/packages/stdlib/Text.Builder/source/). Source SHA-256: `c089e433293b637862387c71967e800c5cb57f4f7011724ee4d21b18c5ece24b`.

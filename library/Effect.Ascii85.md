@@ -81,7 +81,3 @@ Observe the advanced underlying sink, including after a failed write.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Ascii85.cinch`](/packages/stdlib/Effect.Ascii85/source/). Source SHA-256: `ce62b87682e7b8b63754a346c01a3db666e0a062693fa958251dac6c89febb27`.

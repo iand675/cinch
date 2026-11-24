@@ -133,7 +133,3 @@ Observe a fresh optional last token, preserving absence separately from an expli
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Scanner.cinch`](/packages/stdlib/Effect.Scanner/source/). Source SHA-256: `dd6d190f2b53e1fb80b10e48d64a29363b82041895660675d2b383c637be06aa`.

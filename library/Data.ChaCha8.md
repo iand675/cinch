@@ -113,7 +113,3 @@ Restore a state from its encoding.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/ChaCha8.cinch`](/packages/stdlib/Data.ChaCha8/source/). Source SHA-256: `84cb4bed6d1e5788ab75b95e2315ef792c7376aefba51fb06cfddd2af67be699`.

@@ -170,7 +170,3 @@ The sum of every count: the number of hits recorded.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Coverage.cinch`](/packages/stdlib/Effect.Coverage/source/). Source SHA-256: `b915528a23ac1a11bf8d7223ba1fbf87c1cc1bfd19ce2e38a0e59a1f8858ef62`.

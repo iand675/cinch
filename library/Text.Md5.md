@@ -175,7 +175,3 @@ Compute a fresh 16-byte digest of a complete input.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Md5.cinch`](/packages/stdlib/Text.Md5/source/). Source SHA-256: `1fcad57a2a9fcdc43ce9b9a03fc3034960e3b9c96977aadf78f55bf0b3c9afed`.

@@ -109,7 +109,3 @@ Append `x`. Never waits.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stm/TQueue.cinch`](/packages/stdlib/Effect.Stm.TQueue/source/). Source SHA-256: `706dd386f8128e43835dc680ac787a5f8af5d02625735ae59458f916c56f4eb2`.

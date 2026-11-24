@@ -250,7 +250,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Hash_Uuid"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Uuid.Hash_Uuid</code></span><div class="doc-child-prose">Hash both complete words; hash collisions never replace identifier equality.</div></li>
 <li id="i-Ord_Uuid"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Uuid/#t-Uuid" title="Data.Uuid.Uuid">Uuid</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Uuid.Ord_Uuid</code></span><div class="doc-child-prose">Unsigned network-order comparison, consistent with complete-bit equality.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Uuid.cinch`](/packages/stdlib/Data.Uuid/source/). Source SHA-256: `d36bcfabe392c1daba83c765280fbdead78126aa6190e0f472af6fc3bd8bd87c`.

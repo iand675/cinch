@@ -79,7 +79,3 @@ Observe the advanced sink, including after a failed write.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Base64.cinch`](/packages/stdlib/Effect.Base64/source/). Source SHA-256: `4cb4efcac5c5f5cc20a4db01503a21baf397adb8a0c1104a2ee19a0ebf773231`.

@@ -76,7 +76,3 @@ Render a PNG error.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Image/Png.cinch`](/packages/stdlib/Image.Png/source/). Source SHA-256: `8040ff6891b589157daeda5d4d55e83daf7543d91591dc202a193f662fe44060`.

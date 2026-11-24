@@ -128,7 +128,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Functor_Identity"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Identity.Functor_Identity</code></span><div class="doc-child-prose">The class instances (instances live with their type), defined through the bodies above.</div></li>
 <li id="i-Monad_Identity"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Identity/#t-Identity" title="Data.Identity.Identity">Identity</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Identity.Monad_Identity</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Identity.cinch`](/packages/stdlib/Data.Identity/source/). Source SHA-256: `2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9`.

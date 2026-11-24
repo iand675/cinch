@@ -115,7 +115,3 @@ Append `x`. Waits while the queue is full.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stm/TBQueue.cinch`](/packages/stdlib/Effect.Stm.TBQueue/source/). Source SHA-256: `07e856790c35d526f998a0e3befd2bd31dc39b2b7e3354c64d75554e44ed7dfe`.

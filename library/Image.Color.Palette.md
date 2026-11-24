@@ -35,7 +35,3 @@ Return all216 web-safe colors as opaque RGBA8 values in palette order.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Image/Color/Palette.cinch`](/packages/stdlib/Image.Color.Palette/source/). Source SHA-256: `4d3f13a9a42b56e54be8d4af1c5ef176035b503d83c34dc0cb54671f820ac5dc`.

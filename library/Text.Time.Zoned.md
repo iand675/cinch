@@ -251,7 +251,3 @@ The zone a text's annotation names: a database lookup for a name,
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Time/Zoned.cinch`](/packages/stdlib/Text.Time.Zoned/source/). Source SHA-256: `f4942fd2b7cc3f238527aed3bce3d0a8df17178dbe40fba507c21da52ab15e5b`.

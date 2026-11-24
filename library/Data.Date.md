@@ -242,7 +242,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_Date"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Date.Eq_Date</code></span><div class="doc-child-prose">Instances (the class spellings of cmp; instances live with their type per design/base-library.md).</div></li>
 <li id="i-Ord_Date"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Date/#t-Date" title="Data.Date.Date">Date</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Date.Ord_Date</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Date.cinch`](/packages/stdlib/Data.Date/source/). Source SHA-256: `5ab1002e8509257ef7fdfaf392112954771bc4163276747a213e8dd5aadf661e`.

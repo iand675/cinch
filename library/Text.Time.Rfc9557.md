@@ -426,7 +426,3 @@ Exactly `digits` fraction digits, truncating.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Time/Rfc9557.cinch`](/packages/stdlib/Text.Time.Rfc9557/source/). Source SHA-256: `d7827396a4192555b96bbe750ebd54edce0041ad499d7535b231185dd0fc6bb1`.

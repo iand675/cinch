@@ -256,7 +256,3 @@ the direct shift register. Reuse crc64-table-update to amortize table setup.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Crc64.cinch`](/packages/stdlib/Text.Crc64/source/). Source SHA-256: `a16838b8ee60a69ce5c9dd5cbae6862262184690ba8fdec3868a016631093aa2`.

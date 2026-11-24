@@ -213,7 +213,3 @@ Read a cursor's current value through its canonical node owner.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Ring.cinch`](/packages/stdlib/Data.Mutable.Ring/source/). Source SHA-256: `9c2860648b94c3c1a3182ed33c152609d8a19a323535d57296eeaafa341d8e25`.

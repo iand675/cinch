@@ -162,7 +162,3 @@ The HMAC-SHA-256 tag as lower-case hex (the same rendering as
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Digest.cinch`](/packages/stdlib/Text.Digest/source/). Source SHA-256: `0a0fafd50f72b5471dde4879ac287f4f3d6a7b752619b66ce9ac8a477b543442`.

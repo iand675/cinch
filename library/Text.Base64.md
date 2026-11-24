@@ -113,7 +113,3 @@ Encoding.
 <article class="doc-entry" id="v-base64-url-encode">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">base64-url-encode</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-base64-url-encode" title="Permalink">#</a><a href="/packages/stdlib/Text.Base64/source/#L132" title="View source at line 132">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Base64.cinch`](/packages/stdlib/Text.Base64/source/). Source SHA-256: `54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d`.

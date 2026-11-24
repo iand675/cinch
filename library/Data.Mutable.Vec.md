@@ -290,7 +290,3 @@ reallocation.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Vec.cinch`](/packages/stdlib/Data.Mutable.Vec/source/). Source SHA-256: `65dbfe173b5386a2a8f5ee25f8e0896b0ea688534c327e99db165352ee1c474e`.

@@ -285,7 +285,3 @@ Interpret up to the first 32 bytes as a big-endian integer and reduce it modulo 
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/P256.cinch`](/packages/stdlib/Crypto.P256/source/). Source SHA-256: `bfc177e66a34f67b929e74cb4a0050790c35e2e0ad12f915e224390c9738ec12`.

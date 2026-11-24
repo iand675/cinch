@@ -71,7 +71,3 @@ XOR the input with the next keystream bytes, returning the advanced stream and t
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Rc4.cinch`](/packages/stdlib/Crypto.Rc4/source/). Source SHA-256: `625745d9d911990be9c7d9f1efb7fcc21077b0b44fe9cdaef20c5052cefbf1e7`.

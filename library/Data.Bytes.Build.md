@@ -58,7 +58,3 @@ Empty inputs and zero counts need no fill traversal; byte values are never decod
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Build.cinch`](/packages/stdlib/Data.Bytes.Build/source/). Source SHA-256: `6c71c2b3807a54c6f168ea5acf4aa1f2486801501487f9494e6e18a8d9449de9`.

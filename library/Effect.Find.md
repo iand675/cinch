@@ -112,7 +112,3 @@ pre-order, descending through every directory.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Find.cinch`](/packages/stdlib/Effect.Find/source/). Source SHA-256: `8897fed1fe39856ce9857902d0a5f5fe258a1064bf3be7cf1ba35c033af98080`.

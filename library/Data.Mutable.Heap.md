@@ -285,7 +285,3 @@ Allocate an empty heap with room for the requested number of elements.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Heap.cinch`](/packages/stdlib/Data.Mutable.Heap/source/). Source SHA-256: `3346efd37186c29673917fc2285adebe1cf3494584a4b06faa2c885cd61b27c3`.

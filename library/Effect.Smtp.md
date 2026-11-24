@@ -167,7 +167,3 @@ Ask the server to verify an address.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Smtp.cinch`](/packages/stdlib/Effect.Smtp/source/). Source SHA-256: `03aabb42280978376631405c057b4e0dc6bc306e3d1beda841644e14034c42cf`.

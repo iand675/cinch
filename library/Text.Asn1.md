@@ -218,7 +218,3 @@ Universal tag of UTF8String.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Asn1.cinch`](/packages/stdlib/Text.Asn1/source/). Source SHA-256: `ce041c4c148382136cc9669fe4558c3dcd23b93ab894f85fb2aa9ecdcf2c2e31`.

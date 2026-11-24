@@ -100,7 +100,3 @@ Copy a half-open interval, returning empty bytes for invalid bounds.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Scan.cinch`](/packages/stdlib/Text.Url.Scan/source/). Source SHA-256: `de30fc49981ed873244a64b34de9a063548776c60264ad69475f040b3118204f`.

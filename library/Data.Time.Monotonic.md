@@ -153,7 +153,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_Monotonic"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Monotonic.Eq_Monotonic</code></span></li>
 <li id="i-Ord_Monotonic"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Monotonic/#t-Monotonic" title="Data.Time.Monotonic.Monotonic">Monotonic</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Monotonic.Ord_Monotonic</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Monotonic.cinch`](/packages/stdlib/Data.Time.Monotonic/source/). Source SHA-256: `35ad9089126831a35cefed441b34eec60c6b807e9770bd8185dc3eec72c63ca6`.

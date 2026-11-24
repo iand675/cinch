@@ -53,7 +53,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Group_Function"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Group/#c-Group" title="Algebra.Group.Group">Group</a> (<span class="tok-variable">t</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">u</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Group.Group_Function</code></span><div class="doc-child-prose">Structural: pointwise inversion of functions into a group.</div></li>
 <li id="i-Group_Pair"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Group/#c-Group" title="Algebra.Group.Group">Group</a> (<span class="tok-variable">t</span>, <span class="tok-variable">u</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Group.Group_Pair</code></span><div class="doc-child-prose">Structural: a pair inverts componentwise, each side under its own constraint.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Algebra/Group.cinch`](/packages/stdlib/Algebra.Group/source/). Source SHA-256: `df69dec9c9aeb84c0979241629321d1e975609f5ec487f40ae30a9fa8131d0ee`.

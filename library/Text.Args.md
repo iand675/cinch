@@ -132,7 +132,3 @@ occurrence, `--name` per flag, then the positional values.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Args.cinch`](/packages/stdlib/Text.Args/source/). Source SHA-256: `106fb5aa92d80c508d1047542d28cd0409801cf136e2a03c299532ccfa156496`.

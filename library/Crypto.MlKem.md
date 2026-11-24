@@ -198,7 +198,3 @@ Shared keys are 32 bytes.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/MlKem.cinch`](/packages/stdlib/Crypto.MlKem/source/). Source SHA-256: `130822b4a06af07c585a99e840d37c81576b642ae74a492e8d017c4a641bf6ed`.

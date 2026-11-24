@@ -194,7 +194,3 @@ The current instant read in the system's zone.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Time/Zone.cinch`](/packages/stdlib/Effect.Time.Zone/source/). Source SHA-256: `00e4316ae15fdfd60d1b89f64409d536b0476812447d505a4a557e05b7139751`.

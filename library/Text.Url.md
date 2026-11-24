@@ -858,7 +858,3 @@ Set an escaped path on a copied field snapshot, preserving a noncanonical raw hi
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url.cinch`](/packages/stdlib/Text.Url/source/). Source SHA-256: `ace795fa48c2bfdab5f1c984b072eff6ad2ca68c11403d965ad610937b45001c`.

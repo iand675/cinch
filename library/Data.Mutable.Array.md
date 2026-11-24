@@ -125,7 +125,3 @@ A mutable copy of an immutable array.
 <article class="doc-entry" id="v-mut-array-to-list">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">mut-array-to-list</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-MutArray" title="Data.Mutable.Array.MutArray">MutArray</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-mut-array-to-list" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Array/source/#L148" title="View source at line 148">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Array.cinch`](/packages/stdlib/Data.Mutable.Array/source/). Source SHA-256: `94e1495897c24970b02075aeb56bb1181bf54735059dd1828679581c3772490e`.

@@ -212,7 +212,3 @@ and return the exact advanced borrowed sink on either outcome.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Mime.cinch`](/packages/stdlib/Effect.Mime/source/). Source SHA-256: `1211c316b96474b7ed1d997092520055aca5cabba4b3c262d1a6f9d490fca215`.

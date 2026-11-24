@@ -307,7 +307,3 @@ Obtain a fresh empty bounded reservation advertising the writer's currently unus
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Buffered/Writer.cinch`](/packages/stdlib/Effect.Buffered.Writer/source/). Source SHA-256: `bf3bda7ec2866c61b178b17ff37b7a52a202a9e0d86b0a44cea0069cd2e2382a`.

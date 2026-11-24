@@ -273,7 +273,3 @@ malformed sink counts and unexplained short writes return named checked failures
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Buffered/Reader.cinch`](/packages/stdlib/Effect.Buffered.Reader/source/). Source SHA-256: `b0eb53793ea2111749580e5726abaec76f84fb3a1df3b9f3706d1240b696b160`.

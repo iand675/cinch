@@ -293,7 +293,3 @@ The whitespace-separated words (ASCII whitespace runs delimit).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Scan.cinch`](/packages/stdlib/Text.Scan/source/). Source SHA-256: `bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208`.

@@ -104,7 +104,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Show_Ordering"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Show.Show_Ordering</code></span></li>
 <li id="i-Show_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Show.Show_String</code></span><div class="doc-child-prose">The raw text: String renders as itself (no quoting in the bootstrap).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Show.cinch`](/packages/stdlib/Text.Show/source/). Source SHA-256: `482adc06340f899b8664bfbf7804b45d74db5e200f657faa12a8eb5b66de76e8`.

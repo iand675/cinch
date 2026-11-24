@@ -343,7 +343,3 @@ Select a validated padding byte, or None for unpadded output.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Base64/Encoding.cinch`](/packages/stdlib/Text.Base64.Encoding/source/). Source SHA-256: `94fdbdd6b760493c90e1197e791d927e9f2a11d02ea903042c11f7058c36ca7e`.

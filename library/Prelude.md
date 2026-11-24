@@ -1572,7 +1572,3 @@ Prelude re-exports a curated subset of the standard library. Follow the defining
 | `^` | `infixl` | `5` |
 | `\|` | `infixl` | `4` |
 | `\|\|` | `infixr` | `1` |
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Prelude.cinch`](/packages/stdlib/Prelude/source/). Source SHA-256: `7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7`.

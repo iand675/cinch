@@ -294,7 +294,3 @@ Write files and an archive comment as a complete archive.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Zip.cinch`](/packages/stdlib/Text.Zip/source/). Source SHA-256: `ffbb8942b896c6de9979d22637871b4673d6c7dcae70bdaaf408e8b7713e6ddd`.

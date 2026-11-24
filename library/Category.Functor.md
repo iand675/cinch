@@ -66,7 +66,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-Functor_Function"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> ((-&gt;) r)</code> <span class="doc-inst-meta">Implicit · <code>Category.Functor.Functor_Function</code></span><div class="doc-child-prose">Structural: map over a function's result (the reader functor).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Category/Functor.cinch`](/packages/stdlib/Category.Functor/source/). Source SHA-256: `2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1`.

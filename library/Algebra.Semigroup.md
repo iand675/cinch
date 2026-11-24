@@ -110,7 +110,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Semigroup_Function"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<span class="tok-variable">t</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">u</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Semigroup.Semigroup_Function</code></span><div class="doc-child-prose">Structural: pointwise combination of functions into a semigroup.</div></li>
 <li id="i-Semigroup_Pair"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> (<span class="tok-variable">t</span>, <span class="tok-variable">u</span>)</code> <span class="doc-inst-meta">Implicit · <code>Algebra.Semigroup.Semigroup_Pair</code></span><div class="doc-child-prose">Structural: tuples combine componentwise, each side under its own constraint.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Algebra/Semigroup.cinch`](/packages/stdlib/Algebra.Semigroup/source/). Source SHA-256: `03b8c3463a181da5deaa4de35921c2bfb69520b4aed1c0a21043fc72f9be6272`.

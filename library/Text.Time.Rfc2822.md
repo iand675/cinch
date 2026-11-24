@@ -159,7 +159,3 @@ format has no place for one).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Time/Rfc2822.cinch`](/packages/stdlib/Text.Time.Rfc2822/source/). Source SHA-256: `d264b18fb08807d3449b90d1f0025894e8b1a22b3e67dcf3b06665ce767576bc`.

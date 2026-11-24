@@ -140,7 +140,3 @@ Verify a full tag. Unequal lengths fail; equal-length comparisons visit every by
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Hmac.cinch`](/packages/stdlib/Crypto.Hmac/source/). Source SHA-256: `e585b6638ff0452e24305d5452c798253e0ba4e72c6381a1fad738f929592408`.

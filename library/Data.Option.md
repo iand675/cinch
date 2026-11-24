@@ -158,7 +158,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-SeqOption"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-OptionSequencing" title="Effect.Sequencing.OptionSequencing">OptionSequencing</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Option.SeqOption</code></span></li>
 <li id="i-Traversable_Option"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Traversable/#c-Traversable" title="Category.Traversable.Traversable">Traversable</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Option.Traversable_Option</code></span><div class="doc-child-prose">None traverses to pure None; Some carries one effect (moved from Category.Traversable).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Option.cinch`](/packages/stdlib/Data.Option/source/). Source SHA-256: `a2ded2aaed9211dacecc4849049bf802ed0d0d701a8ed7453a78508a8b1a8cf7`.

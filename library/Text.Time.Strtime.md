@@ -481,7 +481,3 @@ Compiles a format once; every format refusal is reported here.
 <article class="doc-entry" id="v-time-strptime">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">time-strptime</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Time.Strtime/#t-StrtimeError" title="Text.Time.Strtime.StrtimeError">StrtimeError</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.TimeOfDay/#t-TimeOfDay" title="Data.Time.TimeOfDay.TimeOfDay">TimeOfDay</a></code><span class="doc-sig-links"><a href="#v-time-strptime" title="Permalink">#</a><a href="/packages/stdlib/Text.Time.Strtime/source/#L1456" title="View source at line 1456">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Time/Strtime.cinch`](/packages/stdlib/Text.Time.Strtime/source/). Source SHA-256: `f38085e1b9841abb2a8cba49b53f7b1cacb1d544ce5d34ab1c06bfdfda12b20f`.

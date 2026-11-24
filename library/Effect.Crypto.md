@@ -130,7 +130,3 @@ A new X25519 private key from 32 fresh random bytes.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Crypto.cinch`](/packages/stdlib/Effect.Crypto/source/). Source SHA-256: `957cd112fcd28d0fe72c0849c395aae3e32851e4d48bfac1fa232562ee006725`.

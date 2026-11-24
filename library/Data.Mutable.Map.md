@@ -257,7 +257,3 @@ Visit current values, preserving duplicates and stopping immediately on False.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Map.cinch`](/packages/stdlib/Data.Mutable.Map/source/). Source SHA-256: `0fc095f0bdcbe26f9ba3f26e5db8cb76891698784b744bb76e2e420dc14eb7c6`.

@@ -175,7 +175,3 @@ Printing: the exact inverse of parsing (the round-trip law).
 <article class="doc-entry" id="v-uri-userinfo">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">uri-userinfo</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Uri/#t-Uri" title="Text.Uri.Uri">Uri</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-uri-userinfo" title="Permalink">#</a><a href="/packages/stdlib/Text.Uri/source/#L95" title="View source at line 95">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Uri.cinch`](/packages/stdlib/Text.Uri/source/). Source SHA-256: `e3098cfb52bdee5813cb985d730d5865cb01c2b687d42464f821b73121bc1749`.

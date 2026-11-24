@@ -162,7 +162,3 @@ atomic replacement is `fs-rename`). The calls are `Prim.Sys`'s:
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Fs.cinch`](/packages/stdlib/Effect.Fs/source/). Source SHA-256: `ef52d29afce18d72843cd2704e3a0ebcbeff428436fa047971807c4c56e93a0a`.

@@ -394,7 +394,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_Duration"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Duration.Eq_Duration</code></span><div class="doc-child-prose">Instances (the class spellings of the integer order; instances live with their type per design/base-library.md).</div></li>
 <li id="i-Ord_Duration"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Duration/#t-Duration" title="Data.Time.Duration.Duration">Duration</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Duration.Ord_Duration</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Duration.cinch`](/packages/stdlib/Data.Time.Duration/source/). Source SHA-256: `65b41d25ea1aafb71542227a9456ccb996d696089b1af1993ff90ba80fd506cc`.

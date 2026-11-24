@@ -107,7 +107,3 @@ matching close marker (or the tail when the scope is unclosed).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Trace.cinch`](/packages/stdlib/Effect.Trace/source/). Source SHA-256: `fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366`.

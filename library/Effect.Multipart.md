@@ -749,7 +749,3 @@ Observe the actual advanced borrowed sink without closing it.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Multipart.cinch`](/packages/stdlib/Effect.Multipart/source/). Source SHA-256: `1969a6077e1aafb84226e9f4457ceb0b17395bdd9ad82a3a8256ec02e22a8044`.

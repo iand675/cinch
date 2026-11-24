@@ -161,7 +161,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Monad_Result"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Result/#t-Result" title="Data.Core.Result">Result</a> <span class="tok-variable">e</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.Result.Monad_Result</code></span><div class="doc-child-prose">The error case short-circuits: Err e &gt;&gt;= k is Err e (moved from Category.Monad).</div></li>
 <li id="i-SeqResult"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-ResultSequencing" title="Effect.Sequencing.ResultSequencing">ResultSequencing</a> <span class="tok-variable">e</span></code> <span class="doc-inst-meta">Implicit · <code>Data.Result.SeqResult</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Result.cinch`](/packages/stdlib/Data.Result/source/). Source SHA-256: `0bec72d2b58142da875a16016816e53cbd2d0c2a4be88906893cac93b89e1470`.

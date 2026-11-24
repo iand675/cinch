@@ -100,7 +100,3 @@ The members in the table's slot order (unstable; see the table).
 <article class="doc-entry" id="v-hash-set-with-capacity">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">hash-set-with-capacity</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-HashSet" title="Data.Mutable.HashSet.HashSet">HashSet</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span></code><span class="doc-sig-links"><a href="#v-hash-set-with-capacity" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.HashSet/source/#L28" title="View source at line 28">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/HashSet.cinch`](/packages/stdlib/Data.Mutable.HashSet/source/). Source SHA-256: `dd418d95ba3d0f8453ee803fdd25bbd0ed2fbb4dcdca5669b37fd5acfe477977`.

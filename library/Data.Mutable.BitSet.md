@@ -140,7 +140,3 @@ The set bits, ascending.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/BitSet.cinch`](/packages/stdlib/Data.Mutable.BitSet/source/). Source SHA-256: `1ce604a52fb81e9b084c070dcd4370a4eb9b161b70cb723a38b45be31264b5cc`.

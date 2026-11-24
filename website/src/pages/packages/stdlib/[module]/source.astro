@@ -128,8 +128,8 @@ const searchModuleUrl = `/packages/search/?q=${encodeURIComponent(`+${entry.modu
 
   <section class="source-page lib-source-page">
     <div class="platform-eyebrow mono">
-      <span>{entry.path}</span>
-      <span>{lines.length} LINES · SHA-256 {entry.sha256.slice(0, 12)}</span>
+      <span>CINCH/STDLIB / {entry.family.toUpperCase()}</span>
+      <span>{lines.length} LINES</span>
     </div>
     <h1>{entry.module}</h1>
     <div class="lib-source-actions mono">

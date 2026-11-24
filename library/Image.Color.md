@@ -545,7 +545,3 @@ Convert to the ycbcra representation; already matching values retain their field
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Image/Color.cinch`](/packages/stdlib/Image.Color/source/). Source SHA-256: `151b5fea2d5e3c899aa72701071b100d62a999d04cc4d07147fe836398ba9707`.

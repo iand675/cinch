@@ -219,7 +219,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-FromMap_HashMap"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromMap/#c-FromMap" title="Data.FromMap.FromMap">FromMap</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.HashMap/#t-HashMap" title="Data.HashMap.HashMap">HashMap</a> <span class="tok-variable">k</span> <span class="tok-variable">v</span>) <span class="tok-variable">k</span> <span class="tok-variable">v</span></code> <span class="doc-inst-meta">Implicit · <code>Data.HashMap.FromMap_HashMap</code></span><div class="doc-child-prose">Map literals at HashMap (surface grammar local amendments section 10).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/HashMap.cinch`](/packages/stdlib/Data.HashMap/source/). Source SHA-256: `3f1612214a25a5fa2d2613d8a76da79331430ed7394b56e6203fcd0d51a18d6b`.

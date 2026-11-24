@@ -132,7 +132,3 @@ Continue a finished 64-bit FNV-1a hash with more bytes; an empty update preserve
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Fnv.cinch`](/packages/stdlib/Text.Fnv/source/). Source SHA-256: `b09f33aa54974a8b67ccac104a8e08a3a2d6e2bfd0f8756e9ea0764aff93f529`.

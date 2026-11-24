@@ -74,7 +74,3 @@ Complete named references may expand: for example, &nLt; produces two scalars an
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Html.cinch`](/packages/stdlib/Text.Html/source/). Source SHA-256: `a22d0acc3c1f391ed0207a94984a8b6c93036239ac88f449f84324dd7ee8d478`.

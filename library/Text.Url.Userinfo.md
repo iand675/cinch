@@ -73,7 +73,3 @@ Return fresh username bytes without decoding them as text.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Userinfo.cinch`](/packages/stdlib/Text.Url.Userinfo/source/). Source SHA-256: `cccdb3acac6ac60383d2a2f8ce9fd9fde4953de7f28aa8259a5d5436ec52758a`.

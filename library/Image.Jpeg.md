@@ -382,7 +382,3 @@ Bytes between vertically adjacent luma samples.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Image/Jpeg.cinch`](/packages/stdlib/Image.Jpeg/source/). Source SHA-256: `05234349121fb760e8b50180e88cd63b1eef003c59587d83f6d5c0d170ffc790`.

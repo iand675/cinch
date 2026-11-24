@@ -433,7 +433,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-RoundingOptions_Difference"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Arithmetic/#t-Difference" title="Data.Time.Arithmetic.Difference">Difference</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Arithmetic.RoundingOptions_Difference</code></span></li>
 <li id="i-RoundingOptions_Round"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Arithmetic/#t-Round" title="Data.Time.Arithmetic.Round">Round</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Arithmetic.RoundingOptions_Round</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Arithmetic.cinch`](/packages/stdlib/Data.Time.Arithmetic/source/). Source SHA-256: `79b5d74e2656408fa3faea242d6cd61e557304402eb839d827fd01645e9c6c38`.

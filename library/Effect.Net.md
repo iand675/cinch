@@ -161,7 +161,3 @@ The handle word of a socket, for the layers above this one.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Net.cinch`](/packages/stdlib/Effect.Net/source/). Source SHA-256: `9bac11640aa56817a5722b1336568f7d1ad80e034c105313934b44c8a7e9cc30`.

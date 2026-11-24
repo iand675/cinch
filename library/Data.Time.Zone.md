@@ -458,7 +458,3 @@ UTC: offset zero, named and abbreviated "UTC".
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Zone.cinch`](/packages/stdlib/Data.Time.Zone/source/). Source SHA-256: `b97d1abcfcca9d51d317ac70f92284ebe6b3c408d260d1364bc25d73a0548415`.

@@ -99,7 +99,3 @@ header's format and refusals).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Zone/Tzif.cinch`](/packages/stdlib/Data.Time.Zone.Tzif/source/). Source SHA-256: `553280395cae4717281c2a60e19cd658e5589197362da4b23b9bc8f89f5b649c`.

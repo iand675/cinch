@@ -218,7 +218,3 @@ Retain a whole fixed buffer in fresh explicit progress without copying it.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Fields.cinch`](/packages/stdlib/Data.Bytes.Fields/source/). Source SHA-256: `1fe6b9ace994988ba6b82abe785e939f4798f189206ac2412802bfcbc76e6963`.

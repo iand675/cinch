@@ -324,7 +324,3 @@ The native unsigned word width, 32 or 64, determined by the target's Usize opera
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Word.cinch`](/packages/stdlib/Data.Word/source/). Source SHA-256: `1a563597517531debe37f7ab19616255dbc845d62ffed182abcdc5da9afe27ad`.

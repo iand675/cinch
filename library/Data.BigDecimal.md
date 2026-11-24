@@ -273,7 +273,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_BigDecimal"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">Implicit · <code>Data.BigDecimal.Eq_BigDecimal</code></span><div class="doc-child-prose">The class spellings of cmp: canonical form makes the recursive field comparison agree, and routing both through cmp is what keeps Eq/Ord and the function surface one relation rather than two that could drift.</div></li>
 <li id="i-Ord_BigDecimal"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.BigDecimal/#t-BigDecimal" title="Data.BigDecimal.BigDecimal">BigDecimal</a></code> <span class="doc-inst-meta">Implicit · <code>Data.BigDecimal.Ord_BigDecimal</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/BigDecimal.cinch`](/packages/stdlib/Data.BigDecimal/source/). Source SHA-256: `0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c`.

@@ -174,7 +174,3 @@ Compute a fresh 20-byte network-order digest of a complete input.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Sha1.cinch`](/packages/stdlib/Text.Sha1/source/). Source SHA-256: `7c4c6ab9c67ff50be3b4273fd01b709a4ad61b5a0943835f38b438f1142ea095`.

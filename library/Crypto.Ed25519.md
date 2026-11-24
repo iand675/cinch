@@ -129,7 +129,3 @@ Verify a 64-byte signature of a message under a 32-byte public key.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Ed25519.cinch`](/packages/stdlib/Crypto.Ed25519/source/). Source SHA-256: `c9653a1c9514393759e3c07a4a826ff1fdf856d9dcedd5eb4ac509130350c707`.

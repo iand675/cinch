@@ -79,7 +79,3 @@ Inspect the advanced output handle, including after an unsuccessful encoded writ
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Base32.cinch`](/packages/stdlib/Effect.Base32/source/). Source SHA-256: `38f8d4b0a0ac51fed5ed5251d0b16093e8983986ea36330edede81bb69705b90`.

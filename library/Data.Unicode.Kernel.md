@@ -693,7 +693,3 @@ Patch edition of the immutable classification and mapping data.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Unicode/Kernel.cinch`](/packages/stdlib/Data.Unicode.Kernel/source/). Source SHA-256: `ce38656184b798de7b3b076bc41fa5a2f66b7b4d86afb20290e6ed427cda466b`.

@@ -213,7 +213,3 @@ decoded UTF-8 content, `TChar` the decoded scalar.
 <article class="doc-entry" id="v-token-kind-name">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">token-kind-name</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Lex/#t-Token" title="Text.Lex.Token">Token</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-token-kind-name" title="Permalink">#</a><a href="/packages/stdlib/Text.Lex/source/" title="View source">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Lex.cinch`](/packages/stdlib/Text.Lex/source/). Source SHA-256: `508d75917d6276c6436a6954e66353680a66b0af9653b6fd8cc6b0e1662147f3`.

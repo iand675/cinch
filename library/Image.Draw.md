@@ -96,7 +96,3 @@ Draw one non-premultiplied 8-bit color (red, green, blue, alpha) over the rectan
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Image/Draw.cinch`](/packages/stdlib/Image.Draw/source/). Source SHA-256: `bf28ed300fee4c128ae7405b125f650ee0d60dc7c7f41dd42f915a34b549e48f`.

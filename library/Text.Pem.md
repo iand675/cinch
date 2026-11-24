@@ -212,7 +212,3 @@ output. Chunk boundaries are unspecified. This operation never flushes or closes
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Pem.cinch`](/packages/stdlib/Text.Pem/source/). Source SHA-256: `9478c3c41a71436180df02c7ac175c309f790f39d131440895f0a81c7f733efd`.

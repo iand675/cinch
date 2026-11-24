@@ -147,7 +147,3 @@ Split immediately after the final slash, preserving repeated and trailing separa
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Path.cinch`](/packages/stdlib/Text.Path/source/). Source SHA-256: `8a9f7c29198f038a541bd510a68aee1502f1d8c3d3693500406fe24aba86cbad`.

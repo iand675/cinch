@@ -52,7 +52,3 @@ output. Chunk boundaries are unspecified. This operation never flushes or closes
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Pem.cinch`](/packages/stdlib/Effect.Pem/source/). Source SHA-256: `47dfe3101d486d89c2b6e2b78700b36c4c4c3ed80cf467de347ef7ba6ffc2bb4`.

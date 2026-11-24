@@ -70,7 +70,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-SeqDirect"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Sequencing/#c-DirectSequencing" title="Effect.Sequencing.DirectSequencing">DirectSequencing</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Sequencing.SeqDirect</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Sequencing.cinch`](/packages/stdlib/Effect.Sequencing/source/). Source SHA-256: `10cce786924bb5062ea0e099b048cc937394920b10c819c99e0a0bae8fdbbe09`.

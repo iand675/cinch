@@ -195,7 +195,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Hash_Rational"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rational.Hash_Rational</code></span><div class="doc-child-prose">Equal values hash alike: the normalised pair is the canonical form, so mixing the two component hashes can never separate r from an r == s partner.</div></li>
 <li id="i-Ord_Rational"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rational/#t-Rational" title="Data.Rational.Rational">Rational</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rational.Ord_Rational</code></span><div class="doc-child-prose">The order of the line, through the named comparison above.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Rational.cinch`](/packages/stdlib/Data.Rational/source/). Source SHA-256: `87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac`.

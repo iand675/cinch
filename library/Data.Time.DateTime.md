@@ -304,7 +304,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_DateTime"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.DateTime.Eq_DateTime</code></span></li>
 <li id="i-Ord_DateTime"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.DateTime/#t-DateTime" title="Data.Time.DateTime.DateTime">DateTime</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.DateTime.Ord_DateTime</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/DateTime.cinch`](/packages/stdlib/Data.Time.DateTime/source/). Source SHA-256: `777d7c3bf5a8ecc3ed4f5c357eadd07019d85f5a77898a1c163e1ca33c9619ce`.

@@ -231,7 +231,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_Offset"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Offset.Eq_Offset</code></span></li>
 <li id="i-Ord_Offset"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Offset.Ord_Offset</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Offset.cinch`](/packages/stdlib/Data.Time.Offset/source/). Source SHA-256: `74af282609866c44d75df7392c48eb71cafd85f5e1ee6edb2af30bb4a109cc2c`.

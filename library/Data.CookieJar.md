@@ -98,7 +98,3 @@ How many cookies the jar holds.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/CookieJar.cinch`](/packages/stdlib/Data.CookieJar/source/). Source SHA-256: `a19367e858100095283000a643f73df3673a96b128c0298156d85504f2bbd716`.

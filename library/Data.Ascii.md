@@ -60,7 +60,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-Semigroup_Ascii"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ascii/#t-Ascii" title="Data.Ascii.Ascii">Ascii</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Ascii.Semigroup_Ascii</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Ascii.cinch`](/packages/stdlib/Data.Ascii/source/). Source SHA-256: `5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2`.

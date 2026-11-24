@@ -208,7 +208,3 @@ Zero.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Field25519.cinch`](/packages/stdlib/Crypto.Field25519/source/). Source SHA-256: `bbbcd693d8fbf35589b30e4837955da8c04f69884a85a55d6d5f613a0e62609d`.

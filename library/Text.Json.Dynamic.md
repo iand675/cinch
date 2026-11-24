@@ -244,7 +244,3 @@ Inspect an opaque typed payload's label without fabricating a decoded representa
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Json/Dynamic.cinch`](/packages/stdlib/Text.Json.Dynamic/source/). Source SHA-256: `19b7ea13c5bc726c4d3ece8b12913a427d0c9ffcdd17d6fa971b9f94149b6591`.

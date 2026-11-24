@@ -212,7 +212,3 @@ Empty input preserves every supplied bit; inputs and table storage are never mod
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Crc32.cinch`](/packages/stdlib/Text.Crc32/source/). Source SHA-256: `f12c03f0ef5f001f56a823a066de69aaea06dea088b89059822d5ce1ed9d5aaa`.

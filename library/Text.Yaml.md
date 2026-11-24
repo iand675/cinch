@@ -174,7 +174,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-Eq_YamlErrorKind"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Yaml/#t-YamlErrorKind" title="Text.Yaml.YamlErrorKind">YamlErrorKind</a></code> <span class="doc-inst-meta">Implicit · <code>Text.Yaml.Eq_YamlErrorKind</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Yaml.cinch`](/packages/stdlib/Text.Yaml/source/). Source SHA-256: `1254ed227cac5d100c4132baa92d4ce0773cc78fd1669b269d022f2d5618e7d8`.

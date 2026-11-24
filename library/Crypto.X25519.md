@@ -117,7 +117,3 @@ The shared secret with a peer's 32-byte public key; low-order peers are rejected
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/X25519.cinch`](/packages/stdlib/Crypto.X25519/source/). Source SHA-256: `84f0ecaa26c3903f7cc622b5552258f3fd3736112d773307ed8ccd3e73958ca3`.

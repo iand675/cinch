@@ -241,7 +241,3 @@ its length or more).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Time/Scan.cinch`](/packages/stdlib/Text.Time.Scan/source/). Source SHA-256: `47ad87f939deb5508bdab9756d9ecfc9358a47c3a11b12719065dab101aaaf2c`.

@@ -27,7 +27,3 @@ Validate an unbracketed decoded IPv6 address, allowing one nonempty percent zone
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Ip.cinch`](/packages/stdlib/Text.Url.Ip/source/). Source SHA-256: `8bbe1f04258c0bece6823836b336e71009122463e79eb8eef923ff4e550a55be`.

@@ -56,7 +56,3 @@ Store `x` and return the value it replaced.
 <article class="doc-entry" id="v-var-write">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">var-write</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">a</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-Var" title="Data.Mutable.Var.Var">Var</a> <span class="tok-variable">r</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code><span class="doc-sig-links"><a href="#v-var-write" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.Var/source/#L40" title="View source at line 40">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Var.cinch`](/packages/stdlib/Data.Mutable.Var/source/). Source SHA-256: `1940d102ebcfdd02df9b0f81279f991e5419a480937179f0a635b1de17f25b26`.

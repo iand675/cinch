@@ -589,7 +589,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-RoundingOptions_ZonedDifference"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned.Arithmetic/#t-ZonedDifference" title="Data.Time.Zoned.Arithmetic.ZonedDifference">ZonedDifference</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Zoned.Arithmetic.RoundingOptions_ZonedDifference</code></span></li>
 <li id="i-RoundingOptions_ZonedRound"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zoned.Arithmetic/#t-ZonedRound" title="Data.Time.Zoned.Arithmetic.ZonedRound">ZonedRound</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Zoned.Arithmetic.RoundingOptions_ZonedRound</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Zoned/Arithmetic.cinch`](/packages/stdlib/Data.Time.Zoned.Arithmetic/source/). Source SHA-256: `a1b34d6e327fedb1d1a522b9d956f445c24ad1ee422a7b5b9c77f41c1930af5f`.

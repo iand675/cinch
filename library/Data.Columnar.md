@@ -50,7 +50,3 @@ columns as nested pairs, sharing their buffers. Length mismatch is None.
 <article class="doc-entry" id="v-columnar-zip">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">columnar-zip</strong> :: <span class="tok-keyword">forall</span> <span class="tok-variable">a</span> <span class="tok-variable">b</span>. <span class="tok-constructor">Columnar</span> <span class="tok-variable">a</span> <span class="tok-operator">-&gt;</span> <span class="tok-constructor">Columnar</span> <span class="tok-variable">b</span> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Option/#t-Option" title="Data.Core.Option">Option</a> (<span class="tok-constructor">Columnar</span> (<span class="tok-variable">a</span>, <span class="tok-variable">b</span>))</code><span class="doc-sig-links"><a href="#v-columnar-zip" title="Permalink">#</a><a href="/packages/stdlib/Data.Columnar/source/#L9" title="View source at line 9">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Columnar.cinch`](/packages/stdlib/Data.Columnar/source/). Source SHA-256: `20bf82a9abeddc35eb4abd3c3c6a91d9ee66b40d18848eb40ab674552bbc6506`.

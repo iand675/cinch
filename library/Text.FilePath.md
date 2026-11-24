@@ -56,7 +56,3 @@ An empty POSIX search list has no entries. Colons in nonempty lists preserve emp
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/FilePath.cinch`](/packages/stdlib/Text.FilePath/source/). Source SHA-256: `e465f4641efc3618645ed4ff1bfa12c6a1a91c65de4579a2cbc84462642c44a7`.

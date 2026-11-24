@@ -39,7 +39,3 @@ qualifies. The predicate must be false on a prefix and true thereafter.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Search.cinch`](/packages/stdlib/Data.Search/source/). Source SHA-256: `50f1ab5bcb33be8cd461431948d00652353604ba9deafa2e498777fd9560e00c`.

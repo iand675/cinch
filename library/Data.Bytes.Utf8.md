@@ -308,7 +308,3 @@ Whether a numeric rune is a Unicode scalar; negatives, surrogates and values abo
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Utf8.cinch`](/packages/stdlib/Data.Bytes.Utf8/source/). Source SHA-256: `f1e87cec4f82029b165271e0da2315d2b647ca04aeb4648c1c0b5907db033187`.

@@ -178,7 +178,3 @@ absolute offset following the final padded block. Leave trailing bytes unread.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Zlib.cinch`](/packages/stdlib/Text.Zlib/source/). Source SHA-256: `c39f929789f55ade95b2557d1311b7adf0fa2990be85cce753021af98bcdbeb4`.

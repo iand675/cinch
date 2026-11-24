@@ -249,7 +249,3 @@ header records. `True` when all of it holds.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/BTree.cinch`](/packages/stdlib/Data.Mutable.BTree/source/). Source SHA-256: `9741c4de3eb73bcf097d0dc27f48d9ace038c8a9ca7e4a8062e6e6f41cc19c54`.

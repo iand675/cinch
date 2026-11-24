@@ -181,7 +181,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Semigroup_Product"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Product" title="Algebra.Monoid.Product">Product</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_Product</code></span></li>
 <li id="i-Semigroup_Sum"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#t-Sum" title="Algebra.Monoid.Sum">Sum</a></code> <span class="doc-inst-meta">Implicit · <code>Algebra.Monoid.Semigroup_Sum</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Algebra/Monoid.cinch`](/packages/stdlib/Algebra.Monoid/source/). Source SHA-256: `65ad6baacef678beae82ef249f304e9efe7f24487278d91b053f2986bde3e1ac`.

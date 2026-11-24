@@ -134,7 +134,3 @@ Decode a raw path hint only when its pchar spellings and percent triplets are va
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Codec.cinch`](/packages/stdlib/Text.Url.Codec/source/). Source SHA-256: `17b17b7cd4e76ee256793a6167a3148d3a9aa9528164ade05aab8fee53f7b539`.

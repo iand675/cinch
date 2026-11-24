@@ -200,7 +200,3 @@ Compute a fresh 32-byte network-order SHA-256 digest of a complete input.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Sha256.cinch`](/packages/stdlib/Text.Sha256/source/). Source SHA-256: `95e5a6dd624575bf80bf7df22ba632819dd500d4a0c5af4f32d16d4b2befcea8`.

@@ -162,7 +162,3 @@ Zigzag-encode an I64, then encode it as an unsigned varint. Zero maps to 0, -1 t
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Binary.cinch`](/packages/stdlib/Text.Binary/source/). Source SHA-256: `9e8420191ef2f63969bdd1fa54f69724c835a6ada8041b548ee3de8154e71e4d`.

@@ -113,7 +113,3 @@ header).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Toml.cinch`](/packages/stdlib/Text.Toml/source/). Source SHA-256: `a5cd93530d3844f3c904ae55cb8b59a8c4611ba114d319daa937eabad137f7ce`.

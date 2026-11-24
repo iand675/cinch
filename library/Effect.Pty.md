@@ -290,7 +290,3 @@ keeps the session.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Pty.cinch`](/packages/stdlib/Effect.Pty/source/). Source SHA-256: `5c376b14e53fa6547230922be94c981f19ccd06b8ca360c6effdb38bec68aa48`.

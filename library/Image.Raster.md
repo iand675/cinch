@@ -143,7 +143,3 @@ Width in pixels.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Image/Raster.cinch`](/packages/stdlib/Image.Raster/source/). Source SHA-256: `a4c4c2c6b9f63c021a1654fe120f4746e4266c05a4383b5e6c6581e05b5fbf3b`.

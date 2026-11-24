@@ -151,7 +151,3 @@ Observe the advanced borrowed sink, including after a failed write.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/QuotedPrintable.cinch`](/packages/stdlib/Effect.QuotedPrintable/source/). Source SHA-256: `10a4170d30c13f663f72ed741df8f381ae6098fe230055098f65ec607c66fd97`.

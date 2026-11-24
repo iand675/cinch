@@ -323,7 +323,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Monad_STM"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#t-STM" title="Effect.Stm.STM">STM</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Stm.Monad_STM</code></span></li>
 <li id="i-SeqStm"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Effect.Stm/#c-StmSequencing" title="Effect.Stm.StmSequencing">StmSequencing</a></code> <span class="doc-inst-meta">Implicit · <code>Effect.Stm.SeqStm</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stm.cinch`](/packages/stdlib/Effect.Stm/source/). Source SHA-256: `470353674e04c6572a5f941cbba42503281077aa55abd3ed8daf50ff85a9f071`.

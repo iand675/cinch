@@ -771,7 +771,7 @@ def generate(ifaces, compiler):
         (downloads / (name + '.cinch')).write_text(text)
         imports = sorted(set(re.findall(r'^  import ([\w.]+)', text, re.M)))
 
-        used_ids = {'synopsis', 'types', 'signatures', 'values', 'operator-fixities', 'instances', 'dependencies', 'reference-provenance'}
+        used_ids = {'synopsis', 'types', 'signatures', 'values', 'operator-fixities', 'instances', 'dependencies'}
 
         import_note = (
             'Implicitly in scope.' if name == 'Prelude' else f'<code>import {esc_html(name)}</code>'
@@ -1085,12 +1085,6 @@ def generate(ifaces, compiler):
                     })
             lines += ['</ul>', '']
 
-        lines += [
-            '# Reference provenance',
-            '',
-            f'Generated from checked `.cinchif` exports and [`seed/prelude/{path.relative_to(PRELUDE)}`]({STDLIB_BASE}/{name}/source/). Source SHA-256: `{digest(path)}`.',
-            '',
-        ]
         (OUTPUT / (name + '.md')).write_text(highlighted_markdown(compiler, '\n'.join(lines)))
         pub_sigs = sum(1 for s in export['signatures'] if public_class(s) or any(m.get('exports') for m in s['methods']))
         entries.append({

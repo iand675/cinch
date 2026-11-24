@@ -72,7 +72,3 @@ Allocate one serialized version 7 sequence; retain and share this handle for sha
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Uuid.cinch`](/packages/stdlib/Effect.Uuid/source/). Source SHA-256: `fd4fb84c957afb908f2fb7d8cf1fb4ea1416fd09ec64b4a376cfd3a526cc55a3`.

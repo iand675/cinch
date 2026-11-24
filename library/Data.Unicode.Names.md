@@ -281,7 +281,3 @@ Observe every unicode-table key without exposing or copying range-table storage.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Unicode/Names.cinch`](/packages/stdlib/Data.Unicode.Names/source/). Source SHA-256: `443c125bc39c88c95a71b8d63b99fc470062d4c0a49d3aa9160bbce171b5fe50`.

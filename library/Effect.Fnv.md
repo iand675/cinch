@@ -81,7 +81,3 @@ Inspect the current hash without advancing the sink or changing earlier handles.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Fnv.cinch`](/packages/stdlib/Effect.Fnv/source/). Source SHA-256: `7253c58aac971fe5a2879b5cfda24593dbc52cd69bdbaff1d7ddfdf1c9db5464`.

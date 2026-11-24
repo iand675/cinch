@@ -307,7 +307,3 @@ Create an empty list with a bounded minimum arena capacity.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/LinkedList.cinch`](/packages/stdlib/Data.Mutable.LinkedList/source/). Source SHA-256: `6eaff419c6892fb56f491baf0f49375366ea79e4cfaa37e3c6e05d0c19eb5d1d`.

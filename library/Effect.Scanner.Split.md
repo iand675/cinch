@@ -125,7 +125,3 @@ Split nonempty words on the Unicode White_Space property, retaining arbitrary no
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Scanner/Split.cinch`](/packages/stdlib/Effect.Scanner.Split/source/). Source SHA-256: `5bcdaea29e3d7bcc9a7f77aaaad39e5fcb8af0504862e891a4d853f2e8e2c48e`.

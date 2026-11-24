@@ -294,7 +294,3 @@ Read exactly the requested number of SHAKE256 output bytes for a complete input.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Sha3.cinch`](/packages/stdlib/Text.Sha3/source/). Source SHA-256: `26c3d9fe682494d2a244a66098253c9a9a0871eb5bbc1f2405c8b9f99c56b30c`.

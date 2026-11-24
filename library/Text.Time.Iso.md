@@ -437,7 +437,3 @@ output has `+HH:MM:SS`, which is not RFC 3339 (see the header).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Time/Iso.cinch`](/packages/stdlib/Text.Time.Iso/source/). Source SHA-256: `84701811cacba7dc7bbc9790b539521299d85098ecbfe2cd818fa800f761af00`.

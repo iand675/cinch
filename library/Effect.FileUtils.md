@@ -186,7 +186,3 @@ does NOT bump a timestamp, see the refusals). The create is
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/FileUtils.cinch`](/packages/stdlib/Effect.FileUtils/source/). Source SHA-256: `26ce540b8755def036a6804f9b2da0db29d81d73bee40ac122c89a5b8ead1d00`.

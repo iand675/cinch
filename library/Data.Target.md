@@ -141,7 +141,3 @@ was checked (platform section 8).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Target.cinch`](/packages/stdlib/Data.Target/source/). Source SHA-256: `a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e`.

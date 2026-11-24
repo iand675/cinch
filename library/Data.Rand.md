@@ -291,7 +291,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Source_ChaCha8"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.ChaCha8/#t-ChaCha8" title="Data.ChaCha8.ChaCha8">ChaCha8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rand.Source_ChaCha8</code></span><div class="doc-child-prose">ChaCha8 as a source.</div></li>
 <li id="i-Source_Pcg"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rand/#c-Source" title="Data.Rand.Source">Source</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Rand/#t-Pcg" title="Data.Rand.Pcg">Pcg</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Rand.Source_Pcg</code></span><div class="doc-child-prose">PCG as a source.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Rand.cinch`](/packages/stdlib/Data.Rand/source/). Source SHA-256: `36b9fee50dbb6086e686f303683d130764dd167aec5cd48dfb2efe3682677c53`.

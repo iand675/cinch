@@ -247,7 +247,3 @@ The diagnostic line for a named error.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Http.cinch`](/packages/stdlib/Effect.Http/source/). Source SHA-256: `402d0270a2549a552be4c7f6e243724f9fe1f63eceb0f2597f0b588c4485035e`.

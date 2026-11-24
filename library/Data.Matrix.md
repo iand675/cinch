@@ -170,7 +170,3 @@ matrix. An empty row list is the 0x0 matrix.
 <article class="doc-entry" id="v-transpose">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">transpose</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Matrix/#t-Matrix" title="Data.Matrix.Matrix">Matrix</a></code><span class="doc-sig-links"><a href="#v-transpose" title="Permalink">#</a><a href="/packages/stdlib/Data.Matrix/source/#L256" title="View source at line 256">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Matrix.cinch`](/packages/stdlib/Data.Matrix/source/). Source SHA-256: `1c0d2056a1a83186275ef0506d0df7d884ffb167771c00609e076874c88d6688`.

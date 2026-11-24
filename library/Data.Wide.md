@@ -1065,7 +1065,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Show_I128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="I128">I128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Show_I128</code></span><div class="doc-child-prose">Show is the decimal of the value, through Int.</div></li>
 <li id="i-Show_U128"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Wide/" title="U128">U128</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Wide.Show_U128</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Wide.cinch`](/packages/stdlib/Data.Wide/source/). Source SHA-256: `d475d7a4c34a7015f3e118fac9422d1283d7d6799b4e334a422f042344fb3133`.

@@ -129,7 +129,3 @@ Test whether the array is in nondecreasing order, stopping at the first inversio
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Array/Search.cinch`](/packages/stdlib/Data.Array.Search/source/). Source SHA-256: `a10366c85b000d05aa12b145ed82a50b461557ac57098b9b052b2d03f5c7f305`.

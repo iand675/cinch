@@ -239,7 +239,3 @@ printer uses).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/OptionParser.cinch`](/packages/stdlib/Text.OptionParser/source/). Source SHA-256: `a98ed14dc7c9027ecc53724e553eaf38be5066a392559916d31036bf5f557eee`.

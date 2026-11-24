@@ -49,7 +49,3 @@ Hash a whole chunk, returning its accepted count and the advanced immutable stat
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Adler32.cinch`](/packages/stdlib/Effect.Adler32/source/). Source SHA-256: `561a9c98abc71e5022289621323d3003d9419d7ac5e811310389bebf1c1d3566`.

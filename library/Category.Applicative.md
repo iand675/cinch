@@ -124,7 +124,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-Applicative_Function"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> ((-&gt;) r)</code> <span class="doc-inst-meta">Implicit · <code>Category.Applicative.Applicative_Function</code></span><div class="doc-child-prose">Structural: apply a function in an environment to a value in it.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Category/Applicative.cinch`](/packages/stdlib/Category.Applicative/source/). Source SHA-256: `fe2bc906c714b1d4d01cedc10c1f5b8eb05a1b73e7be0d80c67f17018af0ffa1`.

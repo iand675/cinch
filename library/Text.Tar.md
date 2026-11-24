@@ -419,7 +419,3 @@ when every field fits and otherwise with a preceding PAX extended header.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Tar.cinch`](/packages/stdlib/Text.Tar/source/). Source SHA-256: `b1a5b11b1e6ca35103897fdf97fdb2bcbda0486175b98c020684efe5dd73eb37`.

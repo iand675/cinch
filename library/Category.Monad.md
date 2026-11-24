@@ -90,7 +90,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-Monad_Function"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Monad/#c-Monad" title="Category.Monad.Monad">Monad</a> ((-&gt;) r)</code> <span class="doc-inst-meta">Implicit · <code>Category.Monad.Monad_Function</code></span><div class="doc-child-prose">Structural: feed a function's result into the continuation.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Category/Monad.cinch`](/packages/stdlib/Category.Monad/source/). Source SHA-256: `6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f`.

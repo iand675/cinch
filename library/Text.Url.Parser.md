@@ -57,7 +57,3 @@ Decode the byte serialization by parsing a fresh immutable URL value.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Parser.cinch`](/packages/stdlib/Text.Url.Parser/source/). Source SHA-256: `d880177f125cbdf7d9546cb5526ce6f6717ead1c719b180724745be6ef1c4f7d`.

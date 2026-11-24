@@ -3,7 +3,6 @@ import PlatformLayout from '../../../layouts/PlatformLayout.astro';
 import StdlibNavigation from '../../../components/catalogue/StdlibNavigation.astro';
 import {
   loadStdlibManifest,
-  stdlibManifestSha256,
   STDLIB_FAMILIES,
   STDLIB_VERSION,
 } from '../../../lib/stdlib';
@@ -11,7 +10,6 @@ import '../../../styles/stdlib-docs.css';
 
 const manifest = await loadStdlibManifest();
 const modules = manifest.modules;
-const manifestSha = stdlibManifestSha256(manifest);
 const totalDeclarations =
   manifest.search_entry_count ??
   modules.reduce((acc, m) => acc + m.types + m.signatures + m.values + m.public_methods + m.instances, 0);
@@ -54,7 +52,6 @@ const groups = STDLIB_FAMILIES.map((family) => ({
         <div class="stdlib-facts mono">
           <span class="support-tag support-tag--current">{modules.length} Modules</span>
           <span>.cinchpkg · .cpk interfaces</span>
-          <span>MANIFEST {manifestSha.slice(0, 12)}</span>
         </div>
         <div class="stdlib-actions">
           <a href="/packages/search/">Hoogle API Search ↗</a>

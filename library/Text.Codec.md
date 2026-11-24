@@ -75,7 +75,3 @@ and a value outside the column's range.
 <article class="doc-entry" id="v-json-error-message">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">json-error-message</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Codec/#t-JsonDecodeError" title="Text.Codec.JsonDecodeError">JsonDecodeError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-json-error-message" title="Permalink">#</a><a href="/packages/stdlib/Text.Codec/source/#L44" title="View source at line 44">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Codec.cinch`](/packages/stdlib/Text.Codec/source/). Source SHA-256: `cf4fe97335cb544ed6801e2a770328f15a859371cc2572f54cd16919f719921b`.

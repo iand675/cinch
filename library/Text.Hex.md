@@ -159,7 +159,3 @@ Render a diagnostic with original byte positions or the required output capacity
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Hex.cinch`](/packages/stdlib/Text.Hex/source/). Source SHA-256: `41be25b23d90a36c81618cfde993f3114916ab34e5bb5cec670fbb449de69f4c`.

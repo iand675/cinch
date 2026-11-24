@@ -101,7 +101,3 @@ An out-of-range position returns None and invokes no mutation callback.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/HeapView.cinch`](/packages/stdlib/Data.Mutable.HeapView/source/). Source SHA-256: `89e735c9db876832b79fc1a321be54d13661ecdfb4a662be6653780afd9e4a8c`.

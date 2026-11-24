@@ -37,7 +37,3 @@ Select binary64 IEEE equality explicitly, including equivalent signed zeros.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Map/Float.cinch`](/packages/stdlib/Data.Mutable.Map.Float/source/). Source SHA-256: `ae5cf39b89f2d062b225740c1b5105ed47934a52755a5886c6705f005a4f317a`.

@@ -255,7 +255,3 @@ named error. The child inherits this process's environment plus
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Process.cinch`](/packages/stdlib/Effect.Process/source/). Source SHA-256: `57c8c854e61afb03d242709696cda431007cd423220e4e69bbaf112422eaf37b`.

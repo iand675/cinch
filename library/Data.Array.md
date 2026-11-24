@@ -61,7 +61,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <ul class="doc-module-instances">
 <li id="i-FromList_Array"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Array/" title="Array">Array</a> <span class="tok-variable">a</span>) <span class="tok-variable">a</span></code> <span class="doc-inst-meta">Implicit · <code>Data.Array.FromList_Array</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Array.cinch`](/packages/stdlib/Data.Array/source/). Source SHA-256: `3c90379a58326e1c86b3b5c0a6fbdbbb95374acc26ab0adca138633f7caa87ee`.

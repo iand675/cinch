@@ -110,7 +110,3 @@ Write one minimal signed zigzag varint, preserving accepted-byte progress and th
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Binary.cinch`](/packages/stdlib/Effect.Binary/source/). Source SHA-256: `ccc9fe29127f391045105575e80fb446b3452798f2e3166f939521c51b10470c`.

@@ -349,7 +349,3 @@ Every value of String is valid UTF-8; malformed arbitrary input is represented b
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Utf8.cinch`](/packages/stdlib/Text.Utf8/source/). Source SHA-256: `1cbea5905f313433efbc56e2b91f60ce86cd82c499b342e17601766ab41d4159`.

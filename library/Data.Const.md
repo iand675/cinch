@@ -85,7 +85,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Applicative_Const"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Applicative/#c-Applicative" title="Category.Applicative.Applicative">Applicative</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.Const.Applicative_Const</code></span><div class="doc-child-prose">The applicative (D157's waiter is discharged at the prelude split): pure fabricates the Monoid payload and &lt;&gt; combines payloads under Semigroup.</div></li>
 <li id="i-Functor_Const"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Category.Functor/#c-Functor" title="Category.Functor.Functor">Functor</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Const/#t-Const" title="Data.Const.Const">Const</a> <span class="tok-variable">m</span>)</code> <span class="doc-inst-meta">Implicit · <code>Data.Const.Functor_Const</code></span><div class="doc-child-prose">The class instance (instances live with their type), defined through the body above.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Const.cinch`](/packages/stdlib/Data.Const/source/). Source SHA-256: `6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c`.

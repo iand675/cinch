@@ -1700,7 +1700,3 @@ reallocation.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable.cinch`](/packages/stdlib/Data.Mutable/source/). Source SHA-256: `6e6c039972d5efd23e30bdf1ca35c5bdf9967065ed8765a0384ec688f0c09206`.

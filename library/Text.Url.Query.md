@@ -171,7 +171,3 @@ Count distinct keys, including keys with an empty value list.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Url/Query.cinch`](/packages/stdlib/Text.Url.Query/source/). Source SHA-256: `d21bfb7ca2d495f7e67202e8cec6ad27723f767d2d997a5afe9f1b07409e85d3`.

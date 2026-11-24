@@ -494,7 +494,3 @@ zero span prints `PT0S`; a negative span has a leading `-`.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Time/Duration.cinch`](/packages/stdlib/Text.Time.Duration/source/). Source SHA-256: `20fbc027b1c3295d2ad1d3ede0c48b955604990b27f2ab1d7da45334877cb7c8`.

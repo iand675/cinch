@@ -61,7 +61,3 @@ reader-limit when a finite stream is required.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Sha3.cinch`](/packages/stdlib/Effect.Sha3/source/). Source SHA-256: `b08dbb1bd12da929f2c38cdad56b119dcc35f59205372e687872ed8ec0d5fe92`.

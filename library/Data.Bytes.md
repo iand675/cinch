@@ -140,7 +140,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-FromList_Bytes"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.FromList/#c-FromList" title="Data.FromList.FromList">FromList</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Bytes.FromList_Bytes</code></span></li>
 <li id="i-Hash_Bytes"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Hash/#c-Hash" title="Data.Hash.Hash">Hash</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Bytes/" title="Bytes">Bytes</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Bytes.Hash_Bytes</code></span><div class="doc-child-prose">The buffer's digest (instances live with their type).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes.cinch`](/packages/stdlib/Data.Bytes/source/). Source SHA-256: `24bb9f3ca7c5420b3abde122e05762f25adaa72df41d27557d22fc69370585da`.

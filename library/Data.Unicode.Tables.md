@@ -165,7 +165,3 @@ Read one immutable turkic-deltas entry; an out-of-range index returns zero.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Unicode/Tables.cinch`](/packages/stdlib/Data.Unicode.Tables/source/). Source SHA-256: `52f5d8c3df2e62755a39630aa3667bdf71ee8220cae8f068229aea26b8d5e342`.

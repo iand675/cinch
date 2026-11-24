@@ -236,7 +236,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_Time"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Eq_Time</code></span><div class="doc-child-prose">Instances (the class spellings of cmp; instances live with their type per design/base-library.md).</div></li>
 <li id="i-Ord_Time"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time/#t-Time" title="Data.Time.Time">Time</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Ord_Time</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time.cinch`](/packages/stdlib/Data.Time/source/). Source SHA-256: `eaebe31539cf831410efab83a69447edab72cad03b00a27d4b515ddd4d54761c`.

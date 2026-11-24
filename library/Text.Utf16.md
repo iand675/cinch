@@ -116,7 +116,3 @@ One or two code units for a scalar, or None for a negative, surrogate or out-of-
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Utf16.cinch`](/packages/stdlib/Text.Utf16/source/). Source SHA-256: `fb5bfa4782fa832245102d8fc57818a374c4176c6a7c608f21a669030f54e8b8`.

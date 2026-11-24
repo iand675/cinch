@@ -69,7 +69,3 @@ for data that would expand beyond the stored representation.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Gzip.cinch`](/packages/stdlib/Text.Gzip/source/). Source SHA-256: `a94c55457e743050595f6fdb22931c834ca66a352cb820372ecaba7728c8a403`.

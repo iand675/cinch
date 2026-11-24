@@ -148,7 +148,3 @@ Read a bounded prefix. Zero-length reads skip the callback.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stream/Section.cinch`](/packages/stdlib/Effect.Stream.Section/source/). Source SHA-256: `ce1b65e973fd2e8d0cbc26d1b9876fa1cd38113fa3843c56cfc229b20954059e`.

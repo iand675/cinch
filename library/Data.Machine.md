@@ -3504,7 +3504,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Ord_U8"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="U8">U8</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Machine.Ord_U8</code></span></li>
 <li id="i-Ord_Usize"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Machine.Ord_Usize</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Machine.cinch`](/packages/stdlib/Data.Machine/source/). Source SHA-256: `e33b8e44a106c71e9b3a5c4d49f8b37704b273aeaa958999f5e9455cb97d1ec6`.

@@ -85,7 +85,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Eq_Down"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Eq/#c-Eq" title="Relation.Eq.Eq">Eq</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">Implicit · <code>Relation.Ord.Eq_Down</code></span></li>
 <li id="i-Ord_Down"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> (<a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#t-Down" title="Relation.Ord.Down">Down</a> <span class="tok-variable">a</span>)</code> <span class="doc-inst-meta">Implicit · <code>Relation.Ord.Ord_Down</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Relation/Ord.cinch`](/packages/stdlib/Relation.Ord/source/). Source SHA-256: `7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd`.

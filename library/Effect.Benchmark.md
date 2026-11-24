@@ -121,7 +121,3 @@ table at every row.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Benchmark.cinch`](/packages/stdlib/Effect.Benchmark/source/). Source SHA-256: `59fcce379631b8530523a7370db82c170c0e5d6e0a7b5961e80fd270883e8ba3`.

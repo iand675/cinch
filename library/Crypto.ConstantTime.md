@@ -100,7 +100,3 @@ A short destination is returned before any write; untouched trailing bytes remai
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/ConstantTime.cinch`](/packages/stdlib/Crypto.ConstantTime/source/). Source SHA-256: `f63a1679dd1f0a976cf8fc58ac306af48bd69afa9fd65b847696b025a1dd08e7`.

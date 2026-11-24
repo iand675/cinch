@@ -87,7 +87,3 @@ is the `vecStreamStep` intrinsic.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Producer.cinch`](/packages/stdlib/Data.Producer/source/). Source SHA-256: `47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f`.

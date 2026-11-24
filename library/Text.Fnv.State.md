@@ -220,7 +220,3 @@ Initial 64-bit FNV-1a state, applying xor before multiplication.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Fnv/State.cinch`](/packages/stdlib/Text.Fnv.State/source/). Source SHA-256: `32143ed6a2a86719094a7ff3dffcd7811a51d0b7c8aae7630fe1fe0487ecd673`.

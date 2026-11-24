@@ -525,7 +525,3 @@ Empty fixed layout; encoding emits no bytes and decoding consumes no input.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Binary/Layout.cinch`](/packages/stdlib/Text.Binary.Layout/source/). Source SHA-256: `2bf98a83aaed9aeb72ac3e69d285d15aa28ff65b6543236b659bb775beb8f1d2`.

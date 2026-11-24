@@ -172,7 +172,3 @@ Full segments use explicit machine-word wrapping before modular reduction.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Adler32.cinch`](/packages/stdlib/Text.Adler32/source/). Source SHA-256: `30204346a6b8a6d8b0ebe898740eeedcf97c6951ce74ef2b1a52a6bc36f4023c`.

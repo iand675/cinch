@@ -104,7 +104,3 @@ trailing data, and neither id all zeros.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Otlp.cinch`](/packages/stdlib/Text.Otlp/source/). Source SHA-256: `650ee7a5b2e4c12c7c01d4218d520cc4dbd97432fedd85291c8831abdf543b9d`.

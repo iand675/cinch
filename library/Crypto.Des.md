@@ -147,7 +147,3 @@ Key Triple DES with a 24-byte key: three DES keys in order.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Des.cinch`](/packages/stdlib/Crypto.Des/source/). Source SHA-256: `35f5c4f7cb8a474bae4e438b2085d9e05fc7a3b290798826588883381dc55fd9`.

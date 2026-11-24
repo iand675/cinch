@@ -329,7 +329,3 @@ The suite's KEM.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Hpke.cinch`](/packages/stdlib/Crypto.Hpke/source/). Source SHA-256: `02fa628f945bc098ffe21f179980f676c0862c2c3a6f1f8e3655bdd89d116abd`.

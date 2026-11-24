@@ -285,7 +285,3 @@ Trim only header space and tab, never Unicode whitespace or body bytes.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Multipart.cinch`](/packages/stdlib/Text.Multipart/source/). Source SHA-256: `743519460a0f29b66af76583a0d1780b450a876d57559dc603b195a7a7d96ae2`.

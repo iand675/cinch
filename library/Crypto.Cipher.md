@@ -350,7 +350,3 @@ Applying the same stream to the output reverses it for CTR and OFB; CFB uses its
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Crypto/Cipher.cinch`](/packages/stdlib/Crypto.Cipher/source/). Source SHA-256: `229b114e7a3c8d8c97c9c91cd506b55f412dcdc018f9692d6540f8dc5cd30783`.

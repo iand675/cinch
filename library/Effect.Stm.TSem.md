@@ -92,7 +92,3 @@ Take a permit. Waits while there is none.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stm/TSem.cinch`](/packages/stdlib/Effect.Stm.TSem/source/). Source SHA-256: `a493de2f8f16e4be3fa641174b9d1c669597641fd64857cde9fa5f8d80c4947d`.

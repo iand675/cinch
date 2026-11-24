@@ -171,7 +171,3 @@ moved entry changes position.
 <article class="doc-entry" id="v-index-map-values">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">index-map-values</strong> :: <span class="tok-keyword">forall</span> (<span class="tok-variable">r</span> :: <span class="tok-constructor">Region</span>) <span class="tok-variable">k</span> <span class="tok-variable">v</span>. <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Mutable/#t-IndexMap" title="Data.Mutable.IndexMap.IndexMap">IndexMap</a> <span class="tok-variable">r</span> <span class="tok-variable">k</span> <span class="tok-variable">v</span> <span class="tok-operator">-&gt;</span>{<a class="doc-type-link tok-constructor" href="/reference/10-ownership-and-memory/" title="Mut">Mut</a> r} <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.List/#t-List" title="Data.Core.List">List</a> <span class="tok-variable">v</span></code><span class="doc-sig-links"><a href="#v-index-map-values" title="Permalink">#</a><a href="/packages/stdlib/Data.Mutable.IndexMap/source/#L623" title="View source at line 623">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/IndexMap.cinch`](/packages/stdlib/Data.Mutable.IndexMap/source/). Source SHA-256: `119e94ae13c00611a834c4947d4db4c9bfed98b86da803c8ce707c16fe0cf501`.

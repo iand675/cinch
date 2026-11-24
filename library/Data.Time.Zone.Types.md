@@ -217,7 +217,3 @@ The one offset, when there is exactly one.
 <article class="doc-entry" id="v-offset-info-offset">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">offset-info-offset</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Zone/#t-OffsetInfo" title="Data.Time.Zone.Types.OffsetInfo">OffsetInfo</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Offset/#t-Offset" title="Data.Time.Offset.Offset">Offset</a></code><span class="doc-sig-links"><a href="#v-offset-info-offset" title="Permalink">#</a><a href="/packages/stdlib/Data.Time.Zone.Types/source/#L81" title="View source at line 81">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Zone/Types.cinch`](/packages/stdlib/Data.Time.Zone.Types/source/). Source SHA-256: `9ae9aa1e61e7319241e258b3bea890069e31bc1c35c689e1f361f2db050b1ebe`.

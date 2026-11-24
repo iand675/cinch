@@ -794,7 +794,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-LargestOption_SpanRound"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-LargestOption" title="Data.Time.Unit.LargestOption">LargestOption</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanRound" title="Data.Time.Span.SpanRound">SpanRound</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Span.LargestOption_SpanRound</code></span></li>
 <li id="i-RoundingOptions_SpanRound"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Unit/#c-RoundingOptions" title="Data.Time.Unit.RoundingOptions">RoundingOptions</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Time.Span/#t-SpanRound" title="Data.Time.Span.SpanRound">SpanRound</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Time.Span.RoundingOptions_SpanRound</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Time/Span.cinch`](/packages/stdlib/Data.Time.Span/source/). Source SHA-256: `4d4838e0610c2143ead9b6c2cc853f0a9a7c724aa833d6d892ada772a14c39c1`.

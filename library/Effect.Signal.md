@@ -149,7 +149,3 @@ error on any failure, `Ok ()` when the kernel accepted it.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Signal.cinch`](/packages/stdlib/Effect.Signal/source/). Source SHA-256: `e64e11d90a176c3f9f3dfe07e218ac54b086a1beab27ae54009f98dde9fc2724`.

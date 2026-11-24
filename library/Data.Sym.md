@@ -58,7 +58,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Ord_Sym"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Sym.Ord_Sym</code></span><div class="doc-child-prose">Ord is lexicographic by name: symCmp's immediate against 0 (the natCmp/intCmp reading), never the cell addresses.</div></li>
 <li id="i-Show_Sym"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Show/#c-Show" title="Text.Show.Show">Show</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Sym/" title="Sym">Sym</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Sym.Show_Sym</code></span><div class="doc-child-prose">Show prints 'foo (section 9): the tick is char-string '\'' (raw ASCII 39), the name renders as itself.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Sym.cinch`](/packages/stdlib/Data.Sym/source/). Source SHA-256: `ec8210224881ab65802a4ced9f56847e943254dedc7f335f93021be984a32ec4`.

@@ -339,7 +339,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Ord_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Relation.Ord/#c-Ord" title="Relation.Ord.Ord">Ord</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.String.Ord_String</code></span></li>
 <li id="i-Semigroup_String"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code> <span class="doc-inst-meta">Implicit · <code>Data.String.Semigroup_String</code></span><div class="doc-child-prose">Strings under concatenation over the UTF-8 Bytes backing (moved from Algebra.Semigroup at the prelude split; the instance lives with its type).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/String.cinch`](/packages/stdlib/Data.String/source/). Source SHA-256: `12324541f68d17a1b5cd0bd6dcac44e9644a626aef4d2f1282f95ef9f34e4e3c`.

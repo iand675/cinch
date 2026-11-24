@@ -95,7 +95,3 @@ below cover the mathematical `Nat` and `Int` only.
 | `>>` | `infixl` | `7` |
 | `^` | `infixl` | `5` |
 | `\|` | `infixl` | `4` |
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Algebra/Bits.cinch`](/packages/stdlib/Algebra.Bits/source/). Source SHA-256: `8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712`.

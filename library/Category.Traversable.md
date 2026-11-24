@@ -89,7 +89,3 @@ ever needed the effect's `Applicative`.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Category/Traversable.cinch`](/packages/stdlib/Category.Traversable/source/). Source SHA-256: `ee1061fae41837e7548b47c4e259977b53131d9ecaa18b438594ccb7fe873326`.

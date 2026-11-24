@@ -129,7 +129,3 @@ it (the worked shape and its boundary above).
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Clock.cinch`](/packages/stdlib/Effect.Clock/source/). Source SHA-256: `df444a92ce56f1388be9014ddcdf637971c3d3c9082eb85f4d5e50c795e6522e`.

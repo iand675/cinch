@@ -253,7 +253,3 @@ dropped, Ruby's default.
 <article class="doc-entry" id="v-render-regex-error">
 <div class="doc-sig-bar"><code class="doc-sig"><strong class="doc-decl-name tok-variable">render-regex-error</strong> :: <a class="doc-type-link tok-constructor" href="/packages/stdlib/Text.Regex/#t-RegexError" title="Text.Regex.RegexError">RegexError</a> <span class="tok-operator">-&gt;</span> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.String/#t-String" title="Data.String.String">String</a></code><span class="doc-sig-links"><a href="#v-render-regex-error" title="Permalink">#</a><a href="/packages/stdlib/Text.Regex/source/#L224" title="View source at line 224">Source</a></span></div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Regex.cinch`](/packages/stdlib/Text.Regex/source/). Source SHA-256: `35adaa7be29d6731181e5e84054b4ef90fa7a40623ae9fe6a1cc2b962b27f9d1`.

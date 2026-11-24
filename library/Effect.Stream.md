@@ -283,7 +283,3 @@ Borrow a descriptor for writing; the caller retains close responsibility.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stream.cinch`](/packages/stdlib/Effect.Stream/source/). Source SHA-256: `e2c2dfb9f12e0855b178ca68cb8cad8c3376170f79d8ea1d23216a6d77e3d70d`.

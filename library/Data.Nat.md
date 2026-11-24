@@ -180,7 +180,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Semiring_Nat"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semiring/#c-Semiring" title="Algebra.Semiring.Semiring">Semiring</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Semiring_Nat</code></span><div class="doc-child-prose">The semiring of natural numbers: addition and multiplication with their identities (see the header; instances live with their type).</div></li>
 <li id="i-Sub_Nat"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Nat/" title="Nat">Nat</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Nat.Sub_Nat</code></span><div class="doc-child-prose">- at Nat is the exact difference, so this instance states the precondition over the method's arguments: every direct x - y discharges y &lt;= x (a numeral pair decides it, a branch fact or Dec evidence supplies it).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Nat.cinch`](/packages/stdlib/Data.Nat/source/). Source SHA-256: `caed61b507f2cd957fb00d45ef663cee44f9fd56036054355079804a6f945afb`.

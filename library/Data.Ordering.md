@@ -37,7 +37,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Monoid_Ordering"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Monoid/#c-Monoid" title="Algebra.Monoid.Monoid">Monoid</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Ordering.Monoid_Ordering</code></span><div class="doc-child-prose">EQ is the identity (moved from Algebra.Monoid).</div></li>
 <li id="i-Semigroup_Ordering"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Semigroup/#c-Semigroup" title="Algebra.Semigroup.Semigroup">Semigroup</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Ordering/#t-Ordering" title="Data.Ordering.Ordering">Ordering</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Ordering.Semigroup_Ordering</code></span><div class="doc-child-prose">Lexicographic composition of comparisons: compare x y &lt;&gt; compare y z gives compare x z when the first is not EQ (moved from Algebra.Semigroup at the prelude split).</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Ordering.cinch`](/packages/stdlib/Data.Ordering/source/). Source SHA-256: `7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537`.

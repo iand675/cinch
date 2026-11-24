@@ -156,7 +156,3 @@ two) before its first growth.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Mutable/Deque.cinch`](/packages/stdlib/Data.Mutable.Deque/source/). Source SHA-256: `3761e4888415de3d3fa427aefef583cfcb7cfb4f481759ed906b7c3a841eaada`.

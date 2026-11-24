@@ -130,7 +130,3 @@ Wrap a positional callback reporting the count accepted and the next sink.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Stream/Offset.cinch`](/packages/stdlib/Effect.Stream.Offset/source/). Source SHA-256: `1828e5e2f5547face4ed67fdbeeba348c9a52e3679de240a8d79003904c48bbd`.

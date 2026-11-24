@@ -155,7 +155,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Default_Unit"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/reference/04-types-and-kinds/" title="Unit">Unit</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Unit</code></span><div class="doc-child-prose">The distinguished value default for Unit.</div></li>
 <li id="i-Default_Usize"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Compare/#c-Default" title="Data.Compare.Default">Default</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Machine/" title="Usize">Usize</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Compare.Default_Usize</code></span><div class="doc-child-prose">The canonical zero default for Usize.</div></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Compare.cinch`](/packages/stdlib/Data.Compare/source/). Source SHA-256: `2c8339cfe0420a3ad27bed174308286e4c7e377318adf18dd8dcd5ce172686cb`.

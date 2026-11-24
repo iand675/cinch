@@ -93,7 +93,3 @@ Return the elements in reverse order.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Array/Edit.cinch`](/packages/stdlib/Data.Array.Edit/source/). Source SHA-256: `25857a7cd5dff21d743ddb2871c837c770397ac57e05d524349fc39ccc780bdb`.

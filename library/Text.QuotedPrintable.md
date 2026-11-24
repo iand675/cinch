@@ -255,7 +255,3 @@ The absolute original input position associated with a codec failure.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/QuotedPrintable.cinch`](/packages/stdlib/Text.QuotedPrintable/source/). Source SHA-256: `ae2def9c5e872f55fddb1fb908801d71263bd499e4882f6dc9bd205f2b816e00`.

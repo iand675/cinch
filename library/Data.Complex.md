@@ -246,7 +246,3 @@ Exported checked instances declared in this module. For law checking, see [rewri
 <li id="i-Neg_Complex"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Neg" title="Algebra.Arithmetic.Neg">Neg</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Complex.Neg_Complex</code></span></li>
 <li id="i-Sub_Complex"><code><a class="doc-type-link tok-constructor" href="/packages/stdlib/Algebra.Arithmetic/#c-Sub" title="Algebra.Arithmetic.Sub">Sub</a> <a class="doc-type-link tok-constructor" href="/packages/stdlib/Data.Complex/#t-Complex" title="Data.Complex.Complex">Complex</a></code> <span class="doc-inst-meta">Implicit · <code>Data.Complex.Sub_Complex</code></span></li>
 </ul>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Complex.cinch`](/packages/stdlib/Data.Complex/source/). Source SHA-256: `16b1436d6025030f3ab3dbfd6955fb926883ead5dc83af6a373ac42919918a51`.

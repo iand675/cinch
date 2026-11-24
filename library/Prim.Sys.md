@@ -216,7 +216,3 @@ written.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Prim/Sys.cinch`](/packages/stdlib/Prim.Sys/source/). Source SHA-256: `00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d`.

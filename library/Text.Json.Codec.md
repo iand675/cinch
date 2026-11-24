@@ -1266,7 +1266,3 @@ Select nested numeric quoting without changing HTML or indentation configuration
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Json/Codec.cinch`](/packages/stdlib/Text.Json.Codec/source/). Source SHA-256: `75c3031b7c0b3f359c8d00ec01afdc97276f949cb7268ca65ab46271209f4022`.

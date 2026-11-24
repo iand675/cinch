@@ -170,7 +170,3 @@ renders in.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Text/Csv.cinch`](/packages/stdlib/Text.Csv/source/). Source SHA-256: `d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455`.

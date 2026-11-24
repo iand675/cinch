@@ -269,7 +269,3 @@ Begin a fresh persistent traversal over complete input and raw separator buffers
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Data/Bytes/Split.cinch`](/packages/stdlib/Data.Bytes.Split/source/). Source SHA-256: `2b534f9538e49c5e0d364721a5fca28cbda3808586ceb8c4e163bec1e0b9d26d`.

@@ -278,7 +278,3 @@ while the suite runs; `render-report` is the summary after it.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Test.cinch`](/packages/stdlib/Effect.Test/source/). Source SHA-256: `25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0`.

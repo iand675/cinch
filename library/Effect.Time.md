@@ -234,7 +234,3 @@ saturating: zero for a negative `d`, `I64` milliseconds at most.
 
 </div>
 </article>
-
-# Reference provenance
-
-Generated from checked `.cinchif` exports and [`seed/prelude/Effect/Time.cinch`](/packages/stdlib/Effect.Time/source/). Source SHA-256: `55fb18e3413088cd5db3e41302ae0984f1f0039c0e386ae8ca72e4e4fe7be4e4`.
