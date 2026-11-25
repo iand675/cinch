@@ -10,7 +10,7 @@ Import with `import Data.Bytes`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Prim.Machine](Prim.Machine.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -50,7 +50,7 @@ The lexicographic order of two buffers' contents as the raw -1/0/1
 immediate (the `nat-cmp` convention), read in place: no copy and
 no allocation.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 83
+[Source](/reference-sources/Data.Bytes.cinch) · line 84
 
 <a id="value-62797465732d636f70792d72616e6765"></a>
 
@@ -63,7 +63,7 @@ into `dst` at `di`, as one runtime `memmove` (the two may be the
 same buffer and overlap). A copy loop written here would box a `Nat`
 for every index step, so every bulk copy goes through this.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 78
+[Source](/reference-sources/Data.Bytes.cinch) · line 79
 
 <a id="value-62797465732d64617461"></a>
 
@@ -79,7 +79,7 @@ and the address is valid while the handle is live, so a caller that
 wants a C string NUL-terminates it itself (a fresh buffer one byte
 longer, the bytes copied in, the last byte zeroed).
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 72
+[Source](/reference-sources/Data.Bytes.cinch) · line 73
 
 <a id="value-62797465732d66726f6d2d6c697374"></a>
 
@@ -90,7 +90,7 @@ longer, the bytes copied in, the last byte zeroed).
 Copy typed byte values in list order into one fresh mutable buffer.
 A tail count pass and checked tail stores keep construction stack bounded.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 93
+[Source](/reference-sources/Data.Bytes.cinch) · line 94
 
 <a id="value-62797465732d66726f6d2d753873"></a>
 
@@ -100,7 +100,7 @@ A tail count pass and checked tail stores keep construction stack bounded.
 
 Copy machine byte values into one fresh buffer without recursive unwinding.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 125
+[Source](/reference-sources/Data.Bytes.cinch) · line 127
 
 <a id="value-62797465732d676574"></a>
 
@@ -141,7 +141,7 @@ bytes-len b)` supplies it. A string literal's read-only backing is
 never one of these buffers: it lives inside a `String`, and every
 conversion out of a `String` copies.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 43
+[Source](/reference-sources/Data.Bytes.cinch) · line 44
 
 <a id="value-62797465732d6c656e2d693634"></a>
 
@@ -290,7 +290,7 @@ buffer (the P31 content identity; `seed/runtime/src/text.rs`,
 the `cinch.runtime.textSha256` intrinsic, nm-verified there): the
 digest as a fresh 32-byte buffer.
 
-[Source](/reference-sources/Data.Bytes.cinch) · line 89
+[Source](/reference-sources/Data.Bytes.cinch) · line 90
 
 # Instances
 
@@ -315,4 +315,4 @@ copies of one algorithm.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes.cinch`. Source SHA-256: `9cca464dcf431c7df1c6540d8937ba9966eaa33b9e87b37b9018d44a58869e40`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bytes.cinch`. Source SHA-256: `48c15812e3641ae1ff70da71d6561302f1edc42dc00c14270a2479d6bbdb6fd1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

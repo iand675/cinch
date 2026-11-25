@@ -8,6 +8,7 @@
 -- instance family (the parked-instance deviation of D159 is over).
 module Data.Char where
 
+  import Prim.Machine (eq-u32, ne-u32, lt-u32, le-u32, gt-u32, ge-u32, u32-to-i64, wrapping-i64-to-u32)
   import Data.Option
   import Algebra.Arithmetic
   import Data.Hash
@@ -22,14 +23,37 @@ module Data.Char where
   -- Primitive types specification, section 6: Char values are Unicode
   -- scalar values, in code point order. `u32-to-char` rejects surrogates
   -- and values above 0x10FFFF.
-  foreign import ccall "cinch.prim.charToU32" char-to-u32 :: (c :: Char) -> refined (InRange 0 1114111 r && r == c) U32
-  foreign import ccall "cinch.prim.u32ToChar" u32-to-char :: U32 -> Option Char
-  foreign import ccall "cinch.prim.eqChar" eq-char :: Char -> Char -> Bool
-  foreign import ccall "cinch.prim.neChar" ne-char :: Char -> Char -> Bool
-  foreign import ccall "cinch.prim.ltChar" lt-char :: Char -> Char -> Bool
-  foreign import ccall "cinch.prim.leChar" le-char :: Char -> Char -> Bool
-  foreign import ccall "cinch.prim.gtChar" gt-char :: Char -> Char -> Bool
-  foreign import ccall "cinch.prim.geChar" ge-char :: Char -> Char -> Bool
+  prim char-to-u32 :: (c :: Char) -> refined (InRange 0 1114111 r && r == c) U32 where
+    llvm {
+      ret i32 %0
+    }
+
+  prim raw-u32-to-char :: U32 -> Char where
+    llvm {
+      ret i32 %0
+    }
+
+  u32-to-char :: U32 -> Option Char
+  u32-to-char n =
+    if le-u32 n 1114111 && (lt-u32 n 55296 || gt-u32 n 57343) then Some (raw-u32-to-char n) else None
+
+  eq-char :: Char -> Char -> Bool
+  eq-char a b = eq-u32 (char-to-u32 a) (char-to-u32 b)
+
+  ne-char :: Char -> Char -> Bool
+  ne-char a b = ne-u32 (char-to-u32 a) (char-to-u32 b)
+
+  lt-char :: Char -> Char -> Bool
+  lt-char a b = lt-u32 (char-to-u32 a) (char-to-u32 b)
+
+  le-char :: Char -> Char -> Bool
+  le-char a b = le-u32 (char-to-u32 a) (char-to-u32 b)
+
+  gt-char :: Char -> Char -> Bool
+  gt-char a b = gt-u32 (char-to-u32 a) (char-to-u32 b)
+
+  ge-char :: Char -> Char -> Bool
+  ge-char a b = ge-u32 (char-to-u32 a) (char-to-u32 b)
 
   -- The scalar value as a `Nat`: the conversion the text and data
   -- homes all spelled out by hand before this was its home. A scalar

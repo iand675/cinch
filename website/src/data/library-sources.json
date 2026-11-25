@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "base_manifest_sha256": "791984d30e9413d78fff173eddef0d5438278e074ddd19240d10376e6fa27b1e",
+  "base_manifest_sha256": "30c4c8ceba1f88c959f2854135248b3d6873d0f79b33d57bbc47d5e041901eed",
   "modules": [
     {
       "module": "Algebra.Arithmetic",
@@ -101,7 +101,7 @@
     {
       "module": "Crypto.Aes",
       "path": "seed/prelude/Crypto/Aes.cinch",
-      "sha256": "67cbeaad7f50e32f07b2447c843ecf34549d1983b3bff6d341eff449eb7b8cba",
+      "sha256": "740a7e211c8c29777bb9306a0ed8bb03af37620f303bd344f3c86eef0338825d",
       "embedded": false,
       "values": 11,
       "public_methods": 0
@@ -117,7 +117,7 @@
     {
       "module": "Crypto.Cipher",
       "path": "seed/prelude/Crypto/Cipher.cinch",
-      "sha256": "85f5838972cd8debab7f25257b2b174d2335f40a0adeab4b42c7e60788fffba1",
+      "sha256": "936015d95abebb06ab7f8590acd89bf8ea7f3138e8ca23d746ffdaf202b33139",
       "embedded": false,
       "values": 30,
       "public_methods": 0
@@ -309,7 +309,7 @@
     {
       "module": "Data.Bool",
       "path": "seed/prelude/Data/Bool.cinch",
-      "sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5",
+      "sha256": "a74ae86f0553e94919c6e5b7c12deeac215141c593310d871216ae9e247b80e1",
       "embedded": true,
       "values": 12,
       "public_methods": 0
@@ -373,7 +373,7 @@
     {
       "module": "Data.Bytes",
       "path": "seed/prelude/Data/Bytes.cinch",
-      "sha256": "9cca464dcf431c7df1c6540d8937ba9966eaa33b9e87b37b9018d44a58869e40",
+      "sha256": "48c15812e3641ae1ff70da71d6561302f1edc42dc00c14270a2479d6bbdb6fd1",
       "embedded": true,
       "values": 27,
       "public_methods": 0
@@ -389,7 +389,7 @@
     {
       "module": "Data.Char",
       "path": "seed/prelude/Data/Char.cinch",
-      "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
+      "sha256": "e76e912936c0dda403bbaf37720dd969c8264c9f9af1e794f648c967e68a5d8b",
       "embedded": true,
       "values": 21,
       "public_methods": 0
@@ -565,7 +565,7 @@
     {
       "module": "Data.Machine",
       "path": "seed/prelude/Data/Machine.cinch",
-      "sha256": "97dd9d9a69e7d80badf9d9cacea7d5590392ed4cccfb1d6a61a24496b6b9b5b5",
+      "sha256": "293acccf524ed4b1eb17684edcfda4114181b8670fcce5c0ff0a0449b9c6342c",
       "embedded": true,
       "values": 851,
       "public_methods": 0
@@ -885,7 +885,7 @@
     {
       "module": "Data.String",
       "path": "seed/prelude/Data/String.cinch",
-      "sha256": "12324541f68d17a1b5cd0bd6dcac44e9644a626aef4d2f1282f95ef9f34e4e3c",
+      "sha256": "9c1f024c81d6e72ec139e27558895cd0a5d0a830a294d3e21e277049d5812628",
       "embedded": true,
       "values": 31,
       "public_methods": 0
@@ -1125,9 +1125,9 @@
     {
       "module": "Data.Wide",
       "path": "seed/prelude/Data/Wide.cinch",
-      "sha256": "57b2af4c2ad31ff1fa34ea459731436032c8e8b71cb16d3634c8fcd044572a77",
+      "sha256": "53bf486efc9f780532a0a152ebfe06f072242a9c984f5becd4bb1bb9ad34f2fa",
       "embedded": true,
-      "values": 288,
+      "values": 295,
       "public_methods": 0
     },
     {
@@ -1629,7 +1629,7 @@
     {
       "module": "Effect.Stm",
       "path": "seed/prelude/Effect/Stm.cinch",
-      "sha256": "470353674e04c6572a5f941cbba42503281077aa55abd3ed8daf50ff85a9f071",
+      "sha256": "7315b4b2d387caea54d31009aed98c275140e084990d68a3295656dcf0d873ed",
       "embedded": true,
       "values": 17,
       "public_methods": 0
@@ -1819,9 +1819,17 @@
       "public_methods": 41
     },
     {
+      "module": "Prim.Machine",
+      "path": "seed/prelude/Prim/Machine.cinch",
+      "sha256": "3f9376fc67e58890b4d2e62fe992055f5b4461b31fa96427e3cbb7badcad85d2",
+      "embedded": true,
+      "values": 355,
+      "public_methods": 0
+    },
+    {
       "module": "Prim.Sys.Darwin",
       "path": "seed/prelude/Prim/Sys/Darwin.cinch",
-      "sha256": "9bff58d77c388a55aeacf09f90e66094177e2a6ea64025674ee9a20e6c453616",
+      "sha256": "54e7a9420c918ac7730d88388f0690d50fa3e5b98d2c5a54be30fc2010fdcda1",
       "embedded": true,
       "values": 18,
       "public_methods": 0
@@ -1848,6 +1856,14 @@
       "sha256": "00b3342acf6fe183229cf1c2135fcaa3d16df0136a6ac827b925e2ca4a4aa79d",
       "embedded": true,
       "values": 17,
+      "public_methods": 0
+    },
+    {
+      "module": "Prim.Wide",
+      "path": "seed/prelude/Prim/Wide.cinch",
+      "sha256": "62564558455adc4c274b06b6a87e56244c488bb922ecc72a349f5a52725f1988",
+      "embedded": true,
+      "values": 50,
       "public_methods": 0
     },
     {

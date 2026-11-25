@@ -3902,6 +3902,9 @@ impl Checker {
                 if let ValueKind::Prim(op) = v.kind {
                     return op.is_pure_arith() && args.len() == op.arity();
                 }
+                if let ValueKind::PrimDecl { arity, .. } = &v.kind {
+                    return !prim_effectful(&v.scheme.ty) && args.len() == *arity;
+                }
                 if !matches!(v.kind, ValueKind::TopFn) {
                     return false;
                 }

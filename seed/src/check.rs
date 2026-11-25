@@ -4619,11 +4619,19 @@ impl Checker {
                     return args.len() == 1 && args.iter().all(|a| self.stable_reading(a));
                 }
                 let Some((module, name)) = h.rsplit_once('.') else { return false };
-                match self.qualified.get(&(module.to_string(), name.to_string())).map(|v| &v.kind) {
-                    Some(ValueKind::Prim(op)) => {
-                        op.is_pure_arith() && op.arity() == args.len() && args.iter().all(|a| self.stable_reading(a))
-                    }
-                    _ => false,
+                match self.qualified.get(&(module.to_string(), name.to_string())) {
+                    Some(v) => match &v.kind {
+                        ValueKind::Prim(op) => {
+                            op.is_pure_arith() && op.arity() == args.len() && args.iter().all(|a| self.stable_reading(a))
+                        }
+                        ValueKind::PrimDecl { arity, .. } => {
+                            !prim_effectful(&v.scheme.ty)
+                                && *arity == args.len()
+                                && args.iter().all(|a| self.stable_reading(a))
+                        }
+                        _ => false,
+                    },
+                    None => false,
                 }
             }
             _ => false,
@@ -6042,6 +6050,7 @@ impl Checker {
         let core = lower(body, &LowerCx::compile_time(self, &[], &own));
         let scx = self.fold_scx.clone().unwrap_or_default();
         let mut cx = StageCx::new(&scx);
+        cx.max_depth = 512;
         let mut frame: Vec<crate::core::Value> = Vec::new();
         // A construction that does not evaluate at compile time (or
         // exceeds the fold's budget) computes at runtime, exactly as it

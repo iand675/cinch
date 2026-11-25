@@ -8417,8 +8417,21 @@ impl Checker {
     /// (selection is recorded in the manifest, never in the contract
     /// projection). The synthesized unit joins the program as a leaf.
     fn check_prims(&mut self) -> Result<()> {
-        let pending = std::mem::take(&mut self.pending_prims);
-        for (module, p, s) in pending {
+        self.check_prims_for(|_| true)
+    }
+
+    fn check_prims_for(&mut self, filter: impl Fn(&str) -> bool) -> Result<()> {
+        let mut selected = Vec::new();
+        let mut remaining = Vec::new();
+        for item in std::mem::take(&mut self.pending_prims) {
+            if filter(&item.0) {
+                selected.push(item);
+            } else {
+                remaining.push(item);
+            }
+        }
+        self.pending_prims = remaining;
+        for (module, p, s) in selected {
             self.current_module = module.clone();
             self.visible = vec![module.clone()];
             if let Some(imports) = self.module_imports.get(&module).cloned() {
@@ -8659,9 +8672,10 @@ impl Checker {
                 arity,
                 args: arg_tys
                     .iter()
-                    .map(|t| prim_abi_shape(t, self.usize_bits))
+                    .map(|t| self.prim_abi_shape(t))
                     .collect(),
-                res: prim_abi_shape(&res_ty, self.usize_bits),
+                res: self.prim_abi_shape(&res_ty),
+                res_bool: matches!(self.unwrap_prim_abi_ty(&res_ty), Ty::Bool),
                 pure,
                 tier,
                 laws,
@@ -8694,13 +8708,13 @@ impl Checker {
                 repr: crate::core::UnitRepr {
                     tparams: 0,
                     params: arg_tys.iter().map(|ty| {
-                        if matches!(ty, Ty::Prim(s) if s.is_wide()) {
+                        if matches!(self.unwrap_prim_abi_ty(ty), Ty::Prim(s) if s.is_wide()) {
                             crate::core::Class::Wide
                         } else {
                             crate::core::Class::Raw
                         }
                     }).collect(),
-                    result: if matches!(&res_ty, Ty::Prim(s) if s.is_wide()) {
+                    result: if matches!(self.unwrap_prim_abi_ty(&res_ty), Ty::Prim(s) if s.is_wide()) {
                         Some(crate::core::Class::Wide)
                     } else {
                         None
@@ -11024,7 +11038,7 @@ impl Checker {
             }
         }
         for a in &args {
-            if !is_prim_abi_ty(a) {
+            if !self.is_prim_abi_ty(a) {
                 return Err(Error::at(
                     p.span,
                     crate::diagnostic!(
@@ -11035,7 +11049,7 @@ impl Checker {
             }
         }
         let res = cur.clone();
-        if !is_prim_abi_ty(&res) {
+        if !self.is_prim_abi_ty(&res) {
             return Err(Error::at(
                 p.span,
                 crate::diagnostic!(
@@ -11074,7 +11088,7 @@ impl Checker {
                             "a `uses` entry's parameters occupy machine ABI slots (primitive operations and inline target IR specification section 4)",
                         ));
                     }
-                    if !is_prim_abi_ty(d) {
+                    if !self.is_prim_abi_ty(d) {
                         return Err(Error::at(
                             u.span,
                             crate::diagnostic!(
@@ -11097,7 +11111,7 @@ impl Checker {
                         args,
                         if matches!(other, Ty::Unit) {
                             None
-                        } else if is_prim_abi_ty(other) {
+                        } else if self.is_prim_abi_ty(other) {
                             Some(self.prim_use_slot(other))
                         } else {
                             return Err(Error::at(
@@ -11116,7 +11130,7 @@ impl Checker {
 
     /// One `uses` contract slot: the interface record and the ABI shape.
     fn prim_use_slot(&self, ty: &Ty) -> (crate::interface::ForeignParam, crate::core::PrimAbiTy) {
-        let shape = prim_abi_shape(ty, self.usize_bits);
+        let shape = self.prim_abi_shape(ty);
         let (width, signed) = match shape {
             crate::core::PrimAbiTy::Int { bits, signed } => (u64::from(bits) / 8, signed),
             crate::core::PrimAbiTy::F32 => (4, true),
@@ -11138,11 +11152,56 @@ impl Checker {
         )
     }
 
+    /// Peel anonymous refinements (`refined (P) T`), named refinements
+    /// (`InRange lo hi T`, `NonZero T`), and proposition-codomain `Sigma`s
+    /// to reach the underlying machine scalar carrier.
+    fn unwrap_prim_abi_ty(&self, ty: &Ty) -> Ty {
+        let mut cur = ty.clone();
+        loop {
+            if let Some(view) = self.refine_view(&cur) {
+                if let Some(base) = view.base {
+                    cur = base;
+                    continue;
+                }
+            }
+            if let Ty::Sigma { dom, cod, .. } = &cur {
+                if matches!(cod.as_ref(), Ty::Prp(_)) {
+                    cur = (**dom).clone();
+                    continue;
+                }
+            }
+            break;
+        }
+        cur
+    }
+
+    /// Is this type a prim ABI scalar (the declared ABI's widths)?
+    fn is_prim_abi_ty(&self, ty: &Ty) -> bool {
+        matches!(self.unwrap_prim_abi_ty(ty), Ty::Prim(_) | Ty::Bool)
+    }
+
+    /// The declared ABI shape of one prim scalar (the inline fragment's
+    /// widths; primitive operations and inline target IR specification
+    /// section 4).
+    fn prim_abi_shape(&self, ty: &Ty) -> crate::core::PrimAbiTy {
+        use crate::core::PrimAbiTy;
+        use crate::types::Scalar;
+        match self.unwrap_prim_abi_ty(ty) {
+            Ty::Prim(Scalar::F32) => PrimAbiTy::F32,
+            Ty::Prim(Scalar::F64) => PrimAbiTy::F64,
+            Ty::Prim(Scalar::Usize) => PrimAbiTy::Int { bits: self.usize_bits, signed: false },
+            Ty::Prim(Scalar::Isize) => PrimAbiTy::Int { bits: self.usize_bits, signed: true },
+            Ty::Prim(s) => PrimAbiTy::Int { bits: s.width(), signed: s.is_signed() },
+            // `Bool` crosses as its `i8` value bits.
+            _ => PrimAbiTy::Int { bits: 8, signed: false },
+        }
+    }
+
     /// The LLVM type spelling of a prim ABI scalar (the family's
     /// fragment grammar speaks these widths).
     fn prim_abi_word(&self, ty: &Ty) -> Result<String> {
         use crate::types::Scalar;
-        Ok(match ty {
+        Ok(match self.unwrap_prim_abi_ty(ty) {
             Ty::Prim(Scalar::I8) | Ty::Prim(Scalar::U8) => "i8".into(),
             Ty::Prim(Scalar::I16) | Ty::Prim(Scalar::U16) => "i16".into(),
             Ty::Prim(Scalar::I32) | Ty::Prim(Scalar::U32) | Ty::Prim(Scalar::Char) => "i32".into(),
@@ -11346,7 +11405,29 @@ impl Checker {
                 "containment (grammar): the body's fragment is empty (primitive operations and inline target IR specification section 4)",
             ));
         }
-        let res_word = self.prim_abi_word(res_ty)?;
+        let res_word = if matches!(
+            self.unwrap_prim_abi_ty(res_ty),
+            Ty::Prim(crate::types::Scalar::Usize | crate::types::Scalar::Isize)
+        ) {
+            let has_ws = |body: &ast::PrimBody, bits: u32| {
+                body.when.iter().any(|c| {
+                    WhenAtom::lower(c).ok().is_some_and(|a| {
+                        !a.negated && matches!(a.kind, WhenKind::WordSize(b) if b == bits)
+                    })
+                })
+            };
+            if has_ws(b, 32) {
+                "i32".to_string()
+            } else if has_ws(b, 64)
+                || (b.when.is_empty() && p.bodies.iter().any(|o| has_ws(o, 32)))
+            {
+                "i64".to_string()
+            } else {
+                self.prim_abi_word(res_ty)?
+            }
+        } else {
+            self.prim_abi_word(res_ty)?
+        };
         let _ = arg_tys;
         for raw in frag.lines() {
             let line = strip_llvm_comment(raw).trim().to_string();
@@ -18876,6 +18957,10 @@ fn check_program_multi_full_prepared_impl(
     // section 2).
     c.build_foreign_contracts()?;
     c.prepare_task_forwarders();
+    {
+        let prelude_names: HashSet<&str> = family.iter().map(|m| m.name.text.as_str()).collect();
+        c.check_prims_for(|m| prelude_names.contains(m))?;
+    }
     trace_checker_phase(phase_trace, "prepare", "initial_layout.end", None);
     trace_checker_phase(phase_trace, "prepare", "embedded_bodies.begin", None);
     // The prelude family compiles first: its functions and instances run
@@ -19242,8 +19327,10 @@ struct StageCx {
     inputs: Vec<StageInput>,
     /// Captured inputs of the previous build (replay mode).
     prior: Vec<StageInput>,
-    /// Macro expansion depth guard.
+    /// Call and expansion depth guard.
     depth: usize,
+    /// Maximum nested call depth permitted in this evaluation context.
+    max_depth: usize,
     /// Evaluation step budget (the staging termination policy).
     steps: u64,
     /// The entry directory: file capabilities resolve against it.
@@ -19273,6 +19360,7 @@ impl StageCx {
             inputs: Vec::new(),
             prior: scx.prior_inputs.clone(),
             depth: 0,
+            max_depth: 2048,
             steps: 8_000_000,
             workdir: scx.workdir.clone(),
             fixities: scx.fixities.clone(),
@@ -22255,6 +22343,14 @@ impl Checker {
                 let (now, rest) = acc.split_at(arity);
                 env.extend(now.iter().cloned());
                 self.ensure_fn(cx, &body_id.0)?;
+                if cx.fns.get(&body_id.0).is_some_and(|f| f.meta.prim_body) {
+                    let r = self.eval_prim_plan(&body_id.0, now)?;
+                    return if rest.is_empty() {
+                        Ok(r)
+                    } else {
+                        self.apply_value(cx, r, rest.to_vec())
+                    };
+                }
                 if let Some((_, scope)) = self.stage_definition_scopes.get(&body_id.0).cloned() {
                     self.fill_stage_scope(&mut types, &scope);
                 }
@@ -22297,9 +22393,20 @@ impl Checker {
                     }
                 }
                 let mut frame = env;
+                if cx.depth >= cx.max_depth {
+                    cx.def_module = save_def;
+                    cx.origin = save_origin;
+                    cx.unit_name = save_unit;
+                    return Err(Error::plain(format!(
+                        "compile-time evaluation exceeded its call depth budget ({} frames)",
+                        cx.max_depth
+                    )));
+                }
+                cx.depth += 1;
                 let saved_types = std::mem::replace(&mut cx.code_types, types);
                 let r = self.eval_core(cx, &body, &mut frame);
                 cx.code_types = saved_types;
+                cx.depth -= 1;
                 cx.def_module = save_def;
                 cx.origin = save_origin;
                 cx.unit_name = save_unit;
@@ -22359,6 +22466,43 @@ impl Checker {
                 value_kind_name(&other)
             ))),
         }
+    }
+
+    /// Evaluate a pure inline-LLVM `prim` declaration at compile time directly
+    /// from its checked LLVM fragment, so leaf primitives in `.cinch` files
+    /// require no separate compiler-side reimplementation for staging.
+    fn eval_prim_plan(&self, unit: &str, args: &[Value]) -> Result<Value> {
+        use crate::core::PrimAbiTy;
+        let plan = self
+            .prims
+            .iter()
+            .find(|p| p.unit == unit)
+            .ok_or_else(|| Error::plain(format!("internal error: no prim plan for `{unit}`")))?;
+        if !plan.pure {
+            return Err(Error::plain(format!(
+                "effectful `prim` `{unit}` cannot run at compile time"
+            )));
+        }
+        let touches_wide = plan
+            .args
+            .iter()
+            .chain(std::iter::once(&plan.res))
+            .any(|t| matches!(t, PrimAbiTy::Int { bits, .. } if *bits > 64));
+        if touches_wide {
+            return Err(Error::plain(format!(
+                "compile-time evaluation does not compute `{unit}` over `I128`/`U128` yet (design/wide-scalars.md, phase 2)"
+            )));
+        }
+        let body = plan.bodies.get(plan.selected).ok_or_else(|| {
+            Error::plain(format!("internal error: missing selected body for `{unit}`"))
+        })?;
+        if body.family != "llvm" || body.trusted || !body.uses.is_empty() {
+            return Err(Error::plain(format!(
+                "compile-time evaluation does not interpret `prim` `{unit}` ({})",
+                body.family
+            )));
+        }
+        eval_llvm_prim_fragment(plan, &body.fragment, args)
     }
 
     /// Primitive operation semantics for compile-time evaluation.
@@ -24443,11 +24587,6 @@ const IO_SYMS: &[&str] = &[
     "read", "open", "close", "exit", "abort", "_exit", "perror", "scanf", "fscanf", "sscanf",
 ];
 
-/// Is this type a prim ABI scalar (the declared ABI's widths)?
-fn is_prim_abi_ty(ty: &Ty) -> bool {
-    matches!(ty, Ty::Prim(_) | Ty::Bool)
-}
-
 /// The interface record of a `uses` contract that returns no value.
 fn prim_use_void() -> crate::interface::ForeignParam {
     crate::interface::ForeignParam {
@@ -24729,21 +24868,524 @@ fn scalar_samples(s: &crate::types::Scalar) -> Vec<Value> {
     }
 }
 
-/// The declared ABI shape of one prim scalar (the inline fragment's
-/// widths; primitive operations and inline target IR specification
-/// section 4).
-fn prim_abi_shape(ty: &Ty, usize_bits: u32) -> crate::core::PrimAbiTy {
+/// Straight-line SSA LLVM micro-evaluator for pure scalar `prim` fragments
+/// during compile-time staging and law sampling.
+fn eval_llvm_prim_fragment(
+    plan: &crate::core::PrimPlan,
+    fragment: &str,
+    args: &[Value],
+) -> Result<Value> {
     use crate::core::PrimAbiTy;
-    use crate::types::Scalar;
-    match ty {
-        Ty::Prim(Scalar::F32) => PrimAbiTy::F32,
-        Ty::Prim(Scalar::F64) => PrimAbiTy::F64,
-        Ty::Prim(Scalar::Usize) => PrimAbiTy::Int { bits: usize_bits, signed: false },
-        Ty::Prim(Scalar::Isize) => PrimAbiTy::Int { bits: usize_bits, signed: true },
-        Ty::Prim(s) => PrimAbiTy::Int { bits: s.width(), signed: s.is_signed() },
-        // `Bool` crosses as its `i8` value bits.
-        _ => PrimAbiTy::Int { bits: 8, signed: false },
+    #[derive(Clone, Copy)]
+    enum Ssa {
+        Int(u32, u128),
+        Pair(u32, u128, bool),
+        F32(f32),
+        F64(f64),
     }
+    let mask = |bits: u32| -> u128 {
+        if bits >= 128 { u128::MAX } else { (1u128 << bits) - 1 }
+    };
+    let sext = |v: u128, bits: u32| -> i128 {
+        let m = v & mask(bits);
+        if bits >= 128 {
+            m as i128
+        } else {
+            let sh = 128 - bits;
+            ((m << sh) as i128) >> sh
+        }
+    };
+    let parse_int_ty = |s: &str| -> Option<u32> {
+        s.strip_prefix('i').and_then(|d| d.parse::<u32>().ok()).filter(|&b| b >= 1 && b <= 128)
+    };
+    let err = |msg: String| Error::plain(format!("compile-time evaluation of `{}`: {msg}", plan.unit));
+    let mut env: HashMap<String, Ssa> = HashMap::new();
+    for (i, (shape, val)) in plan.args.iter().zip(args.iter()).enumerate() {
+        let ssa = match *shape {
+            PrimAbiTy::Int { bits, .. } => {
+                let w = word_of(val, "a machine scalar")? as u64 as u128;
+                Ssa::Int(bits, w & mask(bits))
+            }
+            PrimAbiTy::F32 => {
+                let w = word_of(val, "an `F32`")? as u32;
+                Ssa::F32(f32::from_bits(w))
+            }
+            PrimAbiTy::F64 => {
+                let w = word_of(val, "an `F64`")? as u64;
+                Ssa::F64(f64::from_bits(w))
+            }
+        };
+        env.insert(format!("%{i}"), ssa);
+    }
+    let get_int = |env: &HashMap<String, Ssa>, tok: &str, bits: u32| -> Result<u128> {
+        let tok = tok.trim().trim_end_matches(',');
+        if let Some(ssa) = env.get(tok) {
+            return match *ssa {
+                Ssa::Int(_, v) => Ok(v & mask(bits)),
+                _ => Err(err(format!("expected integer operand `{tok}`"))),
+            };
+        }
+        if tok == "true" {
+            return Ok(1 & mask(bits));
+        }
+        if tok == "false" || tok == "zeroinitializer" {
+            return Ok(0);
+        }
+        if let Ok(n) = tok.parse::<i128>() {
+            return Ok((n as u128) & mask(bits));
+        }
+        if let Ok(n) = tok.parse::<u128>() {
+            return Ok(n & mask(bits));
+        }
+        Err(err(format!("unsupported integer operand `{tok}`")))
+    };
+    let get_f64 = |env: &HashMap<String, Ssa>, tok: &str, is_f64: bool| -> Result<f64> {
+        let tok = tok.trim().trim_end_matches(',');
+        if let Some(ssa) = env.get(tok) {
+            return match *ssa {
+                Ssa::F32(x) => Ok(x as f64),
+                Ssa::F64(x) => Ok(x),
+                _ => Err(err(format!("expected float operand `{tok}`"))),
+            };
+        }
+        if let Some(hex) = tok.strip_prefix("0x").or_else(|| tok.strip_prefix("0X")) {
+            let bits = u64::from_str_radix(hex, 16)
+                .map_err(|_| err(format!("bad hex float `{tok}`")))?;
+            let d = f64::from_bits(bits);
+            return Ok(if is_f64 { d } else { (d as f32) as f64 });
+        }
+        let d = tok.parse::<f64>().map_err(|_| err(format!("unsupported float operand `{tok}`")))?;
+        Ok(if is_f64 { d } else { (d as f32) as f64 })
+    };
+    let get_ssa = |env: &HashMap<String, Ssa>, ty: &str, tok: &str| -> Result<Ssa> {
+        if let Some(bits) = parse_int_ty(ty) {
+            Ok(Ssa::Int(bits, get_int(env, tok, bits)?))
+        } else if ty == "float" {
+            Ok(Ssa::F32(get_f64(env, tok, false)? as f32))
+        } else if ty == "double" {
+            Ok(Ssa::F64(get_f64(env, tok, true)?))
+        } else {
+            Err(err(format!("unsupported operand type `{ty}`")))
+        }
+    };
+    for raw_line in fragment.lines() {
+        let line = raw_line.split(';').next().unwrap_or("").trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("ret ") {
+            let parts: Vec<&str> = rest.split_whitespace().collect();
+            if parts.len() != 2 {
+                return Err(err(format!("unsupported return `{line}`")));
+            }
+            let ret_val = get_ssa(&env, parts[0], parts[1])?;
+            return match (plan.res_bool, &plan.res, ret_val) {
+                (true, _, Ssa::Int(_, v)) => Ok(Value::Bool(v != 0)),
+                (false, PrimAbiTy::Int { bits, signed }, Ssa::Int(_, v)) => {
+                    let word = if *signed {
+                        sext(v, *bits) as i64
+                    } else {
+                        (v & mask(*bits)) as u64 as i64
+                    };
+                    Ok(Value::Word(word))
+                }
+                (false, PrimAbiTy::F32, Ssa::F32(f)) => Ok(Value::Word(f.to_bits() as u64 as i64)),
+                (false, PrimAbiTy::F64, Ssa::F64(f)) => Ok(Value::Word(f.to_bits() as i64)),
+                _ => Err(err("return value shape disagrees with declared prim ABI".into())),
+            };
+        }
+        let Some((lhs, rhs)) = line.split_once('=') else {
+            return Err(err(format!("unsupported instruction `{line}`")));
+        };
+        let dst = lhs.trim().to_string();
+        let rhs = rhs.trim();
+        let val = if let Some(call_rest) = rhs.strip_prefix("call ") {
+            let Some((head, arg_part)) = call_rest.split_once('(') else {
+                return Err(err(format!("unsupported call `{line}`")));
+            };
+            let Some(arg_str) = arg_part.strip_suffix(')') else {
+                return Err(err(format!("unsupported call `{line}`")));
+            };
+            let callee = head
+                .split_whitespace()
+                .last()
+                .ok_or_else(|| err(format!("missing callee in `{line}`")))?;
+            let Some(intr) = callee.strip_prefix("@llvm.") else {
+                return Err(err(format!("unsupported call target `{callee}`")));
+            };
+            let call_args: Vec<(&str, &str)> = arg_str
+                .split(',')
+                .map(|a| a.trim())
+                .filter(|a| !a.is_empty())
+                .map(|a| {
+                    let mut sp = a.split_whitespace();
+                    (sp.next().unwrap_or(""), sp.next().unwrap_or(""))
+                })
+                .collect();
+            if let Some(ty_s) = intr.strip_prefix("sadd.sat.")
+                .or_else(|| intr.strip_prefix("uadd.sat."))
+                .or_else(|| intr.strip_prefix("ssub.sat."))
+                .or_else(|| intr.strip_prefix("usub.sat."))
+            {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                let b = get_int(&env, call_args[1].1, bits)?;
+                let out = if intr.starts_with("uadd") {
+                    a.saturating_add(b).min(mask(bits))
+                } else if intr.starts_with("usub") {
+                    a.saturating_sub(b)
+                } else {
+                    let min_s = -(1i128 << (bits - 1));
+                    let max_s = (1i128 << (bits - 1)) - 1;
+                    let sa = sext(a, bits);
+                    let sb = sext(b, bits);
+                    let r = if intr.starts_with("sadd") {
+                        sa.saturating_add(sb)
+                    } else {
+                        sa.saturating_sub(sb)
+                    };
+                    (r.clamp(min_s, max_s) as u128) & mask(bits)
+                };
+                Ssa::Int(bits, out)
+            } else if let Some(ty_s) = intr.strip_prefix("sadd.with.overflow.")
+                .or_else(|| intr.strip_prefix("uadd.with.overflow."))
+                .or_else(|| intr.strip_prefix("ssub.with.overflow."))
+                .or_else(|| intr.strip_prefix("usub.with.overflow."))
+                .or_else(|| intr.strip_prefix("smul.with.overflow."))
+                .or_else(|| intr.strip_prefix("umul.with.overflow."))
+            {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                let b = get_int(&env, call_args[1].1, bits)?;
+                let m = mask(bits);
+                let (res, ov) = if intr.starts_with("uadd") {
+                    let (r, c) = a.overflowing_add(b);
+                    (r & m, c || r > m)
+                } else if intr.starts_with("usub") {
+                    let (r, c) = a.overflowing_sub(b);
+                    (r & m, c)
+                } else if intr.starts_with("umul") {
+                    let (r, c) = a.overflowing_mul(b);
+                    (r & m, c || r > m)
+                } else {
+                    let min_s = -(1i128 << (bits - 1));
+                    let max_s = (1i128 << (bits - 1)) - 1;
+                    let sa = sext(a, bits);
+                    let sb = sext(b, bits);
+                    let (r, c) = if intr.starts_with("sadd") {
+                        sa.overflowing_add(sb)
+                    } else if intr.starts_with("ssub") {
+                        sa.overflowing_sub(sb)
+                    } else {
+                        sa.overflowing_mul(sb)
+                    };
+                    ((r as u128) & m, c || r < min_s || r > max_s)
+                };
+                Ssa::Pair(bits, res, ov)
+            } else if let Some(ty_s) = intr.strip_prefix("fshl.").or_else(|| intr.strip_prefix("fshr.")) {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                let b = get_int(&env, call_args[1].1, bits)?;
+                let c = (get_int(&env, call_args[2].1, bits)? as u32) % bits;
+                let out = if c == 0 {
+                    if intr.starts_with("fshl") { a } else { b }
+                } else if intr.starts_with("fshl") {
+                    ((a << c) | (b >> (bits - c))) & mask(bits)
+                } else {
+                    ((a << (bits - c)) | (b >> c)) & mask(bits)
+                };
+                Ssa::Int(bits, out)
+            } else if let Some(ty_s) = intr.strip_prefix("smin.")
+                .or_else(|| intr.strip_prefix("smax."))
+                .or_else(|| intr.strip_prefix("umin."))
+                .or_else(|| intr.strip_prefix("umax."))
+            {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                let b = get_int(&env, call_args[1].1, bits)?;
+                let out = if intr.starts_with("umin") {
+                    a.min(b)
+                } else if intr.starts_with("umax") {
+                    a.max(b)
+                } else if intr.starts_with("smin") {
+                    (sext(a, bits).min(sext(b, bits)) as u128) & mask(bits)
+                } else {
+                    (sext(a, bits).max(sext(b, bits)) as u128) & mask(bits)
+                };
+                Ssa::Int(bits, out)
+            } else if let Some(ty_s) = intr.strip_prefix("ctpop.") {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                Ssa::Int(bits, a.count_ones() as u128)
+            } else if let Some(ty_s) = intr.strip_prefix("ctlz.") {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                let lz = if a == 0 { bits } else { a.leading_zeros() - (128 - bits) };
+                Ssa::Int(bits, lz as u128)
+            } else if let Some(ty_s) = intr.strip_prefix("cttz.") {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                let tz = if a == 0 { bits } else { a.trailing_zeros().min(bits) };
+                Ssa::Int(bits, tz as u128)
+            } else if let Some(ty_s) = intr.strip_prefix("bswap.") {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                let out = match bits {
+                    16 => (a as u16).swap_bytes() as u128,
+                    32 => (a as u32).swap_bytes() as u128,
+                    64 => (a as u64).swap_bytes() as u128,
+                    128 => a.swap_bytes(),
+                    _ => return Err(err(format!("bad bswap width i{bits}"))),
+                };
+                Ssa::Int(bits, out)
+            } else if let Some(ty_s) = intr.strip_prefix("bitreverse.") {
+                let bits = parse_int_ty(ty_s).ok_or_else(|| err(format!("bad intrinsic `{intr}`")))?;
+                let a = get_int(&env, call_args[0].1, bits)?;
+                let out = a.reverse_bits() >> (128 - bits);
+                Ssa::Int(bits, out & mask(bits))
+            } else if let Some(op_f) = intr.strip_suffix(".f32") {
+                let a = get_f64(&env, call_args[0].1, false)? as f32;
+                let r = match op_f {
+                    "fabs" => a.abs(),
+                    "sqrt" => a.sqrt(),
+                    "floor" => a.floor(),
+                    "ceil" => a.ceil(),
+                    "trunc" => a.trunc(),
+                    "round" => a.round(),
+                    "roundeven" => a.round_ties_even(),
+                    "copysign" => a.copysign(get_f64(&env, call_args[1].1, false)? as f32),
+                    _ => return Err(err(format!("unsupported intrinsic `{intr}`"))),
+                };
+                Ssa::F32(r)
+            } else if let Some(op_f) = intr.strip_suffix(".f64") {
+                let a = get_f64(&env, call_args[0].1, true)?;
+                let r = match op_f {
+                    "fabs" => a.abs(),
+                    "sqrt" => a.sqrt(),
+                    "floor" => a.floor(),
+                    "ceil" => a.ceil(),
+                    "trunc" => a.trunc(),
+                    "round" => a.round(),
+                    "roundeven" => a.round_ties_even(),
+                    "copysign" => a.copysign(get_f64(&env, call_args[1].1, true)?),
+                    _ => return Err(err(format!("unsupported intrinsic `{intr}`"))),
+                };
+                Ssa::F64(r)
+            } else {
+                return Err(err(format!("unsupported intrinsic `{intr}`")));
+            }
+        } else if let Some(ev_rest) = rhs.strip_prefix("extractvalue ") {
+            let Some((_, after_ty)) = ev_rest.split_once('}') else {
+                return Err(err(format!("unsupported extractvalue `{line}`")));
+            };
+            let parts: Vec<&str> = after_ty.split(',').map(|s| s.trim()).collect();
+            let Some(Ssa::Pair(bits, v, flag)) = env.get(parts[0]).copied() else {
+                return Err(err(format!("expected overflow pair `{}`", parts[0])));
+            };
+            match parts.get(1).copied() {
+                Some("0") => Ssa::Int(bits, v),
+                Some("1") => Ssa::Int(1, if flag { 1 } else { 0 }),
+                _ => return Err(err(format!("unsupported extractvalue index `{line}`"))),
+            }
+        } else if let Some(sel_rest) = rhs.strip_prefix("select ") {
+            let parts: Vec<&str> = sel_rest.split(',').map(|s| s.trim()).collect();
+            if parts.len() != 3 {
+                return Err(err(format!("unsupported select `{line}`")));
+            }
+            let cond_tok = parts[0].split_whitespace().nth(1).unwrap_or("");
+            let cond = get_int(&env, cond_tok, 1)? != 0;
+            let mut p1 = parts[1].split_whitespace();
+            let ty1 = p1.next().unwrap_or("");
+            let v1 = p1.next().unwrap_or("");
+            let mut p2 = parts[2].split_whitespace();
+            let ty2 = p2.next().unwrap_or("");
+            let v2 = p2.next().unwrap_or("");
+            if cond { get_ssa(&env, ty1, v1)? } else { get_ssa(&env, ty2, v2)? }
+        } else {
+            let toks: Vec<&str> = rhs.split_whitespace().collect();
+            let op = toks.first().copied().unwrap_or("");
+            match op {
+                "add" | "sub" | "mul" | "udiv" | "sdiv" | "urem" | "srem" | "and" | "or"
+                | "xor" | "shl" | "lshr" | "ashr" => {
+                    let mut idx = 1;
+                    while matches!(toks.get(idx).copied(), Some("nuw" | "nsw" | "exact" | "disjoint")) {
+                        idx += 1;
+                    }
+                    let bits = parse_int_ty(toks.get(idx).copied().unwrap_or(""))
+                        .ok_or_else(|| err(format!("unsupported binary op `{line}`")))?;
+                    let a = get_int(&env, toks.get(idx + 1).copied().unwrap_or(""), bits)?;
+                    let b = get_int(&env, toks.get(idx + 2).copied().unwrap_or(""), bits)?;
+                    let m = mask(bits);
+                    let out = match op {
+                        "add" => a.wrapping_add(b) & m,
+                        "sub" => a.wrapping_sub(b) & m,
+                        "mul" => a.wrapping_mul(b) & m,
+                        "and" => (a & b) & m,
+                        "or" => (a | b) & m,
+                        "xor" => (a ^ b) & m,
+                        "shl" => if b >= bits as u128 { 0 } else { (a << b) & m },
+                        "lshr" => if b >= bits as u128 { 0 } else { (a >> b) & m },
+                        "ashr" => {
+                            let sh = (b as u32).min(bits - 1);
+                            ((sext(a, bits) >> sh) as u128) & m
+                        }
+                        "udiv" => {
+                            if b == 0 {
+                                return Err(err("division by zero at compile time".into()));
+                            }
+                            (a / b) & m
+                        }
+                        "urem" => {
+                            if b == 0 {
+                                return Err(err("remainder by zero at compile time".into()));
+                            }
+                            (a % b) & m
+                        }
+                        "sdiv" => {
+                            let sa = sext(a, bits);
+                            let sb = sext(b, bits);
+                            let min_s = -(1i128 << (bits - 1));
+                            if sb == 0 || (sa == min_s && sb == -1) {
+                                return Err(err("signed division overflow at compile time".into()));
+                            }
+                            ((sa / sb) as u128) & m
+                        }
+                        "srem" => {
+                            let sa = sext(a, bits);
+                            let sb = sext(b, bits);
+                            let min_s = -(1i128 << (bits - 1));
+                            if sb == 0 || (sa == min_s && sb == -1) {
+                                return Err(err("signed remainder overflow at compile time".into()));
+                            }
+                            ((sa % sb) as u128) & m
+                        }
+                        _ => unreachable!(),
+                    };
+                    Ssa::Int(bits, out)
+                }
+                "icmp" => {
+                    let pred = toks.get(1).copied().unwrap_or("");
+                    let bits = parse_int_ty(toks.get(2).copied().unwrap_or(""))
+                        .ok_or_else(|| err(format!("unsupported icmp `{line}`")))?;
+                    let a = get_int(&env, toks.get(3).copied().unwrap_or(""), bits)?;
+                    let b = get_int(&env, toks.get(4).copied().unwrap_or(""), bits)?;
+                    let cond = match pred {
+                        "eq" => a == b,
+                        "ne" => a != b,
+                        "ult" => a < b,
+                        "ule" => a <= b,
+                        "ugt" => a > b,
+                        "uge" => a >= b,
+                        "slt" => sext(a, bits) < sext(b, bits),
+                        "sle" => sext(a, bits) <= sext(b, bits),
+                        "sgt" => sext(a, bits) > sext(b, bits),
+                        "sge" => sext(a, bits) >= sext(b, bits),
+                        _ => return Err(err(format!("unsupported icmp pred `{pred}`"))),
+                    };
+                    Ssa::Int(1, if cond { 1 } else { 0 })
+                }
+                "zext" | "sext" | "trunc" => {
+                    let mut idx = 1;
+                    while matches!(toks.get(idx).copied(), Some("nneg" | "nuw" | "nsw")) {
+                        idx += 1;
+                    }
+                    let from_b = parse_int_ty(toks.get(idx).copied().unwrap_or(""))
+                        .ok_or_else(|| err(format!("unsupported cast `{line}`")))?;
+                    let v = get_int(&env, toks.get(idx + 1).copied().unwrap_or(""), from_b)?;
+                    let to_b = parse_int_ty(toks.get(idx + 3).copied().unwrap_or(""))
+                        .ok_or_else(|| err(format!("unsupported cast target `{line}`")))?;
+                    let out = match op {
+                        "sext" => (sext(v, from_b) as u128) & mask(to_b),
+                        _ => v & mask(to_b),
+                    };
+                    Ssa::Int(to_b, out)
+                }
+                "bitcast" => {
+                    let from_ty = toks.get(1).copied().unwrap_or("");
+                    let src = toks.get(2).copied().unwrap_or("");
+                    let to_ty = toks.get(4).copied().unwrap_or("");
+                    match (from_ty, to_ty) {
+                        ("float", "i32") => Ssa::Int(32, (get_f64(&env, src, false)? as f32).to_bits() as u128),
+                        ("i32", "float") => Ssa::F32(f32::from_bits(get_int(&env, src, 32)? as u32)),
+                        ("double", "i64") => Ssa::Int(64, get_f64(&env, src, true)?.to_bits() as u128),
+                        ("i64", "double") => Ssa::F64(f64::from_bits(get_int(&env, src, 64)? as u64)),
+                        _ => return Err(err(format!("unsupported bitcast `{line}`"))),
+                    }
+                }
+                "fadd" | "fsub" | "fmul" | "fdiv" | "frem" => {
+                    let ty = toks.get(1).copied().unwrap_or("");
+                    let is_f64 = ty == "double";
+                    let a = get_f64(&env, toks.get(2).copied().unwrap_or(""), is_f64)?;
+                    let b = get_f64(&env, toks.get(3).copied().unwrap_or(""), is_f64)?;
+                    if is_f64 {
+                        Ssa::F64(match op { "fadd" => a + b, "fsub" => a - b, "fmul" => a * b, "fdiv" => a / b, _ => a % b })
+                    } else {
+                        let (a, b) = (a as f32, b as f32);
+                        Ssa::F32(match op { "fadd" => a + b, "fsub" => a - b, "fmul" => a * b, "fdiv" => a / b, _ => a % b })
+                    }
+                }
+                "fneg" => {
+                    let ty = toks.get(1).copied().unwrap_or("");
+                    let is_f64 = ty == "double";
+                    let a = get_f64(&env, toks.get(2).copied().unwrap_or(""), is_f64)?;
+                    if is_f64 { Ssa::F64(-a) } else { Ssa::F32(-(a as f32)) }
+                }
+                "fcmp" => {
+                    let pred = toks.get(1).copied().unwrap_or("");
+                    let is_f64 = toks.get(2).copied() == Some("double");
+                    let a = get_f64(&env, toks.get(3).copied().unwrap_or(""), is_f64)?;
+                    let b = get_f64(&env, toks.get(4).copied().unwrap_or(""), is_f64)?;
+                    let uno = a.is_nan() || b.is_nan();
+                    let cond = match pred {
+                        "oeq" => !uno && a == b,
+                        "one" => !uno && a != b,
+                        "olt" => !uno && a < b,
+                        "ole" => !uno && a <= b,
+                        "ogt" => !uno && a > b,
+                        "oge" => !uno && a >= b,
+                        "ord" => !uno,
+                        "uno" => uno,
+                        "ueq" => uno || a == b,
+                        "une" => uno || a != b,
+                        "ult" => uno || a < b,
+                        "ule" => uno || a <= b,
+                        "ugt" => uno || a > b,
+                        "uge" => uno || a >= b,
+                        _ => return Err(err(format!("unsupported fcmp pred `{pred}`"))),
+                    };
+                    Ssa::Int(1, if cond { 1 } else { 0 })
+                }
+                "fpext" => Ssa::F64(get_f64(&env, toks.get(2).copied().unwrap_or(""), false)?),
+                "fptrunc" => Ssa::F32(get_f64(&env, toks.get(2).copied().unwrap_or(""), true)? as f32),
+                "sitofp" | "uitofp" => {
+                    let from_b = parse_int_ty(toks.get(1).copied().unwrap_or(""))
+                        .ok_or_else(|| err(format!("unsupported int-to-fp `{line}`")))?;
+                    let v = get_int(&env, toks.get(2).copied().unwrap_or(""), from_b)?;
+                    let to_ty = toks.get(4).copied().unwrap_or("");
+                    if to_ty == "double" {
+                        Ssa::F64(if op == "sitofp" { sext(v, from_b) as f64 } else { v as f64 })
+                    } else {
+                        Ssa::F32(if op == "sitofp" { sext(v, from_b) as f32 } else { v as f32 })
+                    }
+                }
+                "fptosi" | "fptoui" => {
+                    let is_f64 = toks.get(1).copied() == Some("double");
+                    let a = get_f64(&env, toks.get(2).copied().unwrap_or(""), is_f64)?;
+                    let to_b = parse_int_ty(toks.get(4).copied().unwrap_or(""))
+                        .ok_or_else(|| err(format!("unsupported fp-to-int `{line}`")))?;
+                    let out = if op == "fptosi" {
+                        (a as i128 as u128) & mask(to_b)
+                    } else {
+                        (a as u128) & mask(to_b)
+                    };
+                    Ssa::Int(to_b, out)
+                }
+                _ => return Err(err(format!("unsupported instruction `{line}`"))),
+            }
+        };
+        env.insert(dst, val);
+    }
+    Err(err("fragment ended without `ret`".into()))
 }
 
 // ------------------------------------------------------------ P21: the REPL probe

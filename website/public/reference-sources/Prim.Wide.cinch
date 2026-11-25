@@ -1,0 +1,627 @@
+-- | Portable 128-bit SIMD lane primitives and hardware AES/CLMUL leaf instructions over U128.
+-- Every lane operation treats a U128 as a packed vector with lane 0 in the
+-- least-significant bits. Target-guarded hardware bodies (AES-NI, ARMv8 AES,
+-- PCLMULQDQ, PMULL) carry explicit `when` guards and portable fallbacks, and
+-- are re-exported through Data.Wide.
+module Prim.Wide where
+
+  export ArmAes
+  export bit-and-u128
+  export simd-bitselect
+  export simd-u8x16-splat, simd-u8x16-add, simd-u8x16-sub, simd-u8x16-cmpeq, simd-u8x16-cmplt, simd-u8x16-cmpgt, simd-u8x16-movemask
+  export simd-u16x8-splat, simd-u16x8-add, simd-u16x8-sub, simd-u16x8-mul, simd-u16x8-shl, simd-u16x8-shr, simd-i16x8-ashr, simd-u16x8-cmpeq, simd-u16x8-cmplt, simd-i16x8-cmplt, simd-i16x8-smin, simd-i16x8-smax
+  export simd-u32x4-splat, simd-u32x4-add, simd-u32x4-sub, simd-u32x4-mul, simd-u32x4-shl, simd-u32x4-shr, simd-i32x4-ashr, simd-u32x4-rotl, simd-u32x4-rotr, simd-i32x4-smin, simd-i32x4-smax, simd-u32x4-cmpeq, simd-u32x4-cmplt, simd-u32x4-pack
+  export simd-u64x2-splat, simd-u64x2-add, simd-u64x2-sub, simd-u64x2-shl, simd-u64x2-shr, simd-u64x2-rotl, simd-u64x2-rotr, simd-u64x2-pack
+  export aes-enc-round, aes-enc-last, aes-dec-round, aes-dec-last, clmul-u64, cpu-has-aes, cpu-has-clmul
+
+  -- | Target-profile evidence that the ARMv8 AES and PMULL instructions may execute.
+  -- Only profiles that guarantee the cryptography extension should name this capability.
+  signature ArmAes where
+    -- | Marker carried by target evidence; callers need no dictionary.
+    arm-aes-evidence :: Unit -> Unit
+
+  -- | Bitwise AND over two U128 values.
+  prim bit-and-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = and i128 %0, %1
+      ret i128 %r
+    }
+
+  -- | Bitwise select across 128 bits: (mask & when-one) | (~mask & when-zero).
+  prim simd-bitselect :: U128 -> U128 -> U128 -> U128 where
+    llvm {
+      %notm = xor i128 %0, -1
+      %a = and i128 %0, %1
+      %c = and i128 %notm, %2
+      %r = or i128 %a, %c
+      ret i128 %r
+    }
+
+  -- | Broadcast one U8 into all 16 byte lanes of a U128.
+  prim simd-u8x16-splat :: U8 -> U128 where
+    llvm {
+      %v0 = insertelement <16 x i8> poison, i8 %0, i64 0
+      %v = shufflevector <16 x i8> %v0, <16 x i8> poison, <16 x i32> zeroinitializer
+      %r = bitcast <16 x i8> %v to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping addition on 16 U8 lanes.
+  prim simd-u8x16-add :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <16 x i8>
+      %vb = bitcast i128 %1 to <16 x i8>
+      %vr = add <16 x i8> %va, %vb
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping subtraction on 16 U8 lanes.
+  prim simd-u8x16-sub :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <16 x i8>
+      %vb = bitcast i128 %1 to <16 x i8>
+      %vr = sub <16 x i8> %va, %vb
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise equality mask (0xFF per matching lane, 0x00 otherwise) on 16 U8 lanes.
+  prim simd-u8x16-cmpeq :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <16 x i8>
+      %vb = bitcast i128 %1 to <16 x i8>
+      %vc = icmp eq <16 x i8> %va, %vb
+      %vm = sext <16 x i1> %vc to <16 x i8>
+      %r = bitcast <16 x i8> %vm to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise unsigned less-than mask on 16 U8 lanes.
+  prim simd-u8x16-cmplt :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <16 x i8>
+      %vb = bitcast i128 %1 to <16 x i8>
+      %vc = icmp ult <16 x i8> %va, %vb
+      %vm = sext <16 x i1> %vc to <16 x i8>
+      %r = bitcast <16 x i8> %vm to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise unsigned greater-than mask on 16 U8 lanes.
+  prim simd-u8x16-cmpgt :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <16 x i8>
+      %vb = bitcast i128 %1 to <16 x i8>
+      %vc = icmp ugt <16 x i8> %va, %vb
+      %vm = sext <16 x i1> %vc to <16 x i8>
+      %r = bitcast <16 x i8> %vm to i128
+      ret i128 %r
+    }
+
+  -- | Extract the sign bit of each of the 16 byte lanes into the low 16 bits of a U32.
+  prim simd-u8x16-movemask :: U128 -> U32 where
+    llvm {
+      %v = bitcast i128 %0 to <16 x i8>
+      %m = icmp slt <16 x i8> %v, zeroinitializer
+      %b16 = bitcast <16 x i1> %m to i16
+      %r = zext i16 %b16 to i32
+      ret i32 %r
+    }
+
+  -- | Broadcast one U16 into all 8 16-bit lanes of a U128.
+  prim simd-u16x8-splat :: U16 -> U128 where
+    llvm {
+      %v0 = insertelement <8 x i16> poison, i16 %0, i64 0
+      %v = shufflevector <8 x i16> %v0, <8 x i16> poison, <8 x i32> zeroinitializer
+      %r = bitcast <8 x i16> %v to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping addition on 8 U16 lanes.
+  prim simd-u16x8-add :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %vb = bitcast i128 %1 to <8 x i16>
+      %vr = add <8 x i16> %va, %vb
+      %r = bitcast <8 x i16> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping subtraction on 8 U16 lanes.
+  prim simd-u16x8-sub :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %vb = bitcast i128 %1 to <8 x i16>
+      %vr = sub <8 x i16> %va, %vb
+      %r = bitcast <8 x i16> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping multiplication on 8 U16 lanes.
+  prim simd-u16x8-mul :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %vb = bitcast i128 %1 to <8 x i16>
+      %vr = mul <8 x i16> %va, %vb
+      %r = bitcast <8 x i16> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise left shift (masked modulo 16) on 8 U16 lanes.
+  prim simd-u16x8-shl :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %m = and i32 %1, 15
+      %sh = trunc i32 %m to i16
+      %s0 = insertelement <8 x i16> poison, i16 %sh, i64 0
+      %sv = shufflevector <8 x i16> %s0, <8 x i16> poison, <8 x i32> zeroinitializer
+      %vr = shl <8 x i16> %va, %sv
+      %r = bitcast <8 x i16> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise logical right shift (masked modulo 16) on 8 U16 lanes.
+  prim simd-u16x8-shr :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %m = and i32 %1, 15
+      %sh = trunc i32 %m to i16
+      %s0 = insertelement <8 x i16> poison, i16 %sh, i64 0
+      %sv = shufflevector <8 x i16> %s0, <8 x i16> poison, <8 x i32> zeroinitializer
+      %vr = lshr <8 x i16> %va, %sv
+      %r = bitcast <8 x i16> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise arithmetic right shift (masked modulo 16) on 8 signed I16 lanes.
+  prim simd-i16x8-ashr :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %m = and i32 %1, 15
+      %sh = trunc i32 %m to i16
+      %s0 = insertelement <8 x i16> poison, i16 %sh, i64 0
+      %sv = shufflevector <8 x i16> %s0, <8 x i16> poison, <8 x i32> zeroinitializer
+      %vr = ashr <8 x i16> %va, %sv
+      %r = bitcast <8 x i16> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise equality mask on 8 U16 lanes.
+  prim simd-u16x8-cmpeq :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %vb = bitcast i128 %1 to <8 x i16>
+      %vc = icmp eq <8 x i16> %va, %vb
+      %vm = sext <8 x i1> %vc to <8 x i16>
+      %r = bitcast <8 x i16> %vm to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise unsigned less-than mask on 8 U16 lanes.
+  prim simd-u16x8-cmplt :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %vb = bitcast i128 %1 to <8 x i16>
+      %vc = icmp ult <8 x i16> %va, %vb
+      %vm = sext <8 x i1> %vc to <8 x i16>
+      %r = bitcast <8 x i16> %vm to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise signed less-than mask on 8 I16 lanes.
+  prim simd-i16x8-cmplt :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %vb = bitcast i128 %1 to <8 x i16>
+      %vc = icmp slt <8 x i16> %va, %vb
+      %vm = sext <8 x i1> %vc to <8 x i16>
+      %r = bitcast <8 x i16> %vm to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise signed minimum on 8 I16 lanes.
+  prim simd-i16x8-smin :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %vb = bitcast i128 %1 to <8 x i16>
+      %vr = call <8 x i16> @llvm.smin.v8i16(<8 x i16> %va, <8 x i16> %vb)
+      %r = bitcast <8 x i16> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise signed maximum on 8 I16 lanes.
+  prim simd-i16x8-smax :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <8 x i16>
+      %vb = bitcast i128 %1 to <8 x i16>
+      %vr = call <8 x i16> @llvm.smax.v8i16(<8 x i16> %va, <8 x i16> %vb)
+      %r = bitcast <8 x i16> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Broadcast one U32 into all 4 32-bit lanes of a U128.
+  prim simd-u32x4-splat :: U32 -> U128 where
+    llvm {
+      %v0 = insertelement <4 x i32> poison, i32 %0, i64 0
+      %v = shufflevector <4 x i32> %v0, <4 x i32> poison, <4 x i32> zeroinitializer
+      %r = bitcast <4 x i32> %v to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping addition on 4 U32 lanes.
+  prim simd-u32x4-add :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %vb = bitcast i128 %1 to <4 x i32>
+      %vr = add <4 x i32> %va, %vb
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping subtraction on 4 U32 lanes.
+  prim simd-u32x4-sub :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %vb = bitcast i128 %1 to <4 x i32>
+      %vr = sub <4 x i32> %va, %vb
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping multiplication on 4 U32 lanes.
+  prim simd-u32x4-mul :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %vb = bitcast i128 %1 to <4 x i32>
+      %vr = mul <4 x i32> %va, %vb
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise left shift (masked modulo 32) on 4 U32 lanes.
+  prim simd-u32x4-shl :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %sh = and i32 %1, 31
+      %s0 = insertelement <4 x i32> poison, i32 %sh, i64 0
+      %sv = shufflevector <4 x i32> %s0, <4 x i32> poison, <4 x i32> zeroinitializer
+      %vr = shl <4 x i32> %va, %sv
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise logical right shift (masked modulo 32) on 4 U32 lanes.
+  prim simd-u32x4-shr :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %sh = and i32 %1, 31
+      %s0 = insertelement <4 x i32> poison, i32 %sh, i64 0
+      %sv = shufflevector <4 x i32> %s0, <4 x i32> poison, <4 x i32> zeroinitializer
+      %vr = lshr <4 x i32> %va, %sv
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise arithmetic right shift (masked modulo 32) on 4 signed I32 lanes.
+  prim simd-i32x4-ashr :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %sh = and i32 %1, 31
+      %s0 = insertelement <4 x i32> poison, i32 %sh, i64 0
+      %sv = shufflevector <4 x i32> %s0, <4 x i32> poison, <4 x i32> zeroinitializer
+      %vr = ashr <4 x i32> %va, %sv
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise left rotation on 4 U32 lanes.
+  prim simd-u32x4-rotl :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %s0 = insertelement <4 x i32> poison, i32 %1, i64 0
+      %sv = shufflevector <4 x i32> %s0, <4 x i32> poison, <4 x i32> zeroinitializer
+      %vr = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %va, <4 x i32> %va, <4 x i32> %sv)
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise right rotation on 4 U32 lanes.
+  prim simd-u32x4-rotr :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %s0 = insertelement <4 x i32> poison, i32 %1, i64 0
+      %sv = shufflevector <4 x i32> %s0, <4 x i32> poison, <4 x i32> zeroinitializer
+      %vr = call <4 x i32> @llvm.fshr.v4i32(<4 x i32> %va, <4 x i32> %va, <4 x i32> %sv)
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise signed minimum on 4 I32 lanes.
+  prim simd-i32x4-smin :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %vb = bitcast i128 %1 to <4 x i32>
+      %vr = call <4 x i32> @llvm.smin.v4i32(<4 x i32> %va, <4 x i32> %vb)
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise signed maximum on 4 I32 lanes.
+  prim simd-i32x4-smax :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %vb = bitcast i128 %1 to <4 x i32>
+      %vr = call <4 x i32> @llvm.smax.v4i32(<4 x i32> %va, <4 x i32> %vb)
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise equality mask on 4 U32 lanes.
+  prim simd-u32x4-cmpeq :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %vb = bitcast i128 %1 to <4 x i32>
+      %vc = icmp eq <4 x i32> %va, %vb
+      %vm = sext <4 x i1> %vc to <4 x i32>
+      %r = bitcast <4 x i32> %vm to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise unsigned less-than mask on 4 U32 lanes.
+  prim simd-u32x4-cmplt :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %vb = bitcast i128 %1 to <4 x i32>
+      %vc = icmp ult <4 x i32> %va, %vb
+      %vm = sext <4 x i1> %vc to <4 x i32>
+      %r = bitcast <4 x i32> %vm to i128
+      ret i128 %r
+    }
+
+  -- | Pack four U32 lanes into a U128 with lane 0 in the least-significant 32 bits.
+  prim simd-u32x4-pack :: U32 -> U32 -> U32 -> U32 -> U128 where
+    llvm {
+      %v0 = insertelement <4 x i32> poison, i32 %0, i64 3
+      %v1 = insertelement <4 x i32> %v0, i32 %1, i64 2
+      %v2 = insertelement <4 x i32> %v1, i32 %2, i64 1
+      %v3 = insertelement <4 x i32> %v2, i32 %3, i64 0
+      %r = bitcast <4 x i32> %v3 to i128
+      ret i128 %r
+    } when endian big
+    llvm {
+      %v0 = insertelement <4 x i32> poison, i32 %0, i64 0
+      %v1 = insertelement <4 x i32> %v0, i32 %1, i64 1
+      %v2 = insertelement <4 x i32> %v1, i32 %2, i64 2
+      %v3 = insertelement <4 x i32> %v2, i32 %3, i64 3
+      %r = bitcast <4 x i32> %v3 to i128
+      ret i128 %r
+    }
+
+  -- | Broadcast one U64 into both 64-bit lanes of a U128.
+  prim simd-u64x2-splat :: U64 -> U128 where
+    llvm {
+      %v0 = insertelement <2 x i64> poison, i64 %0, i64 0
+      %v = shufflevector <2 x i64> %v0, <2 x i64> poison, <2 x i32> zeroinitializer
+      %r = bitcast <2 x i64> %v to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping addition on 2 U64 lanes.
+  prim simd-u64x2-add :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <2 x i64>
+      %vb = bitcast i128 %1 to <2 x i64>
+      %vr = add <2 x i64> %va, %vb
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise wrapping subtraction on 2 U64 lanes.
+  prim simd-u64x2-sub :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <2 x i64>
+      %vb = bitcast i128 %1 to <2 x i64>
+      %vr = sub <2 x i64> %va, %vb
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise left shift (masked modulo 64) on 2 U64 lanes.
+  prim simd-u64x2-shl :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <2 x i64>
+      %m = and i32 %1, 63
+      %sh = zext i32 %m to i64
+      %s0 = insertelement <2 x i64> poison, i64 %sh, i64 0
+      %sv = shufflevector <2 x i64> %s0, <2 x i64> poison, <2 x i32> zeroinitializer
+      %vr = shl <2 x i64> %va, %sv
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise logical right shift (masked modulo 64) on 2 U64 lanes.
+  prim simd-u64x2-shr :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <2 x i64>
+      %m = and i32 %1, 63
+      %sh = zext i32 %m to i64
+      %s0 = insertelement <2 x i64> poison, i64 %sh, i64 0
+      %sv = shufflevector <2 x i64> %s0, <2 x i64> poison, <2 x i32> zeroinitializer
+      %vr = lshr <2 x i64> %va, %sv
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise left rotation on 2 U64 lanes.
+  prim simd-u64x2-rotl :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <2 x i64>
+      %sh = zext i32 %1 to i64
+      %s0 = insertelement <2 x i64> poison, i64 %sh, i64 0
+      %sv = shufflevector <2 x i64> %s0, <2 x i64> poison, <2 x i32> zeroinitializer
+      %vr = call <2 x i64> @llvm.fshl.v2i64(<2 x i64> %va, <2 x i64> %va, <2 x i64> %sv)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Lane-wise right rotation on 2 U64 lanes.
+  prim simd-u64x2-rotr :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <2 x i64>
+      %sh = zext i32 %1 to i64
+      %s0 = insertelement <2 x i64> poison, i64 %sh, i64 0
+      %sv = shufflevector <2 x i64> %s0, <2 x i64> poison, <2 x i32> zeroinitializer
+      %vr = call <2 x i64> @llvm.fshr.v2i64(<2 x i64> %va, <2 x i64> %va, <2 x i64> %sv)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    }
+
+  -- | Pack two U64 lanes into a U128 with lane 0 in the least-significant 64 bits.
+  prim simd-u64x2-pack :: U64 -> U64 -> U128 where
+    llvm {
+      %v0 = insertelement <2 x i64> poison, i64 %0, i64 1
+      %v1 = insertelement <2 x i64> %v0, i64 %1, i64 0
+      %r = bitcast <2 x i64> %v1 to i128
+      ret i128 %r
+    } when endian big
+    llvm {
+      %v0 = insertelement <2 x i64> poison, i64 %0, i64 0
+      %v1 = insertelement <2 x i64> %v0, i64 %1, i64 1
+      %r = bitcast <2 x i64> %v1 to i128
+      ret i128 %r
+    }
+
+  -- | One hardware AES encryption round (SubBytes, ShiftRows, MixColumns, AddRoundKey); callers must guard with cpu-has-aes.
+  prim aes-enc-round :: U128 -> U128 -> U128 where
+    unsafe llvm {
+      %vs = bitcast i128 %0 to <2 x i64>
+      %vk = bitcast i128 %1 to <2 x i64>
+      %vr = call <2 x i64> asm "aesenc $2, $0", "=x,0,x"(<2 x i64> %vs, <2 x i64> %vk)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    } when arch x86_64
+    unsafe llvm {
+      %vs = bitcast i128 %0 to <16 x i8>
+      %vk = bitcast i128 %1 to <16 x i8>
+      %s1 = call <16 x i8> asm ".arch_extension aes\0Aaese $0.16b, $2.16b\0Aaesmc $0.16b, $0.16b", "=w,0,w"(<16 x i8> %vs, <16 x i8> zeroinitializer)
+      %vr = xor <16 x i8> %s1, %vk
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i128 %0
+    }
+
+  -- | Final hardware AES encryption round (SubBytes, ShiftRows, AddRoundKey); callers must guard with cpu-has-aes.
+  prim aes-enc-last :: U128 -> U128 -> U128 where
+    unsafe llvm {
+      %vs = bitcast i128 %0 to <2 x i64>
+      %vk = bitcast i128 %1 to <2 x i64>
+      %vr = call <2 x i64> asm "aesenclast $2, $0", "=x,0,x"(<2 x i64> %vs, <2 x i64> %vk)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    } when arch x86_64
+    unsafe llvm {
+      %vs = bitcast i128 %0 to <16 x i8>
+      %vk = bitcast i128 %1 to <16 x i8>
+      %s1 = call <16 x i8> asm ".arch_extension aes\0Aaese $0.16b, $2.16b", "=w,0,w"(<16 x i8> %vs, <16 x i8> zeroinitializer)
+      %vr = xor <16 x i8> %s1, %vk
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i128 %0
+    }
+
+  -- | One hardware AES equivalent-inverse decryption round (InvShiftRows, InvSubBytes, InvMixColumns, AddRoundKey); callers must guard with cpu-has-aes.
+  prim aes-dec-round :: U128 -> U128 -> U128 where
+    unsafe llvm {
+      %vs = bitcast i128 %0 to <2 x i64>
+      %vk = bitcast i128 %1 to <2 x i64>
+      %vr = call <2 x i64> asm "aesdec $2, $0", "=x,0,x"(<2 x i64> %vs, <2 x i64> %vk)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    } when arch x86_64
+    unsafe llvm {
+      %vs = bitcast i128 %0 to <16 x i8>
+      %vk = bitcast i128 %1 to <16 x i8>
+      %s1 = call <16 x i8> asm ".arch_extension aes\0Aaesd $0.16b, $2.16b\0Aaesimc $0.16b, $0.16b", "=w,0,w"(<16 x i8> %vs, <16 x i8> zeroinitializer)
+      %vr = xor <16 x i8> %s1, %vk
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i128 %0
+    }
+
+  -- | Final hardware AES equivalent-inverse decryption round (InvShiftRows, InvSubBytes, AddRoundKey); callers must guard with cpu-has-aes.
+  prim aes-dec-last :: U128 -> U128 -> U128 where
+    unsafe llvm {
+      %vs = bitcast i128 %0 to <2 x i64>
+      %vk = bitcast i128 %1 to <2 x i64>
+      %vr = call <2 x i64> asm "aesdeclast $2, $0", "=x,0,x"(<2 x i64> %vs, <2 x i64> %vk)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    } when arch x86_64
+    unsafe llvm {
+      %vs = bitcast i128 %0 to <16 x i8>
+      %vk = bitcast i128 %1 to <16 x i8>
+      %s1 = call <16 x i8> asm ".arch_extension aes\0Aaesd $0.16b, $2.16b", "=w,0,w"(<16 x i8> %vs, <16 x i8> zeroinitializer)
+      %vr = xor <16 x i8> %s1, %vk
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i128 %0
+    }
+
+  -- | 64x64-bit hardware carry-less multiplication into U128; callers must guard with cpu-has-clmul.
+  prim clmul-u64 :: U64 -> U64 -> U128 where
+    unsafe llvm {
+      %va = insertelement <2 x i64> zeroinitializer, i64 %0, i64 0
+      %vb = insertelement <2 x i64> zeroinitializer, i64 %1, i64 0
+      %vr = call <2 x i64> asm "pclmulqdq $$0, $2, $0", "=x,0,x"(<2 x i64> %va, <2 x i64> %vb)
+      %r = bitcast <2 x i64> %vr to i128
+      ret i128 %r
+    } when arch x86_64
+    unsafe llvm {
+      %va = insertelement <1 x i64> poison, i64 %0, i64 0
+      %vb = insertelement <1 x i64> poison, i64 %1, i64 0
+      %vr = call <16 x i8> asm ".arch_extension aes\0Apmull $0.1q, $1.1d, $2.1d", "=w,w,w"(<1 x i64> %va, <1 x i64> %vb)
+      %r = bitcast <16 x i8> %vr to i128
+      ret i128 %r
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i128 0
+    }
+
+  -- | Report non-zero when hardware AES round instructions may execute on the target processor.
+  prim cpu-has-aes :: U32 -> U32 where
+    unsafe llvm {
+      %regs = call { i32, i32, i32, i32 } asm "cpuid", "={ax},={bx},={cx},={dx},{ax},{cx}"(i32 1, i32 0)
+      %ecx = extractvalue { i32, i32, i32, i32 } %regs, 2
+      %bit = and i32 %ecx, 33554432
+      ret i32 %bit
+    } when arch x86_64
+    llvm {
+      ret i32 1
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i32 0
+    }
+
+  -- | Report non-zero when hardware carry-less multiplication instructions may execute on the target processor.
+  prim cpu-has-clmul :: U32 -> U32 where
+    unsafe llvm {
+      %regs = call { i32, i32, i32, i32 } asm "cpuid", "={ax},={bx},={cx},={dx},{ax},{cx}"(i32 1, i32 0)
+      %ecx = extractvalue { i32, i32, i32, i32 } %regs, 2
+      %bit = and i32 %ecx, 2
+      ret i32 %bit
+    } when arch x86_64
+    llvm {
+      ret i32 1
+    } when arch aarch64 when Available ArmAes
+    llvm {
+      ret i32 0
+    }

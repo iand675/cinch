@@ -7,13 +7,44 @@
 mod common;
 use std::process::Command;
 
-const PRIMS: &str = r#"  foreign import ccall "cinch.prim.eqI128" equal :: I128 -> I128 -> Bool
-  foreign import ccall "cinch.prim.neI128" differ :: I128 -> I128 -> Bool
-  foreign import ccall "cinch.prim.wrappingAddI128" plus :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.wrappingSubI128" minus :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.eqU128" equal-u :: U128 -> U128 -> Bool
-  foreign import ccall "cinch.prim.wrappingAddU128" plus-u :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.wrappingSubU128" minus-u :: U128 -> U128 -> U128
+const PRIMS: &str = r#"  prim equal :: I128 -> I128 -> Bool where
+    llvm {
+      %c = icmp eq i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim differ :: I128 -> I128 -> Bool where
+    llvm {
+      %c = icmp ne i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim plus :: I128 -> I128 -> I128 where
+    llvm {
+      %r = add i128 %0, %1
+      ret i128 %r
+    }
+  prim minus :: I128 -> I128 -> I128 where
+    llvm {
+      %r = sub i128 %0, %1
+      ret i128 %r
+    }
+  prim equal-u :: U128 -> U128 -> Bool where
+    llvm {
+      %c = icmp eq i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim plus-u :: U128 -> U128 -> U128 where
+    llvm {
+      %r = add i128 %0, %1
+      ret i128 %r
+    }
+  prim minus-u :: U128 -> U128 -> U128 where
+    llvm {
+      %r = sub i128 %0, %1
+      ret i128 %r
+    }
 "#;
 
 /// (name, body after the intrinsics, expected exit code)
@@ -151,7 +182,7 @@ fn stage_lowers_wide_scalars_at_i128_and_refuses_word_positions() {
         assert!(!ir.contains("@cinch.typed.rc.dup(i128") && !ir.contains("@cinch.typed.rc.drop(i128"), "{name}: a wide value is never counted");
         match *name {
             "signed-wrapping" => {
-                assert!(ir.contains(" = add i128 %arg0, %arg1") && ir.contains(" = sub i128 %arg0, %arg1"), "wrapping i128 workers");
+                assert!(ir.contains(" = add i128 %0, %1") && ir.contains(" = sub i128 %0, %1"), "wrapping i128 workers");
                 assert!(!ir.contains(" nsw ") && !ir.contains(" nuw "), "wrapping operations must preserve overflow");
             }
             "unsigned-wrapping" => assert!(ir.contains("-170141183460469231731687303715884105728"), "2^127 as a U128 is written in two's complement"),

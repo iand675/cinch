@@ -10,7 +10,7 @@ Import with `import Data.Char`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.Option](Data.Option.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Data.Hash](Data.Hash.md), [Data.Option](Data.Option.md), [Prim.Machine](Prim.Machine.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -41,7 +41,7 @@ The scalar value as a `Nat`: the conversion the text and data
 homes all spelled out by hand before this was its home. A scalar
 value is at most 0x10FFFF, and the result says so.
 
-[Source](/reference-sources/Data.Char.cinch) · line 37
+[Source](/reference-sources/Data.Char.cinch) · line 61
 
 <a id="value-636861722d66726f6d2d636f6465"></a>
 
@@ -54,19 +54,19 @@ the scalar range (a surrogate, or above 0x10FFFF) is `None`. The
 range test comes first, so a value past `U32` is `None` rather than
 a wrapped scalar.
 
-[Source](/reference-sources/Data.Char.cinch) · line 44
+[Source](/reference-sources/Data.Char.cinch) · line 68
 
 <a id="value-636861722d746f2d753332"></a>
 
 ## `char-to-u32`
 
-<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-to-u32</span> :: ((<span class="tok-variable">c</span> :: <span class="tok-constructor">Char</span>) -&gt; (<span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">1114111</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">cinch-result</span> <span class="tok-operator">==</span> <span class="tok-variable">c</span>)) <span class="tok-constructor">U32</span>))</code></pre>
+<pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">char-to-u32</span> :: ((<span class="tok-variable">a0</span> :: <span class="tok-constructor">Char</span>) -&gt; <span class="tok-variable">refined</span> (((<span class="tok-number">0</span> <span class="tok-operator">&lt;=</span> <span class="tok-variable">r</span> <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">&lt;=</span> <span class="tok-number">1114111</span>) <span class="tok-operator">&amp;&amp;</span> <span class="tok-variable">r</span> <span class="tok-operator">==</span> <span class="tok-variable">a0</span>)) <span class="tok-constructor">U32</span>)</code></pre>
 
 Primitive types specification, section 6: Char values are Unicode
 scalar values, in code point order. `u32-to-char` rejects surrogates
 and values above 0x10FFFF.
 
-[Source](/reference-sources/Data.Char.cinch) · line 25
+[Source](/reference-sources/Data.Char.cinch) · line 26
 
 <a id="value-64696769742d76616c7565"></a>
 
@@ -77,7 +77,7 @@ and values above 0x10FFFF.
 `Some 0..9` for the ASCII digits, `None` otherwise (the caller
 has already decided what a non-digit means).
 
-[Source](/reference-sources/Data.Char.cinch) · line 62
+[Source](/reference-sources/Data.Char.cinch) · line 86
 
 <a id="value-65712d63686172"></a>
 
@@ -111,7 +111,7 @@ has already decided what a non-digit means).
 
 `Some 0..15` for `0`-`9`, `a`-`f` and `A`-`F`; `None` otherwise.
 
-[Source](/reference-sources/Data.Char.cinch) · line 68
+[Source](/reference-sources/Data.Char.cinch) · line 92
 
 <a id="value-69732d61736369692d616c706861"></a>
 
@@ -142,7 +142,7 @@ their one home. The names say ASCII because that is the whole
 class they accept: there is no Unicode digit or decimal-digit
 database here, and none is claimed.
 
-[Source](/reference-sources/Data.Char.cinch) · line 55
+[Source](/reference-sources/Data.Char.cinch) · line 79
 
 <a id="value-69732d61736369692d6865782d6469676974"></a>
 
@@ -170,7 +170,7 @@ ASCII whitespace: space, tab, LF, VT, FF, CR (the ASCII subset of
 base's `isSpace`; the other three controls are the whitespace
 classes that exist outside ASCII).
 
-[Source](/reference-sources/Data.Char.cinch) · line 111
+[Source](/reference-sources/Data.Char.cinch) · line 135
 
 <a id="value-69732d61736369692d7570706572"></a>
 
@@ -180,7 +180,7 @@ classes that exist outside ASCII).
 
 A-Z is `65..90`, `a`-`z` is `97..122` in code point order.
 
-[Source](/reference-sources/Data.Char.cinch) · line 92
+[Source](/reference-sources/Data.Char.cinch) · line 116
 
 <a id="value-6c652d63686172"></a>
 
@@ -226,7 +226,7 @@ non-ASCII scalar and every non-letter. `char-from-code` cannot
 fail on a code an upper/lower test just admitted, so the `None`
 arm returns the input unchanged (never a magic placeholder).
 
-[Source](/reference-sources/Data.Char.cinch) · line 121
+[Source](/reference-sources/Data.Char.cinch) · line 145
 
 <a id="value-7533322d746f2d63686172"></a>
 
@@ -250,4 +250,4 @@ These are checked exported instance entries. Law/sample-check status is separate
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Char.cinch`. Source SHA-256: `217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Char.cinch`. Source SHA-256: `e76e912936c0dda403bbaf37720dd969c8264c9f9af1e794f648c967e68a5d8b`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

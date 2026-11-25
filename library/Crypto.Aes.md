@@ -40,7 +40,7 @@ a key to Crypto.Cipher's CTR, CBC, OFB, CFB and GCM modes.
 An expanded key: key size in bytes, whether hardware rounds are used, and encryption and decryption schedules.
 With hardware rounds the decryption schedule holds the equivalent inverse cipher's keys.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 49
+[Source](/reference-sources/Crypto.Aes.cinch) · line 43
 
 <a id="type-4165734b65794572726f72"></a>
 
@@ -50,7 +50,7 @@ With hardware rounds the decryption schedule holds the equivalent inverse cipher
 
 A key or block of the wrong length.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 54
+[Source](/reference-sources/Crypto.Aes.cinch) · line 48
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-constructor">InvalidAesKeySize</span> :: (<span class="tok-constructor">Nat</span> -&gt; <span class="tok-constructor">Crypto</span>.<span class="tok-constructor">Aes</span>.<span class="tok-constructor">AesKeyError</span>)</code></pre>
 
@@ -64,10 +64,10 @@ A key or block of the wrong length.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-keyword">signature</span> <span class="tok-constructor">ArmAes</span> </code></pre>
 
-Target-profile evidence that the ARMv8 AES instructions may execute.
+Target-profile evidence that the ARMv8 AES and PMULL instructions may execute.
 Only profiles that guarantee the cryptography extension should name this capability.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 30
+[Source](/reference-sources/Prim.Wide.cinch) · line 19
 
 # Values
 
@@ -79,7 +79,7 @@ Only profiles that guarantee the cryptography extension should name this capabil
 
 AES block size in bytes, always 16.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 35
+[Source](/reference-sources/Crypto.Aes.cinch) · line 29
 
 <a id="value-6165732d636970686572"></a>
 
@@ -89,7 +89,7 @@ AES block size in bytes, always 16.
 
 Adapt a key to the generic block-cipher modes.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 209
+[Source](/reference-sources/Crypto.Aes.cinch) · line 203
 
 <a id="value-6165732d646563727970742d626c6f636b"></a>
 
@@ -99,7 +99,7 @@ Adapt a key to the generic block-cipher modes.
 
 Decrypt exactly sixteen bytes into fresh storage.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 203
+[Source](/reference-sources/Crypto.Aes.cinch) · line 197
 
 <a id="value-6165732d646563727970742d776f7264"></a>
 
@@ -109,7 +109,7 @@ Decrypt exactly sixteen bytes into fresh storage.
 
 Decrypt one canonical block.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 183
+[Source](/reference-sources/Crypto.Aes.cinch) · line 177
 
 <a id="value-6165732d656e63727970742d626c6f636b"></a>
 
@@ -119,7 +119,7 @@ Decrypt one canonical block.
 
 Encrypt exactly sixteen bytes into fresh storage.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 197
+[Source](/reference-sources/Crypto.Aes.cinch) · line 191
 
 <a id="value-6165732d656e63727970742d776f7264"></a>
 
@@ -129,7 +129,7 @@ Encrypt exactly sixteen bytes into fresh storage.
 
 Encrypt one canonical block.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 169
+[Source](/reference-sources/Crypto.Aes.cinch) · line 163
 
 <a id="value-6165732d6b6579"></a>
 
@@ -139,7 +139,7 @@ Encrypt one canonical block.
 
 Expand a 16-, 24- or 32-byte key, selecting hardware rounds when the processor supports them.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 67
+[Source](/reference-sources/Crypto.Aes.cinch) · line 61
 
 <a id="value-6165732d6b65792d6572726f722d6d657373616765"></a>
 
@@ -149,7 +149,7 @@ Expand a 16-, 24- or 32-byte key, selecting hardware rounds when the processor s
 
 Render a key or block size error.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 61
+[Source](/reference-sources/Crypto.Aes.cinch) · line 55
 
 <a id="value-6165732d6b65792d6861726477617265"></a>
 
@@ -159,7 +159,7 @@ Render a key or block size error.
 
 Whether this key's rounds run on hardware AES instructions.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 79
+[Source](/reference-sources/Crypto.Aes.cinch) · line 73
 
 <a id="value-6165732d6b65792d73697a65"></a>
 
@@ -169,7 +169,7 @@ Whether this key's rounds run on hardware AES instructions.
 
 Key size in bytes: 16, 24 or 32.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 75
+[Source](/reference-sources/Crypto.Aes.cinch) · line 69
 
 <a id="value-6165732d706f727461626c652d6b6579"></a>
 
@@ -179,8 +179,8 @@ Key size in bytes: 16, 24 or 32.
 
 Expand a key that always uses the constant-time portable rounds, whatever the processor supports.
 
-[Source](/reference-sources/Crypto.Aes.cinch) · line 71
+[Source](/reference-sources/Crypto.Aes.cinch) · line 65
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Aes.cinch`. Source SHA-256: `67cbeaad7f50e32f07b2447c843ecf34549d1983b3bff6d341eff449eb7b8cba`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Aes.cinch`. Source SHA-256: `740a7e211c8c29777bb9306a0ed8bb03af37620f303bd344f3c86eef0338825d`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

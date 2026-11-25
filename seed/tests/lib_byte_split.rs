@@ -330,6 +330,7 @@ fn split_call_path(ir: &str, start: &str, wanted: &str) -> Option<Vec<String>> {
                 }
                 if callee.starts_with("Data.Bytes.")
                     || callee.starts_with("Data.Wide.")
+                    || callee.starts_with("Prim.")
                     || callee.starts_with("Data.Machine.")
                     || callee.starts_with("cinch.runtime.")
                     || callee.starts_with("cinch.prim.")
@@ -399,9 +400,9 @@ fn split_full_public_pipelines_compile_for_wasm_arm_and_big_endian() {
             "Data.Bytes.View.index-forward-tail",
             "cinch.runtime.bytesLoadU128",
             "cinch.runtime.bytesGetU8At",
-            "cinch.prim.simdU8x16CmpEq",
-            "cinch.prim.simdU8x16Movemask",
-            "cinch.prim.trailingZerosU32",
+            "Prim.Wide.simd-u8x16-cmpeq.llvm",
+            "Prim.Wide.simd-u8x16-movemask.llvm",
+            "Prim.Machine.trailing-zeros-u32.llvm",
         ] {
             assert!(
                 split_call_path(&ir, "Main.main", callee).is_some(),
@@ -411,9 +412,9 @@ fn split_full_public_pipelines_compile_for_wasm_arm_and_big_endian() {
         }
         for (start, end) in [
             ("Data.Bytes.View.index-forward-blocks", "cinch.runtime.bytesLoadU128"),
-            ("Data.Bytes.View.index-forward-blocks", "cinch.prim.simdU8x16CmpEq"),
-            ("Data.Bytes.View.index-forward-blocks", "cinch.prim.simdU8x16Movemask"),
-            ("Data.Bytes.View.index-forward-blocks", "cinch.prim.trailingZerosU32"),
+            ("Data.Bytes.View.index-forward-blocks", "Prim.Wide.simd-u8x16-cmpeq.llvm"),
+            ("Data.Bytes.View.index-forward-blocks", "Prim.Wide.simd-u8x16-movemask.llvm"),
+            ("Data.Bytes.View.index-forward-blocks", "Prim.Machine.trailing-zeros-u32.llvm"),
             ("Data.Bytes.View.index-forward-tail", "cinch.runtime.bytesGetU8At"),
         ] {
             assert!(
@@ -430,13 +431,13 @@ fn split_full_public_pipelines_compile_for_wasm_arm_and_big_endian() {
         let load8 = split_definition(&ir, "cinch.runtime.bytesGetU8At");
         assert!(load8.contains("load i8") && load8.contains("align 1"));
         assert!(
-            split_definition(&ir, "cinch.prim.simdU8x16CmpEq").contains("icmp eq <16 x i8>")
+            split_definition(&ir, "Prim.Wide.simd-u8x16-cmpeq.llvm").contains("icmp eq <16 x i8>")
         );
         assert!(
-            split_definition(&ir, "cinch.prim.simdU8x16Movemask").contains("bitcast <16 x i1>")
+            split_definition(&ir, "Prim.Wide.simd-u8x16-movemask.llvm").contains("bitcast <16 x i1>")
         );
         assert!(
-            split_definition(&ir, "cinch.prim.trailingZerosU32").contains("@llvm.cttz.i32")
+            split_definition(&ir, "Prim.Machine.trailing-zeros-u32.llvm").contains("@llvm.cttz.i32")
         );
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),

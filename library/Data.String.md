@@ -10,7 +10,7 @@ Import with `import Data.String`. Selected exports may already be in Prelude.
 
 # Dependencies
 
-[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md).
+[Algebra.Arithmetic](Algebra.Arithmetic.md), [Algebra.Monoid](Algebra.Monoid.md), [Algebra.Semigroup](Algebra.Semigroup.md), [Data.Bytes](Data.Bytes.md), [Data.Char](Data.Char.md), [Data.Hash](Data.Hash.md), [Data.List](Data.List.md), [Data.Nat](Data.Nat.md), [Data.Option](Data.Option.md), [Prim.Machine](Prim.Machine.md), [Prim.Wide](Prim.Wide.md).
 
 <details><summary>Behaviour and boundary notes from the source</summary>
 
@@ -58,7 +58,7 @@ contract: no API hands out a string's backing). A `StrBuf` wraps a
 buffer that is either fresh (`bytes-new` filled here) or a copy,
 never one a caller retains.
 
-[Source](/reference-sources/Data.String.cinch) · line 70
+[Source](/reference-sources/Data.String.cinch) · line 72
 
 # Values
 
@@ -71,7 +71,7 @@ never one a caller retains.
 Byte-wise comparison; UTF-8 preserves scalar value order under
 byte-wise lexicographic order, so this is also code point order.
 
-[Source](/reference-sources/Data.String.cinch) · line 450
+[Source](/reference-sources/Data.String.cinch) · line 453
 
 <a id="value-636f70792d62797465732d696e746f"></a>
 
@@ -83,7 +83,7 @@ Concatenation (O(n + m) copies). The range copy is the runtime's
 `memmove` (`bytes-copy-range`, with its two range obligations): a
 loop here boxed a `Nat` for every index step.
 
-[Source](/reference-sources/Data.String.cinch) · line 268
+[Source](/reference-sources/Data.String.cinch) · line 271
 
 <a id="value-656d7074792d737472696e67"></a>
 
@@ -102,7 +102,7 @@ loop here boxed a `Nat` for every index step.
 Encode a list of Unicode scalar values into one fresh immutable UTF-8 backing.
 A tail size pass and a checked tail encoding pass keep traversal stack bounded.
 
-[Source](/reference-sources/Data.String.cinch) · line 406
+[Source](/reference-sources/Data.String.cinch) · line 409
 
 <a id="value-737472696e672d627974652d696e6465782d66726f6d"></a>
 
@@ -116,7 +116,7 @@ passes the end, and the result says so. A sequence whose width runs
 past the end is malformed, as `utf8-at` decides; the step restates
 that end test, so it answers `i` as a malformed sequence does.
 
-[Source](/reference-sources/Data.String.cinch) · line 382
+[Source](/reference-sources/Data.String.cinch) · line 385
 
 <a id="value-737472696e672d627974652d6c656e677468"></a>
 
@@ -142,7 +142,7 @@ that end test, so it answers `i` as a malformed sequence does.
 
 The scalar value at code point index `n`, by scan (O(n)).
 
-[Source](/reference-sources/Data.String.cinch) · line 220
+[Source](/reference-sources/Data.String.cinch) · line 223
 
 <a id="value-737472696e672d636c6f6e65"></a>
 
@@ -153,7 +153,7 @@ The scalar value at code point index `n`, by scan (O(n)).
 Copy a string into independent immutable UTF-8 storage, including empty input.
 The mutable backing remains private and cannot alias any caller-owned byte buffer.
 
-[Source](/reference-sources/Data.String.cinch) · line 89
+[Source](/reference-sources/Data.String.cinch) · line 91
 
 <a id="value-737472696e672d636f6d70617265"></a>
 
@@ -165,7 +165,7 @@ Compares the two backings in place: `string-to-bytes` would copy
 both operands first, and the lexer's keyword table compares every
 identifier against dozens of literals.
 
-[Source](/reference-sources/Data.String.cinch) · line 462
+[Source](/reference-sources/Data.String.cinch) · line 465
 
 <a id="value-737472696e672d636f6e636174"></a>
 
@@ -185,7 +185,7 @@ Concatenate every string in list order into one fresh immutable backing.
 A tail-recursive size pass and a checked bulk-copy pass use bounded traversal
 stack, including lists of empty strings. Concatenation preserves valid UTF-8.
 
-[Source](/reference-sources/Data.String.cinch) · line 283
+[Source](/reference-sources/Data.String.cinch) · line 286
 
 <a id="value-737472696e672d66726f6d2d6279746573"></a>
 
@@ -204,7 +204,7 @@ stack, including lists of empty strings. Concatenation preserves valid UTF-8.
 Join valid UTF-8 pieces with separators into one fresh immutable backing.
 Empty pieces contribute adjacent separators; an empty list produces empty text.
 
-[Source](/reference-sources/Data.String.cinch) · line 341
+[Source](/reference-sources/Data.String.cinch) · line 344
 
 <a id="value-737472696e672d6c656e677468"></a>
 
@@ -215,7 +215,7 @@ Empty pieces contribute adjacent separators; an empty list produces empty text.
 Count Unicode scalars in sealed-valid UTF-8 using packed leading-byte classification.
 Private SIMD/SWAR blocks count non-continuation bytes; exact scalar fringes never overread.
 
-[Source](/reference-sources/Data.String.cinch) · line 213
+[Source](/reference-sources/Data.String.cinch) · line 215
 
 <a id="value-737472696e672d6c656e6774682d66726f6d"></a>
 
@@ -225,7 +225,7 @@ Private SIMD/SWAR blocks count non-continuation bytes; exact scalar fringes neve
 
 Length in Unicode scalar values (O(n) scan).
 
-[Source](/reference-sources/Data.String.cinch) · line 203
+[Source](/reference-sources/Data.String.cinch) · line 205
 
 <a id="value-737472696e672d726570656174"></a>
 
@@ -237,7 +237,7 @@ Repeat a string the requested natural count into one fresh immutable backing.
 A complete first copy seeds checked prefix doubling, giving logarithmically
 many bulk-copy steps and linear copied bytes. Empty results need no fill loop.
 
-[Source](/reference-sources/Data.String.cinch) · line 351
+[Source](/reference-sources/Data.String.cinch) · line 354
 
 <a id="value-737472696e672d736c696365"></a>
 
@@ -249,7 +249,7 @@ The code point range [start, end); indices past the end clamp and a
 reversed range yields the empty string (the span's subtraction
 takes its `start < end` evidence from the test).
 
-[Source](/reference-sources/Data.String.cinch) · line 394
+[Source](/reference-sources/Data.String.cinch) · line 397
 
 <a id="value-737472696e672d746f2d6279746573"></a>
 
@@ -260,7 +260,7 @@ takes its `start < end` evidence from the test).
 A copy of the backing (the conversion out copies: the caller may
 mutate its copy freely and the `String` never changes).
 
-[Source](/reference-sources/Data.String.cinch) · line 94
+[Source](/reference-sources/Data.String.cinch) · line 96
 
 <a id="value-737472696e672d757466382d6669727374"></a>
 
@@ -271,7 +271,7 @@ mutate its copy freely and the `String` never changes).
 Observe the first scalar and its encoded byte width without copying private backing.
 Empty text has no scalar; every present width is between one and four bytes.
 
-[Source](/reference-sources/Data.String.cinch) · line 182
+[Source](/reference-sources/Data.String.cinch) · line 184
 
 <a id="value-737472696e672d757466382d6c617374"></a>
 
@@ -282,7 +282,7 @@ Empty text has no scalar; every present width is between one and four bytes.
 Observe the final scalar and its encoded byte width without scanning or copying the prefix.
 Empty text has no scalar; reverse lookup reads at most four bytes before decoding it.
 
-[Source](/reference-sources/Data.String.cinch) · line 198
+[Source](/reference-sources/Data.String.cinch) · line 200
 
 <a id="value-756e7061636b"></a>
 
@@ -318,7 +318,7 @@ The `k` continuation bytes from `i`: the caller has checked that
 they lie inside the buffer (`i + k <= bytes-len b`), so each read
 is in bounds and the obligation steps with the index.
 
-[Source](/reference-sources/Data.String.cinch) · line 119
+[Source](/reference-sources/Data.String.cinch) · line 121
 
 <a id="value-757466382d656e636f64652d696e746f"></a>
 
@@ -337,7 +337,7 @@ every value its width admits (`cp < 128` in the first branch, `cp /
 2^22` in the last, past which the unmasked lead byte did not fit a
 byte at all).
 
-[Source](/reference-sources/Data.String.cinch) · line 248
+[Source](/reference-sources/Data.String.cinch) · line 251
 
 <a id="value-757466382d656e636f64652d7769647468"></a>
 
@@ -358,7 +358,7 @@ the lead byte of a two-, three- and four-byte sequence, written as
 the low bits, which is the same number for every lead byte
 `utf8-width` admits and needs no `x >= 192` evidence.
 
-[Source](/reference-sources/Data.String.cinch) · line 132
+[Source](/reference-sources/Data.String.cinch) · line 134
 
 <a id="value-757466382d6d696e"></a>
 
@@ -377,7 +377,7 @@ the low bits, which is the same number for every lead byte
 Validate UTF-8 from a byte boundary. Complete ASCII words are checked
 with SWAR; non-ASCII sequences and tails retain scalar validation.
 
-[Source](/reference-sources/Data.String.cinch) · line 159
+[Source](/reference-sources/Data.String.cinch) · line 161
 
 <a id="value-757466382d7769647468"></a>
 
@@ -389,7 +389,7 @@ UTF-8 decoding rules: a lead byte gives the width; continuation
 bytes are 10xxxxxx; overlong encodings, surrogates, and values above
 0x10FFFF are malformed.
 
-[Source](/reference-sources/Data.String.cinch) · line 100
+[Source](/reference-sources/Data.String.cinch) · line 102
 
 # Instances
 
@@ -416,4 +416,4 @@ with its type).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/String.cinch`. Source SHA-256: `12324541f68d17a1b5cd0bd6dcac44e9644a626aef4d2f1282f95ef9f34e4e3c`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/String.cinch`. Source SHA-256: `9c1f024c81d6e72ec139e27558895cd0a5d0a830a294d3e21e277049d5812628`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

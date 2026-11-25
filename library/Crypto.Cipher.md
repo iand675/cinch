@@ -404,4 +404,4 @@ Applying the same stream to the output reverses it for CTR and OFB; CFB uses its
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Cipher.cinch`. Source SHA-256: `85f5838972cd8debab7f25257b2b174d2335f40a0adeab4b42c7e60788fffba1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Crypto/Cipher.cinch`. Source SHA-256: `936015d95abebb06ab7f8590acd89bf8ea7f3138e8ca23d746ffdaf202b33139`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

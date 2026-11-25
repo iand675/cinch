@@ -16,7 +16,7 @@ module Bootstrap.Export where
   import Bootstrap.Total (TotalFunction, total-identity, total-function-document, total-function-equal, total-parameters, total-result, total-source-projection)
   import Bootstrap.BodyContract (BodyBinding, binding-function, binding-scheme)
   import Bootstrap.ExportType
-  import Bootstrap.Foreign (ForeignPlan, foreign-symbol, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection)
+  import Bootstrap.Foreign (ForeignPlan, foreign-symbol, foreign-document, foreign-display-scheme, foreign-primitive-assumptions, primitive-object-callable, foreign-primitive-selection, foreign-primitive-total-op)
   import Bootstrap.ExportNominal
   import Bootstrap.Load (contract-intrinsic, LoadedInterface, loaded-module, loaded-hash, loaded-entry, loaded-contract, nominal-owner)
   import Bootstrap.Interface (fnv-source-hash, iface-schema-version)
@@ -147,9 +147,13 @@ module Bootstrap.Export where
     Some body -> if total-source-projection (binding-function body) then JNull else total-function-document (binding-function body)
     None -> case checked-intrinsic-symbol binding of
       Some symbol -> case export-global (checked-name binding) of
-        Ok identity -> intrinsic-total-body identity symbol (checked-scheme binding)
+        Ok identity -> total-op-body identity (total-primitive symbol) (checked-scheme binding)
         Err error -> JNull
-      None -> JNull
+      None -> case checked-foreign-plan binding of
+        Some plan -> case export-global (checked-name binding) of
+          Ok identity -> total-op-body identity (foreign-primitive-total-op plan) (checked-scheme binding)
+          Err error -> JNull
+        None -> JNull
   -- A plain first-order carrier sort: the only sorts a total body has.
   total-carrier :: UType -> Option String
   total-carrier ty = case ty of
@@ -180,13 +184,13 @@ module Bootstrap.Export where
       (JObj "parameters" (sort-list parameters) (JObj "result" (JStr result)
         (JObj "body" (JObj "node" (JStr "primitive") (JObj "operation" (JStr operation)
           (JObj "arguments" (local-slots 0 (list-length parameters)) JObjEnd))) JObjEnd)))) JArrEnd) JObjEnd)
-  -- An arithmetic intrinsic has an executable total body of its own: the
-  -- operation applied to its own parameters. It is granted only when the
-  -- checked scheme is exactly that operation's plain first-order
+  -- An arithmetic intrinsic or inline comparison prim has an executable total
+  -- body of its own: the operation applied to its own parameters. It is granted
+  -- only when the checked scheme is exactly that operation's plain first-order
   -- signature, so no refinement, effect or binder disappears through a
   -- base-sort projection.
-  intrinsic-total-body :: String -> String -> Scheme -> Json
-  intrinsic-total-body identity symbol scheme = case total-primitive symbol of
+  total-op-body :: String -> Option (String, List String, String) -> Scheme -> Json
+  total-op-body identity candidate scheme = case candidate of
     None -> JNull
     Some (operation, parameters, result) ->
       if not (case scheme-params scheme of Nil -> True; other -> False)

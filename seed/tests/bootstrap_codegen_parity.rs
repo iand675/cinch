@@ -15,30 +15,148 @@ const PARITY_SOURCE: &str = r#"module Main where
   foreign import ccall "cinch.runtime.bytesGetU8At" bytes-get-u8-at :: Bytes -> I64 -> U8
   foreign import ccall "cinch.runtime.bytesSetU8At" bytes-set-u8-at :: Bytes -> I64 -> U8 -> Unit
   foreign import ccall "cinch.runtime.bytesLoadU128At" bytes-load-u128-at :: Bytes -> I64 -> U128
-  foreign import ccall "cinch.prim.wrappingAddI64" add-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.ltI64" lt-i64 :: I64 -> I64 -> Bool
-  foreign import ccall "cinch.prim.geI64" ge-i64 :: I64 -> I64 -> Bool
-  foreign import ccall "cinch.prim.u8ToI64" u8-to-i64 :: U8 -> I64
-  foreign import ccall "cinch.prim.wrappingAddU64" add-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.eqI64" eq-i64 :: I64 -> I64 -> Bool
-  foreign import ccall "cinch.prim.eqU32" eq-u32 :: U32 -> U32 -> Bool
-  foreign import ccall "cinch.prim.eqU64" eq-u64 :: U64 -> U64 -> Bool
-  foreign import ccall "cinch.prim.eqU128" eq-u128 :: U128 -> U128 -> Bool
-  foreign import ccall "cinch.prim.wrappingAddU128" add-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.bitXorU128" xor-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.bitOrU128" or-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.rotateLeftU128" rotl-u128 :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.trailingZerosU32" cttz-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.simdU8x16Splat" splat-u8 :: U8 -> U128
-  foreign import ccall "cinch.prim.simdU8x16CmpEq" cmpeq-u8 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU8x16CmpLt" cmplt-u8 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU8x16Movemask" movemask-u8 :: U128 -> U32
-  foreign import ccall "cinch.prim.simdU32x4Add" add-u32x4 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Rotl" rotl-u32x4 :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.f64FromBits" f64-from-bits :: U64 -> F64
-  foreign import ccall "cinch.prim.f64Bits" f64-bits :: F64 -> U64
-  foreign import ccall "cinch.prim.floorF64" floor-f64 :: F64 -> F64
-  foreign import ccall "cinch.prim.copysignF64" copysign-f64 :: F64 -> F64 -> F64
+  prim add-i64 :: I64 -> I64 -> I64 where
+    llvm {
+      %r = add i64 %0, %1
+      ret i64 %r
+    }
+  prim lt-i64 :: I64 -> I64 -> Bool where
+    llvm {
+      %c = icmp slt i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim ge-i64 :: I64 -> I64 -> Bool where
+    llvm {
+      %c = icmp sge i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim u8-to-i64 :: U8 -> I64 where
+    llvm {
+      %r = zext i8 %0 to i64
+      ret i64 %r
+    }
+  prim eq-i64 :: I64 -> I64 -> Bool where
+    llvm {
+      %c = icmp eq i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim eq-u32 :: U32 -> U32 -> Bool where
+    llvm {
+      %c = icmp eq i32 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim eq-u64 :: U64 -> U64 -> Bool where
+    llvm {
+      %c = icmp eq i64 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim eq-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %c = icmp eq i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim add-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = add i128 %0, %1
+      ret i128 %r
+    }
+  prim xor-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = xor i128 %0, %1
+      ret i128 %r
+    }
+  prim or-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = or i128 %0, %1
+      ret i128 %r
+    }
+  prim rotl-u128 :: U128 -> U32 -> U128 where
+    llvm {
+      %s = zext i32 %1 to i128
+      %r = call i128 @llvm.fshl.i128(i128 %0, i128 %0, i128 %s)
+      ret i128 %r
+    }
+  prim cttz-u32 :: U32 -> U32 where
+    llvm {
+      %r = call i32 @llvm.cttz.i32(i32 %0, i1 false)
+      ret i32 %r
+    }
+  prim splat-u8 :: U8 -> U128 where
+    llvm {
+      %v0 = insertelement <16 x i8> poison, i8 %0, i64 0
+      %v = shufflevector <16 x i8> %v0, <16 x i8> poison, <16 x i32> zeroinitializer
+      %r = bitcast <16 x i8> %v to i128
+      ret i128 %r
+    }
+  prim cmpeq-u8 :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <16 x i8>
+      %vb = bitcast i128 %1 to <16 x i8>
+      %vc = icmp eq <16 x i8> %va, %vb
+      %vm = sext <16 x i1> %vc to <16 x i8>
+      %r = bitcast <16 x i8> %vm to i128
+      ret i128 %r
+    }
+  prim cmplt-u8 :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <16 x i8>
+      %vb = bitcast i128 %1 to <16 x i8>
+      %vc = icmp ult <16 x i8> %va, %vb
+      %vm = sext <16 x i1> %vc to <16 x i8>
+      %r = bitcast <16 x i8> %vm to i128
+      ret i128 %r
+    }
+  prim movemask-u8 :: U128 -> U32 where
+    llvm {
+      %v = bitcast i128 %0 to <16 x i8>
+      %m = icmp slt <16 x i8> %v, zeroinitializer
+      %b16 = bitcast <16 x i1> %m to i16
+      %r = zext i16 %b16 to i32
+      ret i32 %r
+    }
+  prim add-u32x4 :: U128 -> U128 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %vb = bitcast i128 %1 to <4 x i32>
+      %vr = add <4 x i32> %va, %vb
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+  prim rotl-u32x4 :: U128 -> U32 -> U128 where
+    llvm {
+      %va = bitcast i128 %0 to <4 x i32>
+      %s0 = insertelement <4 x i32> poison, i32 %1, i64 0
+      %sv = shufflevector <4 x i32> %s0, <4 x i32> poison, <4 x i32> zeroinitializer
+      %vr = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %va, <4 x i32> %va, <4 x i32> %sv)
+      %r = bitcast <4 x i32> %vr to i128
+      ret i128 %r
+    }
+  prim f64-from-bits :: U64 -> F64 where
+    llvm {
+      %r = bitcast i64 %0 to double
+      ret double %r
+    }
+  prim f64-bits :: F64 -> U64 where
+    llvm {
+      %r = bitcast double %0 to i64
+      ret i64 %r
+    }
+  prim floor-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.floor.f64(double %0)
+      ret double %r
+    }
+  prim copysign-f64 :: F64 -> F64 -> F64 where
+    llvm {
+      %r = call double @llvm.copysign.f64(double %0, double %1)
+      ret double %r
+    }
 
   data Pair128 where
     Pair128 :: U128 -> U128 -> Pair128
@@ -90,7 +208,8 @@ const PARITY_SOURCE: &str = r#"module Main where
     let u1 = bytes-set-u8-at bs 5 60 in
     let total = sum-bytes bs 0 0 in
     let pos = xml-scan16 bs 0 in
-    let qr-ok = (case chacha-step 1 2 of Pair128 x y -> eq-u128 (cmov-u128 True x y) x) in
+    let chunk = bytes-load-u128-at bs 0 in
+    let qr-ok = (case chacha-step chunk (add-u128 chunk 2) of Pair128 x y -> (if eq-u128 x y then False else True) && eq-u128 (cmov-u128 (eq-u32 pos 5) x y) x) in
     let wide-sum = sum-u128 0 10 in
     let fl = floor-neg 4615514078110652826 in
     if eq-i64 total 1035 && eq-u32 pos 5 && qr-ok && eq-u128 wide-sum 70 && eq-u64 fl 13837309855095848960 then 200 else 1

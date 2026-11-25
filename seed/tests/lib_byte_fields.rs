@@ -448,9 +448,9 @@ fn fields_complete_adapter_compiles_for_wasm_arm_and_big_endian() {
             "Data.Bytes.View.ascii-space-tail",
             "cinch.runtime.bytesLoadU128",
             "cinch.runtime.bytesGetU8At",
-            "cinch.prim.simdU8x16CmpLt",
-            "cinch.prim.simdU8x16CmpEq",
-            "cinch.prim.simdU8x16Movemask",
+            "Prim.Wide.simd-u8x16-cmplt.llvm",
+            "Prim.Wide.simd-u8x16-cmpeq.llvm",
+            "Prim.Wide.simd-u8x16-movemask.llvm",
             "Data.Bytes.Utf8.utf8-decode-between",
             "Data.Unicode.Kernel.unicode-is-space-code",
         ] {
@@ -466,11 +466,11 @@ fn fields_complete_adapter_compiles_for_wasm_arm_and_big_endian() {
         if endian == "big" {
             assert!(load128.contains("@llvm.bswap.i128"));
         }
-        let cmplt = functions["cinch.prim.simdU8x16CmpLt"];
+        let cmplt = functions["Prim.Wide.simd-u8x16-cmplt.llvm"];
         assert!(cmplt.contains("icmp ult <16 x i8>") && !cmplt.contains("store "));
-        let cmpeq = functions["cinch.prim.simdU8x16CmpEq"];
+        let cmpeq = functions["Prim.Wide.simd-u8x16-cmpeq.llvm"];
         assert!(cmpeq.contains("icmp eq <16 x i8>") && !cmpeq.contains("store "));
-        let movemask = functions["cinch.prim.simdU8x16Movemask"];
+        let movemask = functions["Prim.Wide.simd-u8x16-movemask.llvm"];
         assert!(movemask.contains("bitcast <16 x i1>") && !movemask.contains("store "));
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),

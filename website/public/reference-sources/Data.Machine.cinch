@@ -25,6 +25,7 @@
 -- column: 8 bytes little-endian).
 module Data.Machine where
 
+  import Prim.Machine
   import Data.Ordering
   import Text.Codec
   import Data.Option
@@ -40,908 +41,1328 @@ module Data.Machine where
 
 
 
-  -- Primitive types specification, section 4: integer arithmetic for
-  -- every machine integer type. Overflow behavior is never implicit:
-  -- `checked` returns Option and never the wrapped value, `wrapping` is
-  -- two's complement wrap, `saturating` clamps to the bounds. There is
-  -- no Add/Sub/Mul/Neg instance for machine types: a class method has a
-  -- single result type and cannot express which family is meant.
+  -- Fixed-width integer bounds, checked/saturating arithmetic, and shifts.
+  min-bound-i8 :: refined (r == -128) I8
+  min-bound-i8 = -128
+  max-bound-i8 :: refined (r == 127) I8
+  max-bound-i8 = 127
+  checked-add-i8 :: I8 -> I8 -> Option I8
+  checked-add-i8 x y = if ov-add-i8 x y then None else Some (wrapping-add-i8 x y)
+  checked-sub-i8 :: I8 -> I8 -> Option I8
+  checked-sub-i8 x y = if ov-sub-i8 x y then None else Some (wrapping-sub-i8 x y)
+  checked-mul-i8 :: I8 -> I8 -> Option I8
+  checked-mul-i8 x y = if ov-mul-i8 x y then None else Some (wrapping-mul-i8 x y)
+  checked-neg-i8 :: I8 -> Option I8
+  checked-neg-i8 x = if eq-i8 x min-bound-i8 then None else Some (wrapping-neg-i8 x)
+  saturating-neg-i8 :: I8 -> I8
+  saturating-neg-i8 x = if eq-i8 x min-bound-i8 then max-bound-i8 else wrapping-neg-i8 x
+  checked-div-i8 :: I8 -> I8 -> Option I8
+  checked-div-i8 x y = if eq-i8 y 0 || (eq-i8 x min-bound-i8 && eq-i8 y (-1)) then None else Some (raw-sdiv-i8 x y)
+  checked-rem-i8 :: I8 -> I8 -> Option I8
+  checked-rem-i8 x y = if eq-i8 y 0 || (eq-i8 x min-bound-i8 && eq-i8 y (-1)) then None else Some (raw-srem-i8 x y)
+  checked-shl-i8 :: I8 -> U32 -> Option I8
+  checked-shl-i8 x n = if lt-u32 n 8 then Some (wrapping-shl-i8 x n) else None
+  checked-shr-i8 :: I8 -> U32 -> Option I8
+  checked-shr-i8 x n = if lt-u32 n 8 then Some (wrapping-shr-i8 x n) else None
+  swap-bytes-i8 :: I8 -> I8
+  swap-bytes-i8 x = x
+  min-bound-i16 :: refined (r == -32768) I16
+  min-bound-i16 = -32768
+  max-bound-i16 :: refined (r == 32767) I16
+  max-bound-i16 = 32767
+  checked-add-i16 :: I16 -> I16 -> Option I16
+  checked-add-i16 x y = if ov-add-i16 x y then None else Some (wrapping-add-i16 x y)
+  checked-sub-i16 :: I16 -> I16 -> Option I16
+  checked-sub-i16 x y = if ov-sub-i16 x y then None else Some (wrapping-sub-i16 x y)
+  checked-mul-i16 :: I16 -> I16 -> Option I16
+  checked-mul-i16 x y = if ov-mul-i16 x y then None else Some (wrapping-mul-i16 x y)
+  checked-neg-i16 :: I16 -> Option I16
+  checked-neg-i16 x = if eq-i16 x min-bound-i16 then None else Some (wrapping-neg-i16 x)
+  saturating-neg-i16 :: I16 -> I16
+  saturating-neg-i16 x = if eq-i16 x min-bound-i16 then max-bound-i16 else wrapping-neg-i16 x
+  checked-div-i16 :: I16 -> I16 -> Option I16
+  checked-div-i16 x y = if eq-i16 y 0 || (eq-i16 x min-bound-i16 && eq-i16 y (-1)) then None else Some (raw-sdiv-i16 x y)
+  checked-rem-i16 :: I16 -> I16 -> Option I16
+  checked-rem-i16 x y = if eq-i16 y 0 || (eq-i16 x min-bound-i16 && eq-i16 y (-1)) then None else Some (raw-srem-i16 x y)
+  checked-shl-i16 :: I16 -> U32 -> Option I16
+  checked-shl-i16 x n = if lt-u32 n 16 then Some (wrapping-shl-i16 x n) else None
+  checked-shr-i16 :: I16 -> U32 -> Option I16
+  checked-shr-i16 x n = if lt-u32 n 16 then Some (wrapping-shr-i16 x n) else None
+  min-bound-i32 :: refined (r == -2147483648) I32
+  min-bound-i32 = -2147483648
+  max-bound-i32 :: refined (r == 2147483647) I32
+  max-bound-i32 = 2147483647
+  checked-add-i32 :: I32 -> I32 -> Option I32
+  checked-add-i32 x y = if ov-add-i32 x y then None else Some (wrapping-add-i32 x y)
+  checked-sub-i32 :: I32 -> I32 -> Option I32
+  checked-sub-i32 x y = if ov-sub-i32 x y then None else Some (wrapping-sub-i32 x y)
+  checked-mul-i32 :: I32 -> I32 -> Option I32
+  checked-mul-i32 x y = if ov-mul-i32 x y then None else Some (wrapping-mul-i32 x y)
+  checked-neg-i32 :: I32 -> Option I32
+  checked-neg-i32 x = if eq-i32 x min-bound-i32 then None else Some (wrapping-neg-i32 x)
+  saturating-neg-i32 :: I32 -> I32
+  saturating-neg-i32 x = if eq-i32 x min-bound-i32 then max-bound-i32 else wrapping-neg-i32 x
+  checked-div-i32 :: I32 -> I32 -> Option I32
+  checked-div-i32 x y = if eq-i32 y 0 || (eq-i32 x min-bound-i32 && eq-i32 y (-1)) then None else Some (raw-sdiv-i32 x y)
+  checked-rem-i32 :: I32 -> I32 -> Option I32
+  checked-rem-i32 x y = if eq-i32 y 0 || (eq-i32 x min-bound-i32 && eq-i32 y (-1)) then None else Some (raw-srem-i32 x y)
+  checked-shl-i32 :: I32 -> U32 -> Option I32
+  checked-shl-i32 x n = if lt-u32 n 32 then Some (wrapping-shl-i32 x n) else None
+  checked-shr-i32 :: I32 -> U32 -> Option I32
+  checked-shr-i32 x n = if lt-u32 n 32 then Some (wrapping-shr-i32 x n) else None
+  min-bound-i64 :: refined (r == -9223372036854775808) I64
+  min-bound-i64 = -9223372036854775808
+  max-bound-i64 :: refined (r == 9223372036854775807) I64
+  max-bound-i64 = 9223372036854775807
+  checked-add-i64 :: I64 -> I64 -> Option I64
+  checked-add-i64 x y = if ov-add-i64 x y then None else Some (wrapping-add-i64 x y)
+  checked-sub-i64 :: I64 -> I64 -> Option I64
+  checked-sub-i64 x y = if ov-sub-i64 x y then None else Some (wrapping-sub-i64 x y)
+  checked-mul-i64 :: I64 -> I64 -> Option I64
+  checked-mul-i64 x y = if ov-mul-i64 x y then None else Some (wrapping-mul-i64 x y)
+  checked-neg-i64 :: I64 -> Option I64
+  checked-neg-i64 x = if eq-i64 x min-bound-i64 then None else Some (wrapping-neg-i64 x)
+  saturating-neg-i64 :: I64 -> I64
+  saturating-neg-i64 x = if eq-i64 x min-bound-i64 then max-bound-i64 else wrapping-neg-i64 x
+  checked-div-i64 :: I64 -> I64 -> Option I64
+  checked-div-i64 x y = if eq-i64 y 0 || (eq-i64 x min-bound-i64 && eq-i64 y (-1)) then None else Some (raw-sdiv-i64 x y)
+  checked-rem-i64 :: I64 -> I64 -> Option I64
+  checked-rem-i64 x y = if eq-i64 y 0 || (eq-i64 x min-bound-i64 && eq-i64 y (-1)) then None else Some (raw-srem-i64 x y)
+  checked-shl-i64 :: I64 -> U32 -> Option I64
+  checked-shl-i64 x n = if lt-u32 n 64 then Some (wrapping-shl-i64 x n) else None
+  checked-shr-i64 :: I64 -> U32 -> Option I64
+  checked-shr-i64 x n = if lt-u32 n 64 then Some (wrapping-shr-i64 x n) else None
+  min-bound-u8 :: refined (r == 0) U8
+  min-bound-u8 = 0
+  max-bound-u8 :: refined (r == 255) U8
+  max-bound-u8 = 255
+  checked-add-u8 :: U8 -> U8 -> Option U8
+  checked-add-u8 x y = if ov-add-u8 x y then None else Some (wrapping-add-u8 x y)
+  checked-sub-u8 :: U8 -> U8 -> Option U8
+  checked-sub-u8 x y = if ov-sub-u8 x y then None else Some (wrapping-sub-u8 x y)
+  checked-mul-u8 :: U8 -> U8 -> Option U8
+  checked-mul-u8 x y = if ov-mul-u8 x y then None else Some (wrapping-mul-u8 x y)
+  checked-neg-u8 :: U8 -> Option U8
+  checked-neg-u8 x = if eq-u8 x 0 then Some 0 else None
+  saturating-neg-u8 :: U8 -> U8
+  saturating-neg-u8 x = 0
+  checked-div-u8 :: U8 -> U8 -> Option U8
+  checked-div-u8 x y = if eq-u8 y 0 then None else Some (raw-div-u8 x y)
+  checked-rem-u8 :: U8 -> U8 -> Option U8
+  checked-rem-u8 x y = if eq-u8 y 0 then None else Some (raw-rem-u8 x y)
+  div-u8 :: using (b /= 0) => U8 -> (b :: U8) -> U8
+  div-u8 a b = raw-div-u8 a b
+  rem-u8 :: using (b /= 0) => U8 -> (b :: U8) -> U8
+  rem-u8 a b = raw-rem-u8 a b
+  checked-shl-u8 :: U8 -> U32 -> Option U8
+  checked-shl-u8 x n = if lt-u32 n 8 then Some (wrapping-shl-u8 x n) else None
+  checked-shr-u8 :: U8 -> U32 -> Option U8
+  checked-shr-u8 x n = if lt-u32 n 8 then Some (wrapping-shr-u8 x n) else None
+  swap-bytes-u8 :: U8 -> U8
+  swap-bytes-u8 x = x
+  min-bound-u16 :: refined (r == 0) U16
+  min-bound-u16 = 0
+  max-bound-u16 :: refined (r == 65535) U16
+  max-bound-u16 = 65535
+  checked-add-u16 :: U16 -> U16 -> Option U16
+  checked-add-u16 x y = if ov-add-u16 x y then None else Some (wrapping-add-u16 x y)
+  checked-sub-u16 :: U16 -> U16 -> Option U16
+  checked-sub-u16 x y = if ov-sub-u16 x y then None else Some (wrapping-sub-u16 x y)
+  checked-mul-u16 :: U16 -> U16 -> Option U16
+  checked-mul-u16 x y = if ov-mul-u16 x y then None else Some (wrapping-mul-u16 x y)
+  checked-neg-u16 :: U16 -> Option U16
+  checked-neg-u16 x = if eq-u16 x 0 then Some 0 else None
+  saturating-neg-u16 :: U16 -> U16
+  saturating-neg-u16 x = 0
+  checked-div-u16 :: U16 -> U16 -> Option U16
+  checked-div-u16 x y = if eq-u16 y 0 then None else Some (raw-div-u16 x y)
+  checked-rem-u16 :: U16 -> U16 -> Option U16
+  checked-rem-u16 x y = if eq-u16 y 0 then None else Some (raw-rem-u16 x y)
+  div-u16 :: using (b /= 0) => U16 -> (b :: U16) -> U16
+  div-u16 a b = raw-div-u16 a b
+  rem-u16 :: using (b /= 0) => U16 -> (b :: U16) -> U16
+  rem-u16 a b = raw-rem-u16 a b
+  checked-shl-u16 :: U16 -> U32 -> Option U16
+  checked-shl-u16 x n = if lt-u32 n 16 then Some (wrapping-shl-u16 x n) else None
+  checked-shr-u16 :: U16 -> U32 -> Option U16
+  checked-shr-u16 x n = if lt-u32 n 16 then Some (wrapping-shr-u16 x n) else None
+  min-bound-u32 :: refined (r == 0) U32
+  min-bound-u32 = 0
+  max-bound-u32 :: refined (r == 4294967295) U32
+  max-bound-u32 = 4294967295
+  checked-add-u32 :: U32 -> U32 -> Option U32
+  checked-add-u32 x y = if ov-add-u32 x y then None else Some (wrapping-add-u32 x y)
+  checked-sub-u32 :: U32 -> U32 -> Option U32
+  checked-sub-u32 x y = if ov-sub-u32 x y then None else Some (wrapping-sub-u32 x y)
+  checked-mul-u32 :: U32 -> U32 -> Option U32
+  checked-mul-u32 x y = if ov-mul-u32 x y then None else Some (wrapping-mul-u32 x y)
+  checked-neg-u32 :: U32 -> Option U32
+  checked-neg-u32 x = if eq-u32 x 0 then Some 0 else None
+  saturating-neg-u32 :: U32 -> U32
+  saturating-neg-u32 x = 0
+  checked-div-u32 :: U32 -> U32 -> Option U32
+  checked-div-u32 x y = if eq-u32 y 0 then None else Some (raw-div-u32 x y)
+  checked-rem-u32 :: U32 -> U32 -> Option U32
+  checked-rem-u32 x y = if eq-u32 y 0 then None else Some (raw-rem-u32 x y)
+  div-u32 :: using (b /= 0) => U32 -> (b :: U32) -> U32
+  div-u32 a b = raw-div-u32 a b
+  rem-u32 :: using (b /= 0) => U32 -> (b :: U32) -> U32
+  rem-u32 a b = raw-rem-u32 a b
+  checked-shl-u32 :: U32 -> U32 -> Option U32
+  checked-shl-u32 x n = if lt-u32 n 32 then Some (wrapping-shl-u32 x n) else None
+  checked-shr-u32 :: U32 -> U32 -> Option U32
+  checked-shr-u32 x n = if lt-u32 n 32 then Some (wrapping-shr-u32 x n) else None
+  min-bound-u64 :: refined (r == 0) U64
+  min-bound-u64 = 0
+  max-bound-u64 :: refined (r == 18446744073709551615) U64
+  max-bound-u64 = 18446744073709551615
+  checked-add-u64 :: U64 -> U64 -> Option U64
+  checked-add-u64 x y = if ov-add-u64 x y then None else Some (wrapping-add-u64 x y)
+  checked-sub-u64 :: U64 -> U64 -> Option U64
+  checked-sub-u64 x y = if ov-sub-u64 x y then None else Some (wrapping-sub-u64 x y)
+  checked-mul-u64 :: U64 -> U64 -> Option U64
+  checked-mul-u64 x y = if ov-mul-u64 x y then None else Some (wrapping-mul-u64 x y)
+  checked-neg-u64 :: U64 -> Option U64
+  checked-neg-u64 x = if eq-u64 x 0 then Some 0 else None
+  saturating-neg-u64 :: U64 -> U64
+  saturating-neg-u64 x = 0
+  checked-div-u64 :: U64 -> U64 -> Option U64
+  checked-div-u64 x y = if eq-u64 y 0 then None else Some (raw-div-u64 x y)
+  checked-rem-u64 :: U64 -> U64 -> Option U64
+  checked-rem-u64 x y = if eq-u64 y 0 then None else Some (raw-rem-u64 x y)
+  div-u64 :: using (b /= 0) => U64 -> (b :: U64) -> U64
+  div-u64 a b = raw-div-u64 a b
+  rem-u64 :: using (b /= 0) => U64 -> (b :: U64) -> U64
+  rem-u64 a b = raw-rem-u64 a b
+  checked-shl-u64 :: U64 -> U32 -> Option U64
+  checked-shl-u64 x n = if lt-u32 n 64 then Some (wrapping-shl-u64 x n) else None
+  checked-shr-u64 :: U64 -> U32 -> Option U64
+  checked-shr-u64 x n = if lt-u32 n 64 then Some (wrapping-shr-u64 x n) else None
 
-  -- I8 (8 bits).
-  -- A bound states its value, so `nat-from-i64 max-bound-i64` and the
-  -- like discharge their range with nothing written.
-  foreign import ccall "cinch.prim.minBoundI8" min-bound-i8 :: refined (r == -128) I8
-  foreign import ccall "cinch.prim.maxBoundI8" max-bound-i8 :: refined (r == 127) I8
-  foreign import ccall "cinch.prim.checkedAddI8" checked-add-i8 :: I8 -> I8 -> Option I8
-  foreign import ccall "cinch.prim.checkedSubI8" checked-sub-i8 :: I8 -> I8 -> Option I8
-  foreign import ccall "cinch.prim.checkedMulI8" checked-mul-i8 :: I8 -> I8 -> Option I8
-  foreign import ccall "cinch.prim.wrappingAddI8" wrapping-add-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.wrappingSubI8" wrapping-sub-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.wrappingMulI8" wrapping-mul-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.saturatingAddI8" saturating-add-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.saturatingSubI8" saturating-sub-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.saturatingMulI8" saturating-mul-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.checkedNegI8" checked-neg-i8 :: I8 -> Option I8
-  foreign import ccall "cinch.prim.wrappingNegI8" wrapping-neg-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.saturatingNegI8" saturating-neg-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.checkedDivI8" checked-div-i8 :: I8 -> I8 -> Option I8
-  foreign import ccall "cinch.prim.checkedRemI8" checked-rem-i8 :: I8 -> I8 -> Option I8
-  foreign import ccall "cinch.prim.checkedShlI8" checked-shl-i8 :: I8 -> U32 -> Option I8
-  foreign import ccall "cinch.prim.wrappingShlI8" wrapping-shl-i8 :: I8 -> U32 -> I8
-  foreign import ccall "cinch.prim.checkedShrI8" checked-shr-i8 :: I8 -> U32 -> Option I8
-  foreign import ccall "cinch.prim.wrappingShrI8" wrapping-shr-i8 :: I8 -> U32 -> I8
-  foreign import ccall "cinch.prim.rotateLeftI8" rotate-left-i8 :: I8 -> U32 -> I8
-  foreign import ccall "cinch.prim.rotateRightI8" rotate-right-i8 :: I8 -> U32 -> I8
-  foreign import ccall "cinch.prim.bitAndI8" bit-and-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.bitOrI8" bit-or-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.bitXorI8" bit-xor-i8 :: I8 -> I8 -> I8
-  foreign import ccall "cinch.prim.bitNotI8" bit-not-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.countOnesI8" count-ones-i8 :: I8 -> U32
-  foreign import ccall "cinch.prim.leadingZerosI8" leading-zeros-i8 :: I8 -> U32
-  foreign import ccall "cinch.prim.trailingZerosI8" trailing-zeros-i8 :: I8 -> U32
-  foreign import ccall "cinch.prim.reverseBitsI8" reverse-bits-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.swapBytesI8" swap-bytes-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.eqI8" eq-i8 :: I8 -> I8 -> Bool
-  foreign import ccall "cinch.prim.neI8" ne-i8 :: I8 -> I8 -> Bool
-  foreign import ccall "cinch.prim.ltI8" lt-i8 :: I8 -> I8 -> Bool
-  foreign import ccall "cinch.prim.leI8" le-i8 :: I8 -> I8 -> Bool
-  foreign import ccall "cinch.prim.gtI8" gt-i8 :: I8 -> I8 -> Bool
-  foreign import ccall "cinch.prim.geI8" ge-i8 :: I8 -> I8 -> Bool
+  -- Usize and Isize (target pointer width; pure Cinch over U32/U64 and I32/I64).
+  min-bound-usize :: Usize
+  min-bound-usize = 0
+  max-bound-usize :: Usize
+  max-bound-usize = if word-size32 0 then u32-to-usize max-bound-u32 else wrapping-u64-to-usize max-bound-u64
+  min-bound-isize :: Isize
+  min-bound-isize = if word-size32 0 then i32-to-isize min-bound-i32 else wrapping-i64-to-isize min-bound-i64
+  max-bound-isize :: Isize
+  max-bound-isize = if word-size32 0 then i32-to-isize max-bound-i32 else wrapping-i64-to-isize max-bound-i64
+  wrapping-add-usize :: Usize -> Usize -> Usize
+  wrapping-add-usize x y = if word-size32 0 then u32-to-usize (wrapping-add-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (wrapping-add-u64 (usize-to-u64 x) (usize-to-u64 y))
+  wrapping-sub-usize :: Usize -> Usize -> Usize
+  wrapping-sub-usize x y = if word-size32 0 then u32-to-usize (wrapping-sub-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (wrapping-sub-u64 (usize-to-u64 x) (usize-to-u64 y))
+  wrapping-mul-usize :: Usize -> Usize -> Usize
+  wrapping-mul-usize x y = if word-size32 0 then u32-to-usize (wrapping-mul-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (wrapping-mul-u64 (usize-to-u64 x) (usize-to-u64 y))
+  saturating-add-usize :: Usize -> Usize -> Usize
+  saturating-add-usize x y = if word-size32 0 then u32-to-usize (saturating-add-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (saturating-add-u64 (usize-to-u64 x) (usize-to-u64 y))
+  saturating-sub-usize :: Usize -> Usize -> Usize
+  saturating-sub-usize x y = if word-size32 0 then u32-to-usize (saturating-sub-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (saturating-sub-u64 (usize-to-u64 x) (usize-to-u64 y))
+  saturating-mul-usize :: Usize -> Usize -> Usize
+  saturating-mul-usize x y = if word-size32 0 then u32-to-usize (saturating-mul-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (saturating-mul-u64 (usize-to-u64 x) (usize-to-u64 y))
+  bit-and-usize :: Usize -> Usize -> Usize
+  bit-and-usize x y = if word-size32 0 then u32-to-usize (bit-and-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (bit-and-u64 (usize-to-u64 x) (usize-to-u64 y))
+  bit-or-usize :: Usize -> Usize -> Usize
+  bit-or-usize x y = if word-size32 0 then u32-to-usize (bit-or-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (bit-or-u64 (usize-to-u64 x) (usize-to-u64 y))
+  bit-xor-usize :: Usize -> Usize -> Usize
+  bit-xor-usize x y = if word-size32 0 then u32-to-usize (bit-xor-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y)) else wrapping-u64-to-usize (bit-xor-u64 (usize-to-u64 x) (usize-to-u64 y))
+  checked-add-usize :: Usize -> Usize -> Option Usize
+  checked-add-usize x y = if word-size32 0 then (case checked-add-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) of Some v -> Some (u32-to-usize v); None -> None) else (case checked-add-u64 (usize-to-u64 x) (usize-to-u64 y) of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  checked-sub-usize :: Usize -> Usize -> Option Usize
+  checked-sub-usize x y = if word-size32 0 then (case checked-sub-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) of Some v -> Some (u32-to-usize v); None -> None) else (case checked-sub-u64 (usize-to-u64 x) (usize-to-u64 y) of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  checked-mul-usize :: Usize -> Usize -> Option Usize
+  checked-mul-usize x y = if word-size32 0 then (case checked-mul-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) of Some v -> Some (u32-to-usize v); None -> None) else (case checked-mul-u64 (usize-to-u64 x) (usize-to-u64 y) of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  checked-div-usize :: Usize -> Usize -> Option Usize
+  checked-div-usize x y = if word-size32 0 then (case checked-div-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) of Some v -> Some (u32-to-usize v); None -> None) else (case checked-div-u64 (usize-to-u64 x) (usize-to-u64 y) of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  checked-rem-usize :: Usize -> Usize -> Option Usize
+  checked-rem-usize x y = if word-size32 0 then (case checked-rem-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) of Some v -> Some (u32-to-usize v); None -> None) else (case checked-rem-u64 (usize-to-u64 x) (usize-to-u64 y) of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  wrapping-neg-usize :: Usize -> Usize
+  wrapping-neg-usize x = if word-size32 0 then u32-to-usize (wrapping-neg-u32 (wrapping-usize-to-u32 x)) else wrapping-u64-to-usize (wrapping-neg-u64 (usize-to-u64 x))
+  saturating-neg-usize :: Usize -> Usize
+  saturating-neg-usize x = if word-size32 0 then u32-to-usize (saturating-neg-u32 (wrapping-usize-to-u32 x)) else wrapping-u64-to-usize (saturating-neg-u64 (usize-to-u64 x))
+  bit-not-usize :: Usize -> Usize
+  bit-not-usize x = if word-size32 0 then u32-to-usize (bit-not-u32 (wrapping-usize-to-u32 x)) else wrapping-u64-to-usize (bit-not-u64 (usize-to-u64 x))
+  reverse-bits-usize :: Usize -> Usize
+  reverse-bits-usize x = if word-size32 0 then u32-to-usize (reverse-bits-u32 (wrapping-usize-to-u32 x)) else wrapping-u64-to-usize (reverse-bits-u64 (usize-to-u64 x))
+  swap-bytes-usize :: Usize -> Usize
+  swap-bytes-usize x = if word-size32 0 then u32-to-usize (swap-bytes-u32 (wrapping-usize-to-u32 x)) else wrapping-u64-to-usize (swap-bytes-u64 (usize-to-u64 x))
+  checked-neg-usize :: Usize -> Option Usize
+  checked-neg-usize x = if word-size32 0 then (case checked-neg-u32 (wrapping-usize-to-u32 x) of Some v -> Some (u32-to-usize v); None -> None) else (case checked-neg-u64 (usize-to-u64 x) of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  wrapping-shl-usize :: Usize -> U32 -> Usize
+  wrapping-shl-usize x n = if word-size32 0 then u32-to-usize (wrapping-shl-u32 (wrapping-usize-to-u32 x) n) else wrapping-u64-to-usize (wrapping-shl-u64 (usize-to-u64 x) n)
+  wrapping-shr-usize :: Usize -> U32 -> Usize
+  wrapping-shr-usize x n = if word-size32 0 then u32-to-usize (wrapping-shr-u32 (wrapping-usize-to-u32 x) n) else wrapping-u64-to-usize (wrapping-shr-u64 (usize-to-u64 x) n)
+  rotate-left-usize :: Usize -> U32 -> Usize
+  rotate-left-usize x n = if word-size32 0 then u32-to-usize (rotate-left-u32 (wrapping-usize-to-u32 x) n) else wrapping-u64-to-usize (rotate-left-u64 (usize-to-u64 x) n)
+  rotate-right-usize :: Usize -> U32 -> Usize
+  rotate-right-usize x n = if word-size32 0 then u32-to-usize (rotate-right-u32 (wrapping-usize-to-u32 x) n) else wrapping-u64-to-usize (rotate-right-u64 (usize-to-u64 x) n)
+  checked-shl-usize :: Usize -> U32 -> Option Usize
+  checked-shl-usize x n = if word-size32 0 then (case checked-shl-u32 (wrapping-usize-to-u32 x) n of Some v -> Some (u32-to-usize v); None -> None) else (case checked-shl-u64 (usize-to-u64 x) n of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  checked-shr-usize :: Usize -> U32 -> Option Usize
+  checked-shr-usize x n = if word-size32 0 then (case checked-shr-u32 (wrapping-usize-to-u32 x) n of Some v -> Some (u32-to-usize v); None -> None) else (case checked-shr-u64 (usize-to-u64 x) n of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  count-ones-usize :: Usize -> U32
+  count-ones-usize x = if word-size32 0 then count-ones-u32 (wrapping-usize-to-u32 x) else count-ones-u64 (usize-to-u64 x)
+  leading-zeros-usize :: Usize -> U32
+  leading-zeros-usize x = if word-size32 0 then leading-zeros-u32 (wrapping-usize-to-u32 x) else leading-zeros-u64 (usize-to-u64 x)
+  trailing-zeros-usize :: Usize -> U32
+  trailing-zeros-usize x = if word-size32 0 then trailing-zeros-u32 (wrapping-usize-to-u32 x) else trailing-zeros-u64 (usize-to-u64 x)
+  eq-usize :: Usize -> Usize -> Bool
+  eq-usize x y = if word-size32 0 then eq-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) else eq-u64 (usize-to-u64 x) (usize-to-u64 y)
+  ne-usize :: Usize -> Usize -> Bool
+  ne-usize x y = if word-size32 0 then ne-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) else ne-u64 (usize-to-u64 x) (usize-to-u64 y)
+  lt-usize :: Usize -> Usize -> Bool
+  lt-usize x y = if word-size32 0 then lt-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) else lt-u64 (usize-to-u64 x) (usize-to-u64 y)
+  le-usize :: Usize -> Usize -> Bool
+  le-usize x y = if word-size32 0 then le-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) else le-u64 (usize-to-u64 x) (usize-to-u64 y)
+  gt-usize :: Usize -> Usize -> Bool
+  gt-usize x y = if word-size32 0 then gt-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) else gt-u64 (usize-to-u64 x) (usize-to-u64 y)
+  ge-usize :: Usize -> Usize -> Bool
+  ge-usize x y = if word-size32 0 then ge-u32 (wrapping-usize-to-u32 x) (wrapping-usize-to-u32 y) else ge-u64 (usize-to-u64 x) (usize-to-u64 y)
+  wrapping-add-isize :: Isize -> Isize -> Isize
+  wrapping-add-isize x y = if word-size32 0 then i32-to-isize (wrapping-add-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (wrapping-add-i64 (isize-to-i64 x) (isize-to-i64 y))
+  wrapping-sub-isize :: Isize -> Isize -> Isize
+  wrapping-sub-isize x y = if word-size32 0 then i32-to-isize (wrapping-sub-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (wrapping-sub-i64 (isize-to-i64 x) (isize-to-i64 y))
+  wrapping-mul-isize :: Isize -> Isize -> Isize
+  wrapping-mul-isize x y = if word-size32 0 then i32-to-isize (wrapping-mul-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (wrapping-mul-i64 (isize-to-i64 x) (isize-to-i64 y))
+  saturating-add-isize :: Isize -> Isize -> Isize
+  saturating-add-isize x y = if word-size32 0 then i32-to-isize (saturating-add-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (saturating-add-i64 (isize-to-i64 x) (isize-to-i64 y))
+  saturating-sub-isize :: Isize -> Isize -> Isize
+  saturating-sub-isize x y = if word-size32 0 then i32-to-isize (saturating-sub-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (saturating-sub-i64 (isize-to-i64 x) (isize-to-i64 y))
+  saturating-mul-isize :: Isize -> Isize -> Isize
+  saturating-mul-isize x y = if word-size32 0 then i32-to-isize (saturating-mul-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (saturating-mul-i64 (isize-to-i64 x) (isize-to-i64 y))
+  bit-and-isize :: Isize -> Isize -> Isize
+  bit-and-isize x y = if word-size32 0 then i32-to-isize (bit-and-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (bit-and-i64 (isize-to-i64 x) (isize-to-i64 y))
+  bit-or-isize :: Isize -> Isize -> Isize
+  bit-or-isize x y = if word-size32 0 then i32-to-isize (bit-or-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (bit-or-i64 (isize-to-i64 x) (isize-to-i64 y))
+  bit-xor-isize :: Isize -> Isize -> Isize
+  bit-xor-isize x y = if word-size32 0 then i32-to-isize (bit-xor-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y)) else wrapping-i64-to-isize (bit-xor-i64 (isize-to-i64 x) (isize-to-i64 y))
+  checked-add-isize :: Isize -> Isize -> Option Isize
+  checked-add-isize x y = if word-size32 0 then (case checked-add-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) of Some v -> Some (i32-to-isize v); None -> None) else (case checked-add-i64 (isize-to-i64 x) (isize-to-i64 y) of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  checked-sub-isize :: Isize -> Isize -> Option Isize
+  checked-sub-isize x y = if word-size32 0 then (case checked-sub-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) of Some v -> Some (i32-to-isize v); None -> None) else (case checked-sub-i64 (isize-to-i64 x) (isize-to-i64 y) of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  checked-mul-isize :: Isize -> Isize -> Option Isize
+  checked-mul-isize x y = if word-size32 0 then (case checked-mul-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) of Some v -> Some (i32-to-isize v); None -> None) else (case checked-mul-i64 (isize-to-i64 x) (isize-to-i64 y) of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  checked-div-isize :: Isize -> Isize -> Option Isize
+  checked-div-isize x y = if word-size32 0 then (case checked-div-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) of Some v -> Some (i32-to-isize v); None -> None) else (case checked-div-i64 (isize-to-i64 x) (isize-to-i64 y) of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  checked-rem-isize :: Isize -> Isize -> Option Isize
+  checked-rem-isize x y = if word-size32 0 then (case checked-rem-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) of Some v -> Some (i32-to-isize v); None -> None) else (case checked-rem-i64 (isize-to-i64 x) (isize-to-i64 y) of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  wrapping-neg-isize :: Isize -> Isize
+  wrapping-neg-isize x = if word-size32 0 then i32-to-isize (wrapping-neg-i32 (wrapping-isize-to-i32 x)) else wrapping-i64-to-isize (wrapping-neg-i64 (isize-to-i64 x))
+  saturating-neg-isize :: Isize -> Isize
+  saturating-neg-isize x = if word-size32 0 then i32-to-isize (saturating-neg-i32 (wrapping-isize-to-i32 x)) else wrapping-i64-to-isize (saturating-neg-i64 (isize-to-i64 x))
+  bit-not-isize :: Isize -> Isize
+  bit-not-isize x = if word-size32 0 then i32-to-isize (bit-not-i32 (wrapping-isize-to-i32 x)) else wrapping-i64-to-isize (bit-not-i64 (isize-to-i64 x))
+  reverse-bits-isize :: Isize -> Isize
+  reverse-bits-isize x = if word-size32 0 then i32-to-isize (reverse-bits-i32 (wrapping-isize-to-i32 x)) else wrapping-i64-to-isize (reverse-bits-i64 (isize-to-i64 x))
+  swap-bytes-isize :: Isize -> Isize
+  swap-bytes-isize x = if word-size32 0 then i32-to-isize (swap-bytes-i32 (wrapping-isize-to-i32 x)) else wrapping-i64-to-isize (swap-bytes-i64 (isize-to-i64 x))
+  checked-neg-isize :: Isize -> Option Isize
+  checked-neg-isize x = if word-size32 0 then (case checked-neg-i32 (wrapping-isize-to-i32 x) of Some v -> Some (i32-to-isize v); None -> None) else (case checked-neg-i64 (isize-to-i64 x) of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  wrapping-shl-isize :: Isize -> U32 -> Isize
+  wrapping-shl-isize x n = if word-size32 0 then i32-to-isize (wrapping-shl-i32 (wrapping-isize-to-i32 x) n) else wrapping-i64-to-isize (wrapping-shl-i64 (isize-to-i64 x) n)
+  wrapping-shr-isize :: Isize -> U32 -> Isize
+  wrapping-shr-isize x n = if word-size32 0 then i32-to-isize (wrapping-shr-i32 (wrapping-isize-to-i32 x) n) else wrapping-i64-to-isize (wrapping-shr-i64 (isize-to-i64 x) n)
+  rotate-left-isize :: Isize -> U32 -> Isize
+  rotate-left-isize x n = if word-size32 0 then i32-to-isize (rotate-left-i32 (wrapping-isize-to-i32 x) n) else wrapping-i64-to-isize (rotate-left-i64 (isize-to-i64 x) n)
+  rotate-right-isize :: Isize -> U32 -> Isize
+  rotate-right-isize x n = if word-size32 0 then i32-to-isize (rotate-right-i32 (wrapping-isize-to-i32 x) n) else wrapping-i64-to-isize (rotate-right-i64 (isize-to-i64 x) n)
+  checked-shl-isize :: Isize -> U32 -> Option Isize
+  checked-shl-isize x n = if word-size32 0 then (case checked-shl-i32 (wrapping-isize-to-i32 x) n of Some v -> Some (i32-to-isize v); None -> None) else (case checked-shl-i64 (isize-to-i64 x) n of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  checked-shr-isize :: Isize -> U32 -> Option Isize
+  checked-shr-isize x n = if word-size32 0 then (case checked-shr-i32 (wrapping-isize-to-i32 x) n of Some v -> Some (i32-to-isize v); None -> None) else (case checked-shr-i64 (isize-to-i64 x) n of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  count-ones-isize :: Isize -> U32
+  count-ones-isize x = if word-size32 0 then count-ones-i32 (wrapping-isize-to-i32 x) else count-ones-i64 (isize-to-i64 x)
+  leading-zeros-isize :: Isize -> U32
+  leading-zeros-isize x = if word-size32 0 then leading-zeros-i32 (wrapping-isize-to-i32 x) else leading-zeros-i64 (isize-to-i64 x)
+  trailing-zeros-isize :: Isize -> U32
+  trailing-zeros-isize x = if word-size32 0 then trailing-zeros-i32 (wrapping-isize-to-i32 x) else trailing-zeros-i64 (isize-to-i64 x)
+  eq-isize :: Isize -> Isize -> Bool
+  eq-isize x y = if word-size32 0 then eq-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) else eq-i64 (isize-to-i64 x) (isize-to-i64 y)
+  ne-isize :: Isize -> Isize -> Bool
+  ne-isize x y = if word-size32 0 then ne-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) else ne-i64 (isize-to-i64 x) (isize-to-i64 y)
+  lt-isize :: Isize -> Isize -> Bool
+  lt-isize x y = if word-size32 0 then lt-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) else lt-i64 (isize-to-i64 x) (isize-to-i64 y)
+  le-isize :: Isize -> Isize -> Bool
+  le-isize x y = if word-size32 0 then le-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) else le-i64 (isize-to-i64 x) (isize-to-i64 y)
+  gt-isize :: Isize -> Isize -> Bool
+  gt-isize x y = if word-size32 0 then gt-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) else gt-i64 (isize-to-i64 x) (isize-to-i64 y)
+  ge-isize :: Isize -> Isize -> Bool
+  ge-isize x y = if word-size32 0 then ge-i32 (wrapping-isize-to-i32 x) (wrapping-isize-to-i32 y) else ge-i64 (isize-to-i64 x) (isize-to-i64 y)
+  div-usize :: using (b /= 0) => Usize -> (b :: Usize) -> Usize
+  div-usize a b = if word-size32 0 then u32-to-usize (raw-div-u32 (wrapping-usize-to-u32 a) (wrapping-usize-to-u32 b)) else wrapping-u64-to-usize (raw-div-u64 (usize-to-u64 a) (usize-to-u64 b))
+  rem-usize :: using (b /= 0) => Usize -> (b :: Usize) -> Usize
+  rem-usize a b = if word-size32 0 then u32-to-usize (raw-rem-u32 (wrapping-usize-to-u32 a) (wrapping-usize-to-u32 b)) else wrapping-u64-to-usize (raw-rem-u64 (usize-to-u64 a) (usize-to-u64 b))
 
-  -- I16 (16 bits).
-  foreign import ccall "cinch.prim.minBoundI16" min-bound-i16 :: refined (r == -32768) I16
-  foreign import ccall "cinch.prim.maxBoundI16" max-bound-i16 :: refined (r == 32767) I16
-  foreign import ccall "cinch.prim.checkedAddI16" checked-add-i16 :: I16 -> I16 -> Option I16
-  foreign import ccall "cinch.prim.checkedSubI16" checked-sub-i16 :: I16 -> I16 -> Option I16
-  foreign import ccall "cinch.prim.checkedMulI16" checked-mul-i16 :: I16 -> I16 -> Option I16
-  foreign import ccall "cinch.prim.wrappingAddI16" wrapping-add-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.wrappingSubI16" wrapping-sub-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.wrappingMulI16" wrapping-mul-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.saturatingAddI16" saturating-add-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.saturatingSubI16" saturating-sub-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.saturatingMulI16" saturating-mul-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.checkedNegI16" checked-neg-i16 :: I16 -> Option I16
-  foreign import ccall "cinch.prim.wrappingNegI16" wrapping-neg-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.saturatingNegI16" saturating-neg-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.checkedDivI16" checked-div-i16 :: I16 -> I16 -> Option I16
-  foreign import ccall "cinch.prim.checkedRemI16" checked-rem-i16 :: I16 -> I16 -> Option I16
-  foreign import ccall "cinch.prim.checkedShlI16" checked-shl-i16 :: I16 -> U32 -> Option I16
-  foreign import ccall "cinch.prim.wrappingShlI16" wrapping-shl-i16 :: I16 -> U32 -> I16
-  foreign import ccall "cinch.prim.checkedShrI16" checked-shr-i16 :: I16 -> U32 -> Option I16
-  foreign import ccall "cinch.prim.wrappingShrI16" wrapping-shr-i16 :: I16 -> U32 -> I16
-  foreign import ccall "cinch.prim.rotateLeftI16" rotate-left-i16 :: I16 -> U32 -> I16
-  foreign import ccall "cinch.prim.rotateRightI16" rotate-right-i16 :: I16 -> U32 -> I16
-  foreign import ccall "cinch.prim.bitAndI16" bit-and-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.bitOrI16" bit-or-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.bitXorI16" bit-xor-i16 :: I16 -> I16 -> I16
-  foreign import ccall "cinch.prim.bitNotI16" bit-not-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.countOnesI16" count-ones-i16 :: I16 -> U32
-  foreign import ccall "cinch.prim.leadingZerosI16" leading-zeros-i16 :: I16 -> U32
-  foreign import ccall "cinch.prim.trailingZerosI16" trailing-zeros-i16 :: I16 -> U32
-  foreign import ccall "cinch.prim.reverseBitsI16" reverse-bits-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.swapBytesI16" swap-bytes-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.eqI16" eq-i16 :: I16 -> I16 -> Bool
-  foreign import ccall "cinch.prim.neI16" ne-i16 :: I16 -> I16 -> Bool
-  foreign import ccall "cinch.prim.ltI16" lt-i16 :: I16 -> I16 -> Bool
-  foreign import ccall "cinch.prim.leI16" le-i16 :: I16 -> I16 -> Bool
-  foreign import ccall "cinch.prim.gtI16" gt-i16 :: I16 -> I16 -> Bool
-  foreign import ccall "cinch.prim.geI16" ge-i16 :: I16 -> I16 -> Bool
+  prim f32-bits :: F32 -> U32 where
+    llvm {
+      %r = bitcast float %0 to i32
+      ret i32 %r
+    }
 
-  -- I32 (32 bits).
-  foreign import ccall "cinch.prim.minBoundI32" min-bound-i32 :: refined (r == -2147483648) I32
-  foreign import ccall "cinch.prim.maxBoundI32" max-bound-i32 :: refined (r == 2147483647) I32
-  foreign import ccall "cinch.prim.checkedAddI32" checked-add-i32 :: I32 -> I32 -> Option I32
-  foreign import ccall "cinch.prim.checkedSubI32" checked-sub-i32 :: I32 -> I32 -> Option I32
-  foreign import ccall "cinch.prim.checkedMulI32" checked-mul-i32 :: I32 -> I32 -> Option I32
-  foreign import ccall "cinch.prim.wrappingAddI32" wrapping-add-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.wrappingSubI32" wrapping-sub-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.wrappingMulI32" wrapping-mul-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.saturatingAddI32" saturating-add-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.saturatingSubI32" saturating-sub-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.saturatingMulI32" saturating-mul-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.checkedNegI32" checked-neg-i32 :: I32 -> Option I32
-  foreign import ccall "cinch.prim.wrappingNegI32" wrapping-neg-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.saturatingNegI32" saturating-neg-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.checkedDivI32" checked-div-i32 :: I32 -> I32 -> Option I32
-  foreign import ccall "cinch.prim.checkedRemI32" checked-rem-i32 :: I32 -> I32 -> Option I32
-  foreign import ccall "cinch.prim.checkedShlI32" checked-shl-i32 :: I32 -> U32 -> Option I32
-  foreign import ccall "cinch.prim.wrappingShlI32" wrapping-shl-i32 :: I32 -> U32 -> I32
-  foreign import ccall "cinch.prim.checkedShrI32" checked-shr-i32 :: I32 -> U32 -> Option I32
-  foreign import ccall "cinch.prim.wrappingShrI32" wrapping-shr-i32 :: I32 -> U32 -> I32
-  foreign import ccall "cinch.prim.rotateLeftI32" rotate-left-i32 :: I32 -> U32 -> I32
-  foreign import ccall "cinch.prim.rotateRightI32" rotate-right-i32 :: I32 -> U32 -> I32
-  foreign import ccall "cinch.prim.bitAndI32" bit-and-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.bitOrI32" bit-or-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.bitXorI32" bit-xor-i32 :: I32 -> I32 -> I32
-  foreign import ccall "cinch.prim.bitNotI32" bit-not-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.countOnesI32" count-ones-i32 :: I32 -> U32
-  foreign import ccall "cinch.prim.leadingZerosI32" leading-zeros-i32 :: I32 -> U32
-  foreign import ccall "cinch.prim.trailingZerosI32" trailing-zeros-i32 :: I32 -> U32
-  foreign import ccall "cinch.prim.reverseBitsI32" reverse-bits-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.swapBytesI32" swap-bytes-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.eqI32" eq-i32 :: I32 -> I32 -> Bool
-  foreign import ccall "cinch.prim.neI32" ne-i32 :: I32 -> I32 -> Bool
-  foreign import ccall "cinch.prim.ltI32" lt-i32 :: I32 -> I32 -> Bool
-  foreign import ccall "cinch.prim.leI32" le-i32 :: I32 -> I32 -> Bool
-  foreign import ccall "cinch.prim.gtI32" gt-i32 :: I32 -> I32 -> Bool
-  foreign import ccall "cinch.prim.geI32" ge-i32 :: I32 -> I32 -> Bool
+  prim f32-from-bits :: U32 -> F32 where
+    llvm {
+      %r = bitcast i32 %0 to float
+      ret float %r
+    }
 
-  -- I64 (64 bits).
-  foreign import ccall "cinch.prim.minBoundI64" min-bound-i64 :: refined (r == -9223372036854775808) I64
-  foreign import ccall "cinch.prim.maxBoundI64" max-bound-i64 :: refined (r == 9223372036854775807) I64
-  foreign import ccall "cinch.prim.checkedAddI64" checked-add-i64 :: I64 -> I64 -> Option I64
-  foreign import ccall "cinch.prim.checkedSubI64" checked-sub-i64 :: I64 -> I64 -> Option I64
-  foreign import ccall "cinch.prim.checkedMulI64" checked-mul-i64 :: I64 -> I64 -> Option I64
-  foreign import ccall "cinch.prim.wrappingAddI64" wrapping-add-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.wrappingSubI64" wrapping-sub-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.wrappingMulI64" wrapping-mul-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.saturatingAddI64" saturating-add-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.saturatingSubI64" saturating-sub-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.saturatingMulI64" saturating-mul-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.checkedNegI64" checked-neg-i64 :: I64 -> Option I64
-  foreign import ccall "cinch.prim.wrappingNegI64" wrapping-neg-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.saturatingNegI64" saturating-neg-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.checkedDivI64" checked-div-i64 :: I64 -> I64 -> Option I64
-  foreign import ccall "cinch.prim.checkedRemI64" checked-rem-i64 :: I64 -> I64 -> Option I64
-  foreign import ccall "cinch.prim.checkedShlI64" checked-shl-i64 :: I64 -> U32 -> Option I64
-  foreign import ccall "cinch.prim.wrappingShlI64" wrapping-shl-i64 :: I64 -> U32 -> I64
-  foreign import ccall "cinch.prim.checkedShrI64" checked-shr-i64 :: I64 -> U32 -> Option I64
-  foreign import ccall "cinch.prim.wrappingShrI64" wrapping-shr-i64 :: I64 -> U32 -> I64
-  foreign import ccall "cinch.prim.rotateLeftI64" rotate-left-i64 :: I64 -> U32 -> I64
-  foreign import ccall "cinch.prim.rotateRightI64" rotate-right-i64 :: I64 -> U32 -> I64
-  foreign import ccall "cinch.prim.bitAndI64" bit-and-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.bitOrI64" bit-or-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.bitXorI64" bit-xor-i64 :: I64 -> I64 -> I64
-  foreign import ccall "cinch.prim.bitNotI64" bit-not-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.countOnesI64" count-ones-i64 :: I64 -> U32
-  foreign import ccall "cinch.prim.leadingZerosI64" leading-zeros-i64 :: I64 -> U32
-  foreign import ccall "cinch.prim.trailingZerosI64" trailing-zeros-i64 :: I64 -> U32
-  foreign import ccall "cinch.prim.reverseBitsI64" reverse-bits-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.swapBytesI64" swap-bytes-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.eqI64" eq-i64 :: I64 -> I64 -> Bool
-  foreign import ccall "cinch.prim.neI64" ne-i64 :: I64 -> I64 -> Bool
-  foreign import ccall "cinch.prim.ltI64" lt-i64 :: I64 -> I64 -> Bool
-  foreign import ccall "cinch.prim.leI64" le-i64 :: I64 -> I64 -> Bool
-  foreign import ccall "cinch.prim.gtI64" gt-i64 :: I64 -> I64 -> Bool
-  foreign import ccall "cinch.prim.geI64" ge-i64 :: I64 -> I64 -> Bool
+  prim add-f32 :: F32 -> F32 -> F32 where
+    llvm {
+      %r = fadd float %0, %1
+      ret float %r
+    }
 
-  -- U8 (8 bits).
-  foreign import ccall "cinch.prim.minBoundU8" min-bound-u8 :: refined (r == 0) U8
-  foreign import ccall "cinch.prim.maxBoundU8" max-bound-u8 :: refined (r == 255) U8
-  foreign import ccall "cinch.prim.checkedAddU8" checked-add-u8 :: U8 -> U8 -> Option U8
-  foreign import ccall "cinch.prim.checkedSubU8" checked-sub-u8 :: U8 -> U8 -> Option U8
-  foreign import ccall "cinch.prim.checkedMulU8" checked-mul-u8 :: U8 -> U8 -> Option U8
-  foreign import ccall "cinch.prim.wrappingAddU8" wrapping-add-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.wrappingSubU8" wrapping-sub-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.wrappingMulU8" wrapping-mul-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.saturatingAddU8" saturating-add-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.saturatingSubU8" saturating-sub-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.saturatingMulU8" saturating-mul-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.checkedNegU8" checked-neg-u8 :: U8 -> Option U8
-  foreign import ccall "cinch.prim.wrappingNegU8" wrapping-neg-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.saturatingNegU8" saturating-neg-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.checkedDivU8" checked-div-u8 :: U8 -> U8 -> Option U8
-  foreign import ccall "cinch.prim.checkedRemU8" checked-rem-u8 :: U8 -> U8 -> Option U8
-  foreign import ccall "cinch.prim.checkedShlU8" checked-shl-u8 :: U8 -> U32 -> Option U8
-  foreign import ccall "cinch.prim.wrappingShlU8" wrapping-shl-u8 :: U8 -> U32 -> U8
-  foreign import ccall "cinch.prim.checkedShrU8" checked-shr-u8 :: U8 -> U32 -> Option U8
-  foreign import ccall "cinch.prim.wrappingShrU8" wrapping-shr-u8 :: U8 -> U32 -> U8
-  foreign import ccall "cinch.prim.rotateLeftU8" rotate-left-u8 :: U8 -> U32 -> U8
-  foreign import ccall "cinch.prim.rotateRightU8" rotate-right-u8 :: U8 -> U32 -> U8
-  foreign import ccall "cinch.prim.bitAndU8" bit-and-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.bitOrU8" bit-or-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.bitXorU8" bit-xor-u8 :: U8 -> U8 -> U8
-  foreign import ccall "cinch.prim.bitNotU8" bit-not-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.countOnesU8" count-ones-u8 :: U8 -> U32
-  foreign import ccall "cinch.prim.leadingZerosU8" leading-zeros-u8 :: U8 -> U32
-  foreign import ccall "cinch.prim.trailingZerosU8" trailing-zeros-u8 :: U8 -> U32
-  foreign import ccall "cinch.prim.reverseBitsU8" reverse-bits-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.swapBytesU8" swap-bytes-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.eqU8" eq-u8 :: U8 -> U8 -> Bool
-  foreign import ccall "cinch.prim.neU8" ne-u8 :: U8 -> U8 -> Bool
-  foreign import ccall "cinch.prim.ltU8" lt-u8 :: U8 -> U8 -> Bool
-  foreign import ccall "cinch.prim.leU8" le-u8 :: U8 -> U8 -> Bool
-  foreign import ccall "cinch.prim.gtU8" gt-u8 :: U8 -> U8 -> Bool
-  foreign import ccall "cinch.prim.geU8" ge-u8 :: U8 -> U8 -> Bool
+  prim sub-f32 :: F32 -> F32 -> F32 where
+    llvm {
+      %r = fsub float %0, %1
+      ret float %r
+    }
 
-  -- U16 (16 bits).
-  foreign import ccall "cinch.prim.minBoundU16" min-bound-u16 :: refined (r == 0) U16
-  foreign import ccall "cinch.prim.maxBoundU16" max-bound-u16 :: refined (r == 65535) U16
-  foreign import ccall "cinch.prim.checkedAddU16" checked-add-u16 :: U16 -> U16 -> Option U16
-  foreign import ccall "cinch.prim.checkedSubU16" checked-sub-u16 :: U16 -> U16 -> Option U16
-  foreign import ccall "cinch.prim.checkedMulU16" checked-mul-u16 :: U16 -> U16 -> Option U16
-  foreign import ccall "cinch.prim.wrappingAddU16" wrapping-add-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.wrappingSubU16" wrapping-sub-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.wrappingMulU16" wrapping-mul-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.saturatingAddU16" saturating-add-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.saturatingSubU16" saturating-sub-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.saturatingMulU16" saturating-mul-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.checkedNegU16" checked-neg-u16 :: U16 -> Option U16
-  foreign import ccall "cinch.prim.wrappingNegU16" wrapping-neg-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.saturatingNegU16" saturating-neg-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.checkedDivU16" checked-div-u16 :: U16 -> U16 -> Option U16
-  foreign import ccall "cinch.prim.checkedRemU16" checked-rem-u16 :: U16 -> U16 -> Option U16
-  foreign import ccall "cinch.prim.checkedShlU16" checked-shl-u16 :: U16 -> U32 -> Option U16
-  foreign import ccall "cinch.prim.wrappingShlU16" wrapping-shl-u16 :: U16 -> U32 -> U16
-  foreign import ccall "cinch.prim.checkedShrU16" checked-shr-u16 :: U16 -> U32 -> Option U16
-  foreign import ccall "cinch.prim.wrappingShrU16" wrapping-shr-u16 :: U16 -> U32 -> U16
-  foreign import ccall "cinch.prim.rotateLeftU16" rotate-left-u16 :: U16 -> U32 -> U16
-  foreign import ccall "cinch.prim.rotateRightU16" rotate-right-u16 :: U16 -> U32 -> U16
-  foreign import ccall "cinch.prim.bitAndU16" bit-and-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.bitOrU16" bit-or-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.bitXorU16" bit-xor-u16 :: U16 -> U16 -> U16
-  foreign import ccall "cinch.prim.bitNotU16" bit-not-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.countOnesU16" count-ones-u16 :: U16 -> U32
-  foreign import ccall "cinch.prim.leadingZerosU16" leading-zeros-u16 :: U16 -> U32
-  foreign import ccall "cinch.prim.trailingZerosU16" trailing-zeros-u16 :: U16 -> U32
-  foreign import ccall "cinch.prim.reverseBitsU16" reverse-bits-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.swapBytesU16" swap-bytes-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.eqU16" eq-u16 :: U16 -> U16 -> Bool
-  foreign import ccall "cinch.prim.neU16" ne-u16 :: U16 -> U16 -> Bool
-  foreign import ccall "cinch.prim.ltU16" lt-u16 :: U16 -> U16 -> Bool
-  foreign import ccall "cinch.prim.leU16" le-u16 :: U16 -> U16 -> Bool
-  foreign import ccall "cinch.prim.gtU16" gt-u16 :: U16 -> U16 -> Bool
-  foreign import ccall "cinch.prim.geU16" ge-u16 :: U16 -> U16 -> Bool
+  prim mul-f32 :: F32 -> F32 -> F32 where
+    llvm {
+      %r = fmul float %0, %1
+      ret float %r
+    }
 
-  -- U32 (32 bits).
-  foreign import ccall "cinch.prim.minBoundU32" min-bound-u32 :: refined (r == 0) U32
-  foreign import ccall "cinch.prim.maxBoundU32" max-bound-u32 :: refined (r == 4294967295) U32
-  foreign import ccall "cinch.prim.checkedAddU32" checked-add-u32 :: U32 -> U32 -> Option U32
-  foreign import ccall "cinch.prim.checkedSubU32" checked-sub-u32 :: U32 -> U32 -> Option U32
-  foreign import ccall "cinch.prim.checkedMulU32" checked-mul-u32 :: U32 -> U32 -> Option U32
-  foreign import ccall "cinch.prim.wrappingAddU32" wrapping-add-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.wrappingSubU32" wrapping-sub-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.wrappingMulU32" wrapping-mul-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.saturatingAddU32" saturating-add-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.saturatingSubU32" saturating-sub-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.saturatingMulU32" saturating-mul-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.checkedNegU32" checked-neg-u32 :: U32 -> Option U32
-  foreign import ccall "cinch.prim.wrappingNegU32" wrapping-neg-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.saturatingNegU32" saturating-neg-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.checkedDivU32" checked-div-u32 :: U32 -> U32 -> Option U32
-  foreign import ccall "cinch.prim.checkedRemU32" checked-rem-u32 :: U32 -> U32 -> Option U32
-  foreign import ccall "cinch.prim.checkedShlU32" checked-shl-u32 :: U32 -> U32 -> Option U32
-  foreign import ccall "cinch.prim.wrappingShlU32" wrapping-shl-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.checkedShrU32" checked-shr-u32 :: U32 -> U32 -> Option U32
-  foreign import ccall "cinch.prim.wrappingShrU32" wrapping-shr-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.rotateLeftU32" rotate-left-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.rotateRightU32" rotate-right-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.bitAndU32" bit-and-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.bitOrU32" bit-or-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.bitXorU32" bit-xor-u32 :: U32 -> U32 -> U32
-  foreign import ccall "cinch.prim.bitNotU32" bit-not-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.countOnesU32" count-ones-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.leadingZerosU32" leading-zeros-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.trailingZerosU32" trailing-zeros-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.reverseBitsU32" reverse-bits-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.swapBytesU32" swap-bytes-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.eqU32" eq-u32 :: U32 -> U32 -> Bool
-  foreign import ccall "cinch.prim.neU32" ne-u32 :: U32 -> U32 -> Bool
-  foreign import ccall "cinch.prim.ltU32" lt-u32 :: U32 -> U32 -> Bool
-  foreign import ccall "cinch.prim.leU32" le-u32 :: U32 -> U32 -> Bool
-  foreign import ccall "cinch.prim.gtU32" gt-u32 :: U32 -> U32 -> Bool
-  foreign import ccall "cinch.prim.geU32" ge-u32 :: U32 -> U32 -> Bool
+  prim div-f32 :: F32 -> F32 -> F32 where
+    llvm {
+      %r = fdiv float %0, %1
+      ret float %r
+    }
 
-  -- U64 (64 bits).
-  foreign import ccall "cinch.prim.minBoundU64" min-bound-u64 :: refined (r == 0) U64
-  foreign import ccall "cinch.prim.maxBoundU64" max-bound-u64 :: refined (r == 18446744073709551615) U64
-  foreign import ccall "cinch.prim.checkedAddU64" checked-add-u64 :: U64 -> U64 -> Option U64
-  foreign import ccall "cinch.prim.checkedSubU64" checked-sub-u64 :: U64 -> U64 -> Option U64
-  foreign import ccall "cinch.prim.checkedMulU64" checked-mul-u64 :: U64 -> U64 -> Option U64
-  foreign import ccall "cinch.prim.wrappingAddU64" wrapping-add-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.wrappingSubU64" wrapping-sub-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.wrappingMulU64" wrapping-mul-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.saturatingAddU64" saturating-add-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.saturatingSubU64" saturating-sub-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.saturatingMulU64" saturating-mul-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.checkedNegU64" checked-neg-u64 :: U64 -> Option U64
-  foreign import ccall "cinch.prim.wrappingNegU64" wrapping-neg-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.saturatingNegU64" saturating-neg-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.checkedDivU64" checked-div-u64 :: U64 -> U64 -> Option U64
-  foreign import ccall "cinch.prim.checkedRemU64" checked-rem-u64 :: U64 -> U64 -> Option U64
-  foreign import ccall "cinch.prim.checkedShlU64" checked-shl-u64 :: U64 -> U32 -> Option U64
-  foreign import ccall "cinch.prim.wrappingShlU64" wrapping-shl-u64 :: U64 -> U32 -> U64
-  foreign import ccall "cinch.prim.checkedShrU64" checked-shr-u64 :: U64 -> U32 -> Option U64
-  foreign import ccall "cinch.prim.wrappingShrU64" wrapping-shr-u64 :: U64 -> U32 -> U64
-  foreign import ccall "cinch.prim.rotateLeftU64" rotate-left-u64 :: U64 -> U32 -> U64
-  foreign import ccall "cinch.prim.rotateRightU64" rotate-right-u64 :: U64 -> U32 -> U64
-  foreign import ccall "cinch.prim.bitAndU64" bit-and-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.bitOrU64" bit-or-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.bitXorU64" bit-xor-u64 :: U64 -> U64 -> U64
-  foreign import ccall "cinch.prim.bitNotU64" bit-not-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.countOnesU64" count-ones-u64 :: U64 -> U32
-  foreign import ccall "cinch.prim.leadingZerosU64" leading-zeros-u64 :: U64 -> U32
-  foreign import ccall "cinch.prim.trailingZerosU64" trailing-zeros-u64 :: U64 -> U32
-  foreign import ccall "cinch.prim.reverseBitsU64" reverse-bits-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.swapBytesU64" swap-bytes-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.eqU64" eq-u64 :: U64 -> U64 -> Bool
-  foreign import ccall "cinch.prim.neU64" ne-u64 :: U64 -> U64 -> Bool
-  foreign import ccall "cinch.prim.ltU64" lt-u64 :: U64 -> U64 -> Bool
-  foreign import ccall "cinch.prim.leU64" le-u64 :: U64 -> U64 -> Bool
-  foreign import ccall "cinch.prim.gtU64" gt-u64 :: U64 -> U64 -> Bool
-  foreign import ccall "cinch.prim.geU64" ge-u64 :: U64 -> U64 -> Bool
+  prim neg-f32 :: F32 -> F32 where
+    llvm {
+      %r = fneg float %0
+      ret float %r
+    }
 
-  -- Usize (64 bits, target word).
-  foreign import ccall "cinch.prim.minBoundUsize" min-bound-usize :: Usize
-  foreign import ccall "cinch.prim.maxBoundUsize" max-bound-usize :: Usize
-  foreign import ccall "cinch.prim.checkedAddUsize" checked-add-usize :: Usize -> Usize -> Option Usize
-  foreign import ccall "cinch.prim.checkedSubUsize" checked-sub-usize :: Usize -> Usize -> Option Usize
-  foreign import ccall "cinch.prim.checkedMulUsize" checked-mul-usize :: Usize -> Usize -> Option Usize
-  foreign import ccall "cinch.prim.wrappingAddUsize" wrapping-add-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.wrappingSubUsize" wrapping-sub-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.wrappingMulUsize" wrapping-mul-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.saturatingAddUsize" saturating-add-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.saturatingSubUsize" saturating-sub-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.saturatingMulUsize" saturating-mul-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.checkedNegUsize" checked-neg-usize :: Usize -> Option Usize
-  foreign import ccall "cinch.prim.wrappingNegUsize" wrapping-neg-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.saturatingNegUsize" saturating-neg-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.checkedDivUsize" checked-div-usize :: Usize -> Usize -> Option Usize
-  foreign import ccall "cinch.prim.checkedRemUsize" checked-rem-usize :: Usize -> Usize -> Option Usize
-  foreign import ccall "cinch.prim.checkedShlUsize" checked-shl-usize :: Usize -> U32 -> Option Usize
-  foreign import ccall "cinch.prim.wrappingShlUsize" wrapping-shl-usize :: Usize -> U32 -> Usize
-  foreign import ccall "cinch.prim.checkedShrUsize" checked-shr-usize :: Usize -> U32 -> Option Usize
-  foreign import ccall "cinch.prim.wrappingShrUsize" wrapping-shr-usize :: Usize -> U32 -> Usize
-  foreign import ccall "cinch.prim.rotateLeftUsize" rotate-left-usize :: Usize -> U32 -> Usize
-  foreign import ccall "cinch.prim.rotateRightUsize" rotate-right-usize :: Usize -> U32 -> Usize
-  foreign import ccall "cinch.prim.bitAndUsize" bit-and-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.bitOrUsize" bit-or-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.bitXorUsize" bit-xor-usize :: Usize -> Usize -> Usize
-  foreign import ccall "cinch.prim.bitNotUsize" bit-not-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.countOnesUsize" count-ones-usize :: Usize -> U32
-  foreign import ccall "cinch.prim.leadingZerosUsize" leading-zeros-usize :: Usize -> U32
-  foreign import ccall "cinch.prim.trailingZerosUsize" trailing-zeros-usize :: Usize -> U32
-  foreign import ccall "cinch.prim.reverseBitsUsize" reverse-bits-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.swapBytesUsize" swap-bytes-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.eqUsize" eq-usize :: Usize -> Usize -> Bool
-  foreign import ccall "cinch.prim.neUsize" ne-usize :: Usize -> Usize -> Bool
-  foreign import ccall "cinch.prim.ltUsize" lt-usize :: Usize -> Usize -> Bool
-  foreign import ccall "cinch.prim.leUsize" le-usize :: Usize -> Usize -> Bool
-  foreign import ccall "cinch.prim.gtUsize" gt-usize :: Usize -> Usize -> Bool
-  foreign import ccall "cinch.prim.geUsize" ge-usize :: Usize -> Usize -> Bool
+  prim abs-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.fabs.f32(float %0)
+      ret float %r
+    }
 
-  -- Isize (64 bits, target word).
-  foreign import ccall "cinch.prim.minBoundIsize" min-bound-isize :: Isize
-  foreign import ccall "cinch.prim.maxBoundIsize" max-bound-isize :: Isize
-  foreign import ccall "cinch.prim.checkedAddIsize" checked-add-isize :: Isize -> Isize -> Option Isize
-  foreign import ccall "cinch.prim.checkedSubIsize" checked-sub-isize :: Isize -> Isize -> Option Isize
-  foreign import ccall "cinch.prim.checkedMulIsize" checked-mul-isize :: Isize -> Isize -> Option Isize
-  foreign import ccall "cinch.prim.wrappingAddIsize" wrapping-add-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.wrappingSubIsize" wrapping-sub-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.wrappingMulIsize" wrapping-mul-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.saturatingAddIsize" saturating-add-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.saturatingSubIsize" saturating-sub-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.saturatingMulIsize" saturating-mul-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.checkedNegIsize" checked-neg-isize :: Isize -> Option Isize
-  foreign import ccall "cinch.prim.wrappingNegIsize" wrapping-neg-isize :: Isize -> Isize
-  foreign import ccall "cinch.prim.saturatingNegIsize" saturating-neg-isize :: Isize -> Isize
-  foreign import ccall "cinch.prim.checkedDivIsize" checked-div-isize :: Isize -> Isize -> Option Isize
-  foreign import ccall "cinch.prim.checkedRemIsize" checked-rem-isize :: Isize -> Isize -> Option Isize
-  foreign import ccall "cinch.prim.checkedShlIsize" checked-shl-isize :: Isize -> U32 -> Option Isize
-  foreign import ccall "cinch.prim.wrappingShlIsize" wrapping-shl-isize :: Isize -> U32 -> Isize
-  foreign import ccall "cinch.prim.checkedShrIsize" checked-shr-isize :: Isize -> U32 -> Option Isize
-  foreign import ccall "cinch.prim.wrappingShrIsize" wrapping-shr-isize :: Isize -> U32 -> Isize
-  foreign import ccall "cinch.prim.rotateLeftIsize" rotate-left-isize :: Isize -> U32 -> Isize
-  foreign import ccall "cinch.prim.rotateRightIsize" rotate-right-isize :: Isize -> U32 -> Isize
-  foreign import ccall "cinch.prim.bitAndIsize" bit-and-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.bitOrIsize" bit-or-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.bitXorIsize" bit-xor-isize :: Isize -> Isize -> Isize
-  foreign import ccall "cinch.prim.bitNotIsize" bit-not-isize :: Isize -> Isize
-  foreign import ccall "cinch.prim.countOnesIsize" count-ones-isize :: Isize -> U32
-  foreign import ccall "cinch.prim.leadingZerosIsize" leading-zeros-isize :: Isize -> U32
-  foreign import ccall "cinch.prim.trailingZerosIsize" trailing-zeros-isize :: Isize -> U32
-  foreign import ccall "cinch.prim.reverseBitsIsize" reverse-bits-isize :: Isize -> Isize
-  foreign import ccall "cinch.prim.swapBytesIsize" swap-bytes-isize :: Isize -> Isize
-  foreign import ccall "cinch.prim.eqIsize" eq-isize :: Isize -> Isize -> Bool
-  foreign import ccall "cinch.prim.neIsize" ne-isize :: Isize -> Isize -> Bool
-  foreign import ccall "cinch.prim.ltIsize" lt-isize :: Isize -> Isize -> Bool
-  foreign import ccall "cinch.prim.leIsize" le-isize :: Isize -> Isize -> Bool
-  foreign import ccall "cinch.prim.gtIsize" gt-isize :: Isize -> Isize -> Bool
-  foreign import ccall "cinch.prim.geIsize" ge-isize :: Isize -> Isize -> Bool
+  prim sqrt-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.sqrt.f32(float %0)
+      ret float %r
+    }
 
-  -- Primitive types specification, section 5: IEEE 754 binary32 and
-  -- binary64 arithmetic with round-to-nearest ties-to-even. Floats have
-  -- no Eq and no Ord instance (`==` and `<` on F64 are rejected); the
-  -- comparisons below are the quiet, non-signaling IEEE ones.
+  prim copysign-f32 :: F32 -> F32 -> F32 where
+    llvm {
+      %r = call float @llvm.copysign.f32(float %0, float %1)
+      ret float %r
+    }
 
-  -- F32.
-  foreign import ccall "cinch.prim.addF32" add-f32 :: F32 -> F32 -> F32
-  foreign import ccall "cinch.prim.subF32" sub-f32 :: F32 -> F32 -> F32
-  foreign import ccall "cinch.prim.mulF32" mul-f32 :: F32 -> F32 -> F32
-  foreign import ccall "cinch.prim.divF32" div-f32 :: F32 -> F32 -> F32
-  foreign import ccall "cinch.prim.negF32" neg-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.absF32" abs-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.sqrtF32" sqrt-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.minimumF32" minimum-f32 :: F32 -> F32 -> F32
-  foreign import ccall "cinch.prim.maximumF32" maximum-f32 :: F32 -> F32 -> F32
-  foreign import ccall "cinch.prim.feqF32" feq-f32 :: F32 -> F32 -> Bool
-  foreign import ccall "cinch.prim.fneF32" fne-f32 :: F32 -> F32 -> Bool
-  foreign import ccall "cinch.prim.fltF32" flt-f32 :: F32 -> F32 -> Bool
-  foreign import ccall "cinch.prim.fleF32" fle-f32 :: F32 -> F32 -> Bool
-  foreign import ccall "cinch.prim.fgtF32" fgt-f32 :: F32 -> F32 -> Bool
-  foreign import ccall "cinch.prim.fgeF32" fge-f32 :: F32 -> F32 -> Bool
-  foreign import ccall "cinch.prim.isNaNF32" is-na-nf32 :: F32 -> Bool
-  foreign import ccall "cinch.prim.isInfiniteF32" is-infinite-f32 :: F32 -> Bool
-  foreign import ccall "cinch.prim.isFiniteF32" is-finite-f32 :: F32 -> Bool
-  foreign import ccall "cinch.prim.isNormalF32" is-normal-f32 :: F32 -> Bool
-  foreign import ccall "cinch.prim.signBitF32" sign-bit-f32 :: F32 -> Bool
-  foreign import ccall "cinch.prim.totalOrderF32" total-order-f32 :: F32 -> F32 -> Ordering
+  prim floor-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.floor.f32(float %0)
+      ret float %r
+    }
+
+  prim ceil-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.ceil.f32(float %0)
+      ret float %r
+    }
+
+  prim trunc-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.trunc.f32(float %0)
+      ret float %r
+    }
+
+  prim round-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.round.f32(float %0)
+      ret float %r
+    }
+
+  prim round-to-even-f32 :: F32 -> F32 where
+    llvm {
+      %r = call float @llvm.roundeven.f32(float %0)
+      ret float %r
+    }
+
+  prim feq-f32 :: F32 -> F32 -> Bool where
+    llvm {
+      %c = fcmp oeq float %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim fne-f32 :: F32 -> F32 -> Bool where
+    llvm {
+      %c = fcmp une float %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim flt-f32 :: F32 -> F32 -> Bool where
+    llvm {
+      %c = fcmp olt float %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim fle-f32 :: F32 -> F32 -> Bool where
+    llvm {
+      %c = fcmp ole float %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim fgt-f32 :: F32 -> F32 -> Bool where
+    llvm {
+      %c = fcmp ogt float %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim fge-f32 :: F32 -> F32 -> Bool where
+    llvm {
+      %c = fcmp oge float %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  is-na-nf32 :: F32 -> Bool
+  is-na-nf32 x = fne-f32 x x
+
+  is-infinite-f32 :: F32 -> Bool
+  is-infinite-f32 x = eq-u32 (bit-and-u32 (f32-bits x) 2147483647) 2139095040
+
+  is-finite-f32 :: F32 -> Bool
+  is-finite-f32 x = lt-u32 (bit-and-u32 (f32-bits x) 2147483647) 2139095040
+
+  is-normal-f32 :: F32 -> Bool
+  is-normal-f32 x =
+    let e = bit-and-u32 (f32-bits x) 2139095040 in
+    if ne-u32 e 0 then ne-u32 e 2139095040 else False
+
+  sign-bit-f32 :: F32 -> Bool
+  sign-bit-f32 x = ne-u32 (bit-and-u32 (f32-bits x) 2147483648) 0
+
+  minimum-f32 :: F32 -> F32 -> F32
+  minimum-f32 x y =
+    if is-na-nf32 x then f32-from-bits (bit-or-u32 (f32-bits x) 4194304)
+    else if is-na-nf32 y then f32-from-bits (bit-or-u32 (f32-bits y) 4194304)
+    else if feq-f32 x y then f32-from-bits (bit-or-u32 (f32-bits x) (f32-bits y))
+    else if flt-f32 x y then x
+    else y
+
+  maximum-f32 :: F32 -> F32 -> F32
+  maximum-f32 x y =
+    if is-na-nf32 x then f32-from-bits (bit-or-u32 (f32-bits x) 4194304)
+    else if is-na-nf32 y then f32-from-bits (bit-or-u32 (f32-bits y) 4194304)
+    else if feq-f32 x y then f32-from-bits (bit-and-u32 (f32-bits x) (f32-bits y))
+    else if fgt-f32 x y then x
+    else y
+
+  total-order-f32-key :: F32 -> U32
+  total-order-f32-key x =
+    let b = f32-bits x in
+    if ne-u32 (bit-and-u32 b 2147483648) 0 then bit-not-u32 b
+    else bit-or-u32 b 2147483648
+
+  total-order-f32 :: F32 -> F32 -> Ordering
+  total-order-f32 x y =
+    let kx = total-order-f32-key x in
+    let ky = total-order-f32-key y in
+    if lt-u32 kx ky then LT else if eq-u32 kx ky then EQ else GT
 
   -- F64.
-  foreign import ccall "cinch.prim.addF64" add-f64 :: F64 -> F64 -> F64
-  foreign import ccall "cinch.prim.subF64" sub-f64 :: F64 -> F64 -> F64
-  foreign import ccall "cinch.prim.mulF64" mul-f64 :: F64 -> F64 -> F64
-  foreign import ccall "cinch.prim.divF64" div-f64 :: F64 -> F64 -> F64
-  foreign import ccall "cinch.prim.negF64" neg-f64 :: F64 -> F64
-  foreign import ccall "cinch.prim.absF64" abs-f64 :: F64 -> F64
-  foreign import ccall "cinch.prim.sqrtF64" sqrt-f64 :: F64 -> F64
-  foreign import ccall "cinch.prim.minimumF64" minimum-f64 :: F64 -> F64 -> F64
-  foreign import ccall "cinch.prim.maximumF64" maximum-f64 :: F64 -> F64 -> F64
-  foreign import ccall "cinch.prim.feqF64" feq-f64 :: F64 -> F64 -> Bool
-  foreign import ccall "cinch.prim.fneF64" fne-f64 :: F64 -> F64 -> Bool
-  foreign import ccall "cinch.prim.fltF64" flt-f64 :: F64 -> F64 -> Bool
-  foreign import ccall "cinch.prim.fleF64" fle-f64 :: F64 -> F64 -> Bool
-  foreign import ccall "cinch.prim.fgtF64" fgt-f64 :: F64 -> F64 -> Bool
-  foreign import ccall "cinch.prim.fgeF64" fge-f64 :: F64 -> F64 -> Bool
-  foreign import ccall "cinch.prim.isNaNF64" is-na-nf64 :: F64 -> Bool
-  foreign import ccall "cinch.prim.isInfiniteF64" is-infinite-f64 :: F64 -> Bool
-  foreign import ccall "cinch.prim.isFiniteF64" is-finite-f64 :: F64 -> Bool
-  foreign import ccall "cinch.prim.isNormalF64" is-normal-f64 :: F64 -> Bool
-  foreign import ccall "cinch.prim.signBitF64" sign-bit-f64 :: F64 -> Bool
-  foreign import ccall "cinch.prim.totalOrderF64" total-order-f64 :: F64 -> F64 -> Ordering
+  prim f64-bits :: F64 -> U64 where
+    llvm {
+      %r = bitcast double %0 to i64
+      ret i64 %r
+    }
+
+  prim f64-from-bits :: U64 -> F64 where
+    llvm {
+      %r = bitcast i64 %0 to double
+      ret double %r
+    }
+
+  prim add-f64 :: F64 -> F64 -> F64 where
+    llvm {
+      %r = fadd double %0, %1
+      ret double %r
+    }
+
+  prim sub-f64 :: F64 -> F64 -> F64 where
+    llvm {
+      %r = fsub double %0, %1
+      ret double %r
+    }
+
+  prim mul-f64 :: F64 -> F64 -> F64 where
+    llvm {
+      %r = fmul double %0, %1
+      ret double %r
+    }
+
+  prim div-f64 :: F64 -> F64 -> F64 where
+    llvm {
+      %r = fdiv double %0, %1
+      ret double %r
+    }
+
+  prim neg-f64 :: F64 -> F64 where
+    llvm {
+      %r = fneg double %0
+      ret double %r
+    }
+
+  prim abs-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.fabs.f64(double %0)
+      ret double %r
+    }
+
+  prim sqrt-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.sqrt.f64(double %0)
+      ret double %r
+    }
+
+  prim copysign-f64 :: F64 -> F64 -> F64 where
+    llvm {
+      %r = call double @llvm.copysign.f64(double %0, double %1)
+      ret double %r
+    }
+
+  prim floor-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.floor.f64(double %0)
+      ret double %r
+    }
+
+  prim ceil-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.ceil.f64(double %0)
+      ret double %r
+    }
+
+  prim trunc-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.trunc.f64(double %0)
+      ret double %r
+    }
+
+  prim round-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.round.f64(double %0)
+      ret double %r
+    }
+
+  prim round-to-even-f64 :: F64 -> F64 where
+    llvm {
+      %r = call double @llvm.roundeven.f64(double %0)
+      ret double %r
+    }
+
+  prim feq-f64 :: F64 -> F64 -> Bool where
+    llvm {
+      %c = fcmp oeq double %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim fne-f64 :: F64 -> F64 -> Bool where
+    llvm {
+      %c = fcmp une double %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim flt-f64 :: F64 -> F64 -> Bool where
+    llvm {
+      %c = fcmp olt double %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim fle-f64 :: F64 -> F64 -> Bool where
+    llvm {
+      %c = fcmp ole double %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim fgt-f64 :: F64 -> F64 -> Bool where
+    llvm {
+      %c = fcmp ogt double %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  prim fge-f64 :: F64 -> F64 -> Bool where
+    llvm {
+      %c = fcmp oge double %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+
+  is-na-nf64 :: F64 -> Bool
+  is-na-nf64 x = fne-f64 x x
+
+  is-infinite-f64 :: F64 -> Bool
+  is-infinite-f64 x = eq-u64 (bit-and-u64 (f64-bits x) 9223372036854775807) 9218868437227405312
+
+  is-finite-f64 :: F64 -> Bool
+  is-finite-f64 x = lt-u64 (bit-and-u64 (f64-bits x) 9223372036854775807) 9218868437227405312
+
+  is-normal-f64 :: F64 -> Bool
+  is-normal-f64 x =
+    let e = bit-and-u64 (f64-bits x) 9218868437227405312 in
+    if ne-u64 e 0 then ne-u64 e 9218868437227405312 else False
+
+  sign-bit-f64 :: F64 -> Bool
+  sign-bit-f64 x = ne-u64 (bit-and-u64 (f64-bits x) 9223372036854775808) 0
+
+  minimum-f64 :: F64 -> F64 -> F64
+  minimum-f64 x y =
+    if is-na-nf64 x then f64-from-bits (bit-or-u64 (f64-bits x) 2251799813685248)
+    else if is-na-nf64 y then f64-from-bits (bit-or-u64 (f64-bits y) 2251799813685248)
+    else if feq-f64 x y then f64-from-bits (bit-or-u64 (f64-bits x) (f64-bits y))
+    else if flt-f64 x y then x
+    else y
+
+  maximum-f64 :: F64 -> F64 -> F64
+  maximum-f64 x y =
+    if is-na-nf64 x then f64-from-bits (bit-or-u64 (f64-bits x) 2251799813685248)
+    else if is-na-nf64 y then f64-from-bits (bit-or-u64 (f64-bits y) 2251799813685248)
+    else if feq-f64 x y then f64-from-bits (bit-and-u64 (f64-bits x) (f64-bits y))
+    else if fgt-f64 x y then x
+    else y
+
+  total-order-f64-key :: F64 -> U64
+  total-order-f64-key x =
+    let b = f64-bits x in
+    if ne-u64 (bit-and-u64 b 9223372036854775808) 0 then bit-not-u64 b
+    else bit-or-u64 b 9223372036854775808
+
+  total-order-f64 :: F64 -> F64 -> Ordering
+  total-order-f64 x y =
+    let kx = total-order-f64-key x in
+    let ky = total-order-f64-key y in
+    if lt-u64 kx ky then LT else if eq-u64 kx ky then EQ else GT
 
   -- Proof-bearing unsigned division and remainder (zero divisor excluded by the type).
-  foreign import ccall "cinch.prim.divU8" div-u8 :: using (b /= 0) => U8 -> (b :: U8) -> U8
-  foreign import ccall "cinch.prim.remU8" rem-u8 :: using (b /= 0) => U8 -> (b :: U8) -> U8
-  foreign import ccall "cinch.prim.divU16" div-u16 :: using (b /= 0) => U16 -> (b :: U16) -> U16
-  foreign import ccall "cinch.prim.remU16" rem-u16 :: using (b /= 0) => U16 -> (b :: U16) -> U16
-  foreign import ccall "cinch.prim.divU32" div-u32 :: using (b /= 0) => U32 -> (b :: U32) -> U32
-  foreign import ccall "cinch.prim.remU32" rem-u32 :: using (b /= 0) => U32 -> (b :: U32) -> U32
-  foreign import ccall "cinch.prim.divU64" div-u64 :: using (b /= 0) => U64 -> (b :: U64) -> U64
-  foreign import ccall "cinch.prim.remU64" rem-u64 :: using (b /= 0) => U64 -> (b :: U64) -> U64
-  foreign import ccall "cinch.prim.divUsize" div-usize :: using (b /= 0) => Usize -> (b :: Usize) -> Usize
-  foreign import ccall "cinch.prim.remUsize" rem-usize :: using (b /= 0) => Usize -> (b :: Usize) -> Usize
 
-  -- IEEE 754 bit reinterpretation, copysign, and exact rounding intrinsics.
-  foreign import ccall "cinch.prim.f32Bits" f32-bits :: F32 -> U32
-  foreign import ccall "cinch.prim.f32FromBits" f32-from-bits :: U32 -> F32
-  foreign import ccall "cinch.prim.f64Bits" f64-bits :: F64 -> U64
-  foreign import ccall "cinch.prim.f64FromBits" f64-from-bits :: U64 -> F64
-  foreign import ccall "cinch.prim.copysignF32" copysign-f32 :: F32 -> F32 -> F32
-  foreign import ccall "cinch.prim.copysignF64" copysign-f64 :: F64 -> F64 -> F64
-  foreign import ccall "cinch.prim.floorF32" floor-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.floorF64" floor-f64 :: F64 -> F64
-  foreign import ccall "cinch.prim.ceilF32" ceil-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.ceilF64" ceil-f64 :: F64 -> F64
-  foreign import ccall "cinch.prim.truncF32" trunc-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.truncF64" trunc-f64 :: F64 -> F64
-  foreign import ccall "cinch.prim.roundF32" round-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.roundF64" round-f64 :: F64 -> F64
-  foreign import ccall "cinch.prim.roundToEvenF32" round-to-even-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.roundToEvenF64" round-to-even-f64 :: F64 -> F64
-
-  -- Primitive types specification, section 7: explicit conversions for
-  -- every ordered pair of numeric machine types. The total family
-  -- (`u8-to-i32`) exists when the conversion preserves every value, and
-  -- for integer-to-float and float-to-float, which round per IEEE 754.
-  -- `checked` returns Option (None on NaN and out-of-range floats),
-  -- `saturating` clamps (NaN maps to zero), `wrapping` truncates in
-  -- two's complement and is defined between integer types only. A
-  -- total integer conversion's result is its source's value: it states
-  -- that (`r == x`, a fact over the argument wherever the argument has
-  -- a reading) and the source's range (`InRange 0 255 r` for a `U8`,
-  -- which holds even where it has none), so a converted byte is a
-  -- non-negative `I64` for `nat-from-i64` and below 256 wherever that
-  -- matters.
-
-  foreign import ccall "cinch.prim.i8ToI8" i8-to-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.i8ToI16" i8-to-i16 :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) I16
-  foreign import ccall "cinch.prim.i8ToI32" i8-to-i32 :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) I32
-  foreign import ccall "cinch.prim.i8ToI64" i8-to-i64 :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) I64
-  foreign import ccall "cinch.prim.i8ToIsize" i8-to-isize :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) Isize
-  foreign import ccall "cinch.prim.i16ToI16" i16-to-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.i16ToI32" i16-to-i32 :: (x :: I16) -> refined (InRange (-32768) 32767 r && r == x) I32
-  foreign import ccall "cinch.prim.i16ToI64" i16-to-i64 :: (x :: I16) -> refined (InRange (-32768) 32767 r && r == x) I64
-  foreign import ccall "cinch.prim.i16ToIsize" i16-to-isize :: (x :: I16) -> refined (InRange (-32768) 32767 r && r == x) Isize
-  foreign import ccall "cinch.prim.i32ToI32" i32-to-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.i32ToI64" i32-to-i64 :: (x :: I32) -> refined (InRange (-2147483648) 2147483647 r && r == x) I64
-  foreign import ccall "cinch.prim.i32ToIsize" i32-to-isize :: (x :: I32) -> refined (InRange (-2147483648) 2147483647 r && r == x) Isize
-  foreign import ccall "cinch.prim.i64ToI64" i64-to-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.i64ToIsize" i64-to-isize :: (x :: I64) -> refined (r == x) Isize
-  foreign import ccall "cinch.prim.u8ToI16" u8-to-i16 :: (x :: U8) -> refined (InRange 0 255 r && r == x) I16
-  foreign import ccall "cinch.prim.u8ToI32" u8-to-i32 :: (x :: U8) -> refined (InRange 0 255 r && r == x) I32
-  foreign import ccall "cinch.prim.u8ToI64" u8-to-i64 :: (x :: U8) -> refined (InRange 0 255 r && r == x) I64
-  foreign import ccall "cinch.prim.u8ToU8" u8-to-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.u8ToU16" u8-to-u16 :: (x :: U8) -> refined (InRange 0 255 r && r == x) U16
-  foreign import ccall "cinch.prim.u8ToU32" u8-to-u32 :: (x :: U8) -> refined (InRange 0 255 r && r == x) U32
-  foreign import ccall "cinch.prim.u8ToU64" u8-to-u64 :: (x :: U8) -> refined (InRange 0 255 r && r == x) U64
-  foreign import ccall "cinch.prim.u8ToUsize" u8-to-usize :: (x :: U8) -> refined (InRange 0 255 r && r == x) Usize
-  foreign import ccall "cinch.prim.u8ToIsize" u8-to-isize :: (x :: U8) -> refined (InRange 0 255 r && r == x) Isize
-  foreign import ccall "cinch.prim.u16ToI32" u16-to-i32 :: (x :: U16) -> refined (InRange 0 65535 r && r == x) I32
-  foreign import ccall "cinch.prim.u16ToI64" u16-to-i64 :: (x :: U16) -> refined (InRange 0 65535 r && r == x) I64
-  foreign import ccall "cinch.prim.u16ToU16" u16-to-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.u16ToU32" u16-to-u32 :: (x :: U16) -> refined (InRange 0 65535 r && r == x) U32
-  foreign import ccall "cinch.prim.u16ToU64" u16-to-u64 :: (x :: U16) -> refined (InRange 0 65535 r && r == x) U64
-  foreign import ccall "cinch.prim.u16ToUsize" u16-to-usize :: (x :: U16) -> refined (InRange 0 65535 r && r == x) Usize
-  foreign import ccall "cinch.prim.u16ToIsize" u16-to-isize :: (x :: U16) -> refined (InRange 0 65535 r && r == x) Isize
-  foreign import ccall "cinch.prim.u32ToI64" u32-to-i64 :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) I64
-  foreign import ccall "cinch.prim.u32ToU32" u32-to-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.u32ToU64" u32-to-u64 :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) U64
-  foreign import ccall "cinch.prim.u32ToUsize" u32-to-usize :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) Usize
-  foreign import ccall "cinch.prim.u32ToIsize" u32-to-isize :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) Isize
-  foreign import ccall "cinch.prim.u64ToU64" u64-to-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.u64ToUsize" u64-to-usize :: (x :: U64) -> refined (r == x) Usize
-  foreign import ccall "cinch.prim.usizeToU64" usize-to-u64 :: (x :: Usize) -> refined (r == x) U64
-  foreign import ccall "cinch.prim.usizeToUsize" usize-to-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.isizeToI64" isize-to-i64 :: (x :: Isize) -> refined (r == x) I64
-  foreign import ccall "cinch.prim.isizeToIsize" isize-to-isize :: Isize -> Isize
-  foreign import ccall "cinch.prim.i8ToF32" i8-to-f32 :: I8 -> F32
-  foreign import ccall "cinch.prim.i8ToF64" i8-to-f64 :: I8 -> F64
-  foreign import ccall "cinch.prim.i16ToF32" i16-to-f32 :: I16 -> F32
-  foreign import ccall "cinch.prim.i16ToF64" i16-to-f64 :: I16 -> F64
-  foreign import ccall "cinch.prim.i32ToF32" i32-to-f32 :: I32 -> F32
-  foreign import ccall "cinch.prim.i32ToF64" i32-to-f64 :: I32 -> F64
-  foreign import ccall "cinch.prim.i64ToF32" i64-to-f32 :: I64 -> F32
-  foreign import ccall "cinch.prim.i64ToF64" i64-to-f64 :: I64 -> F64
-  foreign import ccall "cinch.prim.u8ToF32" u8-to-f32 :: U8 -> F32
-  foreign import ccall "cinch.prim.u8ToF64" u8-to-f64 :: U8 -> F64
-  foreign import ccall "cinch.prim.u16ToF32" u16-to-f32 :: U16 -> F32
-  foreign import ccall "cinch.prim.u16ToF64" u16-to-f64 :: U16 -> F64
-  foreign import ccall "cinch.prim.u32ToF32" u32-to-f32 :: U32 -> F32
-  foreign import ccall "cinch.prim.u32ToF64" u32-to-f64 :: U32 -> F64
-  foreign import ccall "cinch.prim.u64ToF32" u64-to-f32 :: U64 -> F32
-  foreign import ccall "cinch.prim.u64ToF64" u64-to-f64 :: U64 -> F64
-  foreign import ccall "cinch.prim.usizeToF32" usize-to-f32 :: Usize -> F32
-  foreign import ccall "cinch.prim.usizeToF64" usize-to-f64 :: Usize -> F64
-  foreign import ccall "cinch.prim.isizeToF32" isize-to-f32 :: Isize -> F32
-  foreign import ccall "cinch.prim.isizeToF64" isize-to-f64 :: Isize -> F64
-  foreign import ccall "cinch.prim.f32ToF32" f32-to-f32 :: F32 -> F32
-  foreign import ccall "cinch.prim.f32ToF64" f32-to-f64 :: F32 -> F64
-  foreign import ccall "cinch.prim.f64ToF32" f64-to-f32 :: F64 -> F32
-  foreign import ccall "cinch.prim.f64ToF64" f64-to-f64 :: F64 -> F64
-
-  -- Checked, saturating and wrapping integer conversions; float to
-  -- integer is checked or saturating (it is never total).
-  foreign import ccall "cinch.prim.checkedI8ToI8" checked-i8-to-i8 :: I8 -> Option I8
-  foreign import ccall "cinch.prim.saturatingI8ToI8" saturating-i8-to-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.wrappingI8ToI8" wrapping-i8-to-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.checkedI8ToI16" checked-i8-to-i16 :: I8 -> Option I16
-  foreign import ccall "cinch.prim.saturatingI8ToI16" saturating-i8-to-i16 :: I8 -> I16
-  foreign import ccall "cinch.prim.wrappingI8ToI16" wrapping-i8-to-i16 :: I8 -> I16
-  foreign import ccall "cinch.prim.checkedI8ToI32" checked-i8-to-i32 :: I8 -> Option I32
-  foreign import ccall "cinch.prim.saturatingI8ToI32" saturating-i8-to-i32 :: I8 -> I32
-  foreign import ccall "cinch.prim.wrappingI8ToI32" wrapping-i8-to-i32 :: I8 -> I32
-  foreign import ccall "cinch.prim.checkedI8ToI64" checked-i8-to-i64 :: I8 -> Option I64
-  foreign import ccall "cinch.prim.saturatingI8ToI64" saturating-i8-to-i64 :: I8 -> I64
-  foreign import ccall "cinch.prim.wrappingI8ToI64" wrapping-i8-to-i64 :: I8 -> I64
-  foreign import ccall "cinch.prim.checkedI8ToU8" checked-i8-to-u8 :: I8 -> Option U8
-  foreign import ccall "cinch.prim.saturatingI8ToU8" saturating-i8-to-u8 :: I8 -> U8
-  foreign import ccall "cinch.prim.wrappingI8ToU8" wrapping-i8-to-u8 :: I8 -> U8
-  foreign import ccall "cinch.prim.checkedI8ToU16" checked-i8-to-u16 :: I8 -> Option U16
-  foreign import ccall "cinch.prim.saturatingI8ToU16" saturating-i8-to-u16 :: I8 -> U16
-  foreign import ccall "cinch.prim.wrappingI8ToU16" wrapping-i8-to-u16 :: I8 -> U16
-  foreign import ccall "cinch.prim.checkedI8ToU32" checked-i8-to-u32 :: I8 -> Option U32
-  foreign import ccall "cinch.prim.saturatingI8ToU32" saturating-i8-to-u32 :: I8 -> U32
-  foreign import ccall "cinch.prim.wrappingI8ToU32" wrapping-i8-to-u32 :: I8 -> U32
-  foreign import ccall "cinch.prim.checkedI8ToU64" checked-i8-to-u64 :: I8 -> Option U64
-  foreign import ccall "cinch.prim.saturatingI8ToU64" saturating-i8-to-u64 :: I8 -> U64
-  foreign import ccall "cinch.prim.wrappingI8ToU64" wrapping-i8-to-u64 :: I8 -> U64
-  foreign import ccall "cinch.prim.checkedI8ToUsize" checked-i8-to-usize :: I8 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingI8ToUsize" saturating-i8-to-usize :: I8 -> Usize
-  foreign import ccall "cinch.prim.wrappingI8ToUsize" wrapping-i8-to-usize :: I8 -> Usize
-  foreign import ccall "cinch.prim.checkedI8ToIsize" checked-i8-to-isize :: I8 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingI8ToIsize" saturating-i8-to-isize :: I8 -> Isize
-  foreign import ccall "cinch.prim.wrappingI8ToIsize" wrapping-i8-to-isize :: I8 -> Isize
-  foreign import ccall "cinch.prim.checkedI16ToI8" checked-i16-to-i8 :: I16 -> Option I8
-  foreign import ccall "cinch.prim.saturatingI16ToI8" saturating-i16-to-i8 :: I16 -> I8
-  foreign import ccall "cinch.prim.wrappingI16ToI8" wrapping-i16-to-i8 :: I16 -> I8
-  foreign import ccall "cinch.prim.checkedI16ToI16" checked-i16-to-i16 :: I16 -> Option I16
-  foreign import ccall "cinch.prim.saturatingI16ToI16" saturating-i16-to-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.wrappingI16ToI16" wrapping-i16-to-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.checkedI16ToI32" checked-i16-to-i32 :: I16 -> Option I32
-  foreign import ccall "cinch.prim.saturatingI16ToI32" saturating-i16-to-i32 :: I16 -> I32
-  foreign import ccall "cinch.prim.wrappingI16ToI32" wrapping-i16-to-i32 :: I16 -> I32
-  foreign import ccall "cinch.prim.checkedI16ToI64" checked-i16-to-i64 :: I16 -> Option I64
-  foreign import ccall "cinch.prim.saturatingI16ToI64" saturating-i16-to-i64 :: I16 -> I64
-  foreign import ccall "cinch.prim.wrappingI16ToI64" wrapping-i16-to-i64 :: I16 -> I64
-  foreign import ccall "cinch.prim.checkedI16ToU8" checked-i16-to-u8 :: I16 -> Option U8
-  foreign import ccall "cinch.prim.saturatingI16ToU8" saturating-i16-to-u8 :: I16 -> U8
-  foreign import ccall "cinch.prim.wrappingI16ToU8" wrapping-i16-to-u8 :: I16 -> U8
-  foreign import ccall "cinch.prim.checkedI16ToU16" checked-i16-to-u16 :: I16 -> Option U16
-  foreign import ccall "cinch.prim.saturatingI16ToU16" saturating-i16-to-u16 :: I16 -> U16
-  foreign import ccall "cinch.prim.wrappingI16ToU16" wrapping-i16-to-u16 :: I16 -> U16
-  foreign import ccall "cinch.prim.checkedI16ToU32" checked-i16-to-u32 :: I16 -> Option U32
-  foreign import ccall "cinch.prim.saturatingI16ToU32" saturating-i16-to-u32 :: I16 -> U32
-  foreign import ccall "cinch.prim.wrappingI16ToU32" wrapping-i16-to-u32 :: I16 -> U32
-  foreign import ccall "cinch.prim.checkedI16ToU64" checked-i16-to-u64 :: I16 -> Option U64
-  foreign import ccall "cinch.prim.saturatingI16ToU64" saturating-i16-to-u64 :: I16 -> U64
-  foreign import ccall "cinch.prim.wrappingI16ToU64" wrapping-i16-to-u64 :: I16 -> U64
-  foreign import ccall "cinch.prim.checkedI16ToUsize" checked-i16-to-usize :: I16 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingI16ToUsize" saturating-i16-to-usize :: I16 -> Usize
-  foreign import ccall "cinch.prim.wrappingI16ToUsize" wrapping-i16-to-usize :: I16 -> Usize
-  foreign import ccall "cinch.prim.checkedI16ToIsize" checked-i16-to-isize :: I16 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingI16ToIsize" saturating-i16-to-isize :: I16 -> Isize
-  foreign import ccall "cinch.prim.wrappingI16ToIsize" wrapping-i16-to-isize :: I16 -> Isize
-  foreign import ccall "cinch.prim.checkedI32ToI8" checked-i32-to-i8 :: I32 -> Option I8
-  foreign import ccall "cinch.prim.saturatingI32ToI8" saturating-i32-to-i8 :: I32 -> I8
-  foreign import ccall "cinch.prim.wrappingI32ToI8" wrapping-i32-to-i8 :: I32 -> I8
-  foreign import ccall "cinch.prim.checkedI32ToI16" checked-i32-to-i16 :: I32 -> Option I16
-  foreign import ccall "cinch.prim.saturatingI32ToI16" saturating-i32-to-i16 :: I32 -> I16
-  foreign import ccall "cinch.prim.wrappingI32ToI16" wrapping-i32-to-i16 :: I32 -> I16
-  foreign import ccall "cinch.prim.checkedI32ToI32" checked-i32-to-i32 :: I32 -> Option I32
-  foreign import ccall "cinch.prim.saturatingI32ToI32" saturating-i32-to-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.wrappingI32ToI32" wrapping-i32-to-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.checkedI32ToI64" checked-i32-to-i64 :: I32 -> Option I64
-  foreign import ccall "cinch.prim.saturatingI32ToI64" saturating-i32-to-i64 :: I32 -> I64
-  foreign import ccall "cinch.prim.wrappingI32ToI64" wrapping-i32-to-i64 :: I32 -> I64
-  foreign import ccall "cinch.prim.checkedI32ToU8" checked-i32-to-u8 :: I32 -> Option U8
-  foreign import ccall "cinch.prim.saturatingI32ToU8" saturating-i32-to-u8 :: I32 -> U8
-  foreign import ccall "cinch.prim.wrappingI32ToU8" wrapping-i32-to-u8 :: I32 -> U8
-  foreign import ccall "cinch.prim.checkedI32ToU16" checked-i32-to-u16 :: I32 -> Option U16
-  foreign import ccall "cinch.prim.saturatingI32ToU16" saturating-i32-to-u16 :: I32 -> U16
-  foreign import ccall "cinch.prim.wrappingI32ToU16" wrapping-i32-to-u16 :: I32 -> U16
-  foreign import ccall "cinch.prim.checkedI32ToU32" checked-i32-to-u32 :: I32 -> Option U32
-  foreign import ccall "cinch.prim.saturatingI32ToU32" saturating-i32-to-u32 :: I32 -> U32
-  foreign import ccall "cinch.prim.wrappingI32ToU32" wrapping-i32-to-u32 :: I32 -> U32
-  foreign import ccall "cinch.prim.checkedI32ToU64" checked-i32-to-u64 :: I32 -> Option U64
-  foreign import ccall "cinch.prim.saturatingI32ToU64" saturating-i32-to-u64 :: I32 -> U64
-  foreign import ccall "cinch.prim.wrappingI32ToU64" wrapping-i32-to-u64 :: I32 -> U64
-  foreign import ccall "cinch.prim.checkedI32ToUsize" checked-i32-to-usize :: I32 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingI32ToUsize" saturating-i32-to-usize :: I32 -> Usize
-  foreign import ccall "cinch.prim.wrappingI32ToUsize" wrapping-i32-to-usize :: I32 -> Usize
-  foreign import ccall "cinch.prim.checkedI32ToIsize" checked-i32-to-isize :: I32 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingI32ToIsize" saturating-i32-to-isize :: I32 -> Isize
-  foreign import ccall "cinch.prim.wrappingI32ToIsize" wrapping-i32-to-isize :: I32 -> Isize
-  foreign import ccall "cinch.prim.checkedI64ToI8" checked-i64-to-i8 :: I64 -> Option I8
-  foreign import ccall "cinch.prim.saturatingI64ToI8" saturating-i64-to-i8 :: I64 -> I8
-  foreign import ccall "cinch.prim.wrappingI64ToI8" wrapping-i64-to-i8 :: I64 -> I8
-  foreign import ccall "cinch.prim.checkedI64ToI16" checked-i64-to-i16 :: I64 -> Option I16
-  foreign import ccall "cinch.prim.saturatingI64ToI16" saturating-i64-to-i16 :: I64 -> I16
-  foreign import ccall "cinch.prim.wrappingI64ToI16" wrapping-i64-to-i16 :: I64 -> I16
-  foreign import ccall "cinch.prim.checkedI64ToI32" checked-i64-to-i32 :: I64 -> Option I32
-  foreign import ccall "cinch.prim.saturatingI64ToI32" saturating-i64-to-i32 :: I64 -> I32
-  foreign import ccall "cinch.prim.wrappingI64ToI32" wrapping-i64-to-i32 :: I64 -> I32
-  foreign import ccall "cinch.prim.checkedI64ToI64" checked-i64-to-i64 :: I64 -> Option I64
-  foreign import ccall "cinch.prim.saturatingI64ToI64" saturating-i64-to-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.wrappingI64ToI64" wrapping-i64-to-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.checkedI64ToU8" checked-i64-to-u8 :: I64 -> Option U8
-  foreign import ccall "cinch.prim.saturatingI64ToU8" saturating-i64-to-u8 :: I64 -> U8
-  foreign import ccall "cinch.prim.wrappingI64ToU8" wrapping-i64-to-u8 :: I64 -> U8
-  foreign import ccall "cinch.prim.checkedI64ToU16" checked-i64-to-u16 :: I64 -> Option U16
-  foreign import ccall "cinch.prim.saturatingI64ToU16" saturating-i64-to-u16 :: I64 -> U16
-  foreign import ccall "cinch.prim.wrappingI64ToU16" wrapping-i64-to-u16 :: I64 -> U16
-  foreign import ccall "cinch.prim.checkedI64ToU32" checked-i64-to-u32 :: I64 -> Option U32
-  foreign import ccall "cinch.prim.saturatingI64ToU32" saturating-i64-to-u32 :: I64 -> U32
-  foreign import ccall "cinch.prim.wrappingI64ToU32" wrapping-i64-to-u32 :: I64 -> U32
-  foreign import ccall "cinch.prim.checkedI64ToU64" checked-i64-to-u64 :: I64 -> Option U64
-  foreign import ccall "cinch.prim.saturatingI64ToU64" saturating-i64-to-u64 :: I64 -> U64
-  foreign import ccall "cinch.prim.wrappingI64ToU64" wrapping-i64-to-u64 :: I64 -> U64
-  foreign import ccall "cinch.prim.checkedI64ToUsize" checked-i64-to-usize :: I64 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingI64ToUsize" saturating-i64-to-usize :: I64 -> Usize
-  foreign import ccall "cinch.prim.wrappingI64ToUsize" wrapping-i64-to-usize :: I64 -> Usize
-  foreign import ccall "cinch.prim.checkedI64ToIsize" checked-i64-to-isize :: I64 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingI64ToIsize" saturating-i64-to-isize :: I64 -> Isize
-  foreign import ccall "cinch.prim.wrappingI64ToIsize" wrapping-i64-to-isize :: I64 -> Isize
-  foreign import ccall "cinch.prim.checkedU8ToI8" checked-u8-to-i8 :: U8 -> Option I8
-  foreign import ccall "cinch.prim.saturatingU8ToI8" saturating-u8-to-i8 :: U8 -> I8
-  foreign import ccall "cinch.prim.wrappingU8ToI8" wrapping-u8-to-i8 :: U8 -> I8
-  foreign import ccall "cinch.prim.checkedU8ToI16" checked-u8-to-i16 :: U8 -> Option I16
-  foreign import ccall "cinch.prim.saturatingU8ToI16" saturating-u8-to-i16 :: U8 -> I16
-  foreign import ccall "cinch.prim.wrappingU8ToI16" wrapping-u8-to-i16 :: U8 -> I16
-  foreign import ccall "cinch.prim.checkedU8ToI32" checked-u8-to-i32 :: U8 -> Option I32
-  foreign import ccall "cinch.prim.saturatingU8ToI32" saturating-u8-to-i32 :: U8 -> I32
-  foreign import ccall "cinch.prim.wrappingU8ToI32" wrapping-u8-to-i32 :: U8 -> I32
-  foreign import ccall "cinch.prim.checkedU8ToI64" checked-u8-to-i64 :: U8 -> Option I64
-  foreign import ccall "cinch.prim.saturatingU8ToI64" saturating-u8-to-i64 :: U8 -> I64
-  foreign import ccall "cinch.prim.wrappingU8ToI64" wrapping-u8-to-i64 :: U8 -> I64
-  foreign import ccall "cinch.prim.checkedU8ToU8" checked-u8-to-u8 :: U8 -> Option U8
-  foreign import ccall "cinch.prim.saturatingU8ToU8" saturating-u8-to-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.wrappingU8ToU8" wrapping-u8-to-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.checkedU8ToU16" checked-u8-to-u16 :: U8 -> Option U16
-  foreign import ccall "cinch.prim.saturatingU8ToU16" saturating-u8-to-u16 :: U8 -> U16
-  foreign import ccall "cinch.prim.wrappingU8ToU16" wrapping-u8-to-u16 :: U8 -> U16
-  foreign import ccall "cinch.prim.checkedU8ToU32" checked-u8-to-u32 :: U8 -> Option U32
-  foreign import ccall "cinch.prim.saturatingU8ToU32" saturating-u8-to-u32 :: U8 -> U32
-  foreign import ccall "cinch.prim.wrappingU8ToU32" wrapping-u8-to-u32 :: U8 -> U32
-  foreign import ccall "cinch.prim.checkedU8ToU64" checked-u8-to-u64 :: U8 -> Option U64
-  foreign import ccall "cinch.prim.saturatingU8ToU64" saturating-u8-to-u64 :: U8 -> U64
-  foreign import ccall "cinch.prim.wrappingU8ToU64" wrapping-u8-to-u64 :: U8 -> U64
-  foreign import ccall "cinch.prim.checkedU8ToUsize" checked-u8-to-usize :: U8 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingU8ToUsize" saturating-u8-to-usize :: U8 -> Usize
-  foreign import ccall "cinch.prim.wrappingU8ToUsize" wrapping-u8-to-usize :: U8 -> Usize
-  foreign import ccall "cinch.prim.checkedU8ToIsize" checked-u8-to-isize :: U8 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingU8ToIsize" saturating-u8-to-isize :: U8 -> Isize
-  foreign import ccall "cinch.prim.wrappingU8ToIsize" wrapping-u8-to-isize :: U8 -> Isize
-  foreign import ccall "cinch.prim.checkedU16ToI8" checked-u16-to-i8 :: U16 -> Option I8
-  foreign import ccall "cinch.prim.saturatingU16ToI8" saturating-u16-to-i8 :: U16 -> I8
-  foreign import ccall "cinch.prim.wrappingU16ToI8" wrapping-u16-to-i8 :: U16 -> I8
-  foreign import ccall "cinch.prim.checkedU16ToI16" checked-u16-to-i16 :: U16 -> Option I16
-  foreign import ccall "cinch.prim.saturatingU16ToI16" saturating-u16-to-i16 :: U16 -> I16
-  foreign import ccall "cinch.prim.wrappingU16ToI16" wrapping-u16-to-i16 :: U16 -> I16
-  foreign import ccall "cinch.prim.checkedU16ToI32" checked-u16-to-i32 :: U16 -> Option I32
-  foreign import ccall "cinch.prim.saturatingU16ToI32" saturating-u16-to-i32 :: U16 -> I32
-  foreign import ccall "cinch.prim.wrappingU16ToI32" wrapping-u16-to-i32 :: U16 -> I32
-  foreign import ccall "cinch.prim.checkedU16ToI64" checked-u16-to-i64 :: U16 -> Option I64
-  foreign import ccall "cinch.prim.saturatingU16ToI64" saturating-u16-to-i64 :: U16 -> I64
-  foreign import ccall "cinch.prim.wrappingU16ToI64" wrapping-u16-to-i64 :: U16 -> I64
-  foreign import ccall "cinch.prim.checkedU16ToU8" checked-u16-to-u8 :: U16 -> Option U8
-  foreign import ccall "cinch.prim.saturatingU16ToU8" saturating-u16-to-u8 :: U16 -> U8
-  foreign import ccall "cinch.prim.wrappingU16ToU8" wrapping-u16-to-u8 :: U16 -> U8
-  foreign import ccall "cinch.prim.checkedU16ToU16" checked-u16-to-u16 :: U16 -> Option U16
-  foreign import ccall "cinch.prim.saturatingU16ToU16" saturating-u16-to-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.wrappingU16ToU16" wrapping-u16-to-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.checkedU16ToU32" checked-u16-to-u32 :: U16 -> Option U32
-  foreign import ccall "cinch.prim.saturatingU16ToU32" saturating-u16-to-u32 :: U16 -> U32
-  foreign import ccall "cinch.prim.wrappingU16ToU32" wrapping-u16-to-u32 :: U16 -> U32
-  foreign import ccall "cinch.prim.checkedU16ToU64" checked-u16-to-u64 :: U16 -> Option U64
-  foreign import ccall "cinch.prim.saturatingU16ToU64" saturating-u16-to-u64 :: U16 -> U64
-  foreign import ccall "cinch.prim.wrappingU16ToU64" wrapping-u16-to-u64 :: U16 -> U64
-  foreign import ccall "cinch.prim.checkedU16ToUsize" checked-u16-to-usize :: U16 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingU16ToUsize" saturating-u16-to-usize :: U16 -> Usize
-  foreign import ccall "cinch.prim.wrappingU16ToUsize" wrapping-u16-to-usize :: U16 -> Usize
-  foreign import ccall "cinch.prim.checkedU16ToIsize" checked-u16-to-isize :: U16 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingU16ToIsize" saturating-u16-to-isize :: U16 -> Isize
-  foreign import ccall "cinch.prim.wrappingU16ToIsize" wrapping-u16-to-isize :: U16 -> Isize
-  foreign import ccall "cinch.prim.checkedU32ToI8" checked-u32-to-i8 :: U32 -> Option I8
-  foreign import ccall "cinch.prim.saturatingU32ToI8" saturating-u32-to-i8 :: U32 -> I8
-  foreign import ccall "cinch.prim.wrappingU32ToI8" wrapping-u32-to-i8 :: U32 -> I8
-  foreign import ccall "cinch.prim.checkedU32ToI16" checked-u32-to-i16 :: U32 -> Option I16
-  foreign import ccall "cinch.prim.saturatingU32ToI16" saturating-u32-to-i16 :: U32 -> I16
-  foreign import ccall "cinch.prim.wrappingU32ToI16" wrapping-u32-to-i16 :: U32 -> I16
-  foreign import ccall "cinch.prim.checkedU32ToI32" checked-u32-to-i32 :: U32 -> Option I32
-  foreign import ccall "cinch.prim.saturatingU32ToI32" saturating-u32-to-i32 :: U32 -> I32
-  foreign import ccall "cinch.prim.wrappingU32ToI32" wrapping-u32-to-i32 :: U32 -> I32
-  foreign import ccall "cinch.prim.checkedU32ToI64" checked-u32-to-i64 :: U32 -> Option I64
-  foreign import ccall "cinch.prim.saturatingU32ToI64" saturating-u32-to-i64 :: U32 -> I64
-  foreign import ccall "cinch.prim.wrappingU32ToI64" wrapping-u32-to-i64 :: U32 -> I64
-  foreign import ccall "cinch.prim.checkedU32ToU8" checked-u32-to-u8 :: U32 -> Option U8
-  foreign import ccall "cinch.prim.saturatingU32ToU8" saturating-u32-to-u8 :: U32 -> U8
-  foreign import ccall "cinch.prim.wrappingU32ToU8" wrapping-u32-to-u8 :: U32 -> U8
-  foreign import ccall "cinch.prim.checkedU32ToU16" checked-u32-to-u16 :: U32 -> Option U16
-  foreign import ccall "cinch.prim.saturatingU32ToU16" saturating-u32-to-u16 :: U32 -> U16
-  foreign import ccall "cinch.prim.wrappingU32ToU16" wrapping-u32-to-u16 :: U32 -> U16
-  foreign import ccall "cinch.prim.checkedU32ToU32" checked-u32-to-u32 :: U32 -> Option U32
-  foreign import ccall "cinch.prim.saturatingU32ToU32" saturating-u32-to-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.wrappingU32ToU32" wrapping-u32-to-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.checkedU32ToU64" checked-u32-to-u64 :: U32 -> Option U64
-  foreign import ccall "cinch.prim.saturatingU32ToU64" saturating-u32-to-u64 :: U32 -> U64
-  foreign import ccall "cinch.prim.wrappingU32ToU64" wrapping-u32-to-u64 :: U32 -> U64
-  foreign import ccall "cinch.prim.checkedU32ToUsize" checked-u32-to-usize :: U32 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingU32ToUsize" saturating-u32-to-usize :: U32 -> Usize
-  foreign import ccall "cinch.prim.wrappingU32ToUsize" wrapping-u32-to-usize :: U32 -> Usize
-  foreign import ccall "cinch.prim.checkedU32ToIsize" checked-u32-to-isize :: U32 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingU32ToIsize" saturating-u32-to-isize :: U32 -> Isize
-  foreign import ccall "cinch.prim.wrappingU32ToIsize" wrapping-u32-to-isize :: U32 -> Isize
-  foreign import ccall "cinch.prim.checkedU64ToI8" checked-u64-to-i8 :: U64 -> Option I8
-  foreign import ccall "cinch.prim.saturatingU64ToI8" saturating-u64-to-i8 :: U64 -> I8
-  foreign import ccall "cinch.prim.wrappingU64ToI8" wrapping-u64-to-i8 :: U64 -> I8
-  foreign import ccall "cinch.prim.checkedU64ToI16" checked-u64-to-i16 :: U64 -> Option I16
-  foreign import ccall "cinch.prim.saturatingU64ToI16" saturating-u64-to-i16 :: U64 -> I16
-  foreign import ccall "cinch.prim.wrappingU64ToI16" wrapping-u64-to-i16 :: U64 -> I16
-  foreign import ccall "cinch.prim.checkedU64ToI32" checked-u64-to-i32 :: U64 -> Option I32
-  foreign import ccall "cinch.prim.saturatingU64ToI32" saturating-u64-to-i32 :: U64 -> I32
-  foreign import ccall "cinch.prim.wrappingU64ToI32" wrapping-u64-to-i32 :: U64 -> I32
-  foreign import ccall "cinch.prim.checkedU64ToI64" checked-u64-to-i64 :: U64 -> Option I64
-  foreign import ccall "cinch.prim.saturatingU64ToI64" saturating-u64-to-i64 :: U64 -> I64
-  foreign import ccall "cinch.prim.wrappingU64ToI64" wrapping-u64-to-i64 :: U64 -> I64
-  foreign import ccall "cinch.prim.checkedU64ToU8" checked-u64-to-u8 :: U64 -> Option U8
-  foreign import ccall "cinch.prim.saturatingU64ToU8" saturating-u64-to-u8 :: U64 -> U8
-  foreign import ccall "cinch.prim.wrappingU64ToU8" wrapping-u64-to-u8 :: U64 -> U8
-  foreign import ccall "cinch.prim.checkedU64ToU16" checked-u64-to-u16 :: U64 -> Option U16
-  foreign import ccall "cinch.prim.saturatingU64ToU16" saturating-u64-to-u16 :: U64 -> U16
-  foreign import ccall "cinch.prim.wrappingU64ToU16" wrapping-u64-to-u16 :: U64 -> U16
-  foreign import ccall "cinch.prim.checkedU64ToU32" checked-u64-to-u32 :: U64 -> Option U32
-  foreign import ccall "cinch.prim.saturatingU64ToU32" saturating-u64-to-u32 :: U64 -> U32
-  foreign import ccall "cinch.prim.wrappingU64ToU32" wrapping-u64-to-u32 :: U64 -> U32
-  foreign import ccall "cinch.prim.checkedU64ToU64" checked-u64-to-u64 :: U64 -> Option U64
-  foreign import ccall "cinch.prim.saturatingU64ToU64" saturating-u64-to-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.wrappingU64ToU64" wrapping-u64-to-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.checkedU64ToUsize" checked-u64-to-usize :: U64 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingU64ToUsize" saturating-u64-to-usize :: U64 -> Usize
-  foreign import ccall "cinch.prim.wrappingU64ToUsize" wrapping-u64-to-usize :: U64 -> Usize
-  foreign import ccall "cinch.prim.checkedU64ToIsize" checked-u64-to-isize :: U64 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingU64ToIsize" saturating-u64-to-isize :: U64 -> Isize
-  foreign import ccall "cinch.prim.wrappingU64ToIsize" wrapping-u64-to-isize :: U64 -> Isize
-  foreign import ccall "cinch.prim.checkedUsizeToI8" checked-usize-to-i8 :: Usize -> Option I8
-  foreign import ccall "cinch.prim.saturatingUsizeToI8" saturating-usize-to-i8 :: Usize -> I8
-  foreign import ccall "cinch.prim.wrappingUsizeToI8" wrapping-usize-to-i8 :: Usize -> I8
-  foreign import ccall "cinch.prim.checkedUsizeToI16" checked-usize-to-i16 :: Usize -> Option I16
-  foreign import ccall "cinch.prim.saturatingUsizeToI16" saturating-usize-to-i16 :: Usize -> I16
-  foreign import ccall "cinch.prim.wrappingUsizeToI16" wrapping-usize-to-i16 :: Usize -> I16
-  foreign import ccall "cinch.prim.checkedUsizeToI32" checked-usize-to-i32 :: Usize -> Option I32
-  foreign import ccall "cinch.prim.saturatingUsizeToI32" saturating-usize-to-i32 :: Usize -> I32
-  foreign import ccall "cinch.prim.wrappingUsizeToI32" wrapping-usize-to-i32 :: Usize -> I32
-  foreign import ccall "cinch.prim.checkedUsizeToI64" checked-usize-to-i64 :: Usize -> Option I64
-  foreign import ccall "cinch.prim.saturatingUsizeToI64" saturating-usize-to-i64 :: Usize -> I64
-  foreign import ccall "cinch.prim.wrappingUsizeToI64" wrapping-usize-to-i64 :: Usize -> I64
-  foreign import ccall "cinch.prim.checkedUsizeToU8" checked-usize-to-u8 :: Usize -> Option U8
-  foreign import ccall "cinch.prim.saturatingUsizeToU8" saturating-usize-to-u8 :: Usize -> U8
-  foreign import ccall "cinch.prim.wrappingUsizeToU8" wrapping-usize-to-u8 :: Usize -> U8
-  foreign import ccall "cinch.prim.checkedUsizeToU16" checked-usize-to-u16 :: Usize -> Option U16
-  foreign import ccall "cinch.prim.saturatingUsizeToU16" saturating-usize-to-u16 :: Usize -> U16
-  foreign import ccall "cinch.prim.wrappingUsizeToU16" wrapping-usize-to-u16 :: Usize -> U16
-  foreign import ccall "cinch.prim.checkedUsizeToU32" checked-usize-to-u32 :: Usize -> Option U32
-  foreign import ccall "cinch.prim.saturatingUsizeToU32" saturating-usize-to-u32 :: Usize -> U32
-  foreign import ccall "cinch.prim.wrappingUsizeToU32" wrapping-usize-to-u32 :: Usize -> U32
-  foreign import ccall "cinch.prim.checkedUsizeToU64" checked-usize-to-u64 :: Usize -> Option U64
-  foreign import ccall "cinch.prim.saturatingUsizeToU64" saturating-usize-to-u64 :: Usize -> U64
-  foreign import ccall "cinch.prim.wrappingUsizeToU64" wrapping-usize-to-u64 :: Usize -> U64
-  foreign import ccall "cinch.prim.checkedUsizeToUsize" checked-usize-to-usize :: Usize -> Option Usize
-  foreign import ccall "cinch.prim.saturatingUsizeToUsize" saturating-usize-to-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.wrappingUsizeToUsize" wrapping-usize-to-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.checkedUsizeToIsize" checked-usize-to-isize :: Usize -> Option Isize
-  foreign import ccall "cinch.prim.saturatingUsizeToIsize" saturating-usize-to-isize :: Usize -> Isize
-  foreign import ccall "cinch.prim.wrappingUsizeToIsize" wrapping-usize-to-isize :: Usize -> Isize
-  foreign import ccall "cinch.prim.checkedIsizeToI8" checked-isize-to-i8 :: Isize -> Option I8
-  foreign import ccall "cinch.prim.saturatingIsizeToI8" saturating-isize-to-i8 :: Isize -> I8
-  foreign import ccall "cinch.prim.wrappingIsizeToI8" wrapping-isize-to-i8 :: Isize -> I8
-  foreign import ccall "cinch.prim.checkedIsizeToI16" checked-isize-to-i16 :: Isize -> Option I16
-  foreign import ccall "cinch.prim.saturatingIsizeToI16" saturating-isize-to-i16 :: Isize -> I16
-  foreign import ccall "cinch.prim.wrappingIsizeToI16" wrapping-isize-to-i16 :: Isize -> I16
-  foreign import ccall "cinch.prim.checkedIsizeToI32" checked-isize-to-i32 :: Isize -> Option I32
-  foreign import ccall "cinch.prim.saturatingIsizeToI32" saturating-isize-to-i32 :: Isize -> I32
-  foreign import ccall "cinch.prim.wrappingIsizeToI32" wrapping-isize-to-i32 :: Isize -> I32
-  foreign import ccall "cinch.prim.checkedIsizeToI64" checked-isize-to-i64 :: Isize -> Option I64
-  foreign import ccall "cinch.prim.saturatingIsizeToI64" saturating-isize-to-i64 :: Isize -> I64
-  foreign import ccall "cinch.prim.wrappingIsizeToI64" wrapping-isize-to-i64 :: Isize -> I64
-  foreign import ccall "cinch.prim.checkedIsizeToU8" checked-isize-to-u8 :: Isize -> Option U8
-  foreign import ccall "cinch.prim.saturatingIsizeToU8" saturating-isize-to-u8 :: Isize -> U8
-  foreign import ccall "cinch.prim.wrappingIsizeToU8" wrapping-isize-to-u8 :: Isize -> U8
-  foreign import ccall "cinch.prim.checkedIsizeToU16" checked-isize-to-u16 :: Isize -> Option U16
-  foreign import ccall "cinch.prim.saturatingIsizeToU16" saturating-isize-to-u16 :: Isize -> U16
-  foreign import ccall "cinch.prim.wrappingIsizeToU16" wrapping-isize-to-u16 :: Isize -> U16
-  foreign import ccall "cinch.prim.checkedIsizeToU32" checked-isize-to-u32 :: Isize -> Option U32
-  foreign import ccall "cinch.prim.saturatingIsizeToU32" saturating-isize-to-u32 :: Isize -> U32
-  foreign import ccall "cinch.prim.wrappingIsizeToU32" wrapping-isize-to-u32 :: Isize -> U32
-  foreign import ccall "cinch.prim.checkedIsizeToU64" checked-isize-to-u64 :: Isize -> Option U64
-  foreign import ccall "cinch.prim.saturatingIsizeToU64" saturating-isize-to-u64 :: Isize -> U64
-  foreign import ccall "cinch.prim.wrappingIsizeToU64" wrapping-isize-to-u64 :: Isize -> U64
-  foreign import ccall "cinch.prim.checkedIsizeToUsize" checked-isize-to-usize :: Isize -> Option Usize
-  foreign import ccall "cinch.prim.saturatingIsizeToUsize" saturating-isize-to-usize :: Isize -> Usize
-  foreign import ccall "cinch.prim.wrappingIsizeToUsize" wrapping-isize-to-usize :: Isize -> Usize
-  foreign import ccall "cinch.prim.checkedIsizeToIsize" checked-isize-to-isize :: Isize -> Option Isize
-  foreign import ccall "cinch.prim.saturatingIsizeToIsize" saturating-isize-to-isize :: Isize -> Isize
-  foreign import ccall "cinch.prim.wrappingIsizeToIsize" wrapping-isize-to-isize :: Isize -> Isize
-  foreign import ccall "cinch.prim.checkedF32ToI8" checked-f32-to-i8 :: F32 -> Option I8
-  foreign import ccall "cinch.prim.saturatingF32ToI8" saturating-f32-to-i8 :: F32 -> I8
-  foreign import ccall "cinch.prim.checkedF32ToI16" checked-f32-to-i16 :: F32 -> Option I16
-  foreign import ccall "cinch.prim.saturatingF32ToI16" saturating-f32-to-i16 :: F32 -> I16
-  foreign import ccall "cinch.prim.checkedF32ToI32" checked-f32-to-i32 :: F32 -> Option I32
-  foreign import ccall "cinch.prim.saturatingF32ToI32" saturating-f32-to-i32 :: F32 -> I32
-  foreign import ccall "cinch.prim.checkedF32ToI64" checked-f32-to-i64 :: F32 -> Option I64
-  foreign import ccall "cinch.prim.saturatingF32ToI64" saturating-f32-to-i64 :: F32 -> I64
-  foreign import ccall "cinch.prim.checkedF32ToU8" checked-f32-to-u8 :: F32 -> Option U8
-  foreign import ccall "cinch.prim.saturatingF32ToU8" saturating-f32-to-u8 :: F32 -> U8
-  foreign import ccall "cinch.prim.checkedF32ToU16" checked-f32-to-u16 :: F32 -> Option U16
-  foreign import ccall "cinch.prim.saturatingF32ToU16" saturating-f32-to-u16 :: F32 -> U16
-  foreign import ccall "cinch.prim.checkedF32ToU32" checked-f32-to-u32 :: F32 -> Option U32
-  foreign import ccall "cinch.prim.saturatingF32ToU32" saturating-f32-to-u32 :: F32 -> U32
-  foreign import ccall "cinch.prim.checkedF32ToU64" checked-f32-to-u64 :: F32 -> Option U64
-  foreign import ccall "cinch.prim.saturatingF32ToU64" saturating-f32-to-u64 :: F32 -> U64
-  foreign import ccall "cinch.prim.checkedF32ToUsize" checked-f32-to-usize :: F32 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingF32ToUsize" saturating-f32-to-usize :: F32 -> Usize
-  foreign import ccall "cinch.prim.checkedF32ToIsize" checked-f32-to-isize :: F32 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingF32ToIsize" saturating-f32-to-isize :: F32 -> Isize
-  foreign import ccall "cinch.prim.checkedF64ToI8" checked-f64-to-i8 :: F64 -> Option I8
-  foreign import ccall "cinch.prim.saturatingF64ToI8" saturating-f64-to-i8 :: F64 -> I8
-  foreign import ccall "cinch.prim.checkedF64ToI16" checked-f64-to-i16 :: F64 -> Option I16
-  foreign import ccall "cinch.prim.saturatingF64ToI16" saturating-f64-to-i16 :: F64 -> I16
-  foreign import ccall "cinch.prim.checkedF64ToI32" checked-f64-to-i32 :: F64 -> Option I32
-  foreign import ccall "cinch.prim.saturatingF64ToI32" saturating-f64-to-i32 :: F64 -> I32
-  foreign import ccall "cinch.prim.checkedF64ToI64" checked-f64-to-i64 :: F64 -> Option I64
-  foreign import ccall "cinch.prim.saturatingF64ToI64" saturating-f64-to-i64 :: F64 -> I64
-  foreign import ccall "cinch.prim.checkedF64ToU8" checked-f64-to-u8 :: F64 -> Option U8
-  foreign import ccall "cinch.prim.saturatingF64ToU8" saturating-f64-to-u8 :: F64 -> U8
-  foreign import ccall "cinch.prim.checkedF64ToU16" checked-f64-to-u16 :: F64 -> Option U16
-  foreign import ccall "cinch.prim.saturatingF64ToU16" saturating-f64-to-u16 :: F64 -> U16
-  foreign import ccall "cinch.prim.checkedF64ToU32" checked-f64-to-u32 :: F64 -> Option U32
-  foreign import ccall "cinch.prim.saturatingF64ToU32" saturating-f64-to-u32 :: F64 -> U32
-  foreign import ccall "cinch.prim.checkedF64ToU64" checked-f64-to-u64 :: F64 -> Option U64
-  foreign import ccall "cinch.prim.saturatingF64ToU64" saturating-f64-to-u64 :: F64 -> U64
-  foreign import ccall "cinch.prim.checkedF64ToUsize" checked-f64-to-usize :: F64 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingF64ToUsize" saturating-f64-to-usize :: F64 -> Usize
-  foreign import ccall "cinch.prim.checkedF64ToIsize" checked-f64-to-isize :: F64 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingF64ToIsize" saturating-f64-to-isize :: F64 -> Isize
+  -- Conversions across integer and floating-point types.
+  i8-to-i8 :: I8 -> I8
+  i8-to-i8 x = x
+  i16-to-i16 :: I16 -> I16
+  i16-to-i16 x = x
+  i32-to-i32 :: I32 -> I32
+  i32-to-i32 x = x
+  i64-to-i64 :: I64 -> I64
+  i64-to-i64 x = x
+  u8-to-u8 :: U8 -> U8
+  u8-to-u8 x = x
+  u16-to-u16 :: U16 -> U16
+  u16-to-u16 x = x
+  u32-to-u32 :: U32 -> U32
+  u32-to-u32 x = x
+  u64-to-u64 :: U64 -> U64
+  u64-to-u64 x = x
+  usize-to-usize :: Usize -> Usize
+  usize-to-usize x = x
+  isize-to-isize :: Isize -> Isize
+  isize-to-isize x = x
+  f32-to-f32 :: F32 -> F32
+  f32-to-f32 x = x
+  f64-to-f64 :: F64 -> F64
+  f64-to-f64 x = x
+  wrapping-i8-to-i8 :: I8 -> I8
+  wrapping-i8-to-i8 x = x
+  checked-i8-to-i8 :: I8 -> Option I8
+  checked-i8-to-i8 x = Some x
+  saturating-i8-to-i8 :: I8 -> I8
+  saturating-i8-to-i8 x = x
+  wrapping-i8-to-i16 :: I8 -> I16
+  wrapping-i8-to-i16 x = i8-to-i16 x
+  checked-i8-to-i16 :: I8 -> Option I16
+  checked-i8-to-i16 x = Some (i8-to-i16 x)
+  saturating-i8-to-i16 :: I8 -> I16
+  saturating-i8-to-i16 x = i8-to-i16 x
+  wrapping-i8-to-i32 :: I8 -> I32
+  wrapping-i8-to-i32 x = i8-to-i32 x
+  checked-i8-to-i32 :: I8 -> Option I32
+  checked-i8-to-i32 x = Some (i8-to-i32 x)
+  saturating-i8-to-i32 :: I8 -> I32
+  saturating-i8-to-i32 x = i8-to-i32 x
+  wrapping-i8-to-i64 :: I8 -> I64
+  wrapping-i8-to-i64 x = i8-to-i64 x
+  checked-i8-to-i64 :: I8 -> Option I64
+  checked-i8-to-i64 x = Some (i8-to-i64 x)
+  saturating-i8-to-i64 :: I8 -> I64
+  saturating-i8-to-i64 x = i8-to-i64 x
+  checked-i8-to-u8 :: I8 -> Option U8
+  checked-i8-to-u8 x = if lt-i8 x 0 then None else Some (wrapping-i8-to-u8 x)
+  saturating-i8-to-u8 :: I8 -> U8
+  saturating-i8-to-u8 x = if lt-i8 x 0 then min-bound-u8 else wrapping-i8-to-u8 x
+  checked-i8-to-u16 :: I8 -> Option U16
+  checked-i8-to-u16 x = if lt-i8 x 0 then None else Some (wrapping-i8-to-u16 x)
+  saturating-i8-to-u16 :: I8 -> U16
+  saturating-i8-to-u16 x = if lt-i8 x 0 then min-bound-u16 else wrapping-i8-to-u16 x
+  checked-i8-to-u32 :: I8 -> Option U32
+  checked-i8-to-u32 x = if lt-i8 x 0 then None else Some (wrapping-i8-to-u32 x)
+  saturating-i8-to-u32 :: I8 -> U32
+  saturating-i8-to-u32 x = if lt-i8 x 0 then min-bound-u32 else wrapping-i8-to-u32 x
+  checked-i8-to-u64 :: I8 -> Option U64
+  checked-i8-to-u64 x = if lt-i8 x 0 then None else Some (wrapping-i8-to-u64 x)
+  saturating-i8-to-u64 :: I8 -> U64
+  saturating-i8-to-u64 x = if lt-i8 x 0 then min-bound-u64 else wrapping-i8-to-u64 x
+  checked-i16-to-i8 :: I16 -> Option I8
+  checked-i16-to-i8 x = if lt-i16 x (-128) || gt-i16 x 127 then None else Some (wrapping-i16-to-i8 x)
+  saturating-i16-to-i8 :: I16 -> I8
+  saturating-i16-to-i8 x = if lt-i16 x (-128) then min-bound-i8 else if gt-i16 x 127 then max-bound-i8 else wrapping-i16-to-i8 x
+  wrapping-i16-to-i16 :: I16 -> I16
+  wrapping-i16-to-i16 x = x
+  checked-i16-to-i16 :: I16 -> Option I16
+  checked-i16-to-i16 x = Some x
+  saturating-i16-to-i16 :: I16 -> I16
+  saturating-i16-to-i16 x = x
+  wrapping-i16-to-i32 :: I16 -> I32
+  wrapping-i16-to-i32 x = i16-to-i32 x
+  checked-i16-to-i32 :: I16 -> Option I32
+  checked-i16-to-i32 x = Some (i16-to-i32 x)
+  saturating-i16-to-i32 :: I16 -> I32
+  saturating-i16-to-i32 x = i16-to-i32 x
+  wrapping-i16-to-i64 :: I16 -> I64
+  wrapping-i16-to-i64 x = i16-to-i64 x
+  checked-i16-to-i64 :: I16 -> Option I64
+  checked-i16-to-i64 x = Some (i16-to-i64 x)
+  saturating-i16-to-i64 :: I16 -> I64
+  saturating-i16-to-i64 x = i16-to-i64 x
+  checked-i16-to-u8 :: I16 -> Option U8
+  checked-i16-to-u8 x = if lt-i16 x 0 || gt-i16 x 255 then None else Some (wrapping-i16-to-u8 x)
+  saturating-i16-to-u8 :: I16 -> U8
+  saturating-i16-to-u8 x = if lt-i16 x 0 then min-bound-u8 else if gt-i16 x 255 then max-bound-u8 else wrapping-i16-to-u8 x
+  checked-i16-to-u16 :: I16 -> Option U16
+  checked-i16-to-u16 x = if lt-i16 x 0 then None else Some (wrapping-i16-to-u16 x)
+  saturating-i16-to-u16 :: I16 -> U16
+  saturating-i16-to-u16 x = if lt-i16 x 0 then min-bound-u16 else wrapping-i16-to-u16 x
+  checked-i16-to-u32 :: I16 -> Option U32
+  checked-i16-to-u32 x = if lt-i16 x 0 then None else Some (wrapping-i16-to-u32 x)
+  saturating-i16-to-u32 :: I16 -> U32
+  saturating-i16-to-u32 x = if lt-i16 x 0 then min-bound-u32 else wrapping-i16-to-u32 x
+  checked-i16-to-u64 :: I16 -> Option U64
+  checked-i16-to-u64 x = if lt-i16 x 0 then None else Some (wrapping-i16-to-u64 x)
+  saturating-i16-to-u64 :: I16 -> U64
+  saturating-i16-to-u64 x = if lt-i16 x 0 then min-bound-u64 else wrapping-i16-to-u64 x
+  checked-i32-to-i8 :: I32 -> Option I8
+  checked-i32-to-i8 x = if lt-i32 x (-128) || gt-i32 x 127 then None else Some (wrapping-i32-to-i8 x)
+  saturating-i32-to-i8 :: I32 -> I8
+  saturating-i32-to-i8 x = if lt-i32 x (-128) then min-bound-i8 else if gt-i32 x 127 then max-bound-i8 else wrapping-i32-to-i8 x
+  checked-i32-to-i16 :: I32 -> Option I16
+  checked-i32-to-i16 x = if lt-i32 x (-32768) || gt-i32 x 32767 then None else Some (wrapping-i32-to-i16 x)
+  saturating-i32-to-i16 :: I32 -> I16
+  saturating-i32-to-i16 x = if lt-i32 x (-32768) then min-bound-i16 else if gt-i32 x 32767 then max-bound-i16 else wrapping-i32-to-i16 x
+  wrapping-i32-to-i32 :: I32 -> I32
+  wrapping-i32-to-i32 x = x
+  checked-i32-to-i32 :: I32 -> Option I32
+  checked-i32-to-i32 x = Some x
+  saturating-i32-to-i32 :: I32 -> I32
+  saturating-i32-to-i32 x = x
+  wrapping-i32-to-i64 :: I32 -> I64
+  wrapping-i32-to-i64 x = i32-to-i64 x
+  checked-i32-to-i64 :: I32 -> Option I64
+  checked-i32-to-i64 x = Some (i32-to-i64 x)
+  saturating-i32-to-i64 :: I32 -> I64
+  saturating-i32-to-i64 x = i32-to-i64 x
+  checked-i32-to-u8 :: I32 -> Option U8
+  checked-i32-to-u8 x = if lt-i32 x 0 || gt-i32 x 255 then None else Some (wrapping-i32-to-u8 x)
+  saturating-i32-to-u8 :: I32 -> U8
+  saturating-i32-to-u8 x = if lt-i32 x 0 then min-bound-u8 else if gt-i32 x 255 then max-bound-u8 else wrapping-i32-to-u8 x
+  checked-i32-to-u16 :: I32 -> Option U16
+  checked-i32-to-u16 x = if lt-i32 x 0 || gt-i32 x 65535 then None else Some (wrapping-i32-to-u16 x)
+  saturating-i32-to-u16 :: I32 -> U16
+  saturating-i32-to-u16 x = if lt-i32 x 0 then min-bound-u16 else if gt-i32 x 65535 then max-bound-u16 else wrapping-i32-to-u16 x
+  checked-i32-to-u32 :: I32 -> Option U32
+  checked-i32-to-u32 x = if lt-i32 x 0 then None else Some (wrapping-i32-to-u32 x)
+  saturating-i32-to-u32 :: I32 -> U32
+  saturating-i32-to-u32 x = if lt-i32 x 0 then min-bound-u32 else wrapping-i32-to-u32 x
+  checked-i32-to-u64 :: I32 -> Option U64
+  checked-i32-to-u64 x = if lt-i32 x 0 then None else Some (wrapping-i32-to-u64 x)
+  saturating-i32-to-u64 :: I32 -> U64
+  saturating-i32-to-u64 x = if lt-i32 x 0 then min-bound-u64 else wrapping-i32-to-u64 x
+  checked-i64-to-i8 :: I64 -> Option I8
+  checked-i64-to-i8 x = if lt-i64 x (-128) || gt-i64 x 127 then None else Some (wrapping-i64-to-i8 x)
+  saturating-i64-to-i8 :: I64 -> I8
+  saturating-i64-to-i8 x = if lt-i64 x (-128) then min-bound-i8 else if gt-i64 x 127 then max-bound-i8 else wrapping-i64-to-i8 x
+  checked-i64-to-i16 :: I64 -> Option I16
+  checked-i64-to-i16 x = if lt-i64 x (-32768) || gt-i64 x 32767 then None else Some (wrapping-i64-to-i16 x)
+  saturating-i64-to-i16 :: I64 -> I16
+  saturating-i64-to-i16 x = if lt-i64 x (-32768) then min-bound-i16 else if gt-i64 x 32767 then max-bound-i16 else wrapping-i64-to-i16 x
+  checked-i64-to-i32 :: I64 -> Option I32
+  checked-i64-to-i32 x = if lt-i64 x (-2147483648) || gt-i64 x 2147483647 then None else Some (wrapping-i64-to-i32 x)
+  saturating-i64-to-i32 :: I64 -> I32
+  saturating-i64-to-i32 x = if lt-i64 x (-2147483648) then min-bound-i32 else if gt-i64 x 2147483647 then max-bound-i32 else wrapping-i64-to-i32 x
+  wrapping-i64-to-i64 :: I64 -> I64
+  wrapping-i64-to-i64 x = x
+  checked-i64-to-i64 :: I64 -> Option I64
+  checked-i64-to-i64 x = Some x
+  saturating-i64-to-i64 :: I64 -> I64
+  saturating-i64-to-i64 x = x
+  checked-i64-to-u8 :: I64 -> Option U8
+  checked-i64-to-u8 x = if lt-i64 x 0 || gt-i64 x 255 then None else Some (wrapping-i64-to-u8 x)
+  saturating-i64-to-u8 :: I64 -> U8
+  saturating-i64-to-u8 x = if lt-i64 x 0 then min-bound-u8 else if gt-i64 x 255 then max-bound-u8 else wrapping-i64-to-u8 x
+  checked-i64-to-u16 :: I64 -> Option U16
+  checked-i64-to-u16 x = if lt-i64 x 0 || gt-i64 x 65535 then None else Some (wrapping-i64-to-u16 x)
+  saturating-i64-to-u16 :: I64 -> U16
+  saturating-i64-to-u16 x = if lt-i64 x 0 then min-bound-u16 else if gt-i64 x 65535 then max-bound-u16 else wrapping-i64-to-u16 x
+  checked-i64-to-u32 :: I64 -> Option U32
+  checked-i64-to-u32 x = if lt-i64 x 0 || gt-i64 x 4294967295 then None else Some (wrapping-i64-to-u32 x)
+  saturating-i64-to-u32 :: I64 -> U32
+  saturating-i64-to-u32 x = if lt-i64 x 0 then min-bound-u32 else if gt-i64 x 4294967295 then max-bound-u32 else wrapping-i64-to-u32 x
+  checked-i64-to-u64 :: I64 -> Option U64
+  checked-i64-to-u64 x = if lt-i64 x 0 then None else Some (wrapping-i64-to-u64 x)
+  saturating-i64-to-u64 :: I64 -> U64
+  saturating-i64-to-u64 x = if lt-i64 x 0 then min-bound-u64 else wrapping-i64-to-u64 x
+  checked-u8-to-i8 :: U8 -> Option I8
+  checked-u8-to-i8 x = if gt-u8 x 127 then None else Some (wrapping-u8-to-i8 x)
+  saturating-u8-to-i8 :: U8 -> I8
+  saturating-u8-to-i8 x = if gt-u8 x 127 then max-bound-i8 else wrapping-u8-to-i8 x
+  wrapping-u8-to-i16 :: U8 -> I16
+  wrapping-u8-to-i16 x = u8-to-i16 x
+  checked-u8-to-i16 :: U8 -> Option I16
+  checked-u8-to-i16 x = Some (u8-to-i16 x)
+  saturating-u8-to-i16 :: U8 -> I16
+  saturating-u8-to-i16 x = u8-to-i16 x
+  wrapping-u8-to-i32 :: U8 -> I32
+  wrapping-u8-to-i32 x = u8-to-i32 x
+  checked-u8-to-i32 :: U8 -> Option I32
+  checked-u8-to-i32 x = Some (u8-to-i32 x)
+  saturating-u8-to-i32 :: U8 -> I32
+  saturating-u8-to-i32 x = u8-to-i32 x
+  wrapping-u8-to-i64 :: U8 -> I64
+  wrapping-u8-to-i64 x = u8-to-i64 x
+  checked-u8-to-i64 :: U8 -> Option I64
+  checked-u8-to-i64 x = Some (u8-to-i64 x)
+  saturating-u8-to-i64 :: U8 -> I64
+  saturating-u8-to-i64 x = u8-to-i64 x
+  wrapping-u8-to-u8 :: U8 -> U8
+  wrapping-u8-to-u8 x = x
+  checked-u8-to-u8 :: U8 -> Option U8
+  checked-u8-to-u8 x = Some x
+  saturating-u8-to-u8 :: U8 -> U8
+  saturating-u8-to-u8 x = x
+  wrapping-u8-to-u16 :: U8 -> U16
+  wrapping-u8-to-u16 x = u8-to-u16 x
+  checked-u8-to-u16 :: U8 -> Option U16
+  checked-u8-to-u16 x = Some (u8-to-u16 x)
+  saturating-u8-to-u16 :: U8 -> U16
+  saturating-u8-to-u16 x = u8-to-u16 x
+  wrapping-u8-to-u32 :: U8 -> U32
+  wrapping-u8-to-u32 x = u8-to-u32 x
+  checked-u8-to-u32 :: U8 -> Option U32
+  checked-u8-to-u32 x = Some (u8-to-u32 x)
+  saturating-u8-to-u32 :: U8 -> U32
+  saturating-u8-to-u32 x = u8-to-u32 x
+  wrapping-u8-to-u64 :: U8 -> U64
+  wrapping-u8-to-u64 x = u8-to-u64 x
+  checked-u8-to-u64 :: U8 -> Option U64
+  checked-u8-to-u64 x = Some (u8-to-u64 x)
+  saturating-u8-to-u64 :: U8 -> U64
+  saturating-u8-to-u64 x = u8-to-u64 x
+  checked-u16-to-i8 :: U16 -> Option I8
+  checked-u16-to-i8 x = if gt-u16 x 127 then None else Some (wrapping-u16-to-i8 x)
+  saturating-u16-to-i8 :: U16 -> I8
+  saturating-u16-to-i8 x = if gt-u16 x 127 then max-bound-i8 else wrapping-u16-to-i8 x
+  checked-u16-to-i16 :: U16 -> Option I16
+  checked-u16-to-i16 x = if gt-u16 x 32767 then None else Some (wrapping-u16-to-i16 x)
+  saturating-u16-to-i16 :: U16 -> I16
+  saturating-u16-to-i16 x = if gt-u16 x 32767 then max-bound-i16 else wrapping-u16-to-i16 x
+  wrapping-u16-to-i32 :: U16 -> I32
+  wrapping-u16-to-i32 x = u16-to-i32 x
+  checked-u16-to-i32 :: U16 -> Option I32
+  checked-u16-to-i32 x = Some (u16-to-i32 x)
+  saturating-u16-to-i32 :: U16 -> I32
+  saturating-u16-to-i32 x = u16-to-i32 x
+  wrapping-u16-to-i64 :: U16 -> I64
+  wrapping-u16-to-i64 x = u16-to-i64 x
+  checked-u16-to-i64 :: U16 -> Option I64
+  checked-u16-to-i64 x = Some (u16-to-i64 x)
+  saturating-u16-to-i64 :: U16 -> I64
+  saturating-u16-to-i64 x = u16-to-i64 x
+  checked-u16-to-u8 :: U16 -> Option U8
+  checked-u16-to-u8 x = if gt-u16 x 255 then None else Some (wrapping-u16-to-u8 x)
+  saturating-u16-to-u8 :: U16 -> U8
+  saturating-u16-to-u8 x = if gt-u16 x 255 then max-bound-u8 else wrapping-u16-to-u8 x
+  wrapping-u16-to-u16 :: U16 -> U16
+  wrapping-u16-to-u16 x = x
+  checked-u16-to-u16 :: U16 -> Option U16
+  checked-u16-to-u16 x = Some x
+  saturating-u16-to-u16 :: U16 -> U16
+  saturating-u16-to-u16 x = x
+  wrapping-u16-to-u32 :: U16 -> U32
+  wrapping-u16-to-u32 x = u16-to-u32 x
+  checked-u16-to-u32 :: U16 -> Option U32
+  checked-u16-to-u32 x = Some (u16-to-u32 x)
+  saturating-u16-to-u32 :: U16 -> U32
+  saturating-u16-to-u32 x = u16-to-u32 x
+  wrapping-u16-to-u64 :: U16 -> U64
+  wrapping-u16-to-u64 x = u16-to-u64 x
+  checked-u16-to-u64 :: U16 -> Option U64
+  checked-u16-to-u64 x = Some (u16-to-u64 x)
+  saturating-u16-to-u64 :: U16 -> U64
+  saturating-u16-to-u64 x = u16-to-u64 x
+  checked-u32-to-i8 :: U32 -> Option I8
+  checked-u32-to-i8 x = if gt-u32 x 127 then None else Some (wrapping-u32-to-i8 x)
+  saturating-u32-to-i8 :: U32 -> I8
+  saturating-u32-to-i8 x = if gt-u32 x 127 then max-bound-i8 else wrapping-u32-to-i8 x
+  checked-u32-to-i16 :: U32 -> Option I16
+  checked-u32-to-i16 x = if gt-u32 x 32767 then None else Some (wrapping-u32-to-i16 x)
+  saturating-u32-to-i16 :: U32 -> I16
+  saturating-u32-to-i16 x = if gt-u32 x 32767 then max-bound-i16 else wrapping-u32-to-i16 x
+  checked-u32-to-i32 :: U32 -> Option I32
+  checked-u32-to-i32 x = if gt-u32 x 2147483647 then None else Some (wrapping-u32-to-i32 x)
+  saturating-u32-to-i32 :: U32 -> I32
+  saturating-u32-to-i32 x = if gt-u32 x 2147483647 then max-bound-i32 else wrapping-u32-to-i32 x
+  wrapping-u32-to-i64 :: U32 -> I64
+  wrapping-u32-to-i64 x = u32-to-i64 x
+  checked-u32-to-i64 :: U32 -> Option I64
+  checked-u32-to-i64 x = Some (u32-to-i64 x)
+  saturating-u32-to-i64 :: U32 -> I64
+  saturating-u32-to-i64 x = u32-to-i64 x
+  checked-u32-to-u8 :: U32 -> Option U8
+  checked-u32-to-u8 x = if gt-u32 x 255 then None else Some (wrapping-u32-to-u8 x)
+  saturating-u32-to-u8 :: U32 -> U8
+  saturating-u32-to-u8 x = if gt-u32 x 255 then max-bound-u8 else wrapping-u32-to-u8 x
+  checked-u32-to-u16 :: U32 -> Option U16
+  checked-u32-to-u16 x = if gt-u32 x 65535 then None else Some (wrapping-u32-to-u16 x)
+  saturating-u32-to-u16 :: U32 -> U16
+  saturating-u32-to-u16 x = if gt-u32 x 65535 then max-bound-u16 else wrapping-u32-to-u16 x
+  wrapping-u32-to-u32 :: U32 -> U32
+  wrapping-u32-to-u32 x = x
+  checked-u32-to-u32 :: U32 -> Option U32
+  checked-u32-to-u32 x = Some x
+  saturating-u32-to-u32 :: U32 -> U32
+  saturating-u32-to-u32 x = x
+  wrapping-u32-to-u64 :: U32 -> U64
+  wrapping-u32-to-u64 x = u32-to-u64 x
+  checked-u32-to-u64 :: U32 -> Option U64
+  checked-u32-to-u64 x = Some (u32-to-u64 x)
+  saturating-u32-to-u64 :: U32 -> U64
+  saturating-u32-to-u64 x = u32-to-u64 x
+  checked-u64-to-i8 :: U64 -> Option I8
+  checked-u64-to-i8 x = if gt-u64 x 127 then None else Some (wrapping-u64-to-i8 x)
+  saturating-u64-to-i8 :: U64 -> I8
+  saturating-u64-to-i8 x = if gt-u64 x 127 then max-bound-i8 else wrapping-u64-to-i8 x
+  checked-u64-to-i16 :: U64 -> Option I16
+  checked-u64-to-i16 x = if gt-u64 x 32767 then None else Some (wrapping-u64-to-i16 x)
+  saturating-u64-to-i16 :: U64 -> I16
+  saturating-u64-to-i16 x = if gt-u64 x 32767 then max-bound-i16 else wrapping-u64-to-i16 x
+  checked-u64-to-i32 :: U64 -> Option I32
+  checked-u64-to-i32 x = if gt-u64 x 2147483647 then None else Some (wrapping-u64-to-i32 x)
+  saturating-u64-to-i32 :: U64 -> I32
+  saturating-u64-to-i32 x = if gt-u64 x 2147483647 then max-bound-i32 else wrapping-u64-to-i32 x
+  checked-u64-to-i64 :: U64 -> Option I64
+  checked-u64-to-i64 x = if gt-u64 x 9223372036854775807 then None else Some (wrapping-u64-to-i64 x)
+  saturating-u64-to-i64 :: U64 -> I64
+  saturating-u64-to-i64 x = if gt-u64 x 9223372036854775807 then max-bound-i64 else wrapping-u64-to-i64 x
+  checked-u64-to-u8 :: U64 -> Option U8
+  checked-u64-to-u8 x = if gt-u64 x 255 then None else Some (wrapping-u64-to-u8 x)
+  saturating-u64-to-u8 :: U64 -> U8
+  saturating-u64-to-u8 x = if gt-u64 x 255 then max-bound-u8 else wrapping-u64-to-u8 x
+  checked-u64-to-u16 :: U64 -> Option U16
+  checked-u64-to-u16 x = if gt-u64 x 65535 then None else Some (wrapping-u64-to-u16 x)
+  saturating-u64-to-u16 :: U64 -> U16
+  saturating-u64-to-u16 x = if gt-u64 x 65535 then max-bound-u16 else wrapping-u64-to-u16 x
+  checked-u64-to-u32 :: U64 -> Option U32
+  checked-u64-to-u32 x = if gt-u64 x 4294967295 then None else Some (wrapping-u64-to-u32 x)
+  saturating-u64-to-u32 :: U64 -> U32
+  saturating-u64-to-u32 x = if gt-u64 x 4294967295 then max-bound-u32 else wrapping-u64-to-u32 x
+  wrapping-u64-to-u64 :: U64 -> U64
+  wrapping-u64-to-u64 x = x
+  checked-u64-to-u64 :: U64 -> Option U64
+  checked-u64-to-u64 x = Some x
+  saturating-u64-to-u64 :: U64 -> U64
+  saturating-u64-to-u64 x = x
+  wrapping-i8-to-usize :: I8 -> Usize
+  wrapping-i8-to-usize x = if word-size32 0 then u32-to-usize (wrapping-i8-to-u32 x) else wrapping-u64-to-usize (wrapping-i8-to-u64 x)
+  checked-i8-to-usize :: I8 -> Option Usize
+  checked-i8-to-usize x = if word-size32 0 then (case checked-i8-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-i8-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-i8-to-usize :: I8 -> Usize
+  saturating-i8-to-usize x = if word-size32 0 then u32-to-usize (saturating-i8-to-u32 x) else wrapping-u64-to-usize (saturating-i8-to-u64 x)
+  wrapping-i8-to-isize :: I8 -> Isize
+  wrapping-i8-to-isize x = if word-size32 0 then i32-to-isize (wrapping-i8-to-i32 x) else wrapping-i64-to-isize (wrapping-i8-to-i64 x)
+  checked-i8-to-isize :: I8 -> Option Isize
+  checked-i8-to-isize x = if word-size32 0 then (case checked-i8-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-i8-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-i8-to-isize :: I8 -> Isize
+  saturating-i8-to-isize x = if word-size32 0 then i32-to-isize (saturating-i8-to-i32 x) else wrapping-i64-to-isize (saturating-i8-to-i64 x)
+  wrapping-usize-to-i8 :: Usize -> I8
+  wrapping-usize-to-i8 x = wrapping-u64-to-i8 (usize-to-u64 x)
+  checked-usize-to-i8 :: Usize -> Option I8
+  checked-usize-to-i8 x = checked-u64-to-i8 (usize-to-u64 x)
+  saturating-usize-to-i8 :: Usize -> I8
+  saturating-usize-to-i8 x = saturating-u64-to-i8 (usize-to-u64 x)
+  wrapping-isize-to-i8 :: Isize -> I8
+  wrapping-isize-to-i8 x = wrapping-i64-to-i8 (isize-to-i64 x)
+  checked-isize-to-i8 :: Isize -> Option I8
+  checked-isize-to-i8 x = checked-i64-to-i8 (isize-to-i64 x)
+  saturating-isize-to-i8 :: Isize -> I8
+  saturating-isize-to-i8 x = saturating-i64-to-i8 (isize-to-i64 x)
+  wrapping-i16-to-usize :: I16 -> Usize
+  wrapping-i16-to-usize x = if word-size32 0 then u32-to-usize (wrapping-i16-to-u32 x) else wrapping-u64-to-usize (wrapping-i16-to-u64 x)
+  checked-i16-to-usize :: I16 -> Option Usize
+  checked-i16-to-usize x = if word-size32 0 then (case checked-i16-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-i16-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-i16-to-usize :: I16 -> Usize
+  saturating-i16-to-usize x = if word-size32 0 then u32-to-usize (saturating-i16-to-u32 x) else wrapping-u64-to-usize (saturating-i16-to-u64 x)
+  wrapping-i16-to-isize :: I16 -> Isize
+  wrapping-i16-to-isize x = if word-size32 0 then i32-to-isize (wrapping-i16-to-i32 x) else wrapping-i64-to-isize (wrapping-i16-to-i64 x)
+  checked-i16-to-isize :: I16 -> Option Isize
+  checked-i16-to-isize x = if word-size32 0 then (case checked-i16-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-i16-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-i16-to-isize :: I16 -> Isize
+  saturating-i16-to-isize x = if word-size32 0 then i32-to-isize (saturating-i16-to-i32 x) else wrapping-i64-to-isize (saturating-i16-to-i64 x)
+  wrapping-usize-to-i16 :: Usize -> I16
+  wrapping-usize-to-i16 x = wrapping-u64-to-i16 (usize-to-u64 x)
+  checked-usize-to-i16 :: Usize -> Option I16
+  checked-usize-to-i16 x = checked-u64-to-i16 (usize-to-u64 x)
+  saturating-usize-to-i16 :: Usize -> I16
+  saturating-usize-to-i16 x = saturating-u64-to-i16 (usize-to-u64 x)
+  wrapping-isize-to-i16 :: Isize -> I16
+  wrapping-isize-to-i16 x = wrapping-i64-to-i16 (isize-to-i64 x)
+  checked-isize-to-i16 :: Isize -> Option I16
+  checked-isize-to-i16 x = checked-i64-to-i16 (isize-to-i64 x)
+  saturating-isize-to-i16 :: Isize -> I16
+  saturating-isize-to-i16 x = saturating-i64-to-i16 (isize-to-i64 x)
+  wrapping-i32-to-usize :: I32 -> Usize
+  wrapping-i32-to-usize x = if word-size32 0 then u32-to-usize (wrapping-i32-to-u32 x) else wrapping-u64-to-usize (wrapping-i32-to-u64 x)
+  checked-i32-to-usize :: I32 -> Option Usize
+  checked-i32-to-usize x = if word-size32 0 then (case checked-i32-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-i32-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-i32-to-usize :: I32 -> Usize
+  saturating-i32-to-usize x = if word-size32 0 then u32-to-usize (saturating-i32-to-u32 x) else wrapping-u64-to-usize (saturating-i32-to-u64 x)
+  wrapping-i32-to-isize :: I32 -> Isize
+  wrapping-i32-to-isize x = if word-size32 0 then i32-to-isize (wrapping-i32-to-i32 x) else wrapping-i64-to-isize (wrapping-i32-to-i64 x)
+  checked-i32-to-isize :: I32 -> Option Isize
+  checked-i32-to-isize x = if word-size32 0 then (case checked-i32-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-i32-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-i32-to-isize :: I32 -> Isize
+  saturating-i32-to-isize x = if word-size32 0 then i32-to-isize (saturating-i32-to-i32 x) else wrapping-i64-to-isize (saturating-i32-to-i64 x)
+  wrapping-usize-to-i32 :: Usize -> I32
+  wrapping-usize-to-i32 x = wrapping-u64-to-i32 (usize-to-u64 x)
+  checked-usize-to-i32 :: Usize -> Option I32
+  checked-usize-to-i32 x = checked-u64-to-i32 (usize-to-u64 x)
+  saturating-usize-to-i32 :: Usize -> I32
+  saturating-usize-to-i32 x = saturating-u64-to-i32 (usize-to-u64 x)
+  checked-isize-to-i32 :: Isize -> Option I32
+  checked-isize-to-i32 x = checked-i64-to-i32 (isize-to-i64 x)
+  saturating-isize-to-i32 :: Isize -> I32
+  saturating-isize-to-i32 x = saturating-i64-to-i32 (isize-to-i64 x)
+  wrapping-i64-to-usize :: I64 -> Usize
+  wrapping-i64-to-usize x = if word-size32 0 then u32-to-usize (wrapping-i64-to-u32 x) else wrapping-u64-to-usize (wrapping-i64-to-u64 x)
+  checked-i64-to-usize :: I64 -> Option Usize
+  checked-i64-to-usize x = if word-size32 0 then (case checked-i64-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-i64-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-i64-to-usize :: I64 -> Usize
+  saturating-i64-to-usize x = if word-size32 0 then u32-to-usize (saturating-i64-to-u32 x) else wrapping-u64-to-usize (saturating-i64-to-u64 x)
+  checked-i64-to-isize :: I64 -> Option Isize
+  checked-i64-to-isize x = if word-size32 0 then (case checked-i64-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-i64-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-i64-to-isize :: I64 -> Isize
+  saturating-i64-to-isize x = if word-size32 0 then i32-to-isize (saturating-i64-to-i32 x) else wrapping-i64-to-isize (saturating-i64-to-i64 x)
+  wrapping-usize-to-i64 :: Usize -> I64
+  wrapping-usize-to-i64 x = wrapping-u64-to-i64 (usize-to-u64 x)
+  checked-usize-to-i64 :: Usize -> Option I64
+  checked-usize-to-i64 x = checked-u64-to-i64 (usize-to-u64 x)
+  saturating-usize-to-i64 :: Usize -> I64
+  saturating-usize-to-i64 x = saturating-u64-to-i64 (usize-to-u64 x)
+  wrapping-isize-to-i64 :: Isize -> I64
+  wrapping-isize-to-i64 x = wrapping-i64-to-i64 (isize-to-i64 x)
+  checked-isize-to-i64 :: Isize -> Option I64
+  checked-isize-to-i64 x = checked-i64-to-i64 (isize-to-i64 x)
+  saturating-isize-to-i64 :: Isize -> I64
+  saturating-isize-to-i64 x = saturating-i64-to-i64 (isize-to-i64 x)
+  wrapping-u8-to-usize :: U8 -> Usize
+  wrapping-u8-to-usize x = if word-size32 0 then u32-to-usize (wrapping-u8-to-u32 x) else wrapping-u64-to-usize (wrapping-u8-to-u64 x)
+  checked-u8-to-usize :: U8 -> Option Usize
+  checked-u8-to-usize x = if word-size32 0 then (case checked-u8-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-u8-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-u8-to-usize :: U8 -> Usize
+  saturating-u8-to-usize x = if word-size32 0 then u32-to-usize (saturating-u8-to-u32 x) else wrapping-u64-to-usize (saturating-u8-to-u64 x)
+  wrapping-u8-to-isize :: U8 -> Isize
+  wrapping-u8-to-isize x = if word-size32 0 then i32-to-isize (wrapping-u8-to-i32 x) else wrapping-i64-to-isize (wrapping-u8-to-i64 x)
+  checked-u8-to-isize :: U8 -> Option Isize
+  checked-u8-to-isize x = if word-size32 0 then (case checked-u8-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-u8-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-u8-to-isize :: U8 -> Isize
+  saturating-u8-to-isize x = if word-size32 0 then i32-to-isize (saturating-u8-to-i32 x) else wrapping-i64-to-isize (saturating-u8-to-i64 x)
+  wrapping-usize-to-u8 :: Usize -> U8
+  wrapping-usize-to-u8 x = wrapping-u64-to-u8 (usize-to-u64 x)
+  checked-usize-to-u8 :: Usize -> Option U8
+  checked-usize-to-u8 x = checked-u64-to-u8 (usize-to-u64 x)
+  saturating-usize-to-u8 :: Usize -> U8
+  saturating-usize-to-u8 x = saturating-u64-to-u8 (usize-to-u64 x)
+  wrapping-isize-to-u8 :: Isize -> U8
+  wrapping-isize-to-u8 x = wrapping-i64-to-u8 (isize-to-i64 x)
+  checked-isize-to-u8 :: Isize -> Option U8
+  checked-isize-to-u8 x = checked-i64-to-u8 (isize-to-i64 x)
+  saturating-isize-to-u8 :: Isize -> U8
+  saturating-isize-to-u8 x = saturating-i64-to-u8 (isize-to-i64 x)
+  wrapping-u16-to-usize :: U16 -> Usize
+  wrapping-u16-to-usize x = if word-size32 0 then u32-to-usize (wrapping-u16-to-u32 x) else wrapping-u64-to-usize (wrapping-u16-to-u64 x)
+  checked-u16-to-usize :: U16 -> Option Usize
+  checked-u16-to-usize x = if word-size32 0 then (case checked-u16-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-u16-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-u16-to-usize :: U16 -> Usize
+  saturating-u16-to-usize x = if word-size32 0 then u32-to-usize (saturating-u16-to-u32 x) else wrapping-u64-to-usize (saturating-u16-to-u64 x)
+  wrapping-u16-to-isize :: U16 -> Isize
+  wrapping-u16-to-isize x = if word-size32 0 then i32-to-isize (wrapping-u16-to-i32 x) else wrapping-i64-to-isize (wrapping-u16-to-i64 x)
+  checked-u16-to-isize :: U16 -> Option Isize
+  checked-u16-to-isize x = if word-size32 0 then (case checked-u16-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-u16-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-u16-to-isize :: U16 -> Isize
+  saturating-u16-to-isize x = if word-size32 0 then i32-to-isize (saturating-u16-to-i32 x) else wrapping-i64-to-isize (saturating-u16-to-i64 x)
+  wrapping-usize-to-u16 :: Usize -> U16
+  wrapping-usize-to-u16 x = wrapping-u64-to-u16 (usize-to-u64 x)
+  checked-usize-to-u16 :: Usize -> Option U16
+  checked-usize-to-u16 x = checked-u64-to-u16 (usize-to-u64 x)
+  saturating-usize-to-u16 :: Usize -> U16
+  saturating-usize-to-u16 x = saturating-u64-to-u16 (usize-to-u64 x)
+  wrapping-isize-to-u16 :: Isize -> U16
+  wrapping-isize-to-u16 x = wrapping-i64-to-u16 (isize-to-i64 x)
+  checked-isize-to-u16 :: Isize -> Option U16
+  checked-isize-to-u16 x = checked-i64-to-u16 (isize-to-i64 x)
+  saturating-isize-to-u16 :: Isize -> U16
+  saturating-isize-to-u16 x = saturating-i64-to-u16 (isize-to-i64 x)
+  wrapping-u32-to-usize :: U32 -> Usize
+  wrapping-u32-to-usize x = if word-size32 0 then u32-to-usize (wrapping-u32-to-u32 x) else wrapping-u64-to-usize (wrapping-u32-to-u64 x)
+  checked-u32-to-usize :: U32 -> Option Usize
+  checked-u32-to-usize x = if word-size32 0 then (case checked-u32-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-u32-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-u32-to-usize :: U32 -> Usize
+  saturating-u32-to-usize x = if word-size32 0 then u32-to-usize (saturating-u32-to-u32 x) else wrapping-u64-to-usize (saturating-u32-to-u64 x)
+  wrapping-u32-to-isize :: U32 -> Isize
+  wrapping-u32-to-isize x = if word-size32 0 then i32-to-isize (wrapping-u32-to-i32 x) else wrapping-i64-to-isize (wrapping-u32-to-i64 x)
+  checked-u32-to-isize :: U32 -> Option Isize
+  checked-u32-to-isize x = if word-size32 0 then (case checked-u32-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-u32-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-u32-to-isize :: U32 -> Isize
+  saturating-u32-to-isize x = if word-size32 0 then i32-to-isize (saturating-u32-to-i32 x) else wrapping-i64-to-isize (saturating-u32-to-i64 x)
+  checked-usize-to-u32 :: Usize -> Option U32
+  checked-usize-to-u32 x = checked-u64-to-u32 (usize-to-u64 x)
+  saturating-usize-to-u32 :: Usize -> U32
+  saturating-usize-to-u32 x = saturating-u64-to-u32 (usize-to-u64 x)
+  wrapping-isize-to-u32 :: Isize -> U32
+  wrapping-isize-to-u32 x = wrapping-i64-to-u32 (isize-to-i64 x)
+  checked-isize-to-u32 :: Isize -> Option U32
+  checked-isize-to-u32 x = checked-i64-to-u32 (isize-to-i64 x)
+  saturating-isize-to-u32 :: Isize -> U32
+  saturating-isize-to-u32 x = saturating-i64-to-u32 (isize-to-i64 x)
+  checked-u64-to-usize :: U64 -> Option Usize
+  checked-u64-to-usize x = if word-size32 0 then (case checked-u64-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-u64-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-u64-to-usize :: U64 -> Usize
+  saturating-u64-to-usize x = if word-size32 0 then u32-to-usize (saturating-u64-to-u32 x) else wrapping-u64-to-usize (saturating-u64-to-u64 x)
+  wrapping-u64-to-isize :: U64 -> Isize
+  wrapping-u64-to-isize x = if word-size32 0 then i32-to-isize (wrapping-u64-to-i32 x) else wrapping-i64-to-isize (wrapping-u64-to-i64 x)
+  checked-u64-to-isize :: U64 -> Option Isize
+  checked-u64-to-isize x = if word-size32 0 then (case checked-u64-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-u64-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-u64-to-isize :: U64 -> Isize
+  saturating-u64-to-isize x = if word-size32 0 then i32-to-isize (saturating-u64-to-i32 x) else wrapping-i64-to-isize (saturating-u64-to-i64 x)
+  wrapping-usize-to-u64 :: Usize -> U64
+  wrapping-usize-to-u64 x = wrapping-u64-to-u64 (usize-to-u64 x)
+  checked-usize-to-u64 :: Usize -> Option U64
+  checked-usize-to-u64 x = checked-u64-to-u64 (usize-to-u64 x)
+  saturating-usize-to-u64 :: Usize -> U64
+  saturating-usize-to-u64 x = saturating-u64-to-u64 (usize-to-u64 x)
+  wrapping-isize-to-u64 :: Isize -> U64
+  wrapping-isize-to-u64 x = wrapping-i64-to-u64 (isize-to-i64 x)
+  checked-isize-to-u64 :: Isize -> Option U64
+  checked-isize-to-u64 x = checked-i64-to-u64 (isize-to-i64 x)
+  saturating-isize-to-u64 :: Isize -> U64
+  saturating-isize-to-u64 x = saturating-i64-to-u64 (isize-to-i64 x)
+  wrapping-usize-to-usize :: Usize -> Usize
+  wrapping-usize-to-usize x = x
+  checked-usize-to-usize :: Usize -> Option Usize
+  checked-usize-to-usize x = Some x
+  saturating-usize-to-usize :: Usize -> Usize
+  saturating-usize-to-usize x = x
+  wrapping-isize-to-isize :: Isize -> Isize
+  wrapping-isize-to-isize x = x
+  checked-isize-to-isize :: Isize -> Option Isize
+  checked-isize-to-isize x = Some x
+  saturating-isize-to-isize :: Isize -> Isize
+  saturating-isize-to-isize x = x
+  wrapping-usize-to-isize :: Usize -> Isize
+  wrapping-usize-to-isize x = if word-size32 0 then i32-to-isize (wrapping-u32-to-i32 (wrapping-usize-to-u32 x)) else wrapping-i64-to-isize (wrapping-u64-to-i64 (usize-to-u64 x))
+  checked-usize-to-isize :: Usize -> Option Isize
+  checked-usize-to-isize x = if word-size32 0 then (case checked-u32-to-i32 (wrapping-usize-to-u32 x) of Some v -> Some (i32-to-isize v); None -> None) else (case checked-u64-to-i64 (usize-to-u64 x) of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-usize-to-isize :: Usize -> Isize
+  saturating-usize-to-isize x = if word-size32 0 then i32-to-isize (saturating-u32-to-i32 (wrapping-usize-to-u32 x)) else wrapping-i64-to-isize (saturating-u64-to-i64 (usize-to-u64 x))
+  wrapping-isize-to-usize :: Isize -> Usize
+  wrapping-isize-to-usize x = if word-size32 0 then u32-to-usize (wrapping-i32-to-u32 (wrapping-isize-to-i32 x)) else wrapping-u64-to-usize (wrapping-i64-to-u64 (isize-to-i64 x))
+  checked-isize-to-usize :: Isize -> Option Usize
+  checked-isize-to-usize x = if word-size32 0 then (case checked-i32-to-u32 (wrapping-isize-to-i32 x) of Some v -> Some (u32-to-usize v); None -> None) else (case checked-i64-to-u64 (isize-to-i64 x) of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-isize-to-usize :: Isize -> Usize
+  saturating-isize-to-usize x = if word-size32 0 then u32-to-usize (saturating-i32-to-u32 (wrapping-isize-to-i32 x)) else wrapping-u64-to-usize (saturating-i64-to-u64 (isize-to-i64 x))
+  usize-to-f32 :: Usize -> F32
+  usize-to-f32 x = u64-to-f32 (usize-to-u64 x)
+  usize-to-f64 :: Usize -> F64
+  usize-to-f64 x = u64-to-f64 (usize-to-u64 x)
+  isize-to-f32 :: Isize -> F32
+  isize-to-f32 x = i64-to-f32 (isize-to-i64 x)
+  isize-to-f64 :: Isize -> F64
+  isize-to-f64 x = i64-to-f64 (isize-to-i64 x)
+  checked-f64-to-i8 :: F64 -> Option I8
+  checked-f64-to-i8 x = if f64-fits-i8 x then Some (saturating-f64-to-i8 x) else None
+  checked-f32-to-i8 :: F32 -> Option I8
+  checked-f32-to-i8 x = checked-f64-to-i8 (f32-to-f64 x)
+  saturating-f32-to-i8 :: F32 -> I8
+  saturating-f32-to-i8 x = saturating-f64-to-i8 (f32-to-f64 x)
+  checked-f64-to-i16 :: F64 -> Option I16
+  checked-f64-to-i16 x = if f64-fits-i16 x then Some (saturating-f64-to-i16 x) else None
+  checked-f32-to-i16 :: F32 -> Option I16
+  checked-f32-to-i16 x = checked-f64-to-i16 (f32-to-f64 x)
+  saturating-f32-to-i16 :: F32 -> I16
+  saturating-f32-to-i16 x = saturating-f64-to-i16 (f32-to-f64 x)
+  checked-f64-to-i32 :: F64 -> Option I32
+  checked-f64-to-i32 x = if f64-fits-i32 x then Some (saturating-f64-to-i32 x) else None
+  checked-f32-to-i32 :: F32 -> Option I32
+  checked-f32-to-i32 x = checked-f64-to-i32 (f32-to-f64 x)
+  saturating-f32-to-i32 :: F32 -> I32
+  saturating-f32-to-i32 x = saturating-f64-to-i32 (f32-to-f64 x)
+  checked-f64-to-i64 :: F64 -> Option I64
+  checked-f64-to-i64 x = if f64-fits-i64 x then Some (saturating-f64-to-i64 x) else None
+  checked-f32-to-i64 :: F32 -> Option I64
+  checked-f32-to-i64 x = checked-f64-to-i64 (f32-to-f64 x)
+  saturating-f32-to-i64 :: F32 -> I64
+  saturating-f32-to-i64 x = saturating-f64-to-i64 (f32-to-f64 x)
+  checked-f64-to-u8 :: F64 -> Option U8
+  checked-f64-to-u8 x = if f64-fits-u8 x then Some (saturating-f64-to-u8 x) else None
+  checked-f32-to-u8 :: F32 -> Option U8
+  checked-f32-to-u8 x = checked-f64-to-u8 (f32-to-f64 x)
+  saturating-f32-to-u8 :: F32 -> U8
+  saturating-f32-to-u8 x = saturating-f64-to-u8 (f32-to-f64 x)
+  checked-f64-to-u16 :: F64 -> Option U16
+  checked-f64-to-u16 x = if f64-fits-u16 x then Some (saturating-f64-to-u16 x) else None
+  checked-f32-to-u16 :: F32 -> Option U16
+  checked-f32-to-u16 x = checked-f64-to-u16 (f32-to-f64 x)
+  saturating-f32-to-u16 :: F32 -> U16
+  saturating-f32-to-u16 x = saturating-f64-to-u16 (f32-to-f64 x)
+  checked-f64-to-u32 :: F64 -> Option U32
+  checked-f64-to-u32 x = if f64-fits-u32 x then Some (saturating-f64-to-u32 x) else None
+  checked-f32-to-u32 :: F32 -> Option U32
+  checked-f32-to-u32 x = checked-f64-to-u32 (f32-to-f64 x)
+  saturating-f32-to-u32 :: F32 -> U32
+  saturating-f32-to-u32 x = saturating-f64-to-u32 (f32-to-f64 x)
+  checked-f64-to-u64 :: F64 -> Option U64
+  checked-f64-to-u64 x = if f64-fits-u64 x then Some (saturating-f64-to-u64 x) else None
+  checked-f32-to-u64 :: F32 -> Option U64
+  checked-f32-to-u64 x = checked-f64-to-u64 (f32-to-f64 x)
+  saturating-f32-to-u64 :: F32 -> U64
+  saturating-f32-to-u64 x = saturating-f64-to-u64 (f32-to-f64 x)
+  checked-f64-to-usize :: F64 -> Option Usize
+  checked-f64-to-usize x = if word-size32 0 then (case checked-f64-to-u32 x of Some v -> Some (u32-to-usize v); None -> None) else (case checked-f64-to-u64 x of Some v -> Some (wrapping-u64-to-usize v); None -> None)
+  saturating-f64-to-usize :: F64 -> Usize
+  saturating-f64-to-usize x = if word-size32 0 then u32-to-usize (saturating-f64-to-u32 x) else wrapping-u64-to-usize (saturating-f64-to-u64 x)
+  checked-f32-to-usize :: F32 -> Option Usize
+  checked-f32-to-usize x = checked-f64-to-usize (f32-to-f64 x)
+  saturating-f32-to-usize :: F32 -> Usize
+  saturating-f32-to-usize x = saturating-f64-to-usize (f32-to-f64 x)
+  checked-f64-to-isize :: F64 -> Option Isize
+  checked-f64-to-isize x = if word-size32 0 then (case checked-f64-to-i32 x of Some v -> Some (i32-to-isize v); None -> None) else (case checked-f64-to-i64 x of Some v -> Some (wrapping-i64-to-isize v); None -> None)
+  saturating-f64-to-isize :: F64 -> Isize
+  saturating-f64-to-isize x = if word-size32 0 then i32-to-isize (saturating-f64-to-i32 x) else wrapping-i64-to-isize (saturating-f64-to-i64 x)
+  checked-f32-to-isize :: F32 -> Option Isize
+  checked-f32-to-isize x = checked-f64-to-isize (f32-to-f64 x)
+  saturating-f32-to-isize :: F32 -> Isize
+  saturating-f32-to-isize x = saturating-f64-to-isize (f32-to-f64 x)
 
   implicit instance Eq_I8 :: Eq I8 where
     (==) x y = eq-i8 x y
@@ -1224,7 +1645,7 @@ module Data.Machine where
   -- intrinsic as `bit-and-i64`; only the declared range differs, which
   -- `bit-and-i64` itself cannot state because a negative mask (`-1`,
   -- the high bit) is an ordinary use of it.
-  foreign import ccall "cinch.prim.bitAndI64" mask-i64 :: I64 -> (m :: InRange 0 9223372036854775807 I64) -> refined (0 <= r && r <= m) I64
+  -- `mask-i64` is defined in and re-exported from `Prim.Machine`.
 
   -- The unsigned machine integers as the `Nat` of the same value: the
   -- widening conversion's range is the evidence `nat-from-i64` needs,

@@ -262,9 +262,7 @@ e to the power x, minus one, accurate when x is near zero.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f32-bits</span> :: (<span class="tok-constructor">F32</span> -&gt; <span class="tok-constructor">U32</span>)</code></pre>
 
-IEEE 754 bit reinterpretation, copysign, and exact rounding intrinsics.
-
-[Source](/reference-sources/Data.Machine.cinch) · line 506
+[Source](/reference-sources/Data.Machine.cinch)
 
 <a id="value-6633322d66726f6d2d62697473"></a>
 
@@ -280,7 +278,9 @@ IEEE 754 bit reinterpretation, copysign, and exact rounding intrinsics.
 
 <pre class="cinch-highlight"><code class="language-cinch"><span class="tok-variable">f64-bits</span> :: (<span class="tok-constructor">F64</span> -&gt; <span class="tok-constructor">U64</span>)</code></pre>
 
-[Source](/reference-sources/Data.Machine.cinch)
+F64.
+
+[Source](/reference-sources/Data.Machine.cinch) · line 574
 
 <a id="value-6636342d66726f6d2d62697473"></a>
 

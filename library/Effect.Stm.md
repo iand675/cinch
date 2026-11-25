@@ -136,7 +136,7 @@ transactions. The class instances for `STM` live here with the type.
 A transaction: a function from an attempt to its outcome. The row
 says the function reads shared cells; it writes none before commit.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 403
+[Source](/reference-sources/Effect.Stm.cinch) · line 402
 
 # Signatures and methods
 
@@ -162,7 +162,7 @@ is the transaction that runs them in order. The block's
 continuations run once per attempt, so what a statement captures is
 used any number of times: a `%1` value cannot cross a `<-`.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 866
+[Source](/reference-sources/Effect.Stm.cinch) · line 865
 
 # Values
 
@@ -176,7 +176,7 @@ Run a transaction: its reads and writes take effect together, at one
 instant, or the transaction runs again. Returns when an attempt
 commits, which `retry` and contention can postpone without bound.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 717
+[Source](/reference-sources/Effect.Stm.cinch) · line 716
 
 <a id="value-61746f6d6963616c6c792d6f722d63616e63656c"></a>
 
@@ -190,7 +190,7 @@ transaction was waiting in `retry`, with nothing committed. A
 request does not interrupt an attempt that is running, and a
 transaction that never waits never observes it.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 739
+[Source](/reference-sources/Effect.Stm.cinch) · line 738
 
 <a id="value-636865636b"></a>
 
@@ -200,7 +200,7 @@ transaction that never waits never observes it.
 
 Wait until the condition holds: `retry` when it does not.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 789
+[Source](/reference-sources/Effect.Stm.cinch) · line 788
 
 <a id="value-6f722d656c7365"></a>
 
@@ -212,7 +212,7 @@ Wait until the condition holds: `retry` when it does not.
 `second` runs in its place. If both would wait, the transaction
 waits on what either of them read.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 780
+[Source](/reference-sources/Effect.Stm.cinch) · line 779
 
 <a id="value-7265747279"></a>
 
@@ -224,7 +224,7 @@ Abandon the attempt and run the whole transaction again once a
 variable it has read changes. Inside `or-else`, give way to the
 alternative instead.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 774
+[Source](/reference-sources/Effect.Stm.cinch) · line 773
 
 <a id="value-73746d2d62696e64"></a>
 
@@ -235,7 +235,7 @@ alternative instead.
 `m`, then the transaction `k` makes of its result, as one
 transaction.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 752
+[Source](/reference-sources/Effect.Stm.cinch) · line 751
 
 <a id="value-73746d2d6d6170"></a>
 
@@ -253,7 +253,7 @@ transaction.
 
 The transaction that does nothing and answers `x`.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 747
+[Source](/reference-sources/Effect.Stm.cinch) · line 746
 
 <a id="value-73746d2d7468656e"></a>
 
@@ -263,7 +263,7 @@ The transaction that does nothing and answers `x`.
 
 `m`, then `n`, keeping `n`'s result.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 765
+[Source](/reference-sources/Effect.Stm.cinch) · line 764
 
 <a id="value-747661722d6d6f64696679"></a>
 
@@ -283,7 +283,7 @@ A new variable holding `x`. Until the transaction commits (and
 stores it somewhere another task can reach) the variable is private
 to the attempt that made it.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 795
+[Source](/reference-sources/Effect.Stm.cinch) · line 794
 
 <a id="value-747661722d6e65772d696f"></a>
 
@@ -293,7 +293,7 @@ to the attempt that made it.
 
 A new variable, made outside any transaction.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 817
+[Source](/reference-sources/Effect.Stm.cinch) · line 816
 
 <a id="value-747661722d72656164"></a>
 
@@ -313,7 +313,7 @@ The variable's committed value at some instant during the call,
 outside any transaction. Two such reads are two instants: use a
 transaction to read variables consistently with one another.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 823
+[Source](/reference-sources/Effect.Stm.cinch) · line 822
 
 <a id="value-747661722d7374617465"></a>
 
@@ -323,7 +323,7 @@ transaction to read variables consistently with one another.
 
 Apply a state transition: `f` answers a result and the next value.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 812
+[Source](/reference-sources/Effect.Stm.cinch) · line 811
 
 <a id="value-747661722d73776170"></a>
 
@@ -333,7 +333,7 @@ Apply a state transition: `f` answers a result and the next value.
 
 Store `x` and answer the value it replaced.
 
-[Source](/reference-sources/Effect.Stm.cinch) · line 808
+[Source](/reference-sources/Effect.Stm.cinch) · line 807
 
 <a id="value-747661722d7772697465"></a>
 
@@ -360,4 +360,4 @@ their type). `empty` is `retry` and `<|>` is `or-else`.
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm.cinch`. Source SHA-256: `470353674e04c6572a5f941cbba42503281077aa55abd3ed8daf50ff85a9f071`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Effect/Stm.cinch`. Source SHA-256: `7315b4b2d387caea54d31009aed98c275140e084990d68a3295656dcf0d873ed`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

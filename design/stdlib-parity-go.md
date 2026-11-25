@@ -86,12 +86,20 @@ is not an available API.
 | `debug/elf`, `debug/macho`, `debug/pe` | [Data.Elf](../library/Data.Elf.md), [Data.MachO](../library/Data.MachO.md), [Data.Pe](../library/Data.Pe.md) | Bounds-checked parsers for ELF32/64 LE/BE (segments, sections, symbols, relocations, dynamic tags, zlib-compressed sections), Mach-O 32/64 LE/BE + Universal/Fat binaries (load commands, segments, sections, symbols, dylibs) and PE32/PE32+/COFF (headers, data directories, sections, symbols, imports, exports); 37 Go reference vectors in pure Cinch (zero inline LLVM) | DWARF extraction (plus ELF GNU symbol versions and zstd sections) remain |
 | `encoding/gob` | [Text.Gob](../library/Text.Gob.md), [Effect.Gob](../library/Effect.Gob.md) | Wire-compatible Go gob encoder/decoder for primitives, reversed-byte IEEE floats, complex, slices, fixed arrays, maps and structs with stateful type-descriptor reuse and `Effect.Stream` multi-message streaming; 94 Go vectors + live Cinch-to-Go `encoding/gob.NewDecoder` bidirectional interop in pure Cinch (zero inline LLVM) | Dynamic `interface{}` values (`typeId = 8`) remain |
 
-The format/hash/crypto/protocol modules and their shared `Data.Bytes.Word` layer are
-pure Cinch source over the base compiler primitives (`Data.Machine`, `Data.Wide`, SIMD
-vector ops, and checked byte operations) — portable inline LLVM blocks have been reduced
-from 729 blocks across 71 files to 89 blocks across 6 files (OS syscalls, STM atomics,
-AES-NI/ARMv8 hardware crypto, and small remaining kernels in `Data.String` / `Crypto.Cipher`),
-and all 16 Python LLVM kernel generators have been retired. Modules follow the existing
+Every algorithmic stdlib module (`Crypto/*`, `Text/*`, `Image/*`, `Data.String`,
+`Data.Bytes.*`, `Effect.Http*`, `Effect.Sql*`, `Effect.Tls*`, etc.) is pure Cinch
+with zero inline LLVM, and the entire standard library under `seed/prelude/` uses
+zero `cinch.prim.*` imports (down from 1,178). All leaf machine, SIMD, hardware
+AES/CLMUL, floating-point, 128-bit integer, STM atomic/pause/tick, and raw OS
+syscall operations live once in `.cinch` `prim ... where llvm { ... }`
+declarations (`Prim.Machine`, `Prim.Wide`, `Data.Machine`, `Data.Wide`,
+`Data.Char`, `Effect.Stm`, `Prim.Sys.Linux`, `Prim.Sys.Darwin`), emitted
+`alwaysinline` by both the Rust seed compiler and the self-hosted bootstrap
+compiler and evaluated directly from their checked LLVM fragments during
+compile-time staging. All 16 retired Python LLVM kernel generators have been
+removed and `tooling/tests/test_pure_cinch_stdlib.py` enforces both zero
+`cinch.prim.*` imports and leaf-only straight-line `prim` fragments. Modules
+follow the existing
 [source-distributed library loading rules](../library/00-index.md).
 `Text.Zlib` retains its standalone `adler32` and `crc32` exports; the new
 incremental checksum API does not depend on compression.
@@ -315,16 +323,16 @@ Of the 180 public packages tracked in [stdlib-surface.json](stdlib-surface.json)
 | `database/sql`, `os/user` | `Data.Sql`, `Effect.Sql`, `Text.User`, `Effect.User` | Time-based idle/lifetime connection expiry reaper and external wire DB drivers; NSS/LDAP/Windows account databases |
 | `bufio`, `io`, `bytes`, `slices`, `sort`, `path/filepath` | `Effect.Buffered.*`, `Effect.Stream`, `Data.Bytes.*`, `Data.List`, `Data.Mutable.*`, `Text.FilePath` | Operation-level capability audits, descriptor seek/pipes/cancellation, and Windows path/globbing parity |
 
-### 3. Remaining inline LLVM blocks (`89` across `6` files)
+### 3. Remaining inline LLVM blocks (`33` in `1` file)
 
-- **Hardware / OS-specific (`78` blocks, expected to stay):**
-  - `seed/prelude/Prim/Sys/Linux.cinch` (`33` raw syscall instructions)
-  - `seed/prelude/Prim/Sys/Darwin.cinch` (`1` thread-local errno helper)
-  - `seed/prelude/Effect/Stm.cinch` (`23` atomic CAS / seq_cst operations)
-  - `seed/prelude/Crypto/Aes.cinch` (`21` x86 AES-NI and AArch64 ARMv8 crypto intrinsics)
-- **Candidates for future pure-Cinch / SIMD lowering (`11` blocks):**
-  - `seed/prelude/Data/String.cinch` (`7` blocks)
-  - `seed/prelude/Crypto/Cipher.cinch` (`4` PCLMULQDQ / PMULL carry-less GHASH blocks)
+- **Raw OS syscall traps (`33` blocks, intentional per `design/base-as-a-package.md` §5):**
+  - `seed/prelude/Prim/Sys/Linux.cinch` (`33` raw Linux `syscall`/`svc #0` trap instructions for x86_64 and AArch64)
+- **Eliminated via compiler-owned primitives & pure Cinch SIMD/SWAR (both Rust seed and bootstrapped compiler):**
+  - `seed/prelude/Data/String.cinch` (`7` -> `0`: pure Cinch `bytes-load-u128-at` + SIMD `cmpeq`/`movemask` + `count-ones-u32` / `count-ones-u64`)
+  - `seed/prelude/Crypto/Aes.cinch` (`21` -> `0`: compiler-owned `cinch.prim.aesEncRound`/`aesEncLast`/`aesDecRound`/`aesDecLast`/`cpuHasAes`)
+  - `seed/prelude/Crypto/Cipher.cinch` (`4` -> `0`: compiler-owned `cinch.prim.clmul64`/`cpuHasClmul` with Karatsuba GHASH)
+  - `seed/prelude/Effect/Stm.cinch` (`23` -> `0`: compiler-owned `cinch.prim.atomic*`/`raw*`/`rcKeep`/`cpuRelax`/`cpuTicks`, pure `Data.Machine` bit ops, and direct `foreign import ccall` runtime imports)
+  - `seed/prelude/Prim/Sys/Darwin.cinch` (`1` -> `0`: compiler-owned `cinch.prim.rawLoadI32`)
 
 See the [checked library index](../library/00-index.md) for the existing
 modules' actual exports and limits.

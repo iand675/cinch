@@ -17,6 +17,7 @@
 -- a plausible key: a compiler's names arrive as the lexer's bytes).
 module Data.Bytes where
 
+  import Prim.Machine (u8-to-i64)
   import Algebra.Arithmetic
   import Data.Hash
   import Data.List
@@ -116,7 +117,8 @@ module Data.Bytes where
   -- declared here because `Data.Machine` imports this module): its
   -- promised range is the evidence `nat-from-i64` takes, and the result
   -- keeps it.
-  foreign import ccall "cinch.prim.u8ToI64" byte-word :: (x :: U8) -> refined (InRange 0 255 r && r == x) I64
+  byte-word :: (x :: U8) -> refined (InRange 0 255 r && r == x) I64
+  byte-word x = u8-to-i64 x
 
   byte-of-u8 :: U8 -> InRange 0 255 Nat
   byte-of-u8 x = let w = byte-word x in nat-from-i64 w

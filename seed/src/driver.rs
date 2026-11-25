@@ -101,6 +101,10 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
         include_str!("../prelude/Data/Ordering.cinch"),
     ),
     (
+        "Prim/Machine.cinch",
+        include_str!("../prelude/Prim/Machine.cinch"),
+    ),
+    (
         "Data/Char.cinch",
         include_str!("../prelude/Data/Char.cinch"),
     ),
@@ -117,6 +121,10 @@ pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
         include_str!("../prelude/Data/Bytes.cinch"),
     ),
     ("Data/Map.cinch", include_str!("../prelude/Data/Map.cinch")),
+    (
+        "Prim/Wide.cinch",
+        include_str!("../prelude/Prim/Wide.cinch"),
+    ),
     (
         "Data/String.cinch",
         include_str!("../prelude/Data/String.cinch"),

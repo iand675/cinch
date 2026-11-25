@@ -3295,11 +3295,13 @@ module Bootstrap.Infer where
     DForeign s direction abi symbol name ty | same direction "export" -> (env, st)
     DForeign s direction abi symbol name ty -> register-intrinsic s direction abi symbol name ty classes kinds env st
     DPrim s name ty bodies -> case make-scheme False classes kinds Nil ty st of
-      (scheme, checked) -> let actual = map-scheme-types (normalize checked) scheme in
-        (case (lookup-binding name env, primitive-plan name actual bodies (primitive-law-identity (data-graph-declarations all) name)) of
-          (Some prior, result) -> (env, add-error s "duplicate primitive binding" checked)
-          (None, Err error) -> (env, add-error s error checked)
-          (None, Ok plan) -> (Cons (MkForeignBinding name actual plan) env, checked))
+      (scheme, checked) ->
+        let (use-schemes, checked-uses) = elaborate-prim-body-uses classes kinds bodies checked in
+        let actual = map-scheme-types (normalize checked-uses) scheme in
+        (case (lookup-binding name env, primitive-plan name actual bodies use-schemes (primitive-law-identity (data-graph-declarations all) name)) of
+          (Some prior, result) -> (env, add-error s "duplicate primitive binding" checked-uses)
+          (None, Err error) -> (env, add-error s error checked-uses)
+          (None, Ok plan) -> (Cons (MkForeignBinding name actual plan) env, checked-uses))
     DExternal s name category (Some ty) metadata -> register-external s name category ty metadata rows classes kinds env st
     DExternal s name category None metadata -> if same category "builtin" then register-kernel s name metadata classes kinds env st
       else if same category "builtin-constructor" then register-decision-constructor s name metadata env st
@@ -3325,6 +3327,19 @@ module Bootstrap.Infer where
     -- Temporal contracts bind no value and run after the definition checks.
     DContract s keyword name subject clauses -> (env, st)
     other -> (env, add-error (decl-span d) (unsupported-decl d) st)
+  elaborate-prim-uses :: List (String, Kind) -> TypeContext -> List (String, TypeExpr) -> Store -> (List (String, Scheme), Store)
+  elaborate-prim-uses classes kinds entries st = case entries of
+    Nil -> (Nil, st)
+    Cons (sym, ty) rest -> case make-scheme False classes kinds Nil ty st of
+      (sc, s1) -> case elaborate-prim-uses classes kinds rest s1 of
+        (more, s2) -> (Cons (sym, map-scheme-types (normalize s2) sc) more, s2)
+  elaborate-prim-body-uses :: List (String, Kind) -> TypeContext -> List PrimBody -> Store -> (List (List (String, Scheme)), Store)
+  elaborate-prim-body-uses classes kinds bodies st = case bodies of
+    Nil -> (Nil, st)
+    Cons (MkPrimBody sp family fragment unverified when selected justification uses immediates) rest ->
+      case elaborate-prim-uses classes kinds uses st of
+        (checked-one, s1) -> case elaborate-prim-body-uses classes kinds rest s1 of
+          (more, s2) -> (Cons checked-one more, s2)
   storage-observation-body :: Nat -> UType -> Option UType
   storage-observation-body remaining ty = if remaining == 0 then Some ty else
     (case ty of

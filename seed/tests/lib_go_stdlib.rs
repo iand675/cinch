@@ -166,10 +166,10 @@ fn run_with_profile(name: &str, checks: Vec<String>, profile: Option<cinch::core
         "{name}: acceleration kernel missing from emitted LLVM"
     );
     if let Some((symbol, prim_callee)) = match name {
-        "fnv" => Some(("Text.Fnv.fnv64-loop", "cinch.prim.wrappingMulU64")),
+        "fnv" => Some(("Text.Fnv.fnv64-loop", "Prim.Machine.wrapping-mul-u64.llvm")),
         "varints" => Some((
             "Text.Binary.binary-read-uvarint",
-            "cinch.prim.trailingZerosU64",
+            "Prim.Machine.trailing-zeros-u64.llvm",
         )),
         _ => None,
     } {

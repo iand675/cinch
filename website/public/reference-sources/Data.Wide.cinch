@@ -33,8 +33,11 @@ module Data.Wide where
   import Algebra.Bits
   import Data.Int
   import Data.Nat
+  import Data.Machine
   import Text.Show
+  import Prim.Wide
 
+  export ArmAes
   export bit-and-i128, bit-and-u128, bit-not-i128, bit-not-u128, bit-or-i128, bit-or-u128, bit-xor-i128, bit-xor-u128, checked-add-i128, checked-add-u128, checked-div-i128, checked-div-u128, checked-f32-to-i128, checked-f32-to-u128, checked-f64-to-i128, checked-f64-to-u128, checked-i128-to-i128, checked-i128-to-i16, checked-i128-to-i32, checked-i128-to-i64, checked-i128-to-i8, checked-i128-to-isize, checked-i128-to-u128, checked-i128-to-u16, checked-i128-to-u32, checked-i128-to-u64, checked-i128-to-u8, checked-i128-to-usize, checked-i16-to-i128, checked-i16-to-u128, checked-i32-to-i128, checked-i32-to-u128, checked-i64-to-i128, checked-i64-to-u128, checked-i8-to-i128, checked-i8-to-u128, checked-int-to-i128, checked-int-to-u128, checked-isize-to-i128, checked-isize-to-u128, checked-mul-i128, checked-mul-u128, checked-nat-to-i128, checked-nat-to-u128, checked-neg-i128, checked-neg-u128, checked-rem-i128, checked-rem-u128, checked-shl-i128, checked-shl-u128, checked-shr-i128, checked-shr-u128, checked-sub-i128, checked-sub-u128, checked-u128-to-i128, checked-u128-to-i16, checked-u128-to-i32, checked-u128-to-i64, checked-u128-to-i8, checked-u128-to-isize, checked-u128-to-u128, checked-u128-to-u16, checked-u128-to-u32, checked-u128-to-u64, checked-u128-to-u8, checked-u128-to-usize, checked-u16-to-i128, checked-u16-to-u128, checked-u32-to-i128, checked-u32-to-u128, checked-u64-to-i128, checked-u64-to-u128, checked-u8-to-i128, checked-u8-to-u128, checked-usize-to-i128, checked-usize-to-u128, count-ones-i128, count-ones-u128, eq-i128, eq-u128, ge-i128, ge-u128, gt-i128, gt-u128, i128-to-f32, i128-to-f64, i128-to-i128, i16-to-i128, i32-to-i128, i64-to-i128, i8-to-i128, int-from-i128, int-from-u128, int-to-i128, isize-to-i128, le-i128, le-u128, leading-zeros-i128, leading-zeros-u128, lt-i128, lt-u128, max-bound-i128, max-bound-u128, min-bound-i128, min-bound-u128, nat-from-u128, nat-to-u128, ne-i128, ne-u128, reverse-bits-i128, reverse-bits-u128, rotate-left-i128, rotate-left-u128, rotate-right-i128, rotate-right-u128, saturating-add-i128, saturating-add-u128, saturating-f32-to-i128, saturating-f32-to-u128, saturating-f64-to-i128, saturating-f64-to-u128, saturating-i128-to-i128, saturating-i128-to-i16, saturating-i128-to-i32, saturating-i128-to-i64, saturating-i128-to-i8, saturating-i128-to-isize, saturating-i128-to-u128, saturating-i128-to-u16, saturating-i128-to-u32, saturating-i128-to-u64, saturating-i128-to-u8, saturating-i128-to-usize, saturating-i16-to-i128, saturating-i16-to-u128, saturating-i32-to-i128, saturating-i32-to-u128, saturating-i64-to-i128, saturating-i64-to-u128, saturating-i8-to-i128, saturating-i8-to-u128, saturating-isize-to-i128, saturating-isize-to-u128, saturating-mul-i128, saturating-mul-u128, saturating-neg-i128, saturating-neg-u128, saturating-sub-i128, saturating-sub-u128, saturating-u128-to-i128, saturating-u128-to-i16, saturating-u128-to-i32, saturating-u128-to-i64, saturating-u128-to-i8, saturating-u128-to-isize, saturating-u128-to-u128, saturating-u128-to-u16, saturating-u128-to-u32, saturating-u128-to-u64, saturating-u128-to-u8, saturating-u128-to-usize, saturating-u16-to-i128, saturating-u16-to-u128, saturating-u32-to-i128, saturating-u32-to-u128, saturating-u64-to-i128, saturating-u64-to-u128, saturating-u8-to-i128, saturating-u8-to-u128, saturating-usize-to-i128, saturating-usize-to-u128, swap-bytes-i128, swap-bytes-u128, trailing-zeros-i128, trailing-zeros-u128, u128-to-f32, u128-to-f64, u128-to-u128, u16-to-i128, u16-to-u128, u32-to-i128, u32-to-u128, u64-to-i128, u64-to-u128, u8-to-i128, u8-to-u128, usize-to-i128, usize-to-u128, wrapping-add-i128, wrapping-add-u128, wrapping-i128-to-i128, wrapping-i128-to-i16, wrapping-i128-to-i32, wrapping-i128-to-i64, wrapping-i128-to-i8, wrapping-i128-to-isize, wrapping-i128-to-u128, wrapping-i128-to-u16, wrapping-i128-to-u32, wrapping-i128-to-u64, wrapping-i128-to-u8, wrapping-i128-to-usize, wrapping-i16-to-i128, wrapping-i16-to-u128, wrapping-i32-to-i128, wrapping-i32-to-u128, wrapping-i64-to-i128, wrapping-i64-to-u128, wrapping-i8-to-i128, wrapping-i8-to-u128, wrapping-isize-to-i128, wrapping-isize-to-u128, wrapping-mul-i128, wrapping-mul-u128, wrapping-neg-i128, wrapping-neg-u128, wrapping-shl-i128, wrapping-shl-u128, wrapping-shr-i128, wrapping-shr-u128, wrapping-sub-i128, wrapping-sub-u128, wrapping-u128-to-i128, wrapping-u128-to-i16, wrapping-u128-to-i32, wrapping-u128-to-i64, wrapping-u128-to-i8, wrapping-u128-to-isize, wrapping-u128-to-u128, wrapping-u128-to-u16, wrapping-u128-to-u32, wrapping-u128-to-u64, wrapping-u128-to-u8, wrapping-u128-to-usize, wrapping-u16-to-i128, wrapping-u16-to-u128, wrapping-u32-to-i128, wrapping-u32-to-u128, wrapping-u64-to-i128, wrapping-u64-to-u128, wrapping-u8-to-i128, wrapping-u8-to-u128, wrapping-usize-to-i128, wrapping-usize-to-u128
 
   export div-u128, rem-u128
@@ -43,297 +46,862 @@ module Data.Wide where
   export simd-u16x8-splat, simd-u16x8-add, simd-u16x8-sub, simd-u16x8-mul, simd-u16x8-shl, simd-u16x8-shr, simd-i16x8-ashr, simd-u16x8-cmpeq, simd-u16x8-cmplt, simd-i16x8-cmplt, simd-i16x8-smin, simd-i16x8-smax
   export simd-u32x4-splat, simd-u32x4-add, simd-u32x4-sub, simd-u32x4-mul, simd-u32x4-shl, simd-u32x4-shr, simd-i32x4-ashr, simd-u32x4-rotl, simd-u32x4-rotr, simd-i32x4-smin, simd-i32x4-smax, simd-u32x4-cmpeq, simd-u32x4-cmplt, simd-u32x4-pack
   export simd-u64x2-splat, simd-u64x2-add, simd-u64x2-sub, simd-u64x2-shl, simd-u64x2-shr, simd-u64x2-rotl, simd-u64x2-rotr, simd-u64x2-pack
+  export aes-enc-round, aes-enc-last, aes-dec-round, aes-dec-last, clmul-u64, cpu-has-aes, cpu-has-clmul
 
   -- I128 (128 bits).
-  foreign import ccall "cinch.prim.minBoundI128" min-bound-i128 :: I128
-  foreign import ccall "cinch.prim.maxBoundI128" max-bound-i128 :: I128
-  foreign import ccall "cinch.prim.checkedAddI128" checked-add-i128 :: I128 -> I128 -> Option I128
-  foreign import ccall "cinch.prim.checkedSubI128" checked-sub-i128 :: I128 -> I128 -> Option I128
-  foreign import ccall "cinch.prim.checkedMulI128" checked-mul-i128 :: I128 -> I128 -> Option I128
-  foreign import ccall "cinch.prim.checkedNegI128" checked-neg-i128 :: I128 -> Option I128
-  foreign import ccall "cinch.prim.checkedDivI128" checked-div-i128 :: I128 -> I128 -> Option I128
-  foreign import ccall "cinch.prim.checkedRemI128" checked-rem-i128 :: I128 -> I128 -> Option I128
-  foreign import ccall "cinch.prim.wrappingAddI128" wrapping-add-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.wrappingSubI128" wrapping-sub-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.wrappingMulI128" wrapping-mul-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.saturatingAddI128" saturating-add-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.saturatingSubI128" saturating-sub-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.saturatingMulI128" saturating-mul-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.wrappingNegI128" wrapping-neg-i128 :: I128 -> I128
-  foreign import ccall "cinch.prim.saturatingNegI128" saturating-neg-i128 :: I128 -> I128
-  foreign import ccall "cinch.prim.bitAndI128" bit-and-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.bitOrI128" bit-or-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.bitXorI128" bit-xor-i128 :: I128 -> I128 -> I128
-  foreign import ccall "cinch.prim.bitNotI128" bit-not-i128 :: I128 -> I128
-  foreign import ccall "cinch.prim.checkedShlI128" checked-shl-i128 :: I128 -> U32 -> Option I128
-  foreign import ccall "cinch.prim.wrappingShlI128" wrapping-shl-i128 :: I128 -> U32 -> I128
-  foreign import ccall "cinch.prim.checkedShrI128" checked-shr-i128 :: I128 -> U32 -> Option I128
-  foreign import ccall "cinch.prim.wrappingShrI128" wrapping-shr-i128 :: I128 -> U32 -> I128
-  foreign import ccall "cinch.prim.rotateLeftI128" rotate-left-i128 :: I128 -> U32 -> I128
-  foreign import ccall "cinch.prim.rotateRightI128" rotate-right-i128 :: I128 -> U32 -> I128
-  foreign import ccall "cinch.prim.countOnesI128" count-ones-i128 :: I128 -> U32
-  foreign import ccall "cinch.prim.leadingZerosI128" leading-zeros-i128 :: I128 -> U32
-  foreign import ccall "cinch.prim.trailingZerosI128" trailing-zeros-i128 :: I128 -> U32
-  foreign import ccall "cinch.prim.reverseBitsI128" reverse-bits-i128 :: I128 -> I128
-  foreign import ccall "cinch.prim.swapBytesI128" swap-bytes-i128 :: I128 -> I128
-  foreign import ccall "cinch.prim.eqI128" eq-i128 :: I128 -> I128 -> Bool
-  foreign import ccall "cinch.prim.neI128" ne-i128 :: I128 -> I128 -> Bool
-  foreign import ccall "cinch.prim.ltI128" lt-i128 :: I128 -> I128 -> Bool
-  foreign import ccall "cinch.prim.leI128" le-i128 :: I128 -> I128 -> Bool
-  foreign import ccall "cinch.prim.gtI128" gt-i128 :: I128 -> I128 -> Bool
-  foreign import ccall "cinch.prim.geI128" ge-i128 :: I128 -> I128 -> Bool
+  min-bound-i128 :: I128
+  min-bound-i128 = -170141183460469231731687303715884105728
+  max-bound-i128 :: I128
+  max-bound-i128 = 170141183460469231731687303715884105727
+  prim wrapping-add-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = add i128 %0, %1
+      ret i128 %r
+    }
+  prim wrapping-sub-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = sub i128 %0, %1
+      ret i128 %r
+    }
+  prim wrapping-mul-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = mul i128 %0, %1
+      ret i128 %r
+    }
+  prim wrapping-neg-i128 :: I128 -> I128 where
+    llvm {
+      %r = sub i128 0, %0
+      ret i128 %r
+    }
+  prim saturating-add-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = call i128 @llvm.sadd.sat.i128(i128 %0, i128 %1)
+      ret i128 %r
+    }
+  prim saturating-sub-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = call i128 @llvm.ssub.sat.i128(i128 %0, i128 %1)
+      ret i128 %r
+    }
+  prim saturating-mul-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %res = call { i128, i1 } @llvm.smul.with.overflow.i128(i128 %0, i128 %1)
+      %val = extractvalue { i128, i1 } %res, 0
+      %ov = extractvalue { i128, i1 } %res, 1
+      %sa = icmp slt i128 %0, 0
+      %sb = icmp slt i128 %1, 0
+      %same = icmp eq i1 %sa, %sb
+      %bound = select i1 %same, i128 170141183460469231731687303715884105727, i128 -170141183460469231731687303715884105728
+      %r = select i1 %ov, i128 %bound, i128 %val
+      ret i128 %r
+    }
+  prim ov-add-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %res = call { i128, i1 } @llvm.sadd.with.overflow.i128(i128 %0, i128 %1)
+      %ov = extractvalue { i128, i1 } %res, 1
+      %r = zext i1 %ov to i8
+      ret i8 %r
+    }
+  prim ov-sub-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %res = call { i128, i1 } @llvm.ssub.with.overflow.i128(i128 %0, i128 %1)
+      %ov = extractvalue { i128, i1 } %res, 1
+      %r = zext i1 %ov to i8
+      ret i8 %r
+    }
+  prim ov-mul-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %res = call { i128, i1 } @llvm.smul.with.overflow.i128(i128 %0, i128 %1)
+      %ov = extractvalue { i128, i1 } %res, 1
+      %r = zext i1 %ov to i8
+      ret i8 %r
+    }
+  prim raw-sdiv-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = sdiv i128 %0, %1
+      ret i128 %r
+    }
+  prim raw-srem-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = srem i128 %0, %1
+      ret i128 %r
+    }
+  prim bit-and-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = and i128 %0, %1
+      ret i128 %r
+    }
+  prim bit-or-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = or i128 %0, %1
+      ret i128 %r
+    }
+  prim bit-xor-i128 :: I128 -> I128 -> I128 where
+    llvm {
+      %r = xor i128 %0, %1
+      ret i128 %r
+    }
+  prim bit-not-i128 :: I128 -> I128 where
+    llvm {
+      %r = xor i128 %0, -1
+      ret i128 %r
+    }
+  prim wrapping-shl-i128 :: I128 -> U32 -> I128 where
+    llvm {
+      %m = and i32 %1, 127
+      %s = zext i32 %m to i128
+      %r = shl i128 %0, %s
+      ret i128 %r
+    }
+  prim wrapping-shr-i128 :: I128 -> U32 -> I128 where
+    llvm {
+      %m = and i32 %1, 127
+      %s = zext i32 %m to i128
+      %r = ashr i128 %0, %s
+      ret i128 %r
+    }
+  prim rotate-left-i128 :: I128 -> U32 -> I128 where
+    llvm {
+      %s = zext i32 %1 to i128
+      %r = call i128 @llvm.fshl.i128(i128 %0, i128 %0, i128 %s)
+      ret i128 %r
+    }
+  prim rotate-right-i128 :: I128 -> U32 -> I128 where
+    llvm {
+      %s = zext i32 %1 to i128
+      %r = call i128 @llvm.fshr.i128(i128 %0, i128 %0, i128 %s)
+      ret i128 %r
+    }
+  prim count-ones-i128 :: I128 -> U32 where
+    llvm {
+      %c = call i128 @llvm.ctpop.i128(i128 %0)
+      %r = trunc i128 %c to i32
+      ret i32 %r
+    }
+  prim leading-zeros-i128 :: I128 -> U32 where
+    llvm {
+      %c = call i128 @llvm.ctlz.i128(i128 %0, i1 false)
+      %r = trunc i128 %c to i32
+      ret i32 %r
+    }
+  prim trailing-zeros-i128 :: I128 -> U32 where
+    llvm {
+      %c = call i128 @llvm.cttz.i128(i128 %0, i1 false)
+      %r = trunc i128 %c to i32
+      ret i32 %r
+    }
+  prim reverse-bits-i128 :: I128 -> I128 where
+    llvm {
+      %r = call i128 @llvm.bitreverse.i128(i128 %0)
+      ret i128 %r
+    }
+  prim swap-bytes-i128 :: I128 -> I128 where
+    llvm {
+      %r = call i128 @llvm.bswap.i128(i128 %0)
+      ret i128 %r
+    }
+  prim eq-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %c = icmp eq i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim ne-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %c = icmp ne i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim lt-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %c = icmp slt i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim le-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %c = icmp sle i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim gt-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %c = icmp sgt i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim ge-i128 :: I128 -> I128 -> Bool where
+    llvm {
+      %c = icmp sge i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  checked-add-i128 :: I128 -> I128 -> Option I128
+  checked-add-i128 x y = if ov-add-i128 x y then None else Some (wrapping-add-i128 x y)
+  checked-sub-i128 :: I128 -> I128 -> Option I128
+  checked-sub-i128 x y = if ov-sub-i128 x y then None else Some (wrapping-sub-i128 x y)
+  checked-mul-i128 :: I128 -> I128 -> Option I128
+  checked-mul-i128 x y = if ov-mul-i128 x y then None else Some (wrapping-mul-i128 x y)
+  checked-neg-i128 :: I128 -> Option I128
+  checked-neg-i128 x = if eq-i128 x min-bound-i128 then None else Some (wrapping-neg-i128 x)
+  saturating-neg-i128 :: I128 -> I128
+  saturating-neg-i128 x = if eq-i128 x min-bound-i128 then max-bound-i128 else wrapping-neg-i128 x
+  checked-div-i128 :: I128 -> I128 -> Option I128
+  checked-div-i128 x y = if eq-i128 y 0 || (eq-i128 x min-bound-i128 && eq-i128 y (-1)) then None else Some (raw-sdiv-i128 x y)
+  checked-rem-i128 :: I128 -> I128 -> Option I128
+  checked-rem-i128 x y = if eq-i128 y 0 || (eq-i128 x min-bound-i128 && eq-i128 y (-1)) then None else Some (raw-srem-i128 x y)
+  checked-shl-i128 :: I128 -> U32 -> Option I128
+  checked-shl-i128 x n = if lt-u32 n 128 then Some (wrapping-shl-i128 x n) else None
+  checked-shr-i128 :: I128 -> U32 -> Option I128
+  checked-shr-i128 x n = if lt-u32 n 128 then Some (wrapping-shr-i128 x n) else None
 
   -- U128 (128 bits).
-  foreign import ccall "cinch.prim.minBoundU128" min-bound-u128 :: U128
-  foreign import ccall "cinch.prim.maxBoundU128" max-bound-u128 :: U128
-  foreign import ccall "cinch.prim.checkedAddU128" checked-add-u128 :: U128 -> U128 -> Option U128
-  foreign import ccall "cinch.prim.checkedSubU128" checked-sub-u128 :: U128 -> U128 -> Option U128
-  foreign import ccall "cinch.prim.checkedMulU128" checked-mul-u128 :: U128 -> U128 -> Option U128
-  foreign import ccall "cinch.prim.checkedNegU128" checked-neg-u128 :: U128 -> Option U128
-  foreign import ccall "cinch.prim.checkedDivU128" checked-div-u128 :: U128 -> U128 -> Option U128
-  foreign import ccall "cinch.prim.checkedRemU128" checked-rem-u128 :: U128 -> U128 -> Option U128
-  foreign import ccall "cinch.prim.divU128" div-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.remU128" rem-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.wrappingAddU128" wrapping-add-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.wrappingSubU128" wrapping-sub-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.wrappingMulU128" wrapping-mul-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.saturatingAddU128" saturating-add-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.saturatingSubU128" saturating-sub-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.saturatingMulU128" saturating-mul-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.wrappingNegU128" wrapping-neg-u128 :: U128 -> U128
-  foreign import ccall "cinch.prim.saturatingNegU128" saturating-neg-u128 :: U128 -> U128
-  foreign import ccall "cinch.prim.bitAndU128" bit-and-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.bitOrU128" bit-or-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.bitXorU128" bit-xor-u128 :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.bitNotU128" bit-not-u128 :: U128 -> U128
-  foreign import ccall "cinch.prim.checkedShlU128" checked-shl-u128 :: U128 -> U32 -> Option U128
-  foreign import ccall "cinch.prim.wrappingShlU128" wrapping-shl-u128 :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.checkedShrU128" checked-shr-u128 :: U128 -> U32 -> Option U128
-  foreign import ccall "cinch.prim.wrappingShrU128" wrapping-shr-u128 :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.rotateLeftU128" rotate-left-u128 :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.rotateRightU128" rotate-right-u128 :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.countOnesU128" count-ones-u128 :: U128 -> U32
-  foreign import ccall "cinch.prim.leadingZerosU128" leading-zeros-u128 :: U128 -> U32
-  foreign import ccall "cinch.prim.trailingZerosU128" trailing-zeros-u128 :: U128 -> U32
-  foreign import ccall "cinch.prim.reverseBitsU128" reverse-bits-u128 :: U128 -> U128
-  foreign import ccall "cinch.prim.swapBytesU128" swap-bytes-u128 :: U128 -> U128
-  foreign import ccall "cinch.prim.eqU128" eq-u128 :: U128 -> U128 -> Bool
-  foreign import ccall "cinch.prim.neU128" ne-u128 :: U128 -> U128 -> Bool
-  foreign import ccall "cinch.prim.ltU128" lt-u128 :: U128 -> U128 -> Bool
-  foreign import ccall "cinch.prim.leU128" le-u128 :: U128 -> U128 -> Bool
-  foreign import ccall "cinch.prim.gtU128" gt-u128 :: U128 -> U128 -> Bool
-  foreign import ccall "cinch.prim.geU128" ge-u128 :: U128 -> U128 -> Bool
+  min-bound-u128 :: U128
+  min-bound-u128 = 0
+  max-bound-u128 :: U128
+  max-bound-u128 = 340282366920938463463374607431768211455
+  prim wrapping-add-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = add i128 %0, %1
+      ret i128 %r
+    }
+  prim wrapping-sub-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = sub i128 %0, %1
+      ret i128 %r
+    }
+  prim wrapping-mul-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = mul i128 %0, %1
+      ret i128 %r
+    }
+  prim wrapping-neg-u128 :: U128 -> U128 where
+    llvm {
+      %r = sub i128 0, %0
+      ret i128 %r
+    }
+  prim saturating-add-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = call i128 @llvm.uadd.sat.i128(i128 %0, i128 %1)
+      ret i128 %r
+    }
+  prim saturating-sub-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = call i128 @llvm.usub.sat.i128(i128 %0, i128 %1)
+      ret i128 %r
+    }
+  prim saturating-mul-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %res = call { i128, i1 } @llvm.umul.with.overflow.i128(i128 %0, i128 %1)
+      %val = extractvalue { i128, i1 } %res, 0
+      %ov = extractvalue { i128, i1 } %res, 1
+      %r = select i1 %ov, i128 -1, i128 %val
+      ret i128 %r
+    }
+  prim ov-add-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %res = call { i128, i1 } @llvm.uadd.with.overflow.i128(i128 %0, i128 %1)
+      %ov = extractvalue { i128, i1 } %res, 1
+      %r = zext i1 %ov to i8
+      ret i8 %r
+    }
+  prim ov-sub-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %res = call { i128, i1 } @llvm.usub.with.overflow.i128(i128 %0, i128 %1)
+      %ov = extractvalue { i128, i1 } %res, 1
+      %r = zext i1 %ov to i8
+      ret i8 %r
+    }
+  prim ov-mul-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %res = call { i128, i1 } @llvm.umul.with.overflow.i128(i128 %0, i128 %1)
+      %ov = extractvalue { i128, i1 } %res, 1
+      %r = zext i1 %ov to i8
+      ret i8 %r
+    }
+  prim div-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = udiv i128 %0, %1
+      ret i128 %r
+    }
+  prim rem-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = urem i128 %0, %1
+      ret i128 %r
+    }
+  prim bit-or-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = or i128 %0, %1
+      ret i128 %r
+    }
+  prim bit-xor-u128 :: U128 -> U128 -> U128 where
+    llvm {
+      %r = xor i128 %0, %1
+      ret i128 %r
+    }
+  prim bit-not-u128 :: U128 -> U128 where
+    llvm {
+      %r = xor i128 %0, -1
+      ret i128 %r
+    }
+  prim wrapping-shl-u128 :: U128 -> U32 -> U128 where
+    llvm {
+      %m = and i32 %1, 127
+      %s = zext i32 %m to i128
+      %r = shl i128 %0, %s
+      ret i128 %r
+    }
+  prim wrapping-shr-u128 :: U128 -> U32 -> U128 where
+    llvm {
+      %m = and i32 %1, 127
+      %s = zext i32 %m to i128
+      %r = lshr i128 %0, %s
+      ret i128 %r
+    }
+  prim rotate-left-u128 :: U128 -> U32 -> U128 where
+    llvm {
+      %s = zext i32 %1 to i128
+      %r = call i128 @llvm.fshl.i128(i128 %0, i128 %0, i128 %s)
+      ret i128 %r
+    }
+  prim rotate-right-u128 :: U128 -> U32 -> U128 where
+    llvm {
+      %s = zext i32 %1 to i128
+      %r = call i128 @llvm.fshr.i128(i128 %0, i128 %0, i128 %s)
+      ret i128 %r
+    }
+  prim count-ones-u128 :: U128 -> U32 where
+    llvm {
+      %c = call i128 @llvm.ctpop.i128(i128 %0)
+      %r = trunc i128 %c to i32
+      ret i32 %r
+    }
+  prim leading-zeros-u128 :: U128 -> U32 where
+    llvm {
+      %c = call i128 @llvm.ctlz.i128(i128 %0, i1 false)
+      %r = trunc i128 %c to i32
+      ret i32 %r
+    }
+  prim trailing-zeros-u128 :: U128 -> U32 where
+    llvm {
+      %c = call i128 @llvm.cttz.i128(i128 %0, i1 false)
+      %r = trunc i128 %c to i32
+      ret i32 %r
+    }
+  prim reverse-bits-u128 :: U128 -> U128 where
+    llvm {
+      %r = call i128 @llvm.bitreverse.i128(i128 %0)
+      ret i128 %r
+    }
+  prim swap-bytes-u128 :: U128 -> U128 where
+    llvm {
+      %r = call i128 @llvm.bswap.i128(i128 %0)
+      ret i128 %r
+    }
+  prim eq-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %c = icmp eq i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim ne-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %c = icmp ne i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim lt-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %c = icmp ult i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim le-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %c = icmp ule i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim gt-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %c = icmp ugt i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  prim ge-u128 :: U128 -> U128 -> Bool where
+    llvm {
+      %c = icmp uge i128 %0, %1
+      %r = zext i1 %c to i8
+      ret i8 %r
+    }
+  checked-add-u128 :: U128 -> U128 -> Option U128
+  checked-add-u128 x y = if ov-add-u128 x y then None else Some (wrapping-add-u128 x y)
+  checked-sub-u128 :: U128 -> U128 -> Option U128
+  checked-sub-u128 x y = if ov-sub-u128 x y then None else Some (wrapping-sub-u128 x y)
+  checked-mul-u128 :: U128 -> U128 -> Option U128
+  checked-mul-u128 x y = if ov-mul-u128 x y then None else Some (wrapping-mul-u128 x y)
+  checked-neg-u128 :: U128 -> Option U128
+  checked-neg-u128 x = if eq-u128 x 0 then Some 0 else None
+  saturating-neg-u128 :: U128 -> U128
+  saturating-neg-u128 x = 0
+  checked-div-u128 :: U128 -> U128 -> Option U128
+  checked-div-u128 x y = if eq-u128 y 0 then None else Some (div-u128 x y)
+  checked-rem-u128 :: U128 -> U128 -> Option U128
+  checked-rem-u128 x y = if eq-u128 y 0 then None else Some (rem-u128 x y)
+  checked-shl-u128 :: U128 -> U32 -> Option U128
+  checked-shl-u128 x n = if lt-u32 n 128 then Some (wrapping-shl-u128 x n) else None
+  checked-shr-u128 :: U128 -> U32 -> Option U128
+  checked-shr-u128 x n = if lt-u32 n 128 then Some (wrapping-shr-u128 x n) else None
 
-  -- Portable 128-bit SIMD lane operations over U128 (lane 0 in least-significant bits).
-  foreign import ccall "cinch.prim.simdBitSelect" simd-bitselect :: U128 -> U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU8x16Splat" simd-u8x16-splat :: U8 -> U128
-  foreign import ccall "cinch.prim.simdU8x16Add" simd-u8x16-add :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU8x16Sub" simd-u8x16-sub :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU8x16CmpEq" simd-u8x16-cmpeq :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU8x16CmpLt" simd-u8x16-cmplt :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU8x16CmpGt" simd-u8x16-cmpgt :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU8x16Movemask" simd-u8x16-movemask :: U128 -> U32
-  foreign import ccall "cinch.prim.simdU16x8Splat" simd-u16x8-splat :: U16 -> U128
-  foreign import ccall "cinch.prim.simdU16x8Add" simd-u16x8-add :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU16x8Sub" simd-u16x8-sub :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU16x8Mul" simd-u16x8-mul :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU16x8Shl" simd-u16x8-shl :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU16x8Shr" simd-u16x8-shr :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdI16x8Ashr" simd-i16x8-ashr :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU16x8CmpEq" simd-u16x8-cmpeq :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU16x8CmpLt" simd-u16x8-cmplt :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdI16x8CmpLt" simd-i16x8-cmplt :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdI16x8Smin" simd-i16x8-smin :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdI16x8Smax" simd-i16x8-smax :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Splat" simd-u32x4-splat :: U32 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Add" simd-u32x4-add :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Sub" simd-u32x4-sub :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Mul" simd-u32x4-mul :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Shl" simd-u32x4-shl :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Shr" simd-u32x4-shr :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdI32x4Ashr" simd-i32x4-ashr :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Rotl" simd-u32x4-rotl :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Rotr" simd-u32x4-rotr :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdI32x4Smin" simd-i32x4-smin :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdI32x4Smax" simd-i32x4-smax :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU32x4CmpEq" simd-u32x4-cmpeq :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU32x4CmpLt" simd-u32x4-cmplt :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU32x4Pack" simd-u32x4-pack :: U32 -> U32 -> U32 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU64x2Splat" simd-u64x2-splat :: U64 -> U128
-  foreign import ccall "cinch.prim.simdU64x2Add" simd-u64x2-add :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU64x2Sub" simd-u64x2-sub :: U128 -> U128 -> U128
-  foreign import ccall "cinch.prim.simdU64x2Shl" simd-u64x2-shl :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU64x2Shr" simd-u64x2-shr :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU64x2Rotl" simd-u64x2-rotl :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU64x2Rotr" simd-u64x2-rotr :: U128 -> U32 -> U128
-  foreign import ccall "cinch.prim.simdU64x2Pack" simd-u64x2-pack :: U64 -> U64 -> U128
-
-
-  -- Conversions with every numeric type, in the families of the primitive
-  -- types specification section 7: total where every value fits (and from
-  -- any integer to a float), checked and saturating for every integer pair
-  -- and from a float, wrapping between integers.
-  foreign import ccall "cinch.prim.i8ToI128" i8-to-i128 :: I8 -> I128
-  foreign import ccall "cinch.prim.checkedI8ToI128" checked-i8-to-i128 :: I8 -> Option I128
-  foreign import ccall "cinch.prim.saturatingI8ToI128" saturating-i8-to-i128 :: I8 -> I128
-  foreign import ccall "cinch.prim.wrappingI8ToI128" wrapping-i8-to-i128 :: I8 -> I128
-  foreign import ccall "cinch.prim.checkedI8ToU128" checked-i8-to-u128 :: I8 -> Option U128
-  foreign import ccall "cinch.prim.saturatingI8ToU128" saturating-i8-to-u128 :: I8 -> U128
-  foreign import ccall "cinch.prim.wrappingI8ToU128" wrapping-i8-to-u128 :: I8 -> U128
-  foreign import ccall "cinch.prim.i16ToI128" i16-to-i128 :: I16 -> I128
-  foreign import ccall "cinch.prim.checkedI16ToI128" checked-i16-to-i128 :: I16 -> Option I128
-  foreign import ccall "cinch.prim.saturatingI16ToI128" saturating-i16-to-i128 :: I16 -> I128
-  foreign import ccall "cinch.prim.wrappingI16ToI128" wrapping-i16-to-i128 :: I16 -> I128
-  foreign import ccall "cinch.prim.checkedI16ToU128" checked-i16-to-u128 :: I16 -> Option U128
-  foreign import ccall "cinch.prim.saturatingI16ToU128" saturating-i16-to-u128 :: I16 -> U128
-  foreign import ccall "cinch.prim.wrappingI16ToU128" wrapping-i16-to-u128 :: I16 -> U128
-  foreign import ccall "cinch.prim.i32ToI128" i32-to-i128 :: I32 -> I128
-  foreign import ccall "cinch.prim.checkedI32ToI128" checked-i32-to-i128 :: I32 -> Option I128
-  foreign import ccall "cinch.prim.saturatingI32ToI128" saturating-i32-to-i128 :: I32 -> I128
-  foreign import ccall "cinch.prim.wrappingI32ToI128" wrapping-i32-to-i128 :: I32 -> I128
-  foreign import ccall "cinch.prim.checkedI32ToU128" checked-i32-to-u128 :: I32 -> Option U128
-  foreign import ccall "cinch.prim.saturatingI32ToU128" saturating-i32-to-u128 :: I32 -> U128
-  foreign import ccall "cinch.prim.wrappingI32ToU128" wrapping-i32-to-u128 :: I32 -> U128
-  foreign import ccall "cinch.prim.i64ToI128" i64-to-i128 :: I64 -> I128
-  foreign import ccall "cinch.prim.checkedI64ToI128" checked-i64-to-i128 :: I64 -> Option I128
-  foreign import ccall "cinch.prim.saturatingI64ToI128" saturating-i64-to-i128 :: I64 -> I128
-  foreign import ccall "cinch.prim.wrappingI64ToI128" wrapping-i64-to-i128 :: I64 -> I128
-  foreign import ccall "cinch.prim.checkedI64ToU128" checked-i64-to-u128 :: I64 -> Option U128
-  foreign import ccall "cinch.prim.saturatingI64ToU128" saturating-i64-to-u128 :: I64 -> U128
-  foreign import ccall "cinch.prim.wrappingI64ToU128" wrapping-i64-to-u128 :: I64 -> U128
-  foreign import ccall "cinch.prim.u8ToI128" u8-to-i128 :: U8 -> I128
-  foreign import ccall "cinch.prim.checkedU8ToI128" checked-u8-to-i128 :: U8 -> Option I128
-  foreign import ccall "cinch.prim.saturatingU8ToI128" saturating-u8-to-i128 :: U8 -> I128
-  foreign import ccall "cinch.prim.wrappingU8ToI128" wrapping-u8-to-i128 :: U8 -> I128
-  foreign import ccall "cinch.prim.u8ToU128" u8-to-u128 :: U8 -> U128
-  foreign import ccall "cinch.prim.checkedU8ToU128" checked-u8-to-u128 :: U8 -> Option U128
-  foreign import ccall "cinch.prim.saturatingU8ToU128" saturating-u8-to-u128 :: U8 -> U128
-  foreign import ccall "cinch.prim.wrappingU8ToU128" wrapping-u8-to-u128 :: U8 -> U128
-  foreign import ccall "cinch.prim.u16ToI128" u16-to-i128 :: U16 -> I128
-  foreign import ccall "cinch.prim.checkedU16ToI128" checked-u16-to-i128 :: U16 -> Option I128
-  foreign import ccall "cinch.prim.saturatingU16ToI128" saturating-u16-to-i128 :: U16 -> I128
-  foreign import ccall "cinch.prim.wrappingU16ToI128" wrapping-u16-to-i128 :: U16 -> I128
-  foreign import ccall "cinch.prim.u16ToU128" u16-to-u128 :: U16 -> U128
-  foreign import ccall "cinch.prim.checkedU16ToU128" checked-u16-to-u128 :: U16 -> Option U128
-  foreign import ccall "cinch.prim.saturatingU16ToU128" saturating-u16-to-u128 :: U16 -> U128
-  foreign import ccall "cinch.prim.wrappingU16ToU128" wrapping-u16-to-u128 :: U16 -> U128
-  foreign import ccall "cinch.prim.u32ToI128" u32-to-i128 :: U32 -> I128
-  foreign import ccall "cinch.prim.checkedU32ToI128" checked-u32-to-i128 :: U32 -> Option I128
-  foreign import ccall "cinch.prim.saturatingU32ToI128" saturating-u32-to-i128 :: U32 -> I128
-  foreign import ccall "cinch.prim.wrappingU32ToI128" wrapping-u32-to-i128 :: U32 -> I128
-  foreign import ccall "cinch.prim.u32ToU128" u32-to-u128 :: U32 -> U128
-  foreign import ccall "cinch.prim.checkedU32ToU128" checked-u32-to-u128 :: U32 -> Option U128
-  foreign import ccall "cinch.prim.saturatingU32ToU128" saturating-u32-to-u128 :: U32 -> U128
-  foreign import ccall "cinch.prim.wrappingU32ToU128" wrapping-u32-to-u128 :: U32 -> U128
-  foreign import ccall "cinch.prim.u64ToI128" u64-to-i128 :: U64 -> I128
-  foreign import ccall "cinch.prim.checkedU64ToI128" checked-u64-to-i128 :: U64 -> Option I128
-  foreign import ccall "cinch.prim.saturatingU64ToI128" saturating-u64-to-i128 :: U64 -> I128
-  foreign import ccall "cinch.prim.wrappingU64ToI128" wrapping-u64-to-i128 :: U64 -> I128
-  foreign import ccall "cinch.prim.u64ToU128" u64-to-u128 :: U64 -> U128
-  foreign import ccall "cinch.prim.checkedU64ToU128" checked-u64-to-u128 :: U64 -> Option U128
-  foreign import ccall "cinch.prim.saturatingU64ToU128" saturating-u64-to-u128 :: U64 -> U128
-  foreign import ccall "cinch.prim.wrappingU64ToU128" wrapping-u64-to-u128 :: U64 -> U128
-  foreign import ccall "cinch.prim.usizeToI128" usize-to-i128 :: Usize -> I128
-  foreign import ccall "cinch.prim.checkedUsizeToI128" checked-usize-to-i128 :: Usize -> Option I128
-  foreign import ccall "cinch.prim.saturatingUsizeToI128" saturating-usize-to-i128 :: Usize -> I128
-  foreign import ccall "cinch.prim.wrappingUsizeToI128" wrapping-usize-to-i128 :: Usize -> I128
-  foreign import ccall "cinch.prim.usizeToU128" usize-to-u128 :: Usize -> U128
-  foreign import ccall "cinch.prim.checkedUsizeToU128" checked-usize-to-u128 :: Usize -> Option U128
-  foreign import ccall "cinch.prim.saturatingUsizeToU128" saturating-usize-to-u128 :: Usize -> U128
-  foreign import ccall "cinch.prim.wrappingUsizeToU128" wrapping-usize-to-u128 :: Usize -> U128
-  foreign import ccall "cinch.prim.isizeToI128" isize-to-i128 :: Isize -> I128
-  foreign import ccall "cinch.prim.checkedIsizeToI128" checked-isize-to-i128 :: Isize -> Option I128
-  foreign import ccall "cinch.prim.saturatingIsizeToI128" saturating-isize-to-i128 :: Isize -> I128
-  foreign import ccall "cinch.prim.wrappingIsizeToI128" wrapping-isize-to-i128 :: Isize -> I128
-  foreign import ccall "cinch.prim.checkedIsizeToU128" checked-isize-to-u128 :: Isize -> Option U128
-  foreign import ccall "cinch.prim.saturatingIsizeToU128" saturating-isize-to-u128 :: Isize -> U128
-  foreign import ccall "cinch.prim.wrappingIsizeToU128" wrapping-isize-to-u128 :: Isize -> U128
-  foreign import ccall "cinch.prim.checkedI128ToI8" checked-i128-to-i8 :: I128 -> Option I8
-  foreign import ccall "cinch.prim.saturatingI128ToI8" saturating-i128-to-i8 :: I128 -> I8
-  foreign import ccall "cinch.prim.wrappingI128ToI8" wrapping-i128-to-i8 :: I128 -> I8
-  foreign import ccall "cinch.prim.checkedI128ToI16" checked-i128-to-i16 :: I128 -> Option I16
-  foreign import ccall "cinch.prim.saturatingI128ToI16" saturating-i128-to-i16 :: I128 -> I16
-  foreign import ccall "cinch.prim.wrappingI128ToI16" wrapping-i128-to-i16 :: I128 -> I16
-  foreign import ccall "cinch.prim.checkedI128ToI32" checked-i128-to-i32 :: I128 -> Option I32
-  foreign import ccall "cinch.prim.saturatingI128ToI32" saturating-i128-to-i32 :: I128 -> I32
-  foreign import ccall "cinch.prim.wrappingI128ToI32" wrapping-i128-to-i32 :: I128 -> I32
-  foreign import ccall "cinch.prim.checkedI128ToI64" checked-i128-to-i64 :: I128 -> Option I64
-  foreign import ccall "cinch.prim.saturatingI128ToI64" saturating-i128-to-i64 :: I128 -> I64
-  foreign import ccall "cinch.prim.wrappingI128ToI64" wrapping-i128-to-i64 :: I128 -> I64
-  foreign import ccall "cinch.prim.checkedI128ToU8" checked-i128-to-u8 :: I128 -> Option U8
-  foreign import ccall "cinch.prim.saturatingI128ToU8" saturating-i128-to-u8 :: I128 -> U8
-  foreign import ccall "cinch.prim.wrappingI128ToU8" wrapping-i128-to-u8 :: I128 -> U8
-  foreign import ccall "cinch.prim.checkedI128ToU16" checked-i128-to-u16 :: I128 -> Option U16
-  foreign import ccall "cinch.prim.saturatingI128ToU16" saturating-i128-to-u16 :: I128 -> U16
-  foreign import ccall "cinch.prim.wrappingI128ToU16" wrapping-i128-to-u16 :: I128 -> U16
-  foreign import ccall "cinch.prim.checkedI128ToU32" checked-i128-to-u32 :: I128 -> Option U32
-  foreign import ccall "cinch.prim.saturatingI128ToU32" saturating-i128-to-u32 :: I128 -> U32
-  foreign import ccall "cinch.prim.wrappingI128ToU32" wrapping-i128-to-u32 :: I128 -> U32
-  foreign import ccall "cinch.prim.checkedI128ToU64" checked-i128-to-u64 :: I128 -> Option U64
-  foreign import ccall "cinch.prim.saturatingI128ToU64" saturating-i128-to-u64 :: I128 -> U64
-  foreign import ccall "cinch.prim.wrappingI128ToU64" wrapping-i128-to-u64 :: I128 -> U64
-  foreign import ccall "cinch.prim.checkedI128ToUsize" checked-i128-to-usize :: I128 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingI128ToUsize" saturating-i128-to-usize :: I128 -> Usize
-  foreign import ccall "cinch.prim.wrappingI128ToUsize" wrapping-i128-to-usize :: I128 -> Usize
-  foreign import ccall "cinch.prim.checkedI128ToIsize" checked-i128-to-isize :: I128 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingI128ToIsize" saturating-i128-to-isize :: I128 -> Isize
-  foreign import ccall "cinch.prim.wrappingI128ToIsize" wrapping-i128-to-isize :: I128 -> Isize
-  foreign import ccall "cinch.prim.i128ToI128" i128-to-i128 :: I128 -> I128
-  foreign import ccall "cinch.prim.checkedI128ToI128" checked-i128-to-i128 :: I128 -> Option I128
-  foreign import ccall "cinch.prim.saturatingI128ToI128" saturating-i128-to-i128 :: I128 -> I128
-  foreign import ccall "cinch.prim.wrappingI128ToI128" wrapping-i128-to-i128 :: I128 -> I128
-  foreign import ccall "cinch.prim.checkedI128ToU128" checked-i128-to-u128 :: I128 -> Option U128
-  foreign import ccall "cinch.prim.saturatingI128ToU128" saturating-i128-to-u128 :: I128 -> U128
-  foreign import ccall "cinch.prim.wrappingI128ToU128" wrapping-i128-to-u128 :: I128 -> U128
-  foreign import ccall "cinch.prim.i128ToF32" i128-to-f32 :: I128 -> F32
-  foreign import ccall "cinch.prim.i128ToF64" i128-to-f64 :: I128 -> F64
-  foreign import ccall "cinch.prim.checkedU128ToI8" checked-u128-to-i8 :: U128 -> Option I8
-  foreign import ccall "cinch.prim.saturatingU128ToI8" saturating-u128-to-i8 :: U128 -> I8
-  foreign import ccall "cinch.prim.wrappingU128ToI8" wrapping-u128-to-i8 :: U128 -> I8
-  foreign import ccall "cinch.prim.checkedU128ToI16" checked-u128-to-i16 :: U128 -> Option I16
-  foreign import ccall "cinch.prim.saturatingU128ToI16" saturating-u128-to-i16 :: U128 -> I16
-  foreign import ccall "cinch.prim.wrappingU128ToI16" wrapping-u128-to-i16 :: U128 -> I16
-  foreign import ccall "cinch.prim.checkedU128ToI32" checked-u128-to-i32 :: U128 -> Option I32
-  foreign import ccall "cinch.prim.saturatingU128ToI32" saturating-u128-to-i32 :: U128 -> I32
-  foreign import ccall "cinch.prim.wrappingU128ToI32" wrapping-u128-to-i32 :: U128 -> I32
-  foreign import ccall "cinch.prim.checkedU128ToI64" checked-u128-to-i64 :: U128 -> Option I64
-  foreign import ccall "cinch.prim.saturatingU128ToI64" saturating-u128-to-i64 :: U128 -> I64
-  foreign import ccall "cinch.prim.wrappingU128ToI64" wrapping-u128-to-i64 :: U128 -> I64
-  foreign import ccall "cinch.prim.checkedU128ToU8" checked-u128-to-u8 :: U128 -> Option U8
-  foreign import ccall "cinch.prim.saturatingU128ToU8" saturating-u128-to-u8 :: U128 -> U8
-  foreign import ccall "cinch.prim.wrappingU128ToU8" wrapping-u128-to-u8 :: U128 -> U8
-  foreign import ccall "cinch.prim.checkedU128ToU16" checked-u128-to-u16 :: U128 -> Option U16
-  foreign import ccall "cinch.prim.saturatingU128ToU16" saturating-u128-to-u16 :: U128 -> U16
-  foreign import ccall "cinch.prim.wrappingU128ToU16" wrapping-u128-to-u16 :: U128 -> U16
-  foreign import ccall "cinch.prim.checkedU128ToU32" checked-u128-to-u32 :: U128 -> Option U32
-  foreign import ccall "cinch.prim.saturatingU128ToU32" saturating-u128-to-u32 :: U128 -> U32
-  foreign import ccall "cinch.prim.wrappingU128ToU32" wrapping-u128-to-u32 :: U128 -> U32
-  foreign import ccall "cinch.prim.checkedU128ToU64" checked-u128-to-u64 :: U128 -> Option U64
-  foreign import ccall "cinch.prim.saturatingU128ToU64" saturating-u128-to-u64 :: U128 -> U64
-  foreign import ccall "cinch.prim.wrappingU128ToU64" wrapping-u128-to-u64 :: U128 -> U64
-  foreign import ccall "cinch.prim.checkedU128ToUsize" checked-u128-to-usize :: U128 -> Option Usize
-  foreign import ccall "cinch.prim.saturatingU128ToUsize" saturating-u128-to-usize :: U128 -> Usize
-  foreign import ccall "cinch.prim.wrappingU128ToUsize" wrapping-u128-to-usize :: U128 -> Usize
-  foreign import ccall "cinch.prim.checkedU128ToIsize" checked-u128-to-isize :: U128 -> Option Isize
-  foreign import ccall "cinch.prim.saturatingU128ToIsize" saturating-u128-to-isize :: U128 -> Isize
-  foreign import ccall "cinch.prim.wrappingU128ToIsize" wrapping-u128-to-isize :: U128 -> Isize
-  foreign import ccall "cinch.prim.checkedU128ToI128" checked-u128-to-i128 :: U128 -> Option I128
-  foreign import ccall "cinch.prim.saturatingU128ToI128" saturating-u128-to-i128 :: U128 -> I128
-  foreign import ccall "cinch.prim.wrappingU128ToI128" wrapping-u128-to-i128 :: U128 -> I128
-  foreign import ccall "cinch.prim.u128ToU128" u128-to-u128 :: U128 -> U128
-  foreign import ccall "cinch.prim.checkedU128ToU128" checked-u128-to-u128 :: U128 -> Option U128
-  foreign import ccall "cinch.prim.saturatingU128ToU128" saturating-u128-to-u128 :: U128 -> U128
-  foreign import ccall "cinch.prim.wrappingU128ToU128" wrapping-u128-to-u128 :: U128 -> U128
-  foreign import ccall "cinch.prim.u128ToF32" u128-to-f32 :: U128 -> F32
-  foreign import ccall "cinch.prim.u128ToF64" u128-to-f64 :: U128 -> F64
-  foreign import ccall "cinch.prim.checkedF32ToI128" checked-f32-to-i128 :: F32 -> Option I128
-  foreign import ccall "cinch.prim.saturatingF32ToI128" saturating-f32-to-i128 :: F32 -> I128
-  foreign import ccall "cinch.prim.checkedF32ToU128" checked-f32-to-u128 :: F32 -> Option U128
-  foreign import ccall "cinch.prim.saturatingF32ToU128" saturating-f32-to-u128 :: F32 -> U128
-  foreign import ccall "cinch.prim.checkedF64ToI128" checked-f64-to-i128 :: F64 -> Option I128
-  foreign import ccall "cinch.prim.saturatingF64ToI128" saturating-f64-to-i128 :: F64 -> I128
-  foreign import ccall "cinch.prim.checkedF64ToU128" checked-f64-to-u128 :: F64 -> Option U128
-  foreign import ccall "cinch.prim.saturatingF64ToU128" saturating-f64-to-u128 :: F64 -> U128
+  -- Conversions with every numeric type.
+  prim wrapping-i128-to-u128 :: I128 -> U128 where
+    llvm {
+      ret i128 %0
+    }
+  prim wrapping-u128-to-i128 :: U128 -> I128 where
+    llvm {
+      ret i128 %0
+    }
+  i128-to-i128 :: I128 -> I128
+  i128-to-i128 x = x
+  checked-i128-to-i128 :: I128 -> Option I128
+  checked-i128-to-i128 x = Some x
+  saturating-i128-to-i128 :: I128 -> I128
+  saturating-i128-to-i128 x = x
+  wrapping-i128-to-i128 :: I128 -> I128
+  wrapping-i128-to-i128 x = x
+  checked-i128-to-u128 :: I128 -> Option U128
+  checked-i128-to-u128 x = if lt-i128 x 0 then None else Some (wrapping-i128-to-u128 x)
+  saturating-i128-to-u128 :: I128 -> U128
+  saturating-i128-to-u128 x = if lt-i128 x 0 then 0 else wrapping-i128-to-u128 x
+  u128-to-u128 :: U128 -> U128
+  u128-to-u128 x = x
+  checked-u128-to-u128 :: U128 -> Option U128
+  checked-u128-to-u128 x = Some x
+  saturating-u128-to-u128 :: U128 -> U128
+  saturating-u128-to-u128 x = x
+  wrapping-u128-to-u128 :: U128 -> U128
+  wrapping-u128-to-u128 x = x
+  checked-u128-to-i128 :: U128 -> Option I128
+  checked-u128-to-i128 x = if gt-u128 x 170141183460469231731687303715884105727 then None else Some (wrapping-u128-to-i128 x)
+  saturating-u128-to-i128 :: U128 -> I128
+  saturating-u128-to-i128 x = if gt-u128 x 170141183460469231731687303715884105727 then max-bound-i128 else wrapping-u128-to-i128 x
+  prim i8-to-i128 :: I8 -> I128 where
+    llvm {
+      %r = sext i8 %0 to i128
+      ret i128 %r
+    }
+  checked-i8-to-i128 :: I8 -> Option I128
+  checked-i8-to-i128 x = Some (i8-to-i128 x)
+  saturating-i8-to-i128 :: I8 -> I128
+  saturating-i8-to-i128 x = i8-to-i128 x
+  wrapping-i8-to-i128 :: I8 -> I128
+  wrapping-i8-to-i128 x = i8-to-i128 x
+  wrapping-i8-to-u128 :: I8 -> U128
+  wrapping-i8-to-u128 x = wrapping-i128-to-u128 (i8-to-i128 x)
+  checked-i8-to-u128 :: I8 -> Option U128
+  checked-i8-to-u128 x = checked-i128-to-u128 (i8-to-i128 x)
+  saturating-i8-to-u128 :: I8 -> U128
+  saturating-i8-to-u128 x = saturating-i128-to-u128 (i8-to-i128 x)
+  prim i16-to-i128 :: I16 -> I128 where
+    llvm {
+      %r = sext i16 %0 to i128
+      ret i128 %r
+    }
+  checked-i16-to-i128 :: I16 -> Option I128
+  checked-i16-to-i128 x = Some (i16-to-i128 x)
+  saturating-i16-to-i128 :: I16 -> I128
+  saturating-i16-to-i128 x = i16-to-i128 x
+  wrapping-i16-to-i128 :: I16 -> I128
+  wrapping-i16-to-i128 x = i16-to-i128 x
+  wrapping-i16-to-u128 :: I16 -> U128
+  wrapping-i16-to-u128 x = wrapping-i128-to-u128 (i16-to-i128 x)
+  checked-i16-to-u128 :: I16 -> Option U128
+  checked-i16-to-u128 x = checked-i128-to-u128 (i16-to-i128 x)
+  saturating-i16-to-u128 :: I16 -> U128
+  saturating-i16-to-u128 x = saturating-i128-to-u128 (i16-to-i128 x)
+  prim i32-to-i128 :: I32 -> I128 where
+    llvm {
+      %r = sext i32 %0 to i128
+      ret i128 %r
+    }
+  checked-i32-to-i128 :: I32 -> Option I128
+  checked-i32-to-i128 x = Some (i32-to-i128 x)
+  saturating-i32-to-i128 :: I32 -> I128
+  saturating-i32-to-i128 x = i32-to-i128 x
+  wrapping-i32-to-i128 :: I32 -> I128
+  wrapping-i32-to-i128 x = i32-to-i128 x
+  wrapping-i32-to-u128 :: I32 -> U128
+  wrapping-i32-to-u128 x = wrapping-i128-to-u128 (i32-to-i128 x)
+  checked-i32-to-u128 :: I32 -> Option U128
+  checked-i32-to-u128 x = checked-i128-to-u128 (i32-to-i128 x)
+  saturating-i32-to-u128 :: I32 -> U128
+  saturating-i32-to-u128 x = saturating-i128-to-u128 (i32-to-i128 x)
+  prim i64-to-i128 :: I64 -> I128 where
+    llvm {
+      %r = sext i64 %0 to i128
+      ret i128 %r
+    }
+  checked-i64-to-i128 :: I64 -> Option I128
+  checked-i64-to-i128 x = Some (i64-to-i128 x)
+  saturating-i64-to-i128 :: I64 -> I128
+  saturating-i64-to-i128 x = i64-to-i128 x
+  wrapping-i64-to-i128 :: I64 -> I128
+  wrapping-i64-to-i128 x = i64-to-i128 x
+  wrapping-i64-to-u128 :: I64 -> U128
+  wrapping-i64-to-u128 x = wrapping-i128-to-u128 (i64-to-i128 x)
+  checked-i64-to-u128 :: I64 -> Option U128
+  checked-i64-to-u128 x = checked-i128-to-u128 (i64-to-i128 x)
+  saturating-i64-to-u128 :: I64 -> U128
+  saturating-i64-to-u128 x = saturating-i128-to-u128 (i64-to-i128 x)
+  prim u8-to-u128 :: U8 -> U128 where
+    llvm {
+      %r = zext i8 %0 to i128
+      ret i128 %r
+    }
+  u8-to-i128 :: U8 -> I128
+  u8-to-i128 x = wrapping-u128-to-i128 (u8-to-u128 x)
+  checked-u8-to-i128 :: U8 -> Option I128
+  checked-u8-to-i128 x = Some (u8-to-i128 x)
+  saturating-u8-to-i128 :: U8 -> I128
+  saturating-u8-to-i128 x = u8-to-i128 x
+  wrapping-u8-to-i128 :: U8 -> I128
+  wrapping-u8-to-i128 x = u8-to-i128 x
+  checked-u8-to-u128 :: U8 -> Option U128
+  checked-u8-to-u128 x = Some (u8-to-u128 x)
+  saturating-u8-to-u128 :: U8 -> U128
+  saturating-u8-to-u128 x = u8-to-u128 x
+  wrapping-u8-to-u128 :: U8 -> U128
+  wrapping-u8-to-u128 x = u8-to-u128 x
+  prim u16-to-u128 :: U16 -> U128 where
+    llvm {
+      %r = zext i16 %0 to i128
+      ret i128 %r
+    }
+  u16-to-i128 :: U16 -> I128
+  u16-to-i128 x = wrapping-u128-to-i128 (u16-to-u128 x)
+  checked-u16-to-i128 :: U16 -> Option I128
+  checked-u16-to-i128 x = Some (u16-to-i128 x)
+  saturating-u16-to-i128 :: U16 -> I128
+  saturating-u16-to-i128 x = u16-to-i128 x
+  wrapping-u16-to-i128 :: U16 -> I128
+  wrapping-u16-to-i128 x = u16-to-i128 x
+  checked-u16-to-u128 :: U16 -> Option U128
+  checked-u16-to-u128 x = Some (u16-to-u128 x)
+  saturating-u16-to-u128 :: U16 -> U128
+  saturating-u16-to-u128 x = u16-to-u128 x
+  wrapping-u16-to-u128 :: U16 -> U128
+  wrapping-u16-to-u128 x = u16-to-u128 x
+  prim u32-to-u128 :: U32 -> U128 where
+    llvm {
+      %r = zext i32 %0 to i128
+      ret i128 %r
+    }
+  u32-to-i128 :: U32 -> I128
+  u32-to-i128 x = wrapping-u128-to-i128 (u32-to-u128 x)
+  checked-u32-to-i128 :: U32 -> Option I128
+  checked-u32-to-i128 x = Some (u32-to-i128 x)
+  saturating-u32-to-i128 :: U32 -> I128
+  saturating-u32-to-i128 x = u32-to-i128 x
+  wrapping-u32-to-i128 :: U32 -> I128
+  wrapping-u32-to-i128 x = u32-to-i128 x
+  checked-u32-to-u128 :: U32 -> Option U128
+  checked-u32-to-u128 x = Some (u32-to-u128 x)
+  saturating-u32-to-u128 :: U32 -> U128
+  saturating-u32-to-u128 x = u32-to-u128 x
+  wrapping-u32-to-u128 :: U32 -> U128
+  wrapping-u32-to-u128 x = u32-to-u128 x
+  prim u64-to-u128 :: U64 -> U128 where
+    llvm {
+      %r = zext i64 %0 to i128
+      ret i128 %r
+    }
+  u64-to-i128 :: U64 -> I128
+  u64-to-i128 x = wrapping-u128-to-i128 (u64-to-u128 x)
+  checked-u64-to-i128 :: U64 -> Option I128
+  checked-u64-to-i128 x = Some (u64-to-i128 x)
+  saturating-u64-to-i128 :: U64 -> I128
+  saturating-u64-to-i128 x = u64-to-i128 x
+  wrapping-u64-to-i128 :: U64 -> I128
+  wrapping-u64-to-i128 x = u64-to-i128 x
+  checked-u64-to-u128 :: U64 -> Option U128
+  checked-u64-to-u128 x = Some (u64-to-u128 x)
+  saturating-u64-to-u128 :: U64 -> U128
+  saturating-u64-to-u128 x = u64-to-u128 x
+  wrapping-u64-to-u128 :: U64 -> U128
+  wrapping-u64-to-u128 x = u64-to-u128 x
+  usize-to-i128 :: Usize -> I128
+  usize-to-i128 x = u64-to-i128 (usize-to-u64 x)
+  checked-usize-to-i128 :: Usize -> Option I128
+  checked-usize-to-i128 x = Some (usize-to-i128 x)
+  saturating-usize-to-i128 :: Usize -> I128
+  saturating-usize-to-i128 x = usize-to-i128 x
+  wrapping-usize-to-i128 :: Usize -> I128
+  wrapping-usize-to-i128 x = usize-to-i128 x
+  usize-to-u128 :: Usize -> U128
+  usize-to-u128 x = u64-to-u128 (usize-to-u64 x)
+  checked-usize-to-u128 :: Usize -> Option U128
+  checked-usize-to-u128 x = Some (usize-to-u128 x)
+  saturating-usize-to-u128 :: Usize -> U128
+  saturating-usize-to-u128 x = usize-to-u128 x
+  wrapping-usize-to-u128 :: Usize -> U128
+  wrapping-usize-to-u128 x = usize-to-u128 x
+  isize-to-i128 :: Isize -> I128
+  isize-to-i128 x = i64-to-i128 (isize-to-i64 x)
+  checked-isize-to-i128 :: Isize -> Option I128
+  checked-isize-to-i128 x = Some (isize-to-i128 x)
+  saturating-isize-to-i128 :: Isize -> I128
+  saturating-isize-to-i128 x = isize-to-i128 x
+  wrapping-isize-to-i128 :: Isize -> I128
+  wrapping-isize-to-i128 x = isize-to-i128 x
+  checked-isize-to-u128 :: Isize -> Option U128
+  checked-isize-to-u128 x = checked-i128-to-u128 (isize-to-i128 x)
+  saturating-isize-to-u128 :: Isize -> U128
+  saturating-isize-to-u128 x = saturating-i128-to-u128 (isize-to-i128 x)
+  wrapping-isize-to-u128 :: Isize -> U128
+  wrapping-isize-to-u128 x = wrapping-i128-to-u128 (isize-to-i128 x)
+  prim wrapping-i128-to-i8 :: I128 -> I8 where
+    llvm {
+      %r = trunc i128 %0 to i8
+      ret i8 %r
+    }
+  checked-i128-to-i8 :: I128 -> Option I8
+  checked-i128-to-i8 x = if lt-i128 x (-128) || gt-i128 x 127 then None else Some (wrapping-i128-to-i8 x)
+  saturating-i128-to-i8 :: I128 -> I8
+  saturating-i128-to-i8 x = if lt-i128 x (-128) then min-bound-i8 else if gt-i128 x 127 then max-bound-i8 else wrapping-i128-to-i8 x
+  prim wrapping-u128-to-i8 :: U128 -> I8 where
+    llvm {
+      %r = trunc i128 %0 to i8
+      ret i8 %r
+    }
+  checked-u128-to-i8 :: U128 -> Option I8
+  checked-u128-to-i8 x = if gt-u128 x 127 then None else Some (wrapping-u128-to-i8 x)
+  saturating-u128-to-i8 :: U128 -> I8
+  saturating-u128-to-i8 x = if gt-u128 x 127 then max-bound-i8 else wrapping-u128-to-i8 x
+  prim wrapping-i128-to-i16 :: I128 -> I16 where
+    llvm {
+      %r = trunc i128 %0 to i16
+      ret i16 %r
+    }
+  checked-i128-to-i16 :: I128 -> Option I16
+  checked-i128-to-i16 x = if lt-i128 x (-32768) || gt-i128 x 32767 then None else Some (wrapping-i128-to-i16 x)
+  saturating-i128-to-i16 :: I128 -> I16
+  saturating-i128-to-i16 x = if lt-i128 x (-32768) then min-bound-i16 else if gt-i128 x 32767 then max-bound-i16 else wrapping-i128-to-i16 x
+  prim wrapping-u128-to-i16 :: U128 -> I16 where
+    llvm {
+      %r = trunc i128 %0 to i16
+      ret i16 %r
+    }
+  checked-u128-to-i16 :: U128 -> Option I16
+  checked-u128-to-i16 x = if gt-u128 x 32767 then None else Some (wrapping-u128-to-i16 x)
+  saturating-u128-to-i16 :: U128 -> I16
+  saturating-u128-to-i16 x = if gt-u128 x 32767 then max-bound-i16 else wrapping-u128-to-i16 x
+  prim wrapping-i128-to-i32 :: I128 -> I32 where
+    llvm {
+      %r = trunc i128 %0 to i32
+      ret i32 %r
+    }
+  checked-i128-to-i32 :: I128 -> Option I32
+  checked-i128-to-i32 x = if lt-i128 x (-2147483648) || gt-i128 x 2147483647 then None else Some (wrapping-i128-to-i32 x)
+  saturating-i128-to-i32 :: I128 -> I32
+  saturating-i128-to-i32 x = if lt-i128 x (-2147483648) then min-bound-i32 else if gt-i128 x 2147483647 then max-bound-i32 else wrapping-i128-to-i32 x
+  prim wrapping-u128-to-i32 :: U128 -> I32 where
+    llvm {
+      %r = trunc i128 %0 to i32
+      ret i32 %r
+    }
+  checked-u128-to-i32 :: U128 -> Option I32
+  checked-u128-to-i32 x = if gt-u128 x 2147483647 then None else Some (wrapping-u128-to-i32 x)
+  saturating-u128-to-i32 :: U128 -> I32
+  saturating-u128-to-i32 x = if gt-u128 x 2147483647 then max-bound-i32 else wrapping-u128-to-i32 x
+  prim wrapping-i128-to-i64 :: I128 -> I64 where
+    llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+  checked-i128-to-i64 :: I128 -> Option I64
+  checked-i128-to-i64 x = if lt-i128 x (-9223372036854775808) || gt-i128 x 9223372036854775807 then None else Some (wrapping-i128-to-i64 x)
+  saturating-i128-to-i64 :: I128 -> I64
+  saturating-i128-to-i64 x = if lt-i128 x (-9223372036854775808) then min-bound-i64 else if gt-i128 x 9223372036854775807 then max-bound-i64 else wrapping-i128-to-i64 x
+  prim wrapping-u128-to-i64 :: U128 -> I64 where
+    llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+  checked-u128-to-i64 :: U128 -> Option I64
+  checked-u128-to-i64 x = if gt-u128 x 9223372036854775807 then None else Some (wrapping-u128-to-i64 x)
+  saturating-u128-to-i64 :: U128 -> I64
+  saturating-u128-to-i64 x = if gt-u128 x 9223372036854775807 then max-bound-i64 else wrapping-u128-to-i64 x
+  prim wrapping-i128-to-u8 :: I128 -> U8 where
+    llvm {
+      %r = trunc i128 %0 to i8
+      ret i8 %r
+    }
+  checked-i128-to-u8 :: I128 -> Option U8
+  checked-i128-to-u8 x = if lt-i128 x 0 || gt-i128 x 255 then None else Some (wrapping-i128-to-u8 x)
+  saturating-i128-to-u8 :: I128 -> U8
+  saturating-i128-to-u8 x = if lt-i128 x 0 then 0 else if gt-i128 x 255 then max-bound-u8 else wrapping-i128-to-u8 x
+  prim wrapping-u128-to-u8 :: U128 -> U8 where
+    llvm {
+      %r = trunc i128 %0 to i8
+      ret i8 %r
+    }
+  checked-u128-to-u8 :: U128 -> Option U8
+  checked-u128-to-u8 x = if gt-u128 x 255 then None else Some (wrapping-u128-to-u8 x)
+  saturating-u128-to-u8 :: U128 -> U8
+  saturating-u128-to-u8 x = if gt-u128 x 255 then max-bound-u8 else wrapping-u128-to-u8 x
+  prim wrapping-i128-to-u16 :: I128 -> U16 where
+    llvm {
+      %r = trunc i128 %0 to i16
+      ret i16 %r
+    }
+  checked-i128-to-u16 :: I128 -> Option U16
+  checked-i128-to-u16 x = if lt-i128 x 0 || gt-i128 x 65535 then None else Some (wrapping-i128-to-u16 x)
+  saturating-i128-to-u16 :: I128 -> U16
+  saturating-i128-to-u16 x = if lt-i128 x 0 then 0 else if gt-i128 x 65535 then max-bound-u16 else wrapping-i128-to-u16 x
+  prim wrapping-u128-to-u16 :: U128 -> U16 where
+    llvm {
+      %r = trunc i128 %0 to i16
+      ret i16 %r
+    }
+  checked-u128-to-u16 :: U128 -> Option U16
+  checked-u128-to-u16 x = if gt-u128 x 65535 then None else Some (wrapping-u128-to-u16 x)
+  saturating-u128-to-u16 :: U128 -> U16
+  saturating-u128-to-u16 x = if gt-u128 x 65535 then max-bound-u16 else wrapping-u128-to-u16 x
+  prim wrapping-i128-to-u32 :: I128 -> U32 where
+    llvm {
+      %r = trunc i128 %0 to i32
+      ret i32 %r
+    }
+  checked-i128-to-u32 :: I128 -> Option U32
+  checked-i128-to-u32 x = if lt-i128 x 0 || gt-i128 x 4294967295 then None else Some (wrapping-i128-to-u32 x)
+  saturating-i128-to-u32 :: I128 -> U32
+  saturating-i128-to-u32 x = if lt-i128 x 0 then 0 else if gt-i128 x 4294967295 then max-bound-u32 else wrapping-i128-to-u32 x
+  prim wrapping-u128-to-u32 :: U128 -> U32 where
+    llvm {
+      %r = trunc i128 %0 to i32
+      ret i32 %r
+    }
+  checked-u128-to-u32 :: U128 -> Option U32
+  checked-u128-to-u32 x = if gt-u128 x 4294967295 then None else Some (wrapping-u128-to-u32 x)
+  saturating-u128-to-u32 :: U128 -> U32
+  saturating-u128-to-u32 x = if gt-u128 x 4294967295 then max-bound-u32 else wrapping-u128-to-u32 x
+  prim wrapping-i128-to-u64 :: I128 -> U64 where
+    llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+  checked-i128-to-u64 :: I128 -> Option U64
+  checked-i128-to-u64 x = if lt-i128 x 0 || gt-i128 x 18446744073709551615 then None else Some (wrapping-i128-to-u64 x)
+  saturating-i128-to-u64 :: I128 -> U64
+  saturating-i128-to-u64 x = if lt-i128 x 0 then 0 else if gt-i128 x 18446744073709551615 then max-bound-u64 else wrapping-i128-to-u64 x
+  prim wrapping-u128-to-u64 :: U128 -> U64 where
+    llvm {
+      %r = trunc i128 %0 to i64
+      ret i64 %r
+    }
+  checked-u128-to-u64 :: U128 -> Option U64
+  checked-u128-to-u64 x = if gt-u128 x 18446744073709551615 then None else Some (wrapping-u128-to-u64 x)
+  saturating-u128-to-u64 :: U128 -> U64
+  saturating-u128-to-u64 x = if gt-u128 x 18446744073709551615 then max-bound-u64 else wrapping-u128-to-u64 x
+  wrapping-i128-to-usize :: I128 -> Usize
+  wrapping-i128-to-usize x = wrapping-u64-to-usize (wrapping-i128-to-u64 x)
+  checked-i128-to-usize :: I128 -> Option Usize
+  checked-i128-to-usize x = case checked-i128-to-u64 x of Some v -> checked-u64-to-usize v; None -> None
+  saturating-i128-to-usize :: I128 -> Usize
+  saturating-i128-to-usize x = saturating-u64-to-usize (saturating-i128-to-u64 x)
+  wrapping-i128-to-isize :: I128 -> Isize
+  wrapping-i128-to-isize x = wrapping-i64-to-isize (wrapping-i128-to-i64 x)
+  checked-i128-to-isize :: I128 -> Option Isize
+  checked-i128-to-isize x = case checked-i128-to-i64 x of Some v -> checked-i64-to-isize v; None -> None
+  saturating-i128-to-isize :: I128 -> Isize
+  saturating-i128-to-isize x = saturating-i64-to-isize (saturating-i128-to-i64 x)
+  wrapping-u128-to-usize :: U128 -> Usize
+  wrapping-u128-to-usize x = wrapping-u64-to-usize (wrapping-u128-to-u64 x)
+  checked-u128-to-usize :: U128 -> Option Usize
+  checked-u128-to-usize x = case checked-u128-to-u64 x of Some v -> checked-u64-to-usize v; None -> None
+  saturating-u128-to-usize :: U128 -> Usize
+  saturating-u128-to-usize x = saturating-u64-to-usize (saturating-u128-to-u64 x)
+  wrapping-u128-to-isize :: U128 -> Isize
+  wrapping-u128-to-isize x = wrapping-i64-to-isize (wrapping-u128-to-i64 x)
+  checked-u128-to-isize :: U128 -> Option Isize
+  checked-u128-to-isize x = case checked-u128-to-i64 x of Some v -> checked-i64-to-isize v; None -> None
+  saturating-u128-to-isize :: U128 -> Isize
+  saturating-u128-to-isize x = saturating-i64-to-isize (saturating-u128-to-i64 x)
+  prim i128-to-f32 :: I128 -> F32 where
+    llvm {
+      %r = sitofp i128 %0 to float
+      ret float %r
+    }
+  prim i128-to-f64 :: I128 -> F64 where
+    llvm {
+      %r = sitofp i128 %0 to double
+      ret double %r
+    }
+  prim u128-to-f32 :: U128 -> F32 where
+    llvm {
+      %r = uitofp i128 %0 to float
+      ret float %r
+    }
+  prim u128-to-f64 :: U128 -> F64 where
+    llvm {
+      %r = uitofp i128 %0 to double
+      ret double %r
+    }
+  prim f64-fits-i128 :: F64 -> Bool where
+    llvm {
+      %ge = fcmp oge double %0, 0xC7E0000000000000
+      %lt = fcmp olt double %0, 0x47E0000000000000
+      %ok = and i1 %ge, %lt
+      %r = zext i1 %ok to i8
+      ret i8 %r
+    }
+  prim saturating-f64-to-i128 :: F64 -> I128 where
+    llvm {
+      %ge = fcmp oge double %0, 0xC7E0000000000000
+      %lt = fcmp olt double %0, 0x47E0000000000000
+      %ok = and i1 %ge, %lt
+      %safe = select i1 %ok, double %0, double 0.0
+      %v = fptosi double %safe to i128
+      %above = fcmp oge double %0, 0x47E0000000000000
+      %below = fcmp olt double %0, 0xC7E0000000000000
+      %a = select i1 %above, i128 170141183460469231731687303715884105727, i128 %v
+      %r = select i1 %below, i128 -170141183460469231731687303715884105728, i128 %a
+      ret i128 %r
+    }
+  prim f64-fits-u128 :: F64 -> Bool where
+    llvm {
+      %gt = fcmp ogt double %0, 0xBFF0000000000000
+      %lt = fcmp olt double %0, 0x47F0000000000000
+      %ok = and i1 %gt, %lt
+      %r = zext i1 %ok to i8
+      ret i8 %r
+    }
+  prim saturating-f64-to-u128 :: F64 -> U128 where
+    llvm {
+      %gt = fcmp ogt double %0, 0xBFF0000000000000
+      %lt = fcmp olt double %0, 0x47F0000000000000
+      %ok = and i1 %gt, %lt
+      %safe = select i1 %ok, double %0, double 0.0
+      %v = fptoui double %safe to i128
+      %above = fcmp oge double %0, 0x47F0000000000000
+      %below = fcmp ole double %0, 0xBFF0000000000000
+      %a = select i1 %above, i128 -1, i128 %v
+      %r = select i1 %below, i128 0, i128 %a
+      ret i128 %r
+    }
+  checked-f64-to-i128 :: F64 -> Option I128
+  checked-f64-to-i128 x = if f64-fits-i128 x then Some (saturating-f64-to-i128 x) else None
+  checked-f64-to-u128 :: F64 -> Option U128
+  checked-f64-to-u128 x = if f64-fits-u128 x then Some (saturating-f64-to-u128 x) else None
+  checked-f32-to-i128 :: F32 -> Option I128
+  checked-f32-to-i128 x = checked-f64-to-i128 (f32-to-f64 x)
+  saturating-f32-to-i128 :: F32 -> I128
+  saturating-f32-to-i128 x = saturating-f64-to-i128 (f32-to-f64 x)
+  checked-f32-to-u128 :: F32 -> Option U128
+  checked-f32-to-u128 x = checked-f64-to-u128 (f32-to-f64 x)
+  saturating-f32-to-u128 :: F32 -> U128
+  saturating-f32-to-u128 x = saturating-f64-to-u128 (f32-to-f64 x)
 
   -- The mathematical types. Every `I128` is an `Int` and every `U128` a
   -- `Nat`, keeping the value; the other direction states the range it

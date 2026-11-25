@@ -16,8 +16,8 @@ Import with `import Data.Bool`. Selected exports may already be in Prelude.
 
 Data.Bool: the booleans and their strict operations.
 
-`Bool` is a core runtime type; the `cinch.prim.*Bool` foreign
-imports are the machine operations. `&&` and `||` are strict
+`Bool` is a core runtime type; its primitive operations are pure
+Cinch case expressions. `&&` and `||` are strict
 functions in the bootstrap slice; the surface short-circuiting form
 lands with the effects correction (primitive types specification
 section 6).
@@ -44,7 +44,7 @@ These are strict functions in the bootstrap slice; the surface `&&`
 and `||` short-circuit once that deviation is corrected (primitive
 types specification, section 6).
 
-[Source](/reference-sources/Data.Bool.cinch) · line 32
+[Source](/reference-sources/Data.Bool.cinch) · line 55
 
 <a id="value-616e64"></a>
 
@@ -54,7 +54,7 @@ types specification, section 6).
 
 The strict boolean algebra (primitive types specification, section 6).
 
-[Source](/reference-sources/Data.Bool.cinch) · line 42
+[Source](/reference-sources/Data.Bool.cinch) · line 65
 
 <a id="value-626f6f6c"></a>
 
@@ -66,7 +66,7 @@ The boolean fold: `bool f t b` is `t` when `b` is `True` and `f`
 otherwise (`Data.Bool.bool`), the elimination form matching the
 constructors' order.
 
-[Source](/reference-sources/Data.Bool.cinch) · line 54
+[Source](/reference-sources/Data.Bool.cinch) · line 77
 
 <a id="value-6e6f74"></a>
 
@@ -167,4 +167,4 @@ is `Ok x`).
 
 # Reference provenance
 
-Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bool.cinch`. Source SHA-256: `b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.
+Generated from the Rust compiler's checked exports and `seed/prelude/Data/Bool.cinch`. Source SHA-256: `a74ae86f0553e94919c6e5b7c12deeac215141c593310d871216ae9e247b80e1`. This records the source snapshot, not a released compiler version. Regenerate after changing library sources; do not edit generated declarations by hand.

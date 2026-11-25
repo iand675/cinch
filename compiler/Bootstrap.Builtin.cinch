@@ -11,7 +11,7 @@ module Bootstrap.Builtin where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Scan (string-starts-with, string-drop)
 
-  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, float-intrinsic, simd-intrinsic, fast-bytes-intrinsic, platform-intrinsic, total-primitive
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, total-primitive
   export mvar-plan, mvar-type-name, cell-type-name, cell-effect-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
   export ScalarShape, ScalarOperation, scalar-shape-name, scalar-shape-width, scalar-shape-signed
@@ -153,157 +153,6 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.prim.neI64" == 0 then Some ("I64Ne", ["I64", "I64"], "Bool")
     else None
 
-  -- | Recognize pure floating-point intrinsics (`F32`/`F64` arithmetic, rounding, bitcasts, and comparisons).
-  float-intrinsic :: String -> Option (String, String, String)
-  float-intrinsic symbol =
-    if string-compare symbol "cinch.prim.f32Bits" == 0 then Some ("F32 -> U32", "float", "bits")
-    else if string-compare symbol "cinch.prim.f64Bits" == 0 then Some ("F64 -> U64", "double", "bits")
-    else if string-compare symbol "cinch.prim.f32FromBits" == 0 then Some ("U32 -> F32", "float", "frombits")
-    else if string-compare symbol "cinch.prim.f64FromBits" == 0 then Some ("U64 -> F64", "double", "frombits")
-    else if string-compare symbol "cinch.prim.addF32" == 0 then Some ("F32 -> F32 -> F32", "float", "fadd")
-    else if string-compare symbol "cinch.prim.subF32" == 0 then Some ("F32 -> F32 -> F32", "float", "fsub")
-    else if string-compare symbol "cinch.prim.mulF32" == 0 then Some ("F32 -> F32 -> F32", "float", "fmul")
-    else if string-compare symbol "cinch.prim.divF32" == 0 then Some ("F32 -> F32 -> F32", "float", "fdiv")
-    else if string-compare symbol "cinch.prim.copysignF32" == 0 then Some ("F32 -> F32 -> F32", "float", "copysign")
-    else if string-compare symbol "cinch.prim.negF32" == 0 then Some ("F32 -> F32", "float", "fneg")
-    else if string-compare symbol "cinch.prim.absF32" == 0 then Some ("F32 -> F32", "float", "fabs")
-    else if string-compare symbol "cinch.prim.sqrtF32" == 0 then Some ("F32 -> F32", "float", "sqrt")
-    else if string-compare symbol "cinch.prim.floorF32" == 0 then Some ("F32 -> F32", "float", "floor")
-    else if string-compare symbol "cinch.prim.ceilF32" == 0 then Some ("F32 -> F32", "float", "ceil")
-    else if string-compare symbol "cinch.prim.truncF32" == 0 then Some ("F32 -> F32", "float", "trunc")
-    else if string-compare symbol "cinch.prim.roundF32" == 0 then Some ("F32 -> F32", "float", "round")
-    else if string-compare symbol "cinch.prim.roundToEvenF32" == 0 then Some ("F32 -> F32", "float", "roundeven")
-    else if string-compare symbol "cinch.prim.addF64" == 0 then Some ("F64 -> F64 -> F64", "double", "fadd")
-    else if string-compare symbol "cinch.prim.subF64" == 0 then Some ("F64 -> F64 -> F64", "double", "fsub")
-    else if string-compare symbol "cinch.prim.mulF64" == 0 then Some ("F64 -> F64 -> F64", "double", "fmul")
-    else if string-compare symbol "cinch.prim.divF64" == 0 then Some ("F64 -> F64 -> F64", "double", "fdiv")
-    else if string-compare symbol "cinch.prim.copysignF64" == 0 then Some ("F64 -> F64 -> F64", "double", "copysign")
-    else if string-compare symbol "cinch.prim.negF64" == 0 then Some ("F64 -> F64", "double", "fneg")
-    else if string-compare symbol "cinch.prim.absF64" == 0 then Some ("F64 -> F64", "double", "fabs")
-    else if string-compare symbol "cinch.prim.sqrtF64" == 0 then Some ("F64 -> F64", "double", "sqrt")
-    else if string-compare symbol "cinch.prim.floorF64" == 0 then Some ("F64 -> F64", "double", "floor")
-    else if string-compare symbol "cinch.prim.ceilF64" == 0 then Some ("F64 -> F64", "double", "ceil")
-    else if string-compare symbol "cinch.prim.truncF64" == 0 then Some ("F64 -> F64", "double", "trunc")
-    else if string-compare symbol "cinch.prim.roundF64" == 0 then Some ("F64 -> F64", "double", "round")
-    else if string-compare symbol "cinch.prim.roundToEvenF64" == 0 then Some ("F64 -> F64", "double", "roundeven")
-    else None
-
-  -- The wide scalars' natively lowered intrinsics (design/wide-scalars.md):
-  -- equality, comparisons, wrapping arithmetic, bitwise, shifts, rotates,
-  -- bitscans, total unsigned div/rem, and integer conversions at LLVM `i128`.
-  wide-intrinsic :: String -> Option (String, String)
-  wide-intrinsic symbol =
-    if string-compare symbol "cinch.prim.eqI128" == 0 then Some ("I128 -> I128 -> Bool", "eq")
-    else if string-compare symbol "cinch.prim.neI128" == 0 then Some ("I128 -> I128 -> Bool", "ne")
-    else if string-compare symbol "cinch.prim.ltI128" == 0 then Some ("I128 -> I128 -> Bool", "slt")
-    else if string-compare symbol "cinch.prim.leI128" == 0 then Some ("I128 -> I128 -> Bool", "sle")
-    else if string-compare symbol "cinch.prim.gtI128" == 0 then Some ("I128 -> I128 -> Bool", "sgt")
-    else if string-compare symbol "cinch.prim.geI128" == 0 then Some ("I128 -> I128 -> Bool", "sge")
-    else if string-compare symbol "cinch.prim.wrappingAddI128" == 0 then Some ("I128 -> I128 -> I128", "add")
-    else if string-compare symbol "cinch.prim.wrappingSubI128" == 0 then Some ("I128 -> I128 -> I128", "sub")
-    else if string-compare symbol "cinch.prim.wrappingMulI128" == 0 then Some ("I128 -> I128 -> I128", "mul")
-    else if string-compare symbol "cinch.prim.wrappingNegI128" == 0 then Some ("I128 -> I128", "neg")
-    else if string-compare symbol "cinch.prim.bitAndI128" == 0 then Some ("I128 -> I128 -> I128", "and")
-    else if string-compare symbol "cinch.prim.bitOrI128" == 0 then Some ("I128 -> I128 -> I128", "or")
-    else if string-compare symbol "cinch.prim.bitXorI128" == 0 then Some ("I128 -> I128 -> I128", "xor")
-    else if string-compare symbol "cinch.prim.bitNotI128" == 0 then Some ("I128 -> I128", "not")
-    else if string-compare symbol "cinch.prim.wrappingShlI128" == 0 then Some ("I128 -> U32 -> I128", "shl")
-    else if string-compare symbol "cinch.prim.wrappingShrI128" == 0 then Some ("I128 -> U32 -> I128", "ashr")
-    else if string-compare symbol "cinch.prim.rotateLeftI128" == 0 then Some ("I128 -> U32 -> I128", "rotl")
-    else if string-compare symbol "cinch.prim.rotateRightI128" == 0 then Some ("I128 -> U32 -> I128", "rotr")
-    else if string-compare symbol "cinch.prim.countOnesI128" == 0 then Some ("I128 -> U32", "ctpop")
-    else if string-compare symbol "cinch.prim.leadingZerosI128" == 0 then Some ("I128 -> U32", "ctlz")
-    else if string-compare symbol "cinch.prim.trailingZerosI128" == 0 then Some ("I128 -> U32", "cttz")
-    else if string-compare symbol "cinch.prim.reverseBitsI128" == 0 then Some ("I128 -> I128", "bitrev")
-    else if string-compare symbol "cinch.prim.swapBytesI128" == 0 then Some ("I128 -> I128", "bswap")
-    else if string-compare symbol "cinch.prim.eqU128" == 0 then Some ("U128 -> U128 -> Bool", "eq")
-    else if string-compare symbol "cinch.prim.neU128" == 0 then Some ("U128 -> U128 -> Bool", "ne")
-    else if string-compare symbol "cinch.prim.ltU128" == 0 then Some ("U128 -> U128 -> Bool", "ult")
-    else if string-compare symbol "cinch.prim.leU128" == 0 then Some ("U128 -> U128 -> Bool", "ule")
-    else if string-compare symbol "cinch.prim.gtU128" == 0 then Some ("U128 -> U128 -> Bool", "ugt")
-    else if string-compare symbol "cinch.prim.geU128" == 0 then Some ("U128 -> U128 -> Bool", "uge")
-    else if string-compare symbol "cinch.prim.wrappingAddU128" == 0 then Some ("U128 -> U128 -> U128", "add")
-    else if string-compare symbol "cinch.prim.wrappingSubU128" == 0 then Some ("U128 -> U128 -> U128", "sub")
-    else if string-compare symbol "cinch.prim.wrappingMulU128" == 0 then Some ("U128 -> U128 -> U128", "mul")
-    else if string-compare symbol "cinch.prim.wrappingNegU128" == 0 then Some ("U128 -> U128", "neg")
-    else if string-compare symbol "cinch.prim.divU128" == 0 then Some ("U128 -> U128 -> U128", "udiv")
-    else if string-compare symbol "cinch.prim.remU128" == 0 then Some ("U128 -> U128 -> U128", "urem")
-    else if string-compare symbol "cinch.prim.bitAndU128" == 0 then Some ("U128 -> U128 -> U128", "and")
-    else if string-compare symbol "cinch.prim.bitOrU128" == 0 then Some ("U128 -> U128 -> U128", "or")
-    else if string-compare symbol "cinch.prim.bitXorU128" == 0 then Some ("U128 -> U128 -> U128", "xor")
-    else if string-compare symbol "cinch.prim.bitNotU128" == 0 then Some ("U128 -> U128", "not")
-    else if string-compare symbol "cinch.prim.wrappingShlU128" == 0 then Some ("U128 -> U32 -> U128", "shl")
-    else if string-compare symbol "cinch.prim.wrappingShrU128" == 0 then Some ("U128 -> U32 -> U128", "lshr")
-    else if string-compare symbol "cinch.prim.rotateLeftU128" == 0 then Some ("U128 -> U32 -> U128", "rotl")
-    else if string-compare symbol "cinch.prim.rotateRightU128" == 0 then Some ("U128 -> U32 -> U128", "rotr")
-    else if string-compare symbol "cinch.prim.countOnesU128" == 0 then Some ("U128 -> U32", "ctpop")
-    else if string-compare symbol "cinch.prim.leadingZerosU128" == 0 then Some ("U128 -> U32", "ctlz")
-    else if string-compare symbol "cinch.prim.trailingZerosU128" == 0 then Some ("U128 -> U32", "cttz")
-    else if string-compare symbol "cinch.prim.reverseBitsU128" == 0 then Some ("U128 -> U128", "bitrev")
-    else if string-compare symbol "cinch.prim.swapBytesU128" == 0 then Some ("U128 -> U128", "bswap")
-    else if string-compare symbol "cinch.prim.u64ToU128" == 0 then Some ("U64 -> U128", "zext64")
-    else if string-compare symbol "cinch.prim.u32ToU128" == 0 then Some ("U32 -> U128", "zext64")
-    else if string-compare symbol "cinch.prim.u16ToU128" == 0 then Some ("U16 -> U128", "zext64")
-    else if string-compare symbol "cinch.prim.u8ToU128" == 0 then Some ("U8 -> U128", "zext64")
-    else if string-compare symbol "cinch.prim.i64ToI128" == 0 then Some ("I64 -> I128", "sext64")
-    else if string-compare symbol "cinch.prim.wrappingU128ToU64" == 0 then Some ("U128 -> U64", "trunc64")
-    else if string-compare symbol "cinch.prim.wrappingU128ToI64" == 0 then Some ("U128 -> I64", "trunc64")
-    else if string-compare symbol "cinch.prim.wrappingU128ToU32" == 0 then Some ("U128 -> U32", "trunc32")
-    else if string-compare symbol "cinch.prim.wrappingU128ToU16" == 0 then Some ("U128 -> U16", "trunc16")
-    else if string-compare symbol "cinch.prim.wrappingU128ToU8" == 0 then Some ("U128 -> U8", "trunc8")
-    else if string-compare symbol "cinch.prim.wrappingI128ToI64" == 0 then Some ("I128 -> I64", "trunc64")
-    else if string-compare symbol "cinch.prim.wrappingI128ToU64" == 0 then Some ("I128 -> U64", "trunc64")
-    else if string-compare symbol "cinch.prim.wrappingI128ToU128" == 0 then Some ("I128 -> U128", "id128")
-    else if string-compare symbol "cinch.prim.wrappingU128ToI128" == 0 then Some ("U128 -> I128", "id128")
-    else None
-
-  -- | Recognize portable 128-bit SIMD lane operations over `U128`.
-  simd-intrinsic :: String -> Option (String, String)
-  simd-intrinsic symbol =
-    if string-compare symbol "cinch.prim.simdBitSelect" == 0 then Some ("U128 -> U128 -> U128 -> U128", "bitselect")
-    else if string-compare symbol "cinch.prim.simdU8x16Splat" == 0 then Some ("U8 -> U128", "u8x16.splat")
-    else if string-compare symbol "cinch.prim.simdU8x16Add" == 0 then Some ("U128 -> U128 -> U128", "u8x16.add")
-    else if string-compare symbol "cinch.prim.simdU8x16Sub" == 0 then Some ("U128 -> U128 -> U128", "u8x16.sub")
-    else if string-compare symbol "cinch.prim.simdU8x16CmpEq" == 0 then Some ("U128 -> U128 -> U128", "u8x16.eq")
-    else if string-compare symbol "cinch.prim.simdU8x16CmpLt" == 0 then Some ("U128 -> U128 -> U128", "u8x16.ult")
-    else if string-compare symbol "cinch.prim.simdU8x16CmpGt" == 0 then Some ("U128 -> U128 -> U128", "u8x16.ugt")
-    else if string-compare symbol "cinch.prim.simdU8x16Movemask" == 0 then Some ("U128 -> U32", "u8x16.movemask")
-    else if string-compare symbol "cinch.prim.simdU16x8Splat" == 0 then Some ("U16 -> U128", "u16x8.splat")
-    else if string-compare symbol "cinch.prim.simdU16x8Add" == 0 then Some ("U128 -> U128 -> U128", "u16x8.add")
-    else if string-compare symbol "cinch.prim.simdU16x8Sub" == 0 then Some ("U128 -> U128 -> U128", "u16x8.sub")
-    else if string-compare symbol "cinch.prim.simdU16x8Mul" == 0 then Some ("U128 -> U128 -> U128", "u16x8.mul")
-    else if string-compare symbol "cinch.prim.simdU16x8Shl" == 0 then Some ("U128 -> U32 -> U128", "u16x8.shl")
-    else if string-compare symbol "cinch.prim.simdU16x8Shr" == 0 then Some ("U128 -> U32 -> U128", "u16x8.lshr")
-    else if string-compare symbol "cinch.prim.simdI16x8Ashr" == 0 then Some ("U128 -> U32 -> U128", "u16x8.ashr")
-    else if string-compare symbol "cinch.prim.simdU16x8CmpEq" == 0 then Some ("U128 -> U128 -> U128", "u16x8.eq")
-    else if string-compare symbol "cinch.prim.simdU16x8CmpLt" == 0 then Some ("U128 -> U128 -> U128", "u16x8.ult")
-    else if string-compare symbol "cinch.prim.simdI16x8CmpLt" == 0 then Some ("U128 -> U128 -> U128", "u16x8.slt")
-    else if string-compare symbol "cinch.prim.simdI16x8Smin" == 0 then Some ("U128 -> U128 -> U128", "u16x8.smin")
-    else if string-compare symbol "cinch.prim.simdI16x8Smax" == 0 then Some ("U128 -> U128 -> U128", "u16x8.smax")
-    else if string-compare symbol "cinch.prim.simdU32x4Splat" == 0 then Some ("U32 -> U128", "u32x4.splat")
-    else if string-compare symbol "cinch.prim.simdU32x4Add" == 0 then Some ("U128 -> U128 -> U128", "u32x4.add")
-    else if string-compare symbol "cinch.prim.simdU32x4Sub" == 0 then Some ("U128 -> U128 -> U128", "u32x4.sub")
-    else if string-compare symbol "cinch.prim.simdU32x4Mul" == 0 then Some ("U128 -> U128 -> U128", "u32x4.mul")
-    else if string-compare symbol "cinch.prim.simdU32x4Shl" == 0 then Some ("U128 -> U32 -> U128", "u32x4.shl")
-    else if string-compare symbol "cinch.prim.simdU32x4Shr" == 0 then Some ("U128 -> U32 -> U128", "u32x4.lshr")
-    else if string-compare symbol "cinch.prim.simdI32x4Ashr" == 0 then Some ("U128 -> U32 -> U128", "u32x4.ashr")
-    else if string-compare symbol "cinch.prim.simdU32x4Rotl" == 0 then Some ("U128 -> U32 -> U128", "u32x4.fshl")
-    else if string-compare symbol "cinch.prim.simdU32x4Rotr" == 0 then Some ("U128 -> U32 -> U128", "u32x4.fshr")
-    else if string-compare symbol "cinch.prim.simdI32x4Smin" == 0 then Some ("U128 -> U128 -> U128", "u32x4.smin")
-    else if string-compare symbol "cinch.prim.simdI32x4Smax" == 0 then Some ("U128 -> U128 -> U128", "u32x4.smax")
-    else if string-compare symbol "cinch.prim.simdU32x4CmpEq" == 0 then Some ("U128 -> U128 -> U128", "u32x4.eq")
-    else if string-compare symbol "cinch.prim.simdU32x4CmpLt" == 0 then Some ("U128 -> U128 -> U128", "u32x4.ult")
-    else if string-compare symbol "cinch.prim.simdU32x4Pack" == 0 then Some ("U32 -> U32 -> U32 -> U32 -> U128", "u32x4.pack")
-    else if string-compare symbol "cinch.prim.simdU64x2Splat" == 0 then Some ("U64 -> U128", "u64x2.splat")
-    else if string-compare symbol "cinch.prim.simdU64x2Add" == 0 then Some ("U128 -> U128 -> U128", "u64x2.add")
-    else if string-compare symbol "cinch.prim.simdU64x2Sub" == 0 then Some ("U128 -> U128 -> U128", "u64x2.sub")
-    else if string-compare symbol "cinch.prim.simdU64x2Shl" == 0 then Some ("U128 -> U32 -> U128", "u64x2.shl")
-    else if string-compare symbol "cinch.prim.simdU64x2Shr" == 0 then Some ("U128 -> U32 -> U128", "u64x2.lshr")
-    else if string-compare symbol "cinch.prim.simdU64x2Rotl" == 0 then Some ("U128 -> U32 -> U128", "u64x2.fshl")
-    else if string-compare symbol "cinch.prim.simdU64x2Rotr" == 0 then Some ("U128 -> U32 -> U128", "u64x2.fshr")
-    else if string-compare symbol "cinch.prim.simdU64x2Pack" == 0 then Some ("U64 -> U64 -> U128", "u64x2.pack")
-    else None
-
   -- | Recognize unboxed/word/128-bit byte-buffer operations lowered inline with TBAA and invariant metadata.
   fast-bytes-intrinsic :: String -> Option (String, String)
   fast-bytes-intrinsic symbol =
@@ -351,17 +200,11 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.prim.wrappingAddI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
     else if string-compare symbol "cinch.prim.wrappingSubI64" == 0 then Some ("I64 -> I64 -> I64", symbol)
     else if (case u32-wrapping-operation symbol of Some operation -> True; None -> False) then Some ("U32 -> U32 -> U32", symbol)
-    else case wide-intrinsic symbol of
+    else case fast-bytes-intrinsic symbol of
       Some (scheme, operation) -> Some (scheme, symbol)
-      None -> case float-intrinsic symbol of
-        Some (scheme, ty, operation) -> Some (scheme, symbol)
-        None -> case simd-intrinsic symbol of
-          Some (scheme, operation) -> Some (scheme, symbol)
-          None -> case fast-bytes-intrinsic symbol of
-            Some (scheme, operation) -> Some (scheme, symbol)
-            None -> case platform-intrinsic symbol of
-              Some (scheme, external, arguments, result) -> Some (scheme, external)
-              None -> numeric-intrinsic-contract symbol
+      None -> case platform-intrinsic symbol of
+        Some (scheme, external, arguments, result) -> Some (scheme, external)
+        None -> numeric-intrinsic-contract symbol
   numeric-intrinsic-contract :: String -> Option (String, String)
   numeric-intrinsic-contract symbol =
     if string-compare symbol "cinch.runtime.textF64ToDecimal" == 0 then Some ("F64 -> Bytes", "cinch_text_f64_to_decimal")

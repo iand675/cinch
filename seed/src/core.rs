@@ -226,85 +226,6 @@ impl CmpOp {
     }
 }
 
-/// Binary floating-point operations (section 5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum FloatBinOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    /// IEEE 754-2019 `minimum`: propagates NaN, `-0 < +0`.
-    Minimum,
-    /// IEEE 754-2019 `maximum`: propagates NaN, `-0 < +0`.
-    Maximum,
-    /// IEEE 754 `copySign`: magnitude of first operand with sign of second.
-    Copysign,
-}
-
-impl FloatBinOp {
-    fn name(self) -> &'static str {
-        match self {
-            FloatBinOp::Add => "add",
-            FloatBinOp::Sub => "sub",
-            FloatBinOp::Mul => "mul",
-            FloatBinOp::Div => "div",
-            FloatBinOp::Minimum => "minimum",
-            FloatBinOp::Maximum => "maximum",
-            FloatBinOp::Copysign => "copysign",
-        }
-    }
-}
-
-/// Unary floating-point operations (section 5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum FloatUnOp {
-    Neg,
-    Abs,
-    Sqrt,
-    Floor,
-    Ceil,
-    Trunc,
-    Round,
-    RoundEven,
-}
-
-impl FloatUnOp {
-    fn name(self) -> &'static str {
-        match self {
-            FloatUnOp::Neg => "neg",
-            FloatUnOp::Abs => "abs",
-            FloatUnOp::Sqrt => "sqrt",
-            FloatUnOp::Floor => "floor",
-            FloatUnOp::Ceil => "ceil",
-            FloatUnOp::Trunc => "trunc",
-            FloatUnOp::Round => "round",
-            FloatUnOp::RoundEven => "roundToEven",
-        }
-    }
-}
-
-/// Floating-point classification (section 5).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum FClassOp {
-    IsNan,
-    IsInfinite,
-    IsFinite,
-    IsNormal,
-    SignBit,
-}
-
-impl FClassOp {
-    fn name(self) -> &'static str {
-        match self {
-            FClassOp::IsNan => "isNaN",
-            FClassOp::IsInfinite => "isInfinite",
-            FClassOp::IsFinite => "isFinite",
-            FClassOp::IsNormal => "isNormal",
-            FClassOp::SignBit => "signBit",
-        }
-    }
-}
-
 /// Conversion families (section 7). `Total` is `sToT` (value-preserving
 /// integer conversions, integer-to-float and float-to-float with IEEE
 /// rounding), `Checked` returns `Option T`, `Saturating` clamps (`NaN` maps
@@ -580,187 +501,6 @@ impl BytesOp {
             BytesOp::Data => "cinch_bytes_data",
             BytesOp::Copy => "cinch_bytes_copy",
             BytesOp::Compare => "cinch_bytes_compare",
-        }
-    }
-}
-
-/// Portable 128-bit SIMD lane operations over `U128` (little-endian canonical
-/// lane order: lane 0 occupies the least-significant bits on every target).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum SimdOp {
-    BitSelect,
-    U8x16Splat,
-    U8x16Add,
-    U8x16Sub,
-    U8x16CmpEq,
-    U8x16CmpLt,
-    U8x16CmpGt,
-    U8x16Movemask,
-    U16x8Splat,
-    U16x8Add,
-    U16x8Sub,
-    U16x8Mul,
-    U16x8Shl,
-    U16x8Shr,
-    I16x8Ashr,
-    U16x8CmpEq,
-    U16x8CmpLt,
-    I16x8CmpLt,
-    I16x8Smin,
-    I16x8Smax,
-    U32x4Splat,
-    U32x4Add,
-    U32x4Sub,
-    U32x4Mul,
-    U32x4Shl,
-    U32x4Shr,
-    I32x4Ashr,
-    U32x4Rotl,
-    U32x4Rotr,
-    I32x4Smin,
-    I32x4Smax,
-    U32x4CmpEq,
-    U32x4CmpLt,
-    U32x4Pack,
-    U64x2Splat,
-    U64x2Add,
-    U64x2Sub,
-    U64x2Shl,
-    U64x2Shr,
-    U64x2Rotl,
-    U64x2Rotr,
-    U64x2Pack,
-}
-
-impl SimdOp {
-    pub fn from_name(name: &str) -> Option<Self> {
-        use SimdOp::*;
-        Some(match name {
-            "simdBitSelect" => BitSelect,
-            "simdU8x16Splat" => U8x16Splat,
-            "simdU8x16Add" => U8x16Add,
-            "simdU8x16Sub" => U8x16Sub,
-            "simdU8x16CmpEq" => U8x16CmpEq,
-            "simdU8x16CmpLt" => U8x16CmpLt,
-            "simdU8x16CmpGt" => U8x16CmpGt,
-            "simdU8x16Movemask" => U8x16Movemask,
-            "simdU16x8Splat" => U16x8Splat,
-            "simdU16x8Add" => U16x8Add,
-            "simdU16x8Sub" => U16x8Sub,
-            "simdU16x8Mul" => U16x8Mul,
-            "simdU16x8Shl" => U16x8Shl,
-            "simdU16x8Shr" => U16x8Shr,
-            "simdI16x8Ashr" => I16x8Ashr,
-            "simdU16x8CmpEq" => U16x8CmpEq,
-            "simdU16x8CmpLt" => U16x8CmpLt,
-            "simdI16x8CmpLt" => I16x8CmpLt,
-            "simdI16x8Smin" => I16x8Smin,
-            "simdI16x8Smax" => I16x8Smax,
-            "simdU32x4Splat" => U32x4Splat,
-            "simdU32x4Add" => U32x4Add,
-            "simdU32x4Sub" => U32x4Sub,
-            "simdU32x4Mul" => U32x4Mul,
-            "simdU32x4Shl" => U32x4Shl,
-            "simdU32x4Shr" => U32x4Shr,
-            "simdI32x4Ashr" => I32x4Ashr,
-            "simdU32x4Rotl" => U32x4Rotl,
-            "simdU32x4Rotr" => U32x4Rotr,
-            "simdI32x4Smin" => I32x4Smin,
-            "simdI32x4Smax" => I32x4Smax,
-            "simdU32x4CmpEq" => U32x4CmpEq,
-            "simdU32x4CmpLt" => U32x4CmpLt,
-            "simdU32x4Pack" => U32x4Pack,
-            "simdU64x2Splat" => U64x2Splat,
-            "simdU64x2Add" => U64x2Add,
-            "simdU64x2Sub" => U64x2Sub,
-            "simdU64x2Shl" => U64x2Shl,
-            "simdU64x2Shr" => U64x2Shr,
-            "simdU64x2Rotl" => U64x2Rotl,
-            "simdU64x2Rotr" => U64x2Rotr,
-            "simdU64x2Pack" => U64x2Pack,
-            _ => return None,
-        })
-    }
-
-    pub fn name(self) -> &'static str {
-        use SimdOp::*;
-        match self {
-            BitSelect => "simdBitSelect",
-            U8x16Splat => "simdU8x16Splat",
-            U8x16Add => "simdU8x16Add",
-            U8x16Sub => "simdU8x16Sub",
-            U8x16CmpEq => "simdU8x16CmpEq",
-            U8x16CmpLt => "simdU8x16CmpLt",
-            U8x16CmpGt => "simdU8x16CmpGt",
-            U8x16Movemask => "simdU8x16Movemask",
-            U16x8Splat => "simdU16x8Splat",
-            U16x8Add => "simdU16x8Add",
-            U16x8Sub => "simdU16x8Sub",
-            U16x8Mul => "simdU16x8Mul",
-            U16x8Shl => "simdU16x8Shl",
-            U16x8Shr => "simdU16x8Shr",
-            I16x8Ashr => "simdI16x8Ashr",
-            U16x8CmpEq => "simdU16x8CmpEq",
-            U16x8CmpLt => "simdU16x8CmpLt",
-            I16x8CmpLt => "simdI16x8CmpLt",
-            I16x8Smin => "simdI16x8Smin",
-            I16x8Smax => "simdI16x8Smax",
-            U32x4Splat => "simdU32x4Splat",
-            U32x4Add => "simdU32x4Add",
-            U32x4Sub => "simdU32x4Sub",
-            U32x4Mul => "simdU32x4Mul",
-            U32x4Shl => "simdU32x4Shl",
-            U32x4Shr => "simdU32x4Shr",
-            I32x4Ashr => "simdI32x4Ashr",
-            U32x4Rotl => "simdU32x4Rotl",
-            U32x4Rotr => "simdU32x4Rotr",
-            I32x4Smin => "simdI32x4Smin",
-            I32x4Smax => "simdI32x4Smax",
-            U32x4CmpEq => "simdU32x4CmpEq",
-            U32x4CmpLt => "simdU32x4CmpLt",
-            U32x4Pack => "simdU32x4Pack",
-            U64x2Splat => "simdU64x2Splat",
-            U64x2Add => "simdU64x2Add",
-            U64x2Sub => "simdU64x2Sub",
-            U64x2Shl => "simdU64x2Shl",
-            U64x2Shr => "simdU64x2Shr",
-            U64x2Rotl => "simdU64x2Rotl",
-            U64x2Rotr => "simdU64x2Rotr",
-            U64x2Pack => "simdU64x2Pack",
-        }
-    }
-
-    pub fn arity(self) -> usize {
-        use SimdOp::*;
-        match self {
-            U8x16Splat | U8x16Movemask | U16x8Splat | U32x4Splat | U64x2Splat => 1,
-            BitSelect => 3,
-            U32x4Pack => 4,
-            _ => 2,
-        }
-    }
-
-    pub fn sig(self) -> (Vec<Ty>, Ty) {
-        use SimdOp::*;
-        let u8t = Ty::Prim(Scalar::U8);
-        let u16t = Ty::Prim(Scalar::U16);
-        let u32t = Ty::Prim(Scalar::U32);
-        let u64t = Ty::Prim(Scalar::U64);
-        let u128t = Ty::Prim(Scalar::U128);
-        match self {
-            BitSelect => (vec![u128t.clone(), u128t.clone(), u128t.clone()], u128t),
-            U8x16Splat => (vec![u8t], u128t),
-            U8x16Movemask => (vec![u128t], u32t),
-            U16x8Splat => (vec![u16t], u128t),
-            U32x4Splat => (vec![u32t], u128t),
-            U64x2Splat => (vec![u64t], u128t),
-            U16x8Shl | U16x8Shr | I16x8Ashr | U32x4Shl | U32x4Shr | I32x4Ashr
-            | U32x4Rotl | U32x4Rotr | U64x2Shl | U64x2Shr | U64x2Rotl | U64x2Rotr => {
-                (vec![u128t.clone(), u32t], u128t)
-            }
-            U32x4Pack => (vec![u32t.clone(), u32t.clone(), u32t.clone(), u32t], u128t),
-            U64x2Pack => (vec![u64t.clone(), u64t], u128t),
-            _ => (vec![u128t.clone(), u128t.clone()], u128t),
         }
     }
 }
@@ -1396,20 +1136,6 @@ pub enum PrimOp {
     /// `eq`/`ne`/`lt`/`le`/`gt`/`ge` for integer types, `Usize`, `Isize`
     /// and `Char` (sections 6 and 8).
     Cmp { ty: Scalar, op: CmpOp },
-    /// `add`/`sub`/`mul`/`div`/`minimum`/`maximum`/`copysign` (section 5).
-    FloatBin { ty: Scalar, op: FloatBinOp },
-    /// `neg`/`abs`/`sqrt`/`floor`/`ceil`/`trunc`/`round`/`roundToEven` (section 5).
-    FloatUn { ty: Scalar, op: FloatUnOp },
-    /// `f32Bits`/`f64Bits`: IEEE bit pattern as `U32`/`U64`.
-    FloatBits { ty: Scalar },
-    /// `f32FromBits`/`f64FromBits`: `F32`/`F64` from IEEE bit pattern.
-    FloatFromBits { ty: Scalar },
-    /// `feq`/`fne`/`flt`/`fle`/`fgt`/`fge`: quiet IEEE comparisons (section 5).
-    FCmp { ty: Scalar, op: CmpOp },
-    /// `isNaN`/`isInfinite`/`isFinite`/`isNormal`/`signBit` (section 5).
-    FClass { ty: Scalar, op: FClassOp },
-    /// `totalOrderF32`/`totalOrderF64` (section 5).
-    TotalOrder { ty: Scalar },
     /// `charToU32 :: Char -> U32` (section 6), total.
     CharToU32,
     /// `u32ToChar :: U32 -> Option Char` (sections 6 and 7): rejects
@@ -1434,8 +1160,6 @@ pub enum PrimOp {
     /// `Code a` type when constructed; `eval` carries no capability or
     /// effect of its own and is never evidence.
     Eval,
-    /// Portable 128-bit SIMD lane operations over `U128`.
-    Simd(SimdOp),
 }
 
 impl PrimOp {
@@ -1478,13 +1202,6 @@ impl PrimOp {
             BitScan { ty, op } => BitScan { ty: s(ty), op },
             Cmp { ty, op } => Cmp { ty: s(ty), op },
             Conv { from, to, mode } => Conv { from: s(from), to: s(to), mode },
-            FloatBin { ty, op } => FloatBin { ty: s(ty), op },
-            FloatUn { ty, op } => FloatUn { ty: s(ty), op },
-            FloatBits { ty } => FloatBits { ty: s(ty) },
-            FloatFromBits { ty } => FloatFromBits { ty: s(ty) },
-            FCmp { ty, op } => FCmp { ty: s(ty), op },
-            FClass { ty, op } => FClass { ty: s(ty), op },
-            TotalOrder { ty } => TotalOrder { ty: s(ty) },
             other => other,
         }
     }
@@ -1634,14 +1351,8 @@ impl PrimOp {
             "force" => Force,
             "charToU32" => CharToU32,
             "u32ToChar" => U32ToChar,
-            "f32Bits" => FloatBits { ty: Scalar::F32 },
-            "f64Bits" => FloatBits { ty: Scalar::F64 },
-            "f32FromBits" => FloatFromBits { ty: Scalar::F32 },
-            "f64FromBits" => FloatFromBits { ty: Scalar::F64 },
             _ => {
-                if let Some(op) = SimdOp::from_name(name) {
-                    Simd(op)
-                } else if let Some(op) = parse_conv(name) {
+                if let Some(op) = parse_conv(name) {
                     op
                 } else {
                     parse_typed_op(name)?
@@ -1660,7 +1371,6 @@ impl PrimOp {
             Stm { op, .. } => return format!("cinch.runtime.{}", op.name()),
             MVar { op, .. } => return format!("cinch.runtime.{}", op.name()),
             Slots { op, .. } => return format!("cinch.runtime.{}", op.name()),
-            Simd(op) => return format!("cinch.prim.{}", op.name()),
             Nat(op) => return format!("cinch.runtime.nat{}", op.name()),
             Int(op) => return format!("cinch.runtime.int{}", op.name()),
             Bytes(op) => return format!("cinch.runtime.bytes{}", op.name()),
@@ -1713,13 +1423,6 @@ impl PrimOp {
             BitNot { ty } => format!("bitNot{}", ty.name()),
             BitScan { ty, op } => format!("{}{}", op.name(), ty.name()),
             Cmp { ty, op } => format!("{}{}", op.name(), ty.name()),
-            FloatBin { ty, op } => format!("{}{}", op.name(), ty.name()),
-            FloatUn { ty, op } => format!("{}{}", op.name(), ty.name()),
-            FloatBits { ty } => format!("{}Bits", ty.lower_name()),
-            FloatFromBits { ty } => format!("{}FromBits", ty.lower_name()),
-            FCmp { ty, op } => format!("f{}{}", op.name(), ty.name()),
-            FClass { ty, op } => format!("{}{}", op.name(), ty.name()),
-            TotalOrder { ty } => format!("totalOrder{}", ty.name()),
             Conv { from, to, mode } => conv_name(from, to, mode),
         };
         format!("cinch.prim.{n}")
@@ -1736,7 +1439,7 @@ impl PrimOp {
         match self {
             Nat(_) | Int(_) | CharToU32 | Bound { .. } | Arith { .. } | Neg { .. }
             | Div { .. } | Rem { .. } | Shift { .. } | Rotate { .. } | Bit { .. }
-            | BitNot { .. } | BitScan { .. } | Cmp { .. } | Simd(_) => true,
+            | BitNot { .. } | BitScan { .. } | Cmp { .. } => true,
             Conv { from, to, .. } => !from.is_float() && !to.is_float(),
             _ => false,
         }
@@ -1756,13 +1459,6 @@ impl PrimOp {
             | BitNot { .. }
             | BitScan { .. }
             | Cmp { .. }
-            | FloatBin { .. }
-            | FloatUn { .. }
-            | FloatBits { .. }
-            | FloatFromBits { .. }
-            | FCmp { .. }
-            | FClass { .. }
-            | Simd(_)
             | Conv { mode: ConvMode::Total | ConvMode::Wrapping | ConvMode::Saturating, .. } => true,
             _ => false,
         }
@@ -1775,7 +1471,6 @@ impl PrimOp {
             Stm { op, .. } => op.sig().0.len(),
             MVar { op, .. } => op.sig().0.len(),
             Slots { op, .. } => op.sig().0.len(),
-            Simd(op) => op.arity(),
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64 | NatOp::FromU128 | NatOp::ToU128)
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat | IntOp::FromI128 | IntOp::ToI128)
@@ -1801,8 +1496,7 @@ impl PrimOp {
             ) => 3,
             Bytes(BytesOp::Copy) => 5,
             Sym(SymOp::Intern | SymOp::Name) => 1,
-            Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FloatBits { .. }
-            | FloatFromBits { .. } | FClass { .. }
+            Neg { .. } | BitNot { .. } | BitScan { .. }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | ApplyErased | NotBool | Eval => 1,
             Conc(k) => k.arity(),
             // The participant hint takes one count; callback forms take two
@@ -1835,7 +1529,7 @@ impl PrimOp {
 
     /// Does the operation return the prelude `Ordering`?
     pub fn returns_ordering(self) -> bool {
-        matches!(self, PrimOp::TotalOrder { .. })
+        false
     }
 
     /// The argument types and result type of the primitive (the prelude
@@ -1900,7 +1594,6 @@ impl PrimOp {
             Bytes(BytesOp::StoreU128) => (vec![Ty::Bytes, Ty::Nat, prim(Scalar::U128)], Ty::Unit),
             Bytes(BytesOp::LoadU128At) => (vec![Ty::Bytes, i64t], prim(Scalar::U128)),
             Bytes(BytesOp::StoreU128At) => (vec![Ty::Bytes, i64t, prim(Scalar::U128)], Ty::Unit),
-            Simd(op) => op.sig(),
             Bytes(BytesOp::Copy) => {
                 (vec![Ty::Bytes, Ty::Bytes, Ty::Nat, Ty::Nat, Ty::Nat], Ty::Unit)
             }
@@ -1999,22 +1692,6 @@ impl PrimOp {
                 (vec![prim(ty)], res)
             }
             Cmp { ty, .. } => (vec![prim(ty), prim(ty)], Ty::Bool),
-            FloatBin { ty, .. } => (vec![prim(ty), prim(ty)], prim(ty)),
-            FloatUn { ty, .. } => (vec![prim(ty)], prim(ty)),
-            FloatBits { ty } => {
-                let bits = if ty == Scalar::F32 { u32t } else { u64t };
-                (vec![prim(ty)], bits)
-            }
-            FloatFromBits { ty } => {
-                let bits = if ty == Scalar::F32 { u32t } else { u64t };
-                (vec![bits], prim(ty))
-            }
-            FCmp { ty, .. } => (vec![prim(ty), prim(ty)], Ty::Bool),
-            FClass { ty, .. } => (vec![prim(ty)], Ty::Bool),
-            TotalOrder { ty } => (
-                vec![prim(ty), prim(ty)],
-                Ty::Adt(crate::known::ORDERING.into(), vec![]),
-            ),
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
             Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
@@ -2187,62 +1864,6 @@ fn typed_op_from_head(head: &str, ty: Scalar) -> Option<PrimOp> {
     if let Some(op) = CmpOp::parse(head) {
         if ty.is_int_like() || ty == Scalar::Char {
             return Some(Cmp { ty, op });
-        }
-    }
-    // Floating point (section 5).
-    if ty.is_float() {
-        for (h, op) in [
-            ("add", FloatBinOp::Add),
-            ("sub", FloatBinOp::Sub),
-            ("mul", FloatBinOp::Mul),
-            ("div", FloatBinOp::Div),
-            ("minimum", FloatBinOp::Minimum),
-            ("maximum", FloatBinOp::Maximum),
-            ("copysign", FloatBinOp::Copysign),
-        ] {
-            if head == h {
-                return Some(FloatBin { ty, op });
-            }
-        }
-        for (h, op) in [
-            ("neg", FloatUnOp::Neg),
-            ("abs", FloatUnOp::Abs),
-            ("sqrt", FloatUnOp::Sqrt),
-            ("floor", FloatUnOp::Floor),
-            ("ceil", FloatUnOp::Ceil),
-            ("trunc", FloatUnOp::Trunc),
-            ("round", FloatUnOp::Round),
-            ("roundToEven", FloatUnOp::RoundEven),
-        ] {
-            if head == h {
-                return Some(FloatUn { ty, op });
-            }
-        }
-        for (h, op) in [
-            ("feq", CmpOp::Eq),
-            ("fne", CmpOp::Ne),
-            ("flt", CmpOp::Lt),
-            ("fle", CmpOp::Le),
-            ("fgt", CmpOp::Gt),
-            ("fge", CmpOp::Ge),
-        ] {
-            if head == h {
-                return Some(FCmp { ty, op });
-            }
-        }
-        for (h, op) in [
-            ("isNaN", FClassOp::IsNan),
-            ("isInfinite", FClassOp::IsInfinite),
-            ("isFinite", FClassOp::IsFinite),
-            ("isNormal", FClassOp::IsNormal),
-            ("signBit", FClassOp::SignBit),
-        ] {
-            if head == h {
-                return Some(FClass { ty, op });
-            }
-        }
-        if head == "totalOrder" {
-            return Some(TotalOrder { ty });
         }
     }
     None
@@ -4113,6 +3734,8 @@ pub struct PrimPlan {
     /// The declared ABI's argument and result shapes (the fragment's).
     pub args: Vec<PrimAbiTy>,
     pub res: PrimAbiTy,
+    /// Whether the declared result type is `Bool` (which crosses LLVM as `i8`).
+    pub res_bool: bool,
     /// The declared effect row is empty (the body is pure computation).
     pub pure: bool,
     pub tier: PrimTier,
@@ -6290,14 +5913,7 @@ fn prim_touches_wide(op: PrimOp) -> bool {
         | Bit { ty, .. }
         | BitNot { ty }
         | BitScan { ty, .. }
-        | Cmp { ty, .. }
-        | FloatBin { ty, .. }
-        | FloatUn { ty, .. }
-        | FloatBits { ty }
-        | FloatFromBits { ty }
-        | FCmp { ty, .. }
-        | FClass { ty, .. }
-        | TotalOrder { ty } => ty.is_wide(),
+        | Cmp { ty, .. } => ty.is_wide(),
         Conv { from, to, .. } => from.is_wide() || to.is_wide(),
         Array { classes, packed, .. } => packed.is_some_and(Scalar::is_wide)
             || packed.is_none() && classes.contains(&Class::Wide),
@@ -6308,8 +5924,7 @@ fn prim_touches_wide(op: PrimOp) -> bool {
             | BytesOp::LoadU128At
             | BytesOp::StoreU128
             | BytesOp::StoreU128At,
-        )
-        | Simd(_) => true,
+        ) => true,
         _ => false,
     }
 }
@@ -6535,14 +6150,6 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
             }
             let q = if matches!(op, PrimOp::Div { .. }) { x / y } else { x % y };
             Some(Core::Int(trunc_word(q, ty)))
-        }
-        PrimOp::FloatBits { ty } | PrimOp::FloatFromBits { ty } => {
-            let w = if ty == Scalar::F32 {
-                (words[0] as u32) as i64
-            } else {
-                words[0]
-            };
-            Some(Core::Int(w))
         }
         PrimOp::Shift { ty, op: sop, checked } => {
             let (x, sh) = (scalar_value(words[0], ty), words[1] as u32);
@@ -9700,11 +9307,6 @@ mod tests {
             PrimOp::BitScan { ty: Scalar::U32, op: BitScanOp::CountOnes },
             PrimOp::BitScan { ty: Scalar::U8, op: BitScanOp::SwapBytes },
             PrimOp::Cmp { ty: Scalar::Char, op: CmpOp::Ge },
-            PrimOp::FloatBin { ty: Scalar::F32, op: FloatBinOp::Minimum },
-            PrimOp::FloatUn { ty: Scalar::F64, op: FloatUnOp::Sqrt },
-            PrimOp::FCmp { ty: Scalar::F64, op: CmpOp::Ne },
-            PrimOp::FClass { ty: Scalar::F32, op: FClassOp::IsNormal },
-            PrimOp::TotalOrder { ty: Scalar::F64 },
             PrimOp::CharToU32,
             PrimOp::U32ToChar,
             PrimOp::Conv { from: Scalar::U8, to: Scalar::I64, mode: ConvMode::Total },
@@ -9797,8 +9399,6 @@ mod tests {
         }
         .sig();
         assert_eq!(res, Ty::Prim(Scalar::U8));
-        let (_, res) = PrimOp::TotalOrder { ty: Scalar::F64 }.sig();
-        assert_eq!(res, Ty::Adt(crate::known::ORDERING.into(), vec![]));
         let (args, res) = PrimOp::U32ToChar.sig();
         assert_eq!(args, vec![Ty::Prim(Scalar::U32)]);
         assert_eq!(res, Ty::Adt(crate::known::OPTION.into(), vec![Ty::Prim(Scalar::Char)]));

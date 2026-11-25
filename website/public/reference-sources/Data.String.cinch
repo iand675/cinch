@@ -33,6 +33,8 @@ module Data.String where
   import Data.Option
   import Data.List
   import Data.Bytes
+  import Prim.Machine (wrapping-add-i64, wrapping-sub-i64, ge-i64, lt-i64, bit-and-u8, ne-u8, eq-u64, bit-and-u64, bit-or-u64, bit-not-u64, wrapping-shl-u64, count-ones-u64, count-ones-u32, u32-to-i64)
+  import Prim.Wide
   import Data.Char
   import Data.Hash
   import Algebra.Semigroup
@@ -212,8 +214,9 @@ module Data.String where
   -- Private SIMD/SWAR blocks count non-continuation bytes; exact scalar fringes never overread.
   string-length :: String -> Nat
   string-length text =
-    let raw = string-bytes-raw text in let end = nat-to-i64 (bytes-len raw) in
-    let count = string-held raw (string-count-from (bytes-data raw) 0 end 0) in
+    let raw = string-bytes-raw text in
+    let end = bytes-len-i64 raw in
+    let count = string-count-from raw 0 end 0 in
     if 0 <= count then nat-from-i64 count else 0
 
   -- The scalar value at code point index `n`, by scan (O(n)).
@@ -493,113 +496,88 @@ module Data.String where
     hash s = hash (string-bytes-raw s)
 
   -- | Validate exactly eight available ASCII bytes using one unaligned word load.
-  -- The owner is retained through the load, and no byte beyond the proved range
-  -- is touched. The high-bit mask works in either host byte order.
+  -- No byte beyond the proved range is touched; the high-bit mask works in either host byte order.
   ascii-block :: using (i + 8 <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Bool
-  ascii-block b i = eq-u64 (string-held b (ascii-mask (bytes-data b) (nat-to-i64 i))) 0
-
-  -- | Keep an owning byte buffer live until a private raw read has completed.
-  string-held :: forall a. Bytes -> a -> a
-  string-held b value = case bytes-len b of
-    _ -> value
-
-  -- | Read eight bounded bytes and retain only their high bits. This private
-  -- kernel relies on the caller's range proof and backing-buffer lifetime.
-  prim ascii-mask :: I64 -> I64 -> U64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %word = load i64, ptr %at, align 1
-      %mask = and i64 %word, 9259542123273814144
-      ret i64 %mask
-    }
+  ascii-block b i = eq-u64 (bit-and-u64 (bytes-load-le64 b i) 9259542123273814144) 0
 
   -- | Add bounded private machine counters without imported object calls inside scans.
-  prim string-count-add :: I64 -> I64 -> I64 where
-    llvm {
-      %value = add i64 %0, %1
-      ret i64 %value
-    }
+  string-count-add :: I64 -> I64 -> I64
+  string-count-add a b = wrapping-add-i64 a b
 
   -- | Check a remaining complete-block width using private signed machine offsets.
-  prim string-count-wide :: I64 -> I64 -> I64 -> Bool where
-    llvm {
-      %remaining = sub i64 %1, %0
-      %enough = icmp sge i64 %remaining, %2
-      %value = zext i1 %enough to i8
-      ret i8 %value
-    }
+  string-count-wide :: I64 -> I64 -> I64 -> Bool
+  string-count-wide at end width = ge-i64 (wrapping-sub-i64 end at) width
 
   -- | Check whether an exact scalar fringe still has an available byte.
-  prim string-count-more :: I64 -> I64 -> Bool where
-    llvm {
-      %more = icmp slt i64 %0, %1
-      %value = zext i1 %more to i8
-      ret i8 %value
-    }
+  string-count-more :: I64 -> I64 -> Bool
+  string-count-more at end = lt-i64 at end
 
   -- | Count exact leading bytes in sixteen proved available sealed-valid UTF-8 bytes.
-  -- Byte flags are zero or one; paired lane sums stay below three and the total below seventeen.
+  -- SIMD byte-lane comparisons identify continuation bytes and popcount subtracts them from sixteen.
   -- The reduction counts bytes in either host order and never returns a backing address.
-  prim string-count-sixteen :: I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %bytes = load <16 x i8>, ptr %at, align 1
-      %top = and <16 x i8> %bytes, <i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64, i8 -64>
-      %heads = icmp ne <16 x i8> %top, <i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128, i8 -128>
-      %flags = zext <16 x i1> %heads to <16 x i8>
-      %words = bitcast <16 x i8> %flags to <2 x i64>
-      %low = extractelement <2 x i64> %words, i32 0
-      %high = extractelement <2 x i64> %words, i32 1
-      %paired = add i64 %low, %high
-      %sums = mul i64 %paired, 72340172838076673
-      %value = lshr i64 %sums, 56
-      ret i64 %value
-    }
+  string-count-sixteen :: using (0 <= at, at + 16 <= bytes-len-i64 raw) => (raw :: Bytes) -> (at :: I64) -> I64
+  string-count-sixteen raw at =
+    let chunk = bytes-load-u128-at raw at in
+    let top = bit-and-u128 chunk (simd-u8x16-splat 192) in
+    let cont = simd-u8x16-cmpeq top (simd-u8x16-splat 128) in
+    let mask = simd-u8x16-movemask cont in
+    wrapping-sub-i64 16 (u32-to-i64 (count-ones-u32 mask))
 
   -- | Count exact leading bytes in eight proved available bytes with order-independent SWAR.
-  prim string-count-eight :: I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %word = load i64, ptr %at, align 1
-      %shifted = shl i64 %word, 1
-      %inverse = xor i64 %word, -1
-      %noncontinuation = or i64 %inverse, %shifted
-      %heads = and i64 %noncontinuation, 9259542123273814144
-      %flags = lshr i64 %heads, 7
-      %sums = mul i64 %flags, 72340172838076673
-      %value = lshr i64 %sums, 56
-      ret i64 %value
-    }
+  string-count-eight :: using (0 <= at, at + 8 <= bytes-len-i64 raw) => (raw :: Bytes) -> (at :: I64) -> I64
+  string-count-eight raw at =
+    let word = bytes-load-le64-at raw at in
+    let noncont = bit-and-u64 (bit-or-u64 (bit-not-u64 word) (wrapping-shl-u64 word 1)) 9259542123273814144 in
+    u32-to-i64 (count-ones-u64 noncont)
 
   -- | Classify exactly one proved available fringe byte without a wide speculative load.
-  prim string-count-one :: I64 -> I64 -> I64 where
-    unsafe llvm {
-      %base = inttoptr i64 %0 to ptr
-      %at = getelementptr i8, ptr %base, i64 %1
-      %byte = load i8, ptr %at, align 1
-      %top = and i8 %byte, -64
-      %head = icmp ne i8 %top, -128
-      %value = zext i1 %head to i64
-      ret i64 %value
-    }
+  string-count-one :: using (0 <= at, at < bytes-len-i64 raw) => (raw :: Bytes) -> (at :: I64) -> I64
+  string-count-one raw at =
+    if ne-u8 (bit-and-u8 (bytes-get-u8-at raw at) 192) 128 then 1 else 0
 
-  -- | Traverse complete SIMD/SWAR blocks with unboxed counters and one outer owner hold.
-  string-count-from :: I64 -> I64 -> I64 -> I64 -> I64
-  string-count-from base at end total =
-    if string-count-wide at end 16 then
-      let count = string-count-sixteen base at in let next-total = string-count-add total count in
-      let next = string-count-add at 16 in string-count-from base next end next-total
-    else if string-count-wide at end 8 then
-      let count = string-count-eight base at in let next-total = string-count-add total count in
-      let next = string-count-add at 8 in string-count-tail base next end next-total
-    else string-count-tail base at end total
+  -- | Traverse complete SIMD/SWAR blocks with unboxed counters and proved bounds.
+  string-count-from :: Bytes -> I64 -> I64 -> I64 -> I64
+  string-count-from raw at end total =
+    let n = bytes-len raw in
+    if 16 <= n then
+      let lim = n - 16 in
+      string-count-loop16 raw at end lim total
+    else string-count-eight-or-tail raw at end total
+
+  -- | Tight 16-byte SIMD loop once the 16-byte upper bound is established.
+  string-count-loop16 :: using (lim + 16 <= bytes-len raw) => (raw :: Bytes) -> (at :: I64) -> (end :: I64) -> (lim :: Nat) -> I64 -> I64
+  string-count-loop16 raw at end lim total =
+    if 0 <= at then
+      let na = nat-from-i64 at in
+      if na <= lim && string-count-wide at end 16 then
+        let count = string-count-sixteen raw at in
+        let next-total = string-count-add total count in
+        let next = string-count-add at 16 in
+        string-count-loop16 raw next end lim next-total
+      else string-count-eight-or-tail raw at end total
+    else total
+
+  -- | Consume one 8-byte SWAR block if available, then count the remaining scalar fringe.
+  string-count-eight-or-tail :: Bytes -> I64 -> I64 -> I64 -> I64
+  string-count-eight-or-tail raw at end total =
+    let n = bytes-len raw in
+    if 8 <= n && 0 <= at then
+      let lim8 = n - 8 in
+      let na = nat-from-i64 at in
+      if na <= lim8 && string-count-wide at end 8 then
+        let count = string-count-eight raw at in
+        let next-total = string-count-add total count in
+        let next = string-count-add at 8 in
+        string-count-tail raw next end next-total
+      else string-count-tail raw at end total
+    else string-count-tail raw at end total
 
   -- | Count only the final available bytes after all complete packed blocks.
-  string-count-tail :: I64 -> I64 -> I64 -> I64 -> I64
-  string-count-tail base at end total = if string-count-more at end then
-    let count = string-count-one base at in let next-total = string-count-add total count in
-    let next = string-count-add at 1 in string-count-tail base next end next-total
+  string-count-tail :: Bytes -> I64 -> I64 -> I64 -> I64
+  string-count-tail raw at end total =
+    if 0 <= at && at < bytes-len-i64 raw && string-count-more at end then
+      let count = string-count-one raw at in
+      let next-total = string-count-add total count in
+      let next = string-count-add at 1 in
+      string-count-tail raw next end next-total
     else total

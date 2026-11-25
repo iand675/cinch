@@ -83,8 +83,7 @@ mod mvar_codegen;
 
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CPat, Class,
-    CmpOp, ConcOp, ConvMode, Core, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
-    FloatUnOp, FnDef, ForeignPlan, JoinId, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimOp, PrimPlan, ProcOp,
+    CmpOp, ConcOp, ConvMode, Core, CtorLayout, FieldAccess, FieldShape, FnDef, ForeignPlan, JoinId, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimOp, PrimPlan, ProcOp,
     Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op, symbol_in_modules,
 };
 use crate::types::Scalar;
@@ -547,6 +546,13 @@ fn emit_module(
         "declare i64 @cinch_array_slice(i64, i64, i64)",
         "declare i64 @cinch_array_append(i64, i64)",
         "declare i64 @cinch_stm_cell_new(i64, i64)",
+        "declare i64 @cinch_stm_state(i64)",
+        "declare i64 @cinch_stm_publish(i64, i64)",
+        "declare i64 @cinch_stm_wait_begin(i64)",
+        "declare i64 @cinch_stm_wait_park(i64)",
+        "declare i64 @cinch_stm_wait_cancel(i64)",
+        "declare i64 @cinch_stm_wake(i64)",
+        "declare i64 @cinch_stm_yield(i64)",
         "declare i64 @cinch_mvar_new(i64, i64, i64)",
         "declare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)",
         crate::slots::DECLARES[0],
@@ -834,6 +840,13 @@ fn emit_module(
     let prim_use_declares = prim_use_declares(program, &out);
     if !prim_use_declares.is_empty() {
         for line in prim_use_declares {
+            out.push_str(&line);
+        }
+        out.push('\n');
+    }
+    let prim_intrinsics = prim_llvm_intrinsic_declares(program, &out);
+    if !prim_intrinsics.is_empty() {
+        for line in prim_intrinsics {
             out.push_str(&line);
         }
         out.push('\n');
@@ -6600,222 +6613,9 @@ fn wide_prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op:
             let _ = bytes_access_word(b, cx, reg, k);
             ret(b, "0");
         }
-        Simd(sop) => {
-            emit_simd_body(b, cx, sop);
-        }
         _ => return not_yet("phase 2's surface"),
     }
     Ok(())
-}
-
-/// Emit the portable LLVM vector body for a 128-bit `SimdOp` over `U128`.
-/// Lane-uniform ops operate directly on `bitcast i128 to <N x iW>` and back,
-/// which is mathematically identical on little-endian and big-endian targets.
-fn emit_simd_body(b: &mut Builder, cx: &LowerCx, sop: crate::core::SimdOp) {
-    use crate::core::SimdOp::*;
-    let splat = |b: &mut Builder, n: usize, w: usize, elem: &str| -> String {
-        let vty = format!("<{n} x i{w}>");
-        let v0 = b.reg();
-        b.line(&format!("{v0} = insertelement {vty} poison, i{w} {elem}, i64 0"));
-        let v = b.reg();
-        b.line(&format!(
-            "{v} = shufflevector {vty} {v0}, {vty} poison, <{n} x i32> zeroinitializer"
-        ));
-        v
-    };
-    let bin = |b: &mut Builder, n: usize, w: usize, inst: &str| {
-        let vty = format!("<{n} x i{w}>");
-        let va = b.reg();
-        b.line(&format!("{va} = bitcast i128 %p0 to {vty}"));
-        let vb = b.reg();
-        b.line(&format!("{vb} = bitcast i128 %p1 to {vty}"));
-        let vr = b.reg();
-        b.line(&format!("{vr} = {inst} {vty} {va}, {vb}"));
-        let r = b.reg();
-        b.line(&format!("{r} = bitcast {vty} {vr} to i128"));
-        b.line(&format!("ret i128 {r}"));
-    };
-    let cmp = |b: &mut Builder, n: usize, w: usize, pred: &str| {
-        let vty = format!("<{n} x i{w}>");
-        let va = b.reg();
-        b.line(&format!("{va} = bitcast i128 %p0 to {vty}"));
-        let vb = b.reg();
-        b.line(&format!("{vb} = bitcast i128 %p1 to {vty}"));
-        let vc = b.reg();
-        b.line(&format!("{vc} = icmp {pred} {vty} {va}, {vb}"));
-        let vm = b.reg();
-        b.line(&format!("{vm} = sext <{n} x i1> {vc} to {vty}"));
-        let r = b.reg();
-        b.line(&format!("{r} = bitcast {vty} {vm} to i128"));
-        b.line(&format!("ret i128 {r}"));
-    };
-    let shift = |b: &mut Builder, n: usize, w: usize, inst: &str| {
-        let vty = format!("<{n} x i{w}>");
-        let va = b.reg();
-        b.line(&format!("{va} = bitcast i128 %p0 to {vty}"));
-        let masked = b.reg();
-        b.line(&format!("{masked} = and i64 %p1, {}", w - 1));
-        let sh = if w < 64 {
-            let t = b.reg();
-            b.line(&format!("{t} = trunc i64 {masked} to i{w}"));
-            t
-        } else {
-            masked
-        };
-        let sv = splat(b, n, w, &sh);
-        let vr = b.reg();
-        b.line(&format!("{vr} = {inst} {vty} {va}, {sv}"));
-        let r = b.reg();
-        b.line(&format!("{r} = bitcast {vty} {vr} to i128"));
-        b.line(&format!("ret i128 {r}"));
-    };
-    let rot = |b: &mut Builder, n: usize, w: usize, intr: &str| {
-        let vty = format!("<{n} x i{w}>");
-        let va = b.reg();
-        b.line(&format!("{va} = bitcast i128 %p0 to {vty}"));
-        let sh = if w < 64 {
-            let t = b.reg();
-            b.line(&format!("{t} = trunc i64 %p1 to i{w}"));
-            t
-        } else {
-            "%p1".to_string()
-        };
-        let sv = splat(b, n, w, &sh);
-        let vr = b.reg();
-        b.line(&format!(
-            "{vr} = call {vty} @llvm.{intr}.v{n}i{w}({vty} {va}, {vty} {va}, {vty} {sv})"
-        ));
-        let r = b.reg();
-        b.line(&format!("{r} = bitcast {vty} {vr} to i128"));
-        b.line(&format!("ret i128 {r}"));
-    };
-    let minmax = |b: &mut Builder, n: usize, w: usize, intr: &str| {
-        let vty = format!("<{n} x i{w}>");
-        let va = b.reg();
-        b.line(&format!("{va} = bitcast i128 %p0 to {vty}"));
-        let vb = b.reg();
-        b.line(&format!("{vb} = bitcast i128 %p1 to {vty}"));
-        let vr = b.reg();
-        b.line(&format!(
-            "{vr} = call {vty} @llvm.{intr}.v{n}i{w}({vty} {va}, {vty} {vb})"
-        ));
-        let r = b.reg();
-        b.line(&format!("{r} = bitcast {vty} {vr} to i128"));
-        b.line(&format!("ret i128 {r}"));
-    };
-
-    match sop {
-        BitSelect => {
-            let notm = b.reg();
-            b.line(&format!("{notm} = xor i128 %p0, -1"));
-            let a = b.reg();
-            b.line(&format!("{a} = and i128 %p0, %p1"));
-            let c = b.reg();
-            b.line(&format!("{c} = and i128 {notm}, %p2"));
-            let r = b.reg();
-            b.line(&format!("{r} = or i128 {a}, {c}"));
-            b.line(&format!("ret i128 {r}"));
-        }
-        U8x16Splat => {
-            let e = b.reg();
-            b.line(&format!("{e} = trunc i64 %p0 to i8"));
-            let v = splat(b, 16, 8, &e);
-            let r = b.reg();
-            b.line(&format!("{r} = bitcast <16 x i8> {v} to i128"));
-            b.line(&format!("ret i128 {r}"));
-        }
-        U8x16Add => bin(b, 16, 8, "add"),
-        U8x16Sub => bin(b, 16, 8, "sub"),
-        U8x16CmpEq => cmp(b, 16, 8, "eq"),
-        U8x16CmpLt => cmp(b, 16, 8, "ult"),
-        U8x16CmpGt => cmp(b, 16, 8, "ugt"),
-        U8x16Movemask => {
-            let v = b.reg();
-            b.line(&format!("{v} = bitcast i128 %p0 to <16 x i8>"));
-            let m = b.reg();
-            b.line(&format!("{m} = icmp slt <16 x i8> {v}, zeroinitializer"));
-            let b16 = b.reg();
-            b.line(&format!("{b16} = bitcast <16 x i1> {m} to i16"));
-            let r = b.reg();
-            b.line(&format!("{r} = zext i16 {b16} to i64"));
-            ret(b, &r);
-        }
-        U16x8Splat => {
-            let e = b.reg();
-            b.line(&format!("{e} = trunc i64 %p0 to i16"));
-            let v = splat(b, 8, 16, &e);
-            let r = b.reg();
-            b.line(&format!("{r} = bitcast <8 x i16> {v} to i128"));
-            b.line(&format!("ret i128 {r}"));
-        }
-        U16x8Add => bin(b, 8, 16, "add"),
-        U16x8Sub => bin(b, 8, 16, "sub"),
-        U16x8Mul => bin(b, 8, 16, "mul"),
-        U16x8Shl => shift(b, 8, 16, "shl"),
-        U16x8Shr => shift(b, 8, 16, "lshr"),
-        I16x8Ashr => shift(b, 8, 16, "ashr"),
-        U16x8CmpEq => cmp(b, 8, 16, "eq"),
-        U16x8CmpLt => cmp(b, 8, 16, "ult"),
-        I16x8CmpLt => cmp(b, 8, 16, "slt"),
-        I16x8Smin => minmax(b, 8, 16, "smin"),
-        I16x8Smax => minmax(b, 8, 16, "smax"),
-        U32x4Splat => {
-            let e = b.reg();
-            b.line(&format!("{e} = trunc i64 %p0 to i32"));
-            let v = splat(b, 4, 32, &e);
-            let r = b.reg();
-            b.line(&format!("{r} = bitcast <4 x i32> {v} to i128"));
-            b.line(&format!("ret i128 {r}"));
-        }
-        U32x4Add => bin(b, 4, 32, "add"),
-        U32x4Sub => bin(b, 4, 32, "sub"),
-        U32x4Mul => bin(b, 4, 32, "mul"),
-        U32x4Shl => shift(b, 4, 32, "shl"),
-        U32x4Shr => shift(b, 4, 32, "lshr"),
-        I32x4Ashr => shift(b, 4, 32, "ashr"),
-        U32x4Rotl => rot(b, 4, 32, "fshl"),
-        U32x4Rotr => rot(b, 4, 32, "fshr"),
-        I32x4Smin => minmax(b, 4, 32, "smin"),
-        I32x4Smax => minmax(b, 4, 32, "smax"),
-        U32x4CmpEq => cmp(b, 4, 32, "eq"),
-        U32x4CmpLt => cmp(b, 4, 32, "ult"),
-        U32x4Pack => {
-            let mut cur = "poison".to_string();
-            for i in 0..4usize {
-                let e = b.reg();
-                b.line(&format!("{e} = trunc i64 %p{i} to i32"));
-                let lane = if cx.big_endian { 3 - i } else { i };
-                let next = b.reg();
-                b.line(&format!("{next} = insertelement <4 x i32> {cur}, i32 {e}, i64 {lane}"));
-                cur = next;
-            }
-            let r = b.reg();
-            b.line(&format!("{r} = bitcast <4 x i32> {cur} to i128"));
-            b.line(&format!("ret i128 {r}"));
-        }
-        U64x2Splat => {
-            let v = splat(b, 2, 64, "%p0");
-            let r = b.reg();
-            b.line(&format!("{r} = bitcast <2 x i64> {v} to i128"));
-            b.line(&format!("ret i128 {r}"));
-        }
-        U64x2Add => bin(b, 2, 64, "add"),
-        U64x2Sub => bin(b, 2, 64, "sub"),
-        U64x2Shl => shift(b, 2, 64, "shl"),
-        U64x2Shr => shift(b, 2, 64, "lshr"),
-        U64x2Rotl => rot(b, 2, 64, "fshl"),
-        U64x2Rotr => rot(b, 2, 64, "fshr"),
-        U64x2Pack => {
-            let (l0, l1) = if cx.big_endian { (1, 0) } else { (0, 1) };
-            let v0 = b.reg();
-            b.line(&format!("{v0} = insertelement <2 x i64> poison, i64 %p0, i64 {l0}"));
-            let v1 = b.reg();
-            b.line(&format!("{v1} = insertelement <2 x i64> {v0}, i64 %p1, i64 {l1}"));
-            let r = b.reg();
-            b.line(&format!("{r} = bitcast <2 x i64> {v1} to i128"));
-            b.line(&format!("ret i128 {r}"));
-        }
-    }
 }
 
 /// An integer scalar's range as `(lo, hi)`: `lo` as a signed `i128`, `hi`
@@ -8877,244 +8677,6 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             ret(b, &r);
         }
 
-        FloatBin { ty, op: fop } => {
-            let ft = float_ty(ty);
-            let x = word_to_float(b, ty, "%p0");
-            let y = word_to_float(b, ty, "%p1");
-            let v = match fop {
-                FloatBinOp::Add | FloatBinOp::Sub | FloatBinOp::Mul | FloatBinOp::Div => {
-                    let inst = match fop {
-                        FloatBinOp::Add => "fadd",
-                        FloatBinOp::Sub => "fsub",
-                        FloatBinOp::Mul => "fmul",
-                        FloatBinOp::Div => "fdiv",
-                        _ => unreachable!(),
-                    };
-                    let r = b.reg();
-                    b.line(&format!("{r} = {inst} {ft} {x}, {y}"));
-                    float_to_word(b, ty, &r)
-                }
-                FloatBinOp::Minimum | FloatBinOp::Maximum => {
-                    // IEEE 754-2019 minimum/maximum: propagate NaN (as a
-                    // quiet NaN), and distinguish -0 from +0.
-                    let qmask: i64 = if ty == Scalar::F32 {
-                        0x00400000
-                    } else {
-                        0x0008000000000000
-                    };
-                    let nan = b.reg();
-                    b.line(&format!("{nan} = fcmp uno {ft} {x}, {y}"));
-                    let xnan = b.reg();
-                    b.line(&format!("{xnan} = fcmp uno {ft} {x}, {x}"));
-                    let sel = b.reg();
-                    b.line(&format!("{sel} = select i1 {xnan}, i64 %p0, i64 %p1"));
-                    let q = b.reg();
-                    b.line(&format!("{q} = or i64 {sel}, {qmask}"));
-                    let eq = b.reg();
-                    b.line(&format!("{eq} = fcmp oeq {ft} {x}, {y}"));
-                    // On equality the words are identical except for -0
-                    // and +0, where minimum picks -0 (the `or` of the sign
-                    // bits) and maximum picks +0 (the `and`).
-                    let bit = if fop == FloatBinOp::Minimum {
-                        "or"
-                    } else {
-                        "and"
-                    };
-                    let both = b.reg();
-                    b.line(&format!("{both} = {bit} i64 %p0, %p1"));
-                    let cmp = b.reg();
-                    let pred = if fop == FloatBinOp::Minimum {
-                        "olt"
-                    } else {
-                        "ogt"
-                    };
-                    b.line(&format!("{cmp} = fcmp {pred} {ft} {x}, {y}"));
-                    let pick = b.reg();
-                    b.line(&format!("{pick} = select i1 {cmp}, i64 %p0, i64 %p1"));
-                    let nonnan = b.reg();
-                    b.line(&format!(
-                        "{nonnan} = select i1 {eq}, i64 {both}, i64 {pick}"
-                    ));
-                    let r = b.reg();
-                    b.line(&format!("{r} = select i1 {nan}, i64 {q}, i64 {nonnan}"));
-                    r
-                }
-                FloatBinOp::Copysign => {
-                    let r = b.reg();
-                    b.line(&format!(
-                        "{r} = call {ft} @llvm.copysign.{ft}({ft} {x}, {ft} {y})"
-                    ));
-                    float_to_word(b, ty, &r)
-                }
-            };
-            ret(b, &v);
-        }
-        FloatUn { ty, op: fop } => {
-            let ft = float_ty(ty);
-            let x = word_to_float(b, ty, "%p0");
-            let r = b.reg();
-            match fop {
-                FloatUnOp::Neg => b.line(&format!("{r} = fneg {ft} {x}")),
-                FloatUnOp::Abs => b.line(&format!("{r} = call {ft} @llvm.fabs.{ft}({ft} {x})")),
-                FloatUnOp::Sqrt => b.line(&format!("{r} = call {ft} @llvm.sqrt.{ft}({ft} {x})")),
-                FloatUnOp::Floor => b.line(&format!("{r} = call {ft} @llvm.floor.{ft}({ft} {x})")),
-                FloatUnOp::Ceil => b.line(&format!("{r} = call {ft} @llvm.ceil.{ft}({ft} {x})")),
-                FloatUnOp::Trunc => b.line(&format!("{r} = call {ft} @llvm.trunc.{ft}({ft} {x})")),
-                FloatUnOp::Round => b.line(&format!("{r} = call {ft} @llvm.round.{ft}({ft} {x})")),
-                FloatUnOp::RoundEven => {
-                    b.line(&format!("{r} = call {ft} @llvm.roundeven.{ft}({ft} {x})"))
-                }
-            }
-            let w = float_to_word(b, ty, &r);
-            ret(b, &w);
-        }
-        FloatBits { ty } | FloatFromBits { ty } => {
-            if ty == Scalar::F32 {
-                let r = b.reg();
-                b.line(&format!("{r} = and i64 %p0, 4294967295"));
-                ret(b, &r);
-            } else {
-                ret(b, "%p0");
-            }
-        }
-        FCmp { ty, op: cop } => {
-            // Quiet, non-signaling IEEE comparisons (section 5): `fne` is
-            // unordered-or-not-equal, so it is true on NaN.
-            let pred = match cop {
-                CmpOp::Eq => "oeq",
-                CmpOp::Ne => "une",
-                CmpOp::Lt => "olt",
-                CmpOp::Le => "ole",
-                CmpOp::Gt => "ogt",
-                CmpOp::Ge => "oge",
-            };
-            let ft = float_ty(ty);
-            let x = word_to_float(b, ty, "%p0");
-            let y = word_to_float(b, ty, "%p1");
-            let c = b.reg();
-            b.line(&format!("{c} = fcmp {pred} {ft} {x}, {y}"));
-            let r = b.reg();
-            b.line(&format!("{r} = zext i1 {c} to i64"));
-            ret(b, &r);
-        }
-        FClass { ty, op: cop } => {
-            let ft = float_ty(ty);
-            let x = word_to_float(b, ty, "%p0");
-            let c = match cop {
-                FClassOp::IsNan => {
-                    let r = b.reg();
-                    b.line(&format!("{r} = fcmp uno {ft} {x}, {x}"));
-                    r
-                }
-                FClassOp::IsInfinite => {
-                    let a = b.reg();
-                    b.line(&format!("{a} = call {ft} @llvm.fabs.{ft}({ft} {x})"));
-                    let r = b.reg();
-                    b.line(&format!(
-                        "{r} = fcmp oeq {ft} {a}, {}",
-                        fcst(ty, f64::INFINITY)
-                    ));
-                    r
-                }
-                FClassOp::IsFinite => {
-                    let a = b.reg();
-                    b.line(&format!("{a} = call {ft} @llvm.fabs.{ft}({ft} {x})"));
-                    let r = b.reg();
-                    b.line(&format!(
-                        "{r} = fcmp olt {ft} {a}, {}",
-                        fcst(ty, f64::INFINITY)
-                    ));
-                    r
-                }
-                FClassOp::IsNormal => {
-                    // Normal: the exponent bits are neither all zero nor
-                    // all ones (subnormals and infinities excluded).
-                    let it = int_ty(ty);
-                    let emask: i64 = if ty == Scalar::F32 {
-                        0x7F800000
-                    } else {
-                        0x7FF0000000000000
-                    };
-                    let v = trunc_n(b, ty, "%p0");
-                    let e = b.reg();
-                    b.line(&format!("{e} = and {it} {v}, {emask}"));
-                    let z = b.reg();
-                    b.line(&format!("{z} = icmp ne {it} {e}, 0"));
-                    let m = b.reg();
-                    b.line(&format!("{m} = icmp ne {it} {e}, {emask}"));
-                    let r = b.reg();
-                    b.line(&format!("{r} = and i1 {z}, {m}"));
-                    r
-                }
-                FClassOp::SignBit => {
-                    // The raw sign bit, so -0 and -NaN are negative.
-                    let r = if ty == Scalar::F32 {
-                        let s = b.reg();
-                        b.line(&format!("{s} = and i64 %p0, 2147483648"));
-                        let c = b.reg();
-                        b.line(&format!("{c} = icmp ne i64 {s}, 0"));
-                        c
-                    } else {
-                        let c = b.reg();
-                        b.line(&format!("{c} = icmp slt i64 %p0, 0"));
-                        c
-                    };
-                    r
-                }
-            };
-            let r = b.reg();
-            b.line(&format!("{r} = zext i1 {c} to i64"));
-            ret(b, &r);
-        }
-        TotalOrder { ty } => {
-            // IEEE 754-2019 totalOrder: -NaN < -inf < ... < -0 < +0 < ...
-            // < +inf < +NaN. Map each word to an order key (negated words
-            // flip, non-negated gain the sign bit) and compare unsigned.
-            let f32words = ty == Scalar::F32;
-            let signmask: i64 = if f32words { 2147483648i64 } else { i64::MIN };
-            let key = |b: &mut Builder, v: &str| -> String {
-                let n = b.reg();
-                if f32words {
-                    let s = b.reg();
-                    b.line(&format!("{s} = and i64 {v}, {signmask}"));
-                    b.line(&format!("{n} = icmp ne i64 {s}, 0"));
-                } else {
-                    b.line(&format!("{n} = icmp slt i64 {v}, 0"));
-                }
-                let inv = b.reg();
-                b.line(&format!(
-                    "{inv} = xor i64 {v}, {}",
-                    if f32words { 4294967295i64 } else { -1i64 }
-                ));
-                let pos = b.reg();
-                b.line(&format!("{pos} = or i64 {v}, {signmask}"));
-                let k = b.reg();
-                b.line(&format!("{k} = select i1 {n}, i64 {inv}, i64 {pos}"));
-                k
-            };
-            let kx = key(b, "%p0");
-            let ky = key(b, "%p1");
-            let lt = b.reg();
-            b.line(&format!("{lt} = icmp ult i64 {kx}, {ky}"));
-            let eq = b.reg();
-            b.line(&format!("{eq} = icmp eq i64 {kx}, {ky}"));
-            let llt = b.label();
-            let leq = b.label();
-            let lgt = b.label();
-            let lsecond = b.label();
-            b.line(&format!("br i1 {lt}, label %{llt}, label %{lsecond}"));
-            b.start(&lsecond);
-            b.line(&format!("br i1 {eq}, label %{leq}, label %{lgt}"));
-            for (l, suf, tag) in [(llt, ".lt", 0), (leq, ".eq", 1), (lgt, ".gt", 2)] {
-                b.start(&l);
-                let w = b.reg();
-                b.line(&format!(
-                    "{w} = ptrtoint ptr {blk} to i64",
-                    blk = static_payload(&format!("{name}{suf}"), reg.shape_desc(&[], tag))
-                ));
-                ret(b, &w);
-            }
-        }
         CharToU32 => {
             // A `Char` word already is its `U32` code point.
             ret(b, "%p0");
@@ -9134,7 +8696,6 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             ret_option(b, reg, op, name, &bad, |_| "%p0".to_string());
         }
         Conv { from, to, mode } => conv_body(b, reg, op, name, from, to, mode),
-        Simd(_) => unreachable!("Simd ops lower in wide_prim_body"),
     }
 }
 
@@ -9699,6 +9260,107 @@ fn prim_use_declares(program: &Program, so_far: &str) -> Vec<String> {
                     continue;
                 }
                 lines.push(prim_use_declare(u));
+            }
+        }
+    }
+    lines
+}
+
+/// Emit `declare` lines for `@llvm.*` intrinsics called by `prim` fragments
+/// that are not already declared in the module preamble.
+fn prim_llvm_intrinsic_declares(program: &Program, so_far: &str) -> Vec<String> {
+    fn llvm_type_of_suffix(suf: &str) -> Option<String> {
+        match suf {
+            "i8" | "i16" | "i32" | "i64" | "i128" => Some(suf.to_string()),
+            "f32" => Some("float".to_string()),
+            "f64" => Some("double".to_string()),
+            "v16i8" => Some("<16 x i8>".to_string()),
+            "v8i16" => Some("<8 x i16>".to_string()),
+            "v4i32" => Some("<4 x i32>".to_string()),
+            "v2i64" => Some("<2 x i64>".to_string()),
+            "v16i32" => Some("<16 x i32>".to_string()),
+            _ => None,
+        }
+    }
+    fn declare_for_intrinsic(sym: &str) -> Option<String> {
+        if sym == "llvm.sideeffect" {
+            return Some("declare void @llvm.sideeffect()\n".to_string());
+        }
+        if sym == "llvm.vector.reduce.add.v16i32" {
+            return Some("declare i32 @llvm.vector.reduce.add.v16i32(<16 x i32>)\n".to_string());
+        }
+        let suf = sym.rsplit('.').next()?;
+        let ty = llvm_type_of_suffix(suf)?;
+        if sym.starts_with("llvm.sadd.with.overflow.")
+            || sym.starts_with("llvm.uadd.with.overflow.")
+            || sym.starts_with("llvm.ssub.with.overflow.")
+            || sym.starts_with("llvm.usub.with.overflow.")
+            || sym.starts_with("llvm.smul.with.overflow.")
+            || sym.starts_with("llvm.umul.with.overflow.")
+        {
+            return Some(format!("declare {{ {ty}, i1 }} @{sym}({ty}, {ty})\n"));
+        }
+        if sym.starts_with("llvm.sadd.sat.")
+            || sym.starts_with("llvm.uadd.sat.")
+            || sym.starts_with("llvm.ssub.sat.")
+            || sym.starts_with("llvm.usub.sat.")
+            || sym.starts_with("llvm.smin.")
+            || sym.starts_with("llvm.smax.")
+            || sym.starts_with("llvm.umin.")
+            || sym.starts_with("llvm.umax.")
+            || sym.starts_with("llvm.copysign.")
+        {
+            return Some(format!("declare {ty} @{sym}({ty}, {ty})\n"));
+        }
+        if sym.starts_with("llvm.fshl.") || sym.starts_with("llvm.fshr.") {
+            return Some(format!("declare {ty} @{sym}({ty}, {ty}, {ty})\n"));
+        }
+        if sym.starts_with("llvm.ctlz.") || sym.starts_with("llvm.cttz.") {
+            return Some(format!("declare {ty} @{sym}({ty}, i1)\n"));
+        }
+        if sym.starts_with("llvm.ctpop.")
+            || sym.starts_with("llvm.bswap.")
+            || sym.starts_with("llvm.bitreverse.")
+            || sym.starts_with("llvm.fabs.")
+            || sym.starts_with("llvm.sqrt.")
+            || sym.starts_with("llvm.floor.")
+            || sym.starts_with("llvm.ceil.")
+            || sym.starts_with("llvm.trunc.")
+            || sym.starts_with("llvm.round.")
+            || sym.starts_with("llvm.roundeven.")
+        {
+            return Some(format!("declare {ty} @{sym}({ty})\n"));
+        }
+        None
+    }
+    let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut lines = Vec::new();
+    for p in &program.prims {
+        for (_, bi) in &p.family_units {
+            let frag = &p.bodies[*bi].fragment;
+            let bytes = frag.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                if bytes[i] == b'@' && frag[i + 1..].starts_with("llvm.") {
+                    let start = i + 1;
+                    let mut end = start;
+                    while end < bytes.len()
+                        && (bytes[end].is_ascii_alphanumeric()
+                            || bytes[end] == b'.'
+                            || bytes[end] == b'_')
+                    {
+                        end += 1;
+                    }
+                    let sym = &frag[start..end];
+                    if seen.insert(sym.to_string()) && !so_far.contains(&format!("@{sym}(")) {
+                        if let Some(decl) = declare_for_intrinsic(sym) {
+                            lines.push(decl);
+                        }
+                    }
+                    i = end;
+                } else {
+                    i += 1;
+                }
             }
         }
     }
@@ -16369,9 +16031,11 @@ fn prim_impl_unit(reg: &Registry, plan: &PrimPlan, idx: usize, asm: bool) -> Res
         format!("{}\n", body.fragment.trim_end())
     };
     let scan = scan_body(&code, reg.unit_symbols(), None);
+    let mut impl_hints = crate::core::FnHints::default();
+    impl_hints.inline = Some(crate::core::InlineHint::Always);
     Ok(EmittedUnit {
         name,
-        hints: crate::core::FnHints::default(),
+        hints: impl_hints,
         globals: String::new(),
         header,
         allocas: String::new(),
@@ -16428,9 +16092,13 @@ fn prim_wrapper_unit(
     let result = ret_cross.narrow(&mut b, &r);
     b.line(&format!("ret {} {result}", ret_cross.ty()));
     let scan = scan_body(&format!("{}{}", b.allocas, b.code), reg.unit_symbols(), Some(impl_name.as_str()));
+    let mut wrapper_hints = f.hints.clone();
+    if wrapper_hints.inline.is_none() {
+        wrapper_hints.inline = Some(crate::core::InlineHint::Always);
+    }
     Ok(EmittedUnit {
         name: name.clone(),
-        hints: f.hints.clone(),
+        hints: wrapper_hints,
         globals: String::new(),
         header: fn_header(name, plan.arity, None, &vec![true; plan.arity], narrow),
         allocas: b.allocas,

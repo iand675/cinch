@@ -13,7 +13,7 @@ module Bootstrap.RuntimeIr where
   import Bootstrap.UnpackMatch (lower-unpacked-patterns, needs-unpacked-patterns)
   import Bootstrap.Core
   import Bootstrap.Foreign
-  import Bootstrap.Builtin (array-plan, array-type-name, mvar-plan, cell-type-name, mvar-arity, mvar-consumes, mvar-optional, nat-arithmetic-extern, u32-wrapping-operation, wide-intrinsic, float-intrinsic, simd-intrinsic, fast-bytes-intrinsic, platform-intrinsic, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-shape-name)
+  import Bootstrap.Builtin (array-plan, array-type-name, mvar-plan, cell-type-name, mvar-arity, mvar-consumes, mvar-optional, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-operation-arguments, scalar-operation-result, scalar-operation-code, scalar-shape-name)
   import Bootstrap.Index
   import Bootstrap.ExportType (export-global)
   import Bootstrap.Nominal (interface-global, global-data-core-cons, global-data-core-err, global-data-core-list, global-data-core-nil, global-data-core-none, global-data-core-ok, global-data-core-option, global-data-core-result, global-data-core-some, global-data-string-length)
@@ -24,16 +24,18 @@ module Bootstrap.RuntimeIr where
   import Algebra.Semigroup
   import Text.Builder
   import Text.Show (nat-to-string, int-to-string)
-  import Text.Scan (string-split-on, string-starts-with)
+  import Text.Scan (string-split-on, string-starts-with, string-contains)
   import Text.Lex (Span)
   import Data.Array (array-from-list, array-get)
   import Bootstrap.Document
+  import Bootstrap.Target (TargetProfile, host-profile, selection-arch, profile-features, profile-required, target-ir-header)
   import Data.List (split-at)
   import Data.HashMap (HashMap, hash-map-empty, hash-map-insert, hash-map-lookup)
 
   export emit-runtime-program, emit-runtime-program-with-object, emit-runtime-program-counting, check-runtime-entry
   export emit-runtime-program-mode, emit-runtime-program-with-object-mode, emit-runtime-program-counting-mode
   export emit-runtime-program-for-target, emit-runtime-library-artifact-for-target
+  export emit-runtime-program-for-profile, emit-runtime-library-artifact-for-profile
   export emit-runtime-library-with-object, emit-runtime-library-artifact-with-object
   export emit-runtime-library-with-object-mode
   export emit-runtime-library-object-with-object-mode, emit-runtime-library-artifact-with-object-mode
@@ -83,6 +85,7 @@ module Bootstrap.RuntimeIr where
     ForeignDemand :: ForeignPlan -> Demand
     ForeignNullFault :: Demand
     PrimitiveIntrinsicDemand :: String -> Demand
+    PrimitiveUseDemand :: String -> String -> Demand
     CprDemand :: String -> List Nat -> Demand
     BuiltinBorrowDemand :: String -> Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
@@ -123,8 +126,26 @@ module Bootstrap.RuntimeIr where
     Nil -> index
     Cons c rest -> hash-map-insert (core-constructor-name c) (owner, tag, c) (index-constructors owner (tag + 1) rest index)
 
+  data TargetCaps where
+    MkTargetCaps :: String -> Bool -> TargetCaps
+  target-caps-arch :: TargetCaps -> String
+  target-caps-arch caps = case caps of MkTargetCaps arch arm-aes -> arch
+  target-caps-arm-aes :: TargetCaps -> Bool
+  target-caps-arm-aes caps = case caps of MkTargetCaps arch arm-aes -> arm-aes
+  has-string-member :: String -> List String -> Bool
+  has-string-member needle items = case items of
+    Nil -> False
+    Cons head rest -> if same head needle then True else has-string-member needle rest
+  target-caps-of-profile :: TargetProfile -> TargetCaps
+  target-caps-of-profile profile =
+    let arch = selection-arch profile in
+    let arm-aes = not (same arch "portable") && (has-string-member "ArmAes" (profile-features profile) || has-string-member "ArmAes" (profile-required profile)) in
+    MkTargetCaps arch arm-aes
+  target-caps-of-wasm :: Bool -> TargetCaps
+  target-caps-of-wasm wasm32 = if wasm32 then MkTargetCaps "wasm32" False else target-caps-of-profile host-profile
+
   data ProgramInfo where
-    ProgramInfo :: DataIndex -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> Bool -> ProgramInfo
+    ProgramInfo :: DataIndex -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> TargetCaps -> ProgramInfo
   -- The units a sweep may copy at their call sites, whether copying is on
   -- at all, and the unfolding stack. The names are fixed before emission, so
   -- the decision at a site depends on nothing but the unit's name; the stack
@@ -630,6 +651,7 @@ module Bootstrap.RuntimeIr where
     ForeignDemand plan -> cat ["foreign:", foreign-symbol plan]
     ForeignNullFault -> "foreign pointer fault"
     PrimitiveIntrinsicDemand symbol -> cat ["inline intrinsic:", symbol]
+    PrimitiveUseDemand symbol decl -> cat ["prim use:", symbol]
     CprDemand name classes -> cat [specialized-name name classes, "#cpr"]
     BuiltinBorrowDemand name -> cat [name, "#borrow"]
   request-demand :: Demand -> Writer -> Writer
@@ -2004,39 +2026,22 @@ module Bootstrap.RuntimeIr where
     other -> refuse w (Span 0 0 1 1) "MVar worker needs an available canonical operation and one checked payload class"
 
   builtin-known :: String -> Bool
-  builtin-known name = machine-integer-builtin name || float-builtin name || simd-builtin name || fast-bytes-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || same name "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
-  -- | Recognize only the closed scalar registry and the established wide integer operations.
+  builtin-known name = machine-integer-builtin name || fast-bytes-builtin name || nat-arithmetic-builtin name || same name "b.newIO" || same name "b.ioWrite" || same name "b.ioRead" || same name "b.ioSleep" || same name "b.pollCancel" || same name "cinch.runtime.bytesNew" || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" || same name "cinch.runtime.textF64FromDecimal" || same name "cinch.runtime.textF64ToDecimal" || same name "cinch.runtime.slotsFoldNat" || (case platform-intrinsic name of Some plan -> True; None -> False)
+  -- | Recognize only the closed scalar registry.
   machine-integer-builtin :: String -> Bool
   machine-integer-builtin name = (case scalar-intrinsic name of Some operation -> True; None -> False)
-    || same name "cinch.prim.eqI64" || same name "cinch.prim.neI64" || (case wrapping-worker-plan name of Some plan -> True; None -> False) || wide-builtin name
-  -- The wide intrinsics (Bootstrap.Builtin.wide-intrinsic) lower directly at LLVM `i128`.
-  wide-builtin :: String -> Bool
-  wide-builtin name = case wide-intrinsic name of Some found -> True; None -> False
-  float-builtin :: String -> Bool
-  float-builtin name = case float-intrinsic name of Some found -> True; None -> False
-  simd-builtin :: String -> Bool
-  simd-builtin name = case simd-intrinsic name of Some found -> True; None -> False
+    || same name "cinch.prim.eqI64" || same name "cinch.prim.neI64" || (case wrapping-worker-plan name of Some plan -> True; None -> False)
   fast-bytes-builtin :: String -> Bool
   fast-bytes-builtin name = case fast-bytes-intrinsic name of Some found -> True; None -> False
   builtin-inline-attr :: String -> String
   builtin-inline-attr name =
-    if machine-integer-builtin name || float-builtin name || simd-builtin name || fast-bytes-builtin name
+    if machine-integer-builtin name || fast-bytes-builtin name
       || same name "cinch.runtime.bytesLen" || same name "cinch.runtime.bytesGet" then " alwaysinline"
     else ""
   builtin-result-llvm :: String -> String
-  builtin-result-llvm name = case wide-intrinsic name of
-    Some (scheme, operation) ->
-      if same operation "eq" || same operation "ne" || same operation "slt" || same operation "sle"
-        || same operation "sgt" || same operation "sge" || same operation "ult" || same operation "ule"
-        || same operation "ugt" || same operation "uge" || same operation "ctpop" || same operation "ctlz"
-        || same operation "cttz" || same operation "trunc64" || same operation "trunc32"
-        || same operation "trunc16" || same operation "trunc8" then "i64"
-      else "i128"
-    None -> case simd-intrinsic name of
-      Some (scheme, operation) -> if same operation "u8x16.movemask" then "i64" else "i128"
-      None -> case fast-bytes-intrinsic name of
-        Some (scheme, operation) -> if same operation "loadU128" || same operation "loadU128At" then "i128" else "i64"
-        None -> "i64"
+  builtin-result-llvm name = case fast-bytes-intrinsic name of
+    Some (scheme, operation) -> if same operation "loadU128" || same operation "loadU128At" then "i128" else "i64"
+    None -> "i64"
   builtin-arguments-by-class :: List Nat -> List String -> List (String, String)
   builtin-arguments-by-class classes values = case (classes, values) of
     (Cons c cs, Cons v vs) -> Cons (if c == 3 then "i128" else "i64", v) (builtin-arguments-by-class cs vs)
@@ -2067,35 +2072,6 @@ module Bootstrap.RuntimeIr where
   -- | Retain one raw word per scalar argument, including unary and partially applied operations.
   scalar-argument-classes :: List ScalarShape -> List Nat
   scalar-argument-classes arguments = case arguments of Nil -> Nil; Cons first rest -> Cons 0 (scalar-argument-classes rest)
-  wide-builtin-classes :: String -> List Nat
-  wide-builtin-classes operation =
-    if same operation "neg" || same operation "not" || same operation "ctpop" || same operation "ctlz"
-      || same operation "cttz" || same operation "bitrev" || same operation "bswap"
-      || same operation "trunc64" || same operation "trunc32" || same operation "trunc16"
-      || same operation "trunc8" || same operation "id128" then [3]
-    else if same operation "zext64" || same operation "sext64" then [0]
-    else if same operation "shl" || same operation "lshr" || same operation "ashr"
-      || same operation "rotl" || same operation "rotr" then [3, 0]
-    else [3, 3]
-  float-builtin-classes :: String -> List Nat
-  float-builtin-classes operation =
-    if same operation "fadd" || same operation "fsub" || same operation "fmul"
-      || same operation "fdiv" || same operation "copysign" then [0, 0]
-    else [0]
-  simd-builtin-classes :: String -> List Nat
-  simd-builtin-classes operation =
-    if same operation "bitselect" then [3, 3, 3]
-    else if same operation "u8x16.splat" || same operation "u16x8.splat"
-      || same operation "u32x4.splat" || same operation "u64x2.splat" then [0]
-    else if same operation "u8x16.movemask" then [3]
-    else if same operation "u32x4.pack" then [0, 0, 0, 0]
-    else if same operation "u64x2.pack" then [0, 0]
-    else if same operation "u16x8.shl" || same operation "u16x8.lshr" || same operation "u16x8.ashr"
-      || same operation "u32x4.shl" || same operation "u32x4.lshr" || same operation "u32x4.ashr"
-      || same operation "u32x4.fshl" || same operation "u32x4.fshr"
-      || same operation "u64x2.shl" || same operation "u64x2.lshr"
-      || same operation "u64x2.fshl" || same operation "u64x2.fshr" then [3, 0]
-    else [3, 3]
   fast-bytes-classes :: String -> List Nat
   fast-bytes-classes operation =
     if same operation "lenI64" then [1]
@@ -2108,15 +2084,9 @@ module Bootstrap.RuntimeIr where
     else [1, 0, 3]
   -- | Preserve the existing non-scalar ownership and argument conventions.
   other-builtin-classes :: String -> List Nat
-  other-builtin-classes name = case wide-intrinsic name of
-    Some (scheme, operation) -> wide-builtin-classes operation
-    None -> case float-intrinsic name of
-      Some (scheme, ty, operation) -> float-builtin-classes operation
-      None -> case simd-intrinsic name of
-        Some (scheme, operation) -> simd-builtin-classes operation
-        None -> case fast-bytes-intrinsic name of
-          Some (scheme, operation) -> fast-bytes-classes operation
-          None -> if same name "cinch.runtime.slotsFoldNat" then [2]
+  other-builtin-classes name = case fast-bytes-intrinsic name of
+    Some (scheme, operation) -> fast-bytes-classes operation
+    None -> if same name "cinch.runtime.slotsFoldNat" then [2]
             else if machine-integer-builtin name then [0, 0]
             else if nat-arithmetic-builtin name then [2, 2]
             else if same name "b.newIO" then [0]
@@ -2380,240 +2350,6 @@ module Bootstrap.RuntimeIr where
     if same op "len" then nat-from-i64-fast dropped2 result False
     else if same op "get" then nat-from-i64-fast dropped2 result True
     else (dropped2, result)
-  -- | Emit the LLVM body for a wide (`i128`) intrinsic.
-  wide-intrinsic-worker :: Writer -> String -> (Writer, String)
-  wide-intrinsic-worker w op =
-    if same op "eq" || same op "ne" || same op "slt" || same op "sle" || same op "sgt" || same op "sge"
-      || same op "ult" || same op "ule" || same op "ugt" || same op "uge" then
-      compare-typed w "i128" op "%arg0" "%arg1"
-    else if same op "add" || same op "sub" || same op "mul" || same op "and" || same op "or" || same op "xor" then
-      let (ready, value) = fresh w "%v" in (line ready (cat ["  ", value, " = ", op, " i128 %arg0, %arg1"]), value)
-    else if same op "neg" then
-      let (ready, value) = fresh w "%v" in (line ready (cat ["  ", value, " = sub i128 0, %arg0"]), value)
-    else if same op "not" then
-      let (ready, value) = fresh w "%v" in (line ready (cat ["  ", value, " = xor i128 %arg0, -1"]), value)
-    else if same op "udiv" || same op "urem" then
-      let (w1, z) = fresh w "%v" in let (w2, safe) = fresh w1 "%v" in
-      let (w3, q) = fresh w2 "%v" in let (w4, out) = fresh w3 "%v" in
-      (emit-lines w4 [
-        cat ["  ", z, " = icmp eq i128 %arg1, 0"],
-        cat ["  ", safe, " = select i1 ", z, ", i128 1, i128 %arg1"],
-        cat ["  ", q, " = ", op, " i128 %arg0, ", safe],
-        cat ["  ", out, " = select i1 ", z, ", i128 0, i128 ", q]], out)
-    else if same op "shl" || same op "lshr" || same op "ashr" then
-      let (w1, m) = fresh w "%v" in let (w2, sh) = fresh w1 "%v" in let (w3, out) = fresh w2 "%v" in
-      (emit-lines w3 [
-        cat ["  ", m, " = and i64 %arg1, 127"],
-        cat ["  ", sh, " = zext i64 ", m, " to i128"],
-        cat ["  ", out, " = ", op, " i128 %arg0, ", sh]], out)
-    else if same op "rotl" || same op "rotr" then
-      let (w1, sh) = fresh w "%v" in let (w2, out) = fresh w1 "%v" in
-      let intr = if same op "rotl" then "@llvm.fshl.i128" else "@llvm.fshr.i128" in
-      (emit-lines w2 [
-        cat ["  ", sh, " = zext i64 %arg1 to i128"],
-        cat ["  ", out, " = call i128 ", intr, "(i128 %arg0, i128 %arg0, i128 ", sh, ")"]], out)
-    else if same op "ctpop" then
-      let (w1, c) = fresh w "%v" in let (w2, out) = fresh w1 "%v" in
-      (emit-lines w2 [cat ["  ", c, " = call i128 @llvm.ctpop.i128(i128 %arg0)"], cat ["  ", out, " = trunc i128 ", c, " to i64"]], out)
-    else if same op "ctlz" || same op "cttz" then
-      let (w1, c) = fresh w "%v" in let (w2, out) = fresh w1 "%v" in
-      (emit-lines w2 [cat ["  ", c, " = call i128 @llvm.", op, ".i128(i128 %arg0, i1 false)"], cat ["  ", out, " = trunc i128 ", c, " to i64"]], out)
-    else if same op "bitrev" then
-      let (w1, out) = fresh w "%v" in (line w1 (cat ["  ", out, " = call i128 @llvm.bitreverse.i128(i128 %arg0)"]), out)
-    else if same op "bswap" then
-      let (w1, out) = fresh w "%v" in (line w1 (cat ["  ", out, " = call i128 @llvm.bswap.i128(i128 %arg0)"]), out)
-    else if same op "zext64" then
-      let (w1, out) = fresh w "%v" in (line w1 (cat ["  ", out, " = zext i64 %arg0 to i128"]), out)
-    else if same op "sext64" then
-      let (w1, out) = fresh w "%v" in (line w1 (cat ["  ", out, " = sext i64 %arg0 to i128"]), out)
-    else if same op "trunc64" then
-      let (w1, out) = fresh w "%v" in (line w1 (cat ["  ", out, " = trunc i128 %arg0 to i64"]), out)
-    else if same op "trunc32" then
-      let (w1, t) = fresh w "%v" in let (w2, out) = fresh w1 "%v" in
-      (emit-lines w2 [cat ["  ", t, " = trunc i128 %arg0 to i64"], cat ["  ", out, " = and i64 ", t, ", 4294967295"]], out)
-    else if same op "trunc16" then
-      let (w1, t) = fresh w "%v" in let (w2, out) = fresh w1 "%v" in
-      (emit-lines w2 [cat ["  ", t, " = trunc i128 %arg0 to i64"], cat ["  ", out, " = and i64 ", t, ", 65535"]], out)
-    else if same op "trunc8" then
-      let (w1, t) = fresh w "%v" in let (w2, out) = fresh w1 "%v" in
-      (emit-lines w2 [cat ["  ", t, " = trunc i128 %arg0 to i64"], cat ["  ", out, " = and i64 ", t, ", 255"]], out)
-    else if same op "id128" then (w, "%arg0")
-    else unsupported w (Span 0 0 1 1) "checked wide worker has no operation"
-  -- | Emit the LLVM body for a floating-point intrinsic (F32 stored in low 32 bits of i64, F64 bitcast to i64).
-  float-intrinsic-worker :: Writer -> String -> String -> (Writer, String)
-  float-intrinsic-worker w fty op =
-    let is-f32 = same fty "float" in
-    let suffix = if is-f32 then "f32" else "f64" in
-    if same op "bits" || same op "frombits" then
-      if is-f32 then let (w1, out) = fresh w "%v" in (line w1 (cat ["  ", out, " = and i64 %arg0, 4294967295"]), out)
-      else (w, "%arg0")
-    else
-      let unbox = (\st arg -> if is-f32 then
-        let (s1, t) = fresh st "%v" in let (s2, f) = fresh s1 "%v" in
-        (emit-lines s2 [cat ["  ", t, " = trunc i64 ", arg, " to i32"], cat ["  ", f, " = bitcast i32 ", t, " to float"]], f)
-        else let (s1, f) = fresh st "%v" in (line s1 (cat ["  ", f, " = bitcast i64 ", arg, " to double"]), f)) in
-      let rebox = (\st f -> if is-f32 then
-        let (s1, b) = fresh st "%v" in let (s2, r) = fresh s1 "%v" in
-        (emit-lines s2 [cat ["  ", b, " = bitcast float ", f, " to i32"], cat ["  ", r, " = zext i32 ", b, " to i64"]], r)
-        else let (s1, r) = fresh st "%v" in (line s1 (cat ["  ", r, " = bitcast double ", f, " to i64"]), r)) in
-      let (w1, fa) = unbox w "%arg0" in
-      if same op "fadd" || same op "fsub" || same op "fmul" || same op "fdiv" then
-        let (w2, fb) = unbox w1 "%arg1" in let (w3, fr) = fresh w2 "%v" in
-        rebox (line w3 (cat ["  ", fr, " = ", op, " ", fty, " ", fa, ", ", fb])) fr
-      else if same op "copysign" then
-        let (w2, fb) = unbox w1 "%arg1" in let (w3, fr) = fresh w2 "%v" in
-        rebox (line w3 (cat ["  ", fr, " = call ", fty, " @llvm.copysign.", suffix, "(", fty, " ", fa, ", ", fty, " ", fb, ")"])) fr
-      else if same op "fneg" then
-        let (w2, fr) = fresh w1 "%v" in rebox (line w2 (cat ["  ", fr, " = fneg ", fty, " ", fa])) fr
-      else
-        let (w2, fr) = fresh w1 "%v" in
-        rebox (line w2 (cat ["  ", fr, " = call ", fty, " @llvm.", op, ".", suffix, "(", fty, " ", fa, ")"])) fr
-  -- | Emit a portable 128-bit SIMD lane worker over `i128` (lane 0 in LSBs).
-  simd-splat :: Writer -> String -> String -> String -> String -> (Writer, String)
-  simd-splat w n wbits elem-ty elem =
-    let vty = cat ["<", n, " x ", elem-ty, ">"] in
-    let (w1, v0) = fresh w "%v" in let (w2, v) = fresh w1 "%v" in
-    (emit-lines w2 [
-      cat ["  ", v0, " = insertelement ", vty, " poison, ", elem-ty, " ", elem, ", i64 0"],
-      cat ["  ", v, " = shufflevector ", vty, " ", v0, ", ", vty, " poison, <", n, " x i32> zeroinitializer"]], v)
-  simd-bin :: Writer -> String -> String -> String -> String -> (Writer, String)
-  simd-bin w vty inst a b =
-    let (w1, va) = fresh w "%v" in let (w2, vb) = fresh w1 "%v" in
-    let (w3, vr) = fresh w2 "%v" in let (w4, r) = fresh w3 "%v" in
-    (emit-lines w4 [
-      cat ["  ", va, " = bitcast i128 ", a, " to ", vty],
-      cat ["  ", vb, " = bitcast i128 ", b, " to ", vty],
-      cat ["  ", vr, " = ", inst, " ", vty, " ", va, ", ", vb],
-      cat ["  ", r, " = bitcast ", vty, " ", vr, " to i128"]], r)
-  simd-cmp :: Writer -> String -> String -> String -> (Writer, String)
-  simd-cmp w n elem-ty pred =
-    let vty = cat ["<", n, " x ", elem-ty, ">"] in
-    let (w1, va) = fresh w "%v" in let (w2, vb) = fresh w1 "%v" in
-    let (w3, vc) = fresh w2 "%v" in let (w4, vm) = fresh w3 "%v" in let (w5, r) = fresh w4 "%v" in
-    (emit-lines w5 [
-      cat ["  ", va, " = bitcast i128 %arg0 to ", vty],
-      cat ["  ", vb, " = bitcast i128 %arg1 to ", vty],
-      cat ["  ", vc, " = icmp ", pred, " ", vty, " ", va, ", ", vb],
-      cat ["  ", vm, " = sext <", n, " x i1> ", vc, " to ", vty],
-      cat ["  ", r, " = bitcast ", vty, " ", vm, " to i128"]], r)
-  simd-shift :: Writer -> String -> String -> String -> String -> String -> (Writer, String)
-  simd-shift w n elem-ty mask-str inst kind =
-    let vty = cat ["<", n, " x ", elem-ty, ">"] in
-    let (w1, va) = fresh w "%v" in let (w2, masked) = fresh w1 "%v" in
-    let w3 = emit-lines w2 [cat ["  ", va, " = bitcast i128 %arg0 to ", vty], cat ["  ", masked, " = and i64 %arg1, ", mask-str]] in
-    let (w4, sh) = if same elem-ty "i64" then (w3, masked) else let (s1, t) = fresh w3 "%v" in (line s1 (cat ["  ", t, " = trunc i64 ", masked, " to ", elem-ty]), t) in
-    case simd-splat w4 n "" elem-ty sh of
-      (w5, sv) -> let (w6, vr) = fresh w5 "%v" in let (w7, r) = fresh w6 "%v" in
-        (emit-lines w7 [cat ["  ", vr, " = ", inst, " ", vty, " ", va, ", ", sv], cat ["  ", r, " = bitcast ", vty, " ", vr, " to i128"]], r)
-  simd-rot :: Writer -> String -> String -> String -> (Writer, String)
-  simd-rot w n elem-ty intr =
-    let vty = cat ["<", n, " x ", elem-ty, ">"] in
-    let (w1, va) = fresh w "%v" in let w2 = line w1 (cat ["  ", va, " = bitcast i128 %arg0 to ", vty]) in
-    let (w3, sh) = if same elem-ty "i64" then (w2, "%arg1") else let (s1, t) = fresh w2 "%v" in (line s1 (cat ["  ", t, " = trunc i64 %arg1 to ", elem-ty]), t) in
-    case simd-splat w3 n "" elem-ty sh of
-      (w4, sv) -> let (w5, vr) = fresh w4 "%v" in let (w6, r) = fresh w5 "%v" in
-        (emit-lines w6 [
-          cat ["  ", vr, " = call ", vty, " @llvm.", intr, ".v", n, elem-ty, "(", vty, " ", va, ", ", vty, " ", va, ", ", vty, " ", sv, ")"],
-          cat ["  ", r, " = bitcast ", vty, " ", vr, " to i128"]], r)
-  simd-minmax :: Writer -> String -> String -> String -> (Writer, String)
-  simd-minmax w n elem-ty intr =
-    let vty = cat ["<", n, " x ", elem-ty, ">"] in
-    let (w1, va) = fresh w "%v" in let (w2, vb) = fresh w1 "%v" in
-    let (w3, vr) = fresh w2 "%v" in let (w4, r) = fresh w3 "%v" in
-    (emit-lines w4 [
-      cat ["  ", va, " = bitcast i128 %arg0 to ", vty],
-      cat ["  ", vb, " = bitcast i128 %arg1 to ", vty],
-      cat ["  ", vr, " = call ", vty, " @llvm.", intr, ".v", n, elem-ty, "(", vty, " ", va, ", ", vty, " ", vb, ")"],
-      cat ["  ", r, " = bitcast ", vty, " ", vr, " to i128"]], r)
-  simd-intrinsic-worker :: Writer -> String -> (Writer, String)
-  simd-intrinsic-worker w op =
-    if same op "bitselect" then
-      let (w1, nm) = fresh w "%v" in let (w2, a) = fresh w1 "%v" in
-      let (w3, c) = fresh w2 "%v" in let (w4, r) = fresh w3 "%v" in
-      (emit-lines w4 [
-        cat ["  ", nm, " = xor i128 %arg0, -1"],
-        cat ["  ", a, " = and i128 %arg0, %arg1"],
-        cat ["  ", c, " = and i128 ", nm, ", %arg2"],
-        cat ["  ", r, " = or i128 ", a, ", ", c]], r)
-    else if same op "u8x16.splat" then
-      let (w1, e) = fresh w "%v" in
-      (case simd-splat (line w1 (cat ["  ", e, " = trunc i64 %arg0 to i8"])) "16" "" "i8" e of
-        (w2, v) -> let (w3, r) = fresh w2 "%v" in (line w3 (cat ["  ", r, " = bitcast <16 x i8> ", v, " to i128"]), r))
-    else if same op "u8x16.add" then simd-bin w "<16 x i8>" "add" "%arg0" "%arg1"
-    else if same op "u8x16.sub" then simd-bin w "<16 x i8>" "sub" "%arg0" "%arg1"
-    else if same op "u8x16.eq" then simd-cmp w "16" "i8" "eq"
-    else if same op "u8x16.ult" then simd-cmp w "16" "i8" "ult"
-    else if same op "u8x16.ugt" then simd-cmp w "16" "i8" "ugt"
-    else if same op "u8x16.movemask" then
-      let (w1, v) = fresh w "%v" in let (w2, m) = fresh w1 "%v" in
-      let (w3, b16) = fresh w2 "%v" in let (w4, r) = fresh w3 "%v" in
-      (emit-lines w4 [
-        cat ["  ", v, " = bitcast i128 %arg0 to <16 x i8>"],
-        cat ["  ", m, " = icmp slt <16 x i8> ", v, ", zeroinitializer"],
-        cat ["  ", b16, " = bitcast <16 x i1> ", m, " to i16"],
-        cat ["  ", r, " = zext i16 ", b16, " to i64"]], r)
-    else if same op "u16x8.splat" then
-      let (w1, e) = fresh w "%v" in
-      (case simd-splat (line w1 (cat ["  ", e, " = trunc i64 %arg0 to i16"])) "8" "" "i16" e of
-        (w2, v) -> let (w3, r) = fresh w2 "%v" in (line w3 (cat ["  ", r, " = bitcast <8 x i16> ", v, " to i128"]), r))
-    else if same op "u16x8.add" then simd-bin w "<8 x i16>" "add" "%arg0" "%arg1"
-    else if same op "u16x8.sub" then simd-bin w "<8 x i16>" "sub" "%arg0" "%arg1"
-    else if same op "u16x8.mul" then simd-bin w "<8 x i16>" "mul" "%arg0" "%arg1"
-    else if same op "u16x8.shl" then simd-shift w "8" "i16" "15" "shl" ""
-    else if same op "u16x8.lshr" then simd-shift w "8" "i16" "15" "lshr" ""
-    else if same op "u16x8.ashr" then simd-shift w "8" "i16" "15" "ashr" ""
-    else if same op "u16x8.eq" then simd-cmp w "8" "i16" "eq"
-    else if same op "u16x8.ult" then simd-cmp w "8" "i16" "ult"
-    else if same op "u16x8.slt" then simd-cmp w "8" "i16" "slt"
-    else if same op "u16x8.smin" then simd-minmax w "8" "i16" "smin"
-    else if same op "u16x8.smax" then simd-minmax w "8" "i16" "smax"
-    else if same op "u32x4.splat" then
-      let (w1, e) = fresh w "%v" in
-      (case simd-splat (line w1 (cat ["  ", e, " = trunc i64 %arg0 to i32"])) "4" "" "i32" e of
-        (w2, v) -> let (w3, r) = fresh w2 "%v" in (line w3 (cat ["  ", r, " = bitcast <4 x i32> ", v, " to i128"]), r))
-    else if same op "u32x4.add" then simd-bin w "<4 x i32>" "add" "%arg0" "%arg1"
-    else if same op "u32x4.sub" then simd-bin w "<4 x i32>" "sub" "%arg0" "%arg1"
-    else if same op "u32x4.mul" then simd-bin w "<4 x i32>" "mul" "%arg0" "%arg1"
-    else if same op "u32x4.shl" then simd-shift w "4" "i32" "31" "shl" ""
-    else if same op "u32x4.lshr" then simd-shift w "4" "i32" "31" "lshr" ""
-    else if same op "u32x4.ashr" then simd-shift w "4" "i32" "31" "ashr" ""
-    else if same op "u32x4.fshl" then simd-rot w "4" "i32" "fshl"
-    else if same op "u32x4.fshr" then simd-rot w "4" "i32" "fshr"
-    else if same op "u32x4.smin" then simd-minmax w "4" "i32" "smin"
-    else if same op "u32x4.smax" then simd-minmax w "4" "i32" "smax"
-    else if same op "u32x4.eq" then simd-cmp w "4" "i32" "eq"
-    else if same op "u32x4.ult" then simd-cmp w "4" "i32" "ult"
-    else if same op "u32x4.pack" then
-      let (w1, e0) = fresh w "%v" in let (w2, e1) = fresh w1 "%v" in
-      let (w3, e2) = fresh w2 "%v" in let (w4, e3) = fresh w3 "%v" in
-      let (w5, v0) = fresh w4 "%v" in let (w6, v1) = fresh w5 "%v" in
-      let (w7, v2) = fresh w6 "%v" in let (w8, v3) = fresh w7 "%v" in let (w9, r) = fresh w8 "%v" in
-      (emit-lines w9 [
-        cat ["  ", e0, " = trunc i64 %arg0 to i32"],
-        cat ["  ", e1, " = trunc i64 %arg1 to i32"],
-        cat ["  ", e2, " = trunc i64 %arg2 to i32"],
-        cat ["  ", e3, " = trunc i64 %arg3 to i32"],
-        cat ["  ", v0, " = insertelement <4 x i32> poison, i32 ", e0, ", i64 0"],
-        cat ["  ", v1, " = insertelement <4 x i32> ", v0, ", i32 ", e1, ", i64 1"],
-        cat ["  ", v2, " = insertelement <4 x i32> ", v1, ", i32 ", e2, ", i64 2"],
-        cat ["  ", v3, " = insertelement <4 x i32> ", v2, ", i32 ", e3, ", i64 3"],
-        cat ["  ", r, " = bitcast <4 x i32> ", v3, " to i128"]], r)
-    else if same op "u64x2.splat" then
-      (case simd-splat w "2" "" "i64" "%arg0" of
-        (w1, v) -> let (w2, r) = fresh w1 "%v" in (line w2 (cat ["  ", r, " = bitcast <2 x i64> ", v, " to i128"]), r))
-    else if same op "u64x2.add" then simd-bin w "<2 x i64>" "add" "%arg0" "%arg1"
-    else if same op "u64x2.sub" then simd-bin w "<2 x i64>" "sub" "%arg0" "%arg1"
-    else if same op "u64x2.shl" then simd-shift w "2" "i64" "63" "shl" ""
-    else if same op "u64x2.lshr" then simd-shift w "2" "i64" "63" "lshr" ""
-    else if same op "u64x2.fshl" then simd-rot w "2" "i64" "fshl"
-    else if same op "u64x2.fshr" then simd-rot w "2" "i64" "fshr"
-    else if same op "u64x2.pack" then
-      let (w1, v0) = fresh w "%v" in let (w2, v1) = fresh w1 "%v" in let (w3, r) = fresh w2 "%v" in
-      (emit-lines w3 [
-        cat ["  ", v0, " = insertelement <2 x i64> poison, i64 %arg0, i64 0"],
-        cat ["  ", v1, " = insertelement <2 x i64> ", v0, ", i64 %arg1, i64 1"],
-        cat ["  ", r, " = bitcast <2 x i64> ", v1, " to i128"]], r)
-    else unsupported w (Span 0 0 1 1) "checked SIMD worker has no operation"
   -- | Emit a private alwaysinline Bytes worker that borrows arg0 without RC traffic.
   builtin-borrow-worker :: String -> Writer -> Writer
   builtin-borrow-worker name w =
@@ -2633,15 +2369,6 @@ module Bootstrap.RuntimeIr where
     let classes = builtin-classes name in
     let started = line (line w (cat ["define ", worker-linkage w name, builtin-result-llvm name, " ", symbol name, "(", join (typed-arguments (builtin-arguments name (value-parameters (list-length classes) 0))), ")", builtin-inline-attr name, worker-open w])) "entry:" in
     let lowered = (if same name "b.newIO" then (started, "0")
-      else if wide-builtin name then (case wide-intrinsic name of
-        Some (scheme, operation) -> wide-intrinsic-worker started operation
-        None -> unsupported started (Span 0 0 1 1) "checked wide worker has no operation")
-      else if float-builtin name then (case float-intrinsic name of
-        Some (scheme, fty, operation) -> float-intrinsic-worker started fty operation
-        None -> unsupported started (Span 0 0 1 1) "checked float worker has no operation")
-      else if simd-builtin name then (case simd-intrinsic name of
-        Some (scheme, operation) -> simd-intrinsic-worker started operation
-        None -> unsupported started (Span 0 0 1 1) "checked SIMD worker has no operation")
       else if fast-bytes-builtin name then (case fast-bytes-intrinsic name of
         Some (scheme, operation) -> bytes-access-worker started operation
         None -> unsupported started (Span 0 0 1 1) "checked Bytes worker has no operation")
@@ -2790,15 +2517,15 @@ module Bootstrap.RuntimeIr where
       Some (InlinePrimitiveBody owner family selected llvm assembly) ->
         let defined = case llvm of
               None -> w
-              Some (CheckedFragment fragment symbols indices) ->
-                primitive-worker (cat [owner, ".llvm"]) result arguments fragment indices (primitive-intrinsics symbols w) in
+              Some (CheckedFragment fragment symbols indices contracts) ->
+                primitive-worker (cat [owner, ".llvm"]) result arguments fragment indices (primitive-uses contracts (primitive-intrinsics symbols w)) in
         case assembly of
           None -> defined
-          Some (CheckedFragment template symbols indices) ->
+          Some (CheckedFragment template symbols indices contracts) ->
             let constraints = string-concat-all ["=", primitive-register result, primitive-registers arguments] in
             let body = cat ["  call void @llvm.sideeffect()\n  %asmresult = call ", result, " asm sideeffect \"",
               llvm-data-bytes template, "\", \"", constraints, "\"(", join (primitive-arguments arguments 0), ")\n  ret ", result, " %asmresult"] in
-            primitive-worker (cat [owner, ".asm"]) result arguments body indices (request-demand (PrimitiveIntrinsicDemand "@llvm.sideeffect") defined)
+            primitive-worker (cat [owner, ".asm"]) result arguments body indices (primitive-uses contracts (request-demand (PrimitiveIntrinsicDemand "@llvm.sideeffect") defined))
   primitive-register :: String -> String
   primitive-register ty = if same ty "float" || same ty "double" then "f" else "r"
   primitive-registers :: List String -> String
@@ -2813,7 +2540,7 @@ module Bootstrap.RuntimeIr where
   primitive-worker name result arguments body immediates w =
     let (ready, attachment) = primitive-immediate-metadata immediates w in
     global ready (cat ["define internal ", result, " ", llvm-object-symbol name, "(", join (primitive-arguments arguments 0),
-      ")", attachment, " {\n", body, "\n}"])
+      ") alwaysinline", attachment, " {\n", body, "\n}"])
   primitive-immediate-metadata :: List Nat -> Writer -> (Writer, String)
   primitive-immediate-metadata indices w = case indices of
     Nil -> (w, "")
@@ -2823,11 +2550,51 @@ module Bootstrap.RuntimeIr where
   primitive-intrinsics symbols w = case symbols of
     Nil -> w
     Cons symbol rest -> primitive-intrinsics rest (request-demand (PrimitiveIntrinsicDemand symbol) w)
+  prelude-declared-use :: String -> Bool
+  prelude-declared-use sym =
+    same sym "memcpy"
+      || same sym "cinch_dup" || same sym "cinch_dup_mt" || same sym "cinch_drop_mt" || same sym "cinch_drop_slow"
+      || same sym "cinch_stm_state" || same sym "cinch_stm_publish" || same sym "cinch_stm_wait_begin"
+      || same sym "cinch_stm_wait_park" || same sym "cinch_stm_wait_cancel" || same sym "cinch_stm_wake" || same sym "cinch_stm_yield"
+      || same sym "cinch_alloc" || same sym "cinch_blackhole"
+  primitive-uses :: List PrimUseContract -> Writer -> Writer
+  primitive-uses contracts w = case contracts of
+    Nil -> w
+    Cons c rest ->
+      let sym = prim-use-symbol c in
+      let next = if prelude-declared-use sym then w
+            else let decl = cat ["declare ", foreign-llvm-type (prim-use-result c), " ", llvm-object-symbol sym, "(", join (foreign-parameter-types (prim-use-params c)), ")"] in
+              request-demand (PrimitiveUseDemand sym decl) w in
+      primitive-uses rest next
+  prelude-declared-intrinsic :: String -> Bool
+  prelude-declared-intrinsic symbol =
+    string-starts-with "@llvm.fshl." symbol
+      || string-starts-with "@llvm.fshr." symbol
+      || string-starts-with "@llvm.ctpop." symbol
+      || string-starts-with "@llvm.ctlz." symbol
+      || string-starts-with "@llvm.cttz." symbol
+      || string-starts-with "@llvm.bitreverse." symbol
+      || string-starts-with "@llvm.bswap." symbol
+      || string-starts-with "@llvm.copysign." symbol
+      || string-starts-with "@llvm.fabs." symbol
+      || string-starts-with "@llvm.sqrt." symbol
+      || string-starts-with "@llvm.floor." symbol
+      || string-starts-with "@llvm.ceil." symbol
+      || string-starts-with "@llvm.trunc." symbol
+      || string-starts-with "@llvm.round." symbol
+      || string-starts-with "@llvm.roundeven." symbol
+      || string-starts-with "@llvm.smin." symbol
+      || string-starts-with "@llvm.smax." symbol
   primitive-intrinsic-worker :: String -> Writer -> Writer
-  primitive-intrinsic-worker symbol w = if same symbol "@llvm.sideeffect" then global w "declare void @llvm.sideeffect()" else
-    if same symbol "@llvm.vector.reduce.add.v16i32" then global w "declare i32 @llvm.vector.reduce.add.v16i32(<16 x i32>)" else
-    (case reverse (string-split-on "." symbol) of
-      Cons ty rest -> if string-starts-with "@llvm.bswap." symbol then global w (cat ["declare ", ty, " ", symbol, "(", ty, ")"])
+  primitive-intrinsic-worker symbol w =
+    if prelude-declared-intrinsic symbol then w
+    else if same symbol "@llvm.sideeffect" then global w "declare void @llvm.sideeffect()"
+    else if same symbol "@llvm.vector.reduce.add.v16i32" then global w "declare i32 @llvm.vector.reduce.add.v16i32(<16 x i32>)"
+    else (case reverse (string-split-on "." symbol) of
+      Cons ty rest ->
+        if string-starts-with "@llvm.sadd.sat." symbol || string-starts-with "@llvm.uadd.sat." symbol
+            || string-starts-with "@llvm.ssub.sat." symbol || string-starts-with "@llvm.usub.sat." symbol then
+          global w (cat ["declare ", ty, " ", symbol, "(", ty, ", ", ty, ")"])
         else global w (cat ["declare { ", ty, ", i1 } ", symbol, "(", ty, ", ", ty, ")"])
       Nil -> refuse w (Span 0 0 1 1) "inline intrinsic is missing its checked result width")
   foreign-abi-compatible :: ForeignPlan -> ForeignPlan -> Bool
@@ -2893,7 +2660,7 @@ module Bootstrap.RuntimeIr where
   foreign-argument-types :: List ForeignParameter -> List CoreTerm -> Bool
   foreign-argument-types params args = case (params, args) of
     (Nil, Nil) -> True
-    (Cons first rest, Cons value more) -> foreign-type-equal (foreign-parameter-type first) (core-type value) && foreign-argument-types rest more
+    (Cons first rest, Cons value more) -> foreign-type-equal (base (foreign-parameter-type first)) (base (core-type value)) && foreign-argument-types rest more
     other -> False
   -- `boundary` is a call of a C symbol, whose narrow arguments carry the
   -- platform's extension; an inline primitive's worker is this module's
@@ -5337,9 +5104,9 @@ module Bootstrap.RuntimeIr where
     Some 3 -> True
     Some code -> constant-word word
     None -> False
-  -- | Whether a branch arm is a pure non-allocating scalar/wide/float/SIMD expression safe to evaluate speculatively for `select`.
-  trivial-pure-arm :: RuntimeContext -> CoreTerm -> Nat -> Bool
-  trivial-pure-arm context term fuel =
+  -- | Whether a branch arm is a pure non-allocating scalar/wide/prim expression safe to evaluate speculatively for `select`.
+  trivial-pure-arm :: ProgramInfo -> RuntimeContext -> CoreTerm -> Nat -> Bool
+  trivial-pure-arm info context term fuel =
     if fuel < 1 then False else
     let immediate = case word-class context (core-type term) of Some 0 -> True; Some 3 -> True; other -> False in
     if not immediate then False else
@@ -5349,35 +5116,52 @@ module Bootstrap.RuntimeIr where
       CInt sp ty text -> True
       CUse sp ty name role actuals -> same name "True" || same name "False"
       CLocal sp ty id name Nil -> True
-      CApply sp ty f x -> trivial-pure-call context term (fuel - 1)
+      CApply sp ty f x -> trivial-pure-call info context term (fuel - 1)
       other -> False
-  trivial-pure-call :: RuntimeContext -> CoreTerm -> Nat -> Bool
-  trivial-pure-call context term fuel = case collect-apply-args term Nil of
+  speculative-prim-plan :: ForeignPlan -> Bool
+  speculative-prim-plan plan =
+    primitive-object-callable plan
+      && (case foreign-primitive-assumptions plan of
+            Some (identity, Nil) ->
+              (case foreign-inline plan of
+                Some (InlinePrimitiveBody owner family immediates (Some (CheckedFragment code lines imm uses)) assembly) ->
+                  not (string-contains "udiv " code)
+                    && not (string-contains "sdiv " code)
+                    && not (string-contains "urem " code)
+                    && not (string-contains "srem " code)
+                other -> False)
+            other -> False)
+  trivial-pure-call :: ProgramInfo -> RuntimeContext -> CoreTerm -> Nat -> Bool
+  trivial-pure-call info context term fuel = case collect-apply-args term Nil of
     (CUse sp ty name role actuals, args) ->
-      ((machine-integer-builtin name || wide-builtin name || float-builtin name || simd-builtin name)
-        && not (same name "cinch.prim.divU128") && not (same name "cinch.prim.remU128"))
-        && list-length args == list-length (builtin-classes name)
-        && trivial-pure-arms context args fuel
+      (case program-foreign-binding name info of
+        Some plan -> speculative-prim-plan plan
+          && list-length args == list-length (foreign-parameters plan)
+          && trivial-pure-arms info context args fuel
+        None ->
+          machine-integer-builtin name
+            && list-length args == list-length (builtin-classes name)
+            && trivial-pure-arms info context args fuel)
     other -> False
   collect-apply-args :: CoreTerm -> List CoreTerm -> (CoreTerm, List CoreTerm)
   collect-apply-args term acc = case term of
     CApply sp ty f x -> collect-apply-args f (Cons x acc)
     other -> (term, acc)
-  trivial-pure-arms :: RuntimeContext -> List CoreTerm -> Nat -> Bool
-  trivial-pure-arms context terms fuel = case terms of
+  trivial-pure-arms :: ProgramInfo -> RuntimeContext -> List CoreTerm -> Nat -> Bool
+  trivial-pure-arms info context terms fuel = case terms of
     Nil -> True
-    Cons first rest -> trivial-pure-arm context first fuel && trivial-pure-arms context rest fuel
+    Cons first rest -> trivial-pure-arm info context first fuel && trivial-pure-arms info context rest fuel
   branch :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   branch definitions locals w sp test yes no =
     let (tested, condition) = expression definitions locals w test in
     case static-word locals tested yes of
       Some left -> case static-word locals tested no of
         Some right -> branch-select tested (value-llvm (writer-context tested) (core-type yes)) condition left right
-        None -> if trivial-pure-arm (writer-context tested) no 4 then
+        None -> if trivial-pure-arm (writer-program tested) (writer-context tested) no 4 then
           let (w1, right) = expression definitions locals tested no in
           branch-select w1 (value-llvm (writer-context w1) (core-type yes)) condition left right
           else branch-diamond definitions locals tested condition yes no
-      None -> if trivial-pure-arm (writer-context tested) yes 4 && trivial-pure-arm (writer-context tested) no 4 then
+      None -> if trivial-pure-arm (writer-program tested) (writer-context tested) yes 4 && trivial-pure-arm (writer-program tested) (writer-context tested) no 4 then
         let (w1, left) = expression definitions locals tested yes in
         let (w2, right) = expression definitions locals w1 no in
         branch-select w2 (value-llvm (writer-context w2) (core-type yes)) condition left right
@@ -5649,9 +5433,15 @@ module Bootstrap.RuntimeIr where
   -- depends only on the checked program, never on a schedule.
   par-prefix :: ProgramInfo -> String
   par-prefix info = if program-wasm32 info then "@cinch_coop_" else "@cinch_"
+  program-caps :: ProgramInfo -> TargetCaps
+  program-caps info = case info of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim caps -> caps
   program-wasm32 :: ProgramInfo -> Bool
-  program-wasm32 info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> wasm32
+  program-wasm32 info = same (target-caps-arch (program-caps info)) "wasm32"
+  program-arch :: ProgramInfo -> String
+  program-arch info = target-caps-arch (program-caps info)
+  program-arm-aes :: ProgramInfo -> Bool
+  program-arm-aes info = target-caps-arm-aes (program-caps info)
   par-entry :: Writer -> String -> String
   par-entry w base = cat [par-prefix (writer-program w), base]
   -- The two result words are owned by the caller, and the pair takes the
@@ -6641,6 +6431,7 @@ module Bootstrap.RuntimeIr where
           ForeignDemand plan -> workers definitions (foreign-worker plan claimed)
           ForeignNullFault -> workers definitions (foreign-null-declarations claimed)
           PrimitiveIntrinsicDemand symbol -> workers definitions (primitive-intrinsic-worker symbol claimed)
+          PrimitiveUseDemand symbol decl -> workers definitions (global claimed decl)
           CprDemand name classes -> workers definitions (cpr-worker definitions name classes claimed)
           BuiltinBorrowDemand name -> workers definitions (builtin-borrow-worker name claimed)
   declarations :: String
@@ -6688,11 +6479,12 @@ module Bootstrap.RuntimeIr where
     "declare ptr @cinch_alloc_ctor(i64, i64)\ndeclare ptr @cinch_alloc_shaped(i64, i64, i64)\ndeclare ptr @cinch_alloc_ctor_desc(i64, ptr)\ndeclare ptr @cinch_alloc_shaped_desc(i64, i64, ptr)\n",
     if wasm32 then "" else "declare i64 @cinch_sched_blocking_enter()\ndeclare i64 @cinch_sched_blocking_exit()\n",
     if wasm32 then "declare ptr @memcpy(ptr, ptr, i32)\n" else "declare ptr @memcpy(ptr, ptr, i64)\n",
-    "declare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
+    "declare void @cinch_dup(i64)\ndeclare void @cinch_dup_mt(i64)\ndeclare void @cinch_drop_mt(i64)\ndeclare void @cinch_drop_slow(i64)\ndeclare void @cinch_reclaim_enable()\ndeclare i64 @cinch_exit_check(i64)\n",
     if not reclaim then "" else if debug then debug-count-helpers wasm32 else count-helpers wasm32,
     "declare i64 @cinch_nat_to_len(i64)\ndeclare i64 @cinch_nat_from_i64(i64)\ndeclare i64 @cinch_int_from_nat(i64)\ndeclare i64 @cinch_bytes_new(i64)\ndeclare i64 @cinch_bytes_len(i64)\ndeclare i64 @cinch_bytes_get(i64, i64)\ndeclare i64 @cinch_bytes_set(i64, i64, i64)\ndeclare i64 @cinch_bytes_from_data(ptr, i64)\ndeclare i64 @cinch_sym_intern(i64, i64)\ndeclare i64 @cinch_bytes_compare(i64, i64)\ndeclare i64 @cinch_io_write(i64)\ndeclare i64 @cinch_io_sleep(i64)\ndeclare i64 @cinch_task_poll_cancel()\ndeclare i64 @cinch_scope_open()\ndeclare i64 @cinch_scope_close(i64)\ndeclare i64 @cinch_task_spawn(i64, i64)\ndeclare i64 @cinch_task_join_all_or_cancel(i64, i64, i64, i64)\n",
     "declare i64 @cinch_array_from_list(i64, i64)\ndeclare i64 @cinch_array_replicate(i64, i64, i64)\ndeclare i64 @cinch_array_len(i64)\ndeclare i64 @cinch_array_has(i64, i64)\ndeclare i64 @cinch_array_get(i64, i64)\ndeclare i64 @cinch_array_set(i64, i64, i64)\ndeclare i64 @cinch_array_slice(i64, i64, i64)\ndeclare i64 @cinch_array_append(i64, i64)\ndeclare i64 @cinch_tensor_reshape(i64, i64)\ndeclare i64 @cinch_tensor_shape(i64)\ndeclare i64 @cinch_tensor_data(i64)\ndeclare i64 @cinch_tensor_index(i64, i64)\ndeclare i64 @cinch_tensor_get(i64, i64)\ndeclare i64 @cinch_tensor_set(i64, i64, i64)\ndeclare i64 @cinch_columnar_column(i64)\ndeclare i64 @cinch_columnar_zip(i64, i64, i64)\ndeclare i64 @cinch_columnar_rows(i64)\ndeclare i64 @cinch_columnar_columns(i64)\ndeclare i64 @cinch_columnar_get(i64, i64)\ndeclare i64 @cinch_columnar_child(i64, i64)\ndeclare i64 @cinch_columnar_array(i64)\n",
     "declare i64 @cinch_text_f64_to_decimal(double)\ndeclare double @cinch_text_f64_from_decimal(i64)\n",
+    "declare i64 @cinch_stm_state(i64)\ndeclare i64 @cinch_stm_publish(i64, i64)\ndeclare i64 @cinch_stm_wait_begin(i64)\ndeclare i64 @cinch_stm_wait_park(i64)\ndeclare i64 @cinch_stm_wait_cancel(i64)\ndeclare i64 @cinch_stm_wake(i64)\ndeclare i64 @cinch_stm_yield(i64)\n",
     "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\n",
     "declare i64 @cinch_slots_new(i64, i64)\ndeclare i64 @cinch_slots_move(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_slots_clear(i64, i64, i64)\ndeclare i64 @cinch_slots_fault(i64)\ndeclare i64 @cinch_nat_low_word(i64)\ndeclare void @llvm.prefetch.p0(ptr, i32, i32, i32)\n",
     "declare i64 @cinch_io_read(i64)\ndeclare i64 @cinch_text_sha256(i64)\ndeclare i64 @cinch_text_sha512(i64)\ndeclare i64 @cinch_text_sha1(i64)\ndeclare i64 @cinch_text_md5(i64)\ndeclare i64 @cinch_text_hmac_sha256(i64, i64)\n",
@@ -6743,7 +6535,7 @@ module Bootstrap.RuntimeIr where
   debug-count-helpers :: Bool -> String
   debug-count-helpers wasm32 = cat [
     "define internal i1 @cinch.typed.rc.unique(ptr %p) alwaysinline", function-open wasm32, "\nentry:\n  ret i1 false\n}\n",
-    "declare void @cinch_dup(i64)\ndeclare void @cinch_drop(i64)\n",
+    "declare void @cinch_drop(i64)\n",
     "define internal void @cinch.typed.rc.dup(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_dup(i64 %w)\n  ret void\n}\n",
     "define internal void @cinch.typed.rc.drop(i64 %w)", function-open wasm32, "\nentry:\n  call void @cinch_drop(i64 %w)\n  ret void\n}\n"]
   apply-entry :: String
@@ -6978,7 +6770,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True False in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) in
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case workers definitions (foreign-export-bridges exports (settled-workers-with-plan plan definitions (roots <> foreign-export-roots exports) info)) of
@@ -7104,6 +6896,8 @@ module Bootstrap.RuntimeIr where
   library-intrinsic-clause sp id ty function patterns = case ty of
     UFun domain result -> let name = "$arg" <> nat-to-string id in
       library-intrinsic-clause sp (id + 1) result (CApply sp result function (CLocal sp domain id name Nil)) (Cons (CPVar sp domain id name) patterns)
+    UPi pid pname domain row result -> let name = "$arg" <> nat-to-string id in
+      library-intrinsic-clause sp (id + 1) result (CApply sp result function (CLocal sp domain id name Nil)) (Cons (CPVar sp domain id name) patterns)
     other -> MkCoreClause sp (reverse patterns) function
   runtime-library-default-roots :: CheckedProgram -> Result String (List (String, List Nat, String))
   runtime-library-default-roots checked = runtime-library-unit-roots checked Nil
@@ -7111,7 +6905,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-unit-roots checked demands =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked Nil) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True False in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked Nil) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) in
     case (library-default-definitions definitions, library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok ordinary, Ok constructors) -> case library-requested-units demands definitions (elaboration-data typed) of
         Ok requested -> Ok (ordinary <> constructors <> requested)
@@ -7253,12 +7047,19 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-artifact :: Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
   emit-runtime-library-artifact artifact inlining checked provider roots =
     emit-runtime-library-artifact-for-target "" False artifact inlining checked provider roots
+  emit-runtime-library-artifact-for-profile :: TargetProfile -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
+  emit-runtime-library-artifact-for-profile profile artifact inlining checked provider roots =
+    emit-runtime-library-artifact-for-caps (target-ir-header profile) (target-caps-of-profile profile) artifact inlining checked provider roots
   emit-runtime-library-artifact-for-target :: String -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
   emit-runtime-library-artifact-for-target header wasm32 artifact inlining checked provider roots =
+    emit-runtime-library-artifact-for-caps header (target-caps-of-wasm wasm32) artifact inlining checked provider roots
+  emit-runtime-library-artifact-for-caps :: String -> TargetCaps -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> List (String, List Nat, String) -> Result (List Diagnostic) (String, Json, Json)
+  emit-runtime-library-artifact-for-caps header caps artifact inlining checked provider roots =
+    let wasm32 = same (target-caps-arch caps) "wasm32" in
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True wasm32 in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True caps in
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case library-bridges definitions roots Nil (foreign-export-bridges exports (settled-workers-with-plan plan definitions (selected <> foreign-export-roots exports) info)) of
@@ -7284,12 +7085,19 @@ module Bootstrap.RuntimeIr where
   emit-runtime-program-counting-mode :: Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-runtime-program-counting-mode inlining debug reclaim checked provider =
     emit-runtime-program-for-target "" False inlining debug reclaim checked provider
+  emit-runtime-program-for-profile :: TargetProfile -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-for-profile profile inlining debug reclaim checked provider =
+    emit-runtime-program-for-caps (target-ir-header profile) (target-caps-of-profile profile) inlining debug reclaim checked provider
   emit-runtime-program-for-target :: String -> Bool -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
   emit-runtime-program-for-target header wasm32 inlining debug reclaim checked provider =
+    emit-runtime-program-for-caps header (target-caps-of-wasm wasm32) inlining debug reclaim checked provider
+  emit-runtime-program-for-caps :: String -> TargetCaps -> Bool -> Bool -> Bool -> CheckedProgram -> Option RuntimeObject -> Result (List Diagnostic) String
+  emit-runtime-program-for-caps header caps inlining debug reclaim checked provider =
+    let wasm32 = same (target-caps-arch caps) "wasm32" in
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider None (elaboration-effects typed) hash-map-empty reclaim wasm32 in
+    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider None (elaboration-effects typed) hash-map-empty reclaim caps in
     let exports = checked-c-exports (elaboration-bindings typed) in
     let roots = foreign-export-roots exports in
     let plan = inline-plan inlining definitions info in

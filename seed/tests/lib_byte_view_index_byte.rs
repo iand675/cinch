@@ -48,6 +48,7 @@ fn call_path(ir: &str, start: &str, wanted: &str) -> Option<Vec<String>> {
                 };
                 if callee.starts_with("Data.Bytes.")
                     || callee.starts_with("Data.Wide.")
+                    || callee.starts_with("Prim.")
                     || callee.starts_with("Data.Machine.")
                     || callee.starts_with("cinch.runtime.")
                     || callee.starts_with("cinch.prim.")
@@ -250,15 +251,15 @@ fn byte_view_index_byte_full_adapter_compiles_for_wasm_arm_and_big_endian() {
             ),
             (
                 "Data.Bytes.View.index-forward-blocks",
-                "cinch.prim.simdU8x16CmpEq",
+                "Prim.Wide.simd-u8x16-cmpeq.llvm",
             ),
             (
                 "Data.Bytes.View.index-forward-blocks",
-                "cinch.prim.simdU8x16Movemask",
+                "Prim.Wide.simd-u8x16-movemask.llvm",
             ),
             (
                 "Data.Bytes.View.index-forward-blocks",
-                "cinch.prim.trailingZerosU32",
+                "Prim.Machine.trailing-zeros-u32.llvm",
             ),
             (
                 "Data.Bytes.View.index-forward-tail",
@@ -304,9 +305,9 @@ fn byte_view_index_byte_full_adapter_compiles_for_wasm_arm_and_big_endian() {
         }
         let load8 = definition(&ir, "cinch.runtime.bytesGetU8At");
         assert!(load8.contains("load i8") && load8.contains("align 1"));
-        assert!(definition(&ir, "cinch.prim.simdU8x16CmpEq").contains("icmp eq <16 x i8>"));
-        assert!(definition(&ir, "cinch.prim.simdU8x16Movemask").contains("bitcast <16 x i1>"));
-        assert!(definition(&ir, "cinch.prim.trailingZerosU32").contains("@llvm.cttz.i32"));
+        assert!(definition(&ir, "Prim.Wide.simd-u8x16-cmpeq.llvm").contains("icmp eq <16 x i8>"));
+        assert!(definition(&ir, "Prim.Wide.simd-u8x16-movemask.llvm").contains("bitcast <16 x i1>"));
+        assert!(definition(&ir, "Prim.Machine.trailing-zeros-u32.llvm").contains("@llvm.cttz.i32"));
         let output = std::process::Command::new(
             std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".into()),
         )

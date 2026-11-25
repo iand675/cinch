@@ -156,6 +156,8 @@ DESCRIPTIONS = {
 'Effect.Stm.TSem':'A counting semaphore for transactions: wait takes a permit or retries, signal returns one.',
 'Effect.Io':'A worked configuration-reading API over real filesystem bytes; parse-config treats a nonempty payload as configuration.',
 'Effect.Clock':'Runtime monotonic and wall-clock readings under an I/O capability. Clocks are not ambient compile-time inputs.',
+'Prim.Machine':'Leaf inline-LLVM scalar machine primitives (fixed-width wrapping/saturating/overflow/bitwise/shift/rotate/bitscan/comparison/conversion operations and word-size bridges), re-exported through Data.Machine and shared directly by Data.Char, Data.Bytes, and Data.String.',
+'Prim.Wide':'Leaf inline-LLVM 128-bit SIMD lane primitives and target-guarded hardware AES/CLMUL instructions (AES-NI, ARMv8 AES, PCLMULQDQ, PMULL) with portable fallbacks, re-exported through Data.Wide and shared directly by Data.String.',
 'Prim.Sys.Darwin':'The Darwin half of the syscall layer: libSystem calls bound with foreign import ccall (open, read, write, close, lseek, fstat, mkdir, unlink, rename, fsync, getpid), with the -1 result mapped to a named error read from the thread error slot.',
 'Prim.Sys.Linux':'The Linux half of the syscall layer: prim bodies that issue syscall with the pinned number per architecture (x86_64 and aarch64), with the kernel negative result mapped to the same named errors as the Darwin module.',
 'Prim.Sys':'The syscall layer for the compile target under one name: conditional imports and re-exports select Prim.Sys.Darwin on a Darwin target, Prim.Sys.Linux on a Linux target, and the portable floor everywhere else, so a caller imports one module and never names an operating system.',

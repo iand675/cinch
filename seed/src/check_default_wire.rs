@@ -127,6 +127,7 @@ impl Checker {
             | ValueKind::Ctor { .. }
             | ValueKind::Foreign { .. }
             | ValueKind::Prim(_)
+            | ValueKind::PrimDecl { .. }
                 if value.module != "<builtin>" =>
             {
                 Some(interface_global(&format!("{}.{}", value.module, value.name)))

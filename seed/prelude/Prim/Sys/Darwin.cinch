@@ -85,11 +85,7 @@ module Prim.Sys.Darwin where
   foreign import ccall "getpid" c-getpid :: forall r. Unit ->{IO r} I64
   foreign import ccall "__error" c-errno-slot :: forall r. Unit ->{IO r} I64
 
-  -- A 32 bit load through an address. This is the one memory read the
-  -- error slot needs and the language has no other spelling for: the
-  -- address arrives as a word, the body converts it and loads. The body
-  -- is pure and cannot fail; a caller that supplies an address that is
-  -- not the error slot is the one that was wrong.
+  -- A 32 bit load through an address for the thread-local error slot.
   prim load-i32 :: I64 -> I32 where
     unsafe llvm {
       %p = inttoptr i64 %0 to ptr
