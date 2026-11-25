@@ -3309,7 +3309,7 @@ module Bootstrap.Infer where
   compile-promoted-pat p = case p of
     PWild _ -> Some (PPWild, Nil)
     PVar _ name -> Some (PPVar name, [name])
-    PLitInt _ text -> case parse-decimal-int text of Some n -> Some (PPNat n, Nil); None -> None
+    PLitInt _ text -> case parse-decimal-int text of Some n | n < 18446744073709551616 -> Some (PPNat n, Nil); other -> None
     PLitStr _ text -> Some (PPStr text, Nil)
     PFamilyCon _ fallback _ args -> compile-promoted-pat (PCon zero fallback args)
     PCon _ name args ->
@@ -3344,7 +3344,7 @@ module Bootstrap.Infer where
     EVar _ name ->
       if has name locals then Some (PEVar name)
       else Some (PEFnRef (canonical-identity name))
-    ELitInt _ text -> case parse-decimal-int text of Some n -> Some (PENat n); None -> None
+    ELitInt _ text -> case parse-decimal-int text of Some n | n < 18446744073709551616 -> Some (PENat n); other -> None
     ELitStr _ text -> Some (PEStr text)
     EUnit _ -> Some (PETuple PEEnd)
     EFamilyCon _ fallback _ args -> compile-promoted-expr locals (ECon zero fallback args)
@@ -8616,19 +8616,19 @@ module Bootstrap.Infer where
   normalize-refs st refs = case refs of
     Nil -> Nil
     Cons (id, ty) rest -> Cons (id, normalize st ty) (normalize-refs st rest)
-  skolemize-gadt-pairs :: List (Nat, UType) -> Store -> Store
-  skolemize-gadt-pairs pairs st = case pairs of
+  skolemize-gadt-pairs :: List Nat -> List (Nat, UType) -> Store -> Store
+  skolemize-gadt-pairs keep-metas pairs st = case pairs of
     Nil -> st
     Cons (qid, val) rest -> case normalize st val of
-      UMeta mid k -> case fresh-id st of
+      UMeta mid k | not (contains-nat-id mid keep-metas) -> case fresh-id st of
         (rid, s1) ->
           let skolem = URigid rid ("$gadt_" <> nat-to-string rid) (store-level s1) k in
-          skolemize-gadt-pairs rest (unify zero (UMeta mid k) skolem s1)
-      UIndex carrier (IMeta mid) -> case fresh-id st of
+          skolemize-gadt-pairs keep-metas rest (unify zero (UMeta mid k) skolem s1)
+      UIndex carrier (IMeta mid) | not (contains-nat-id mid keep-metas) -> case fresh-id st of
         (rid, s1) ->
           let skolem = UIndex carrier (IRigid rid ("$gadt_" <> nat-to-string rid) (store-level s1)) in
-          skolemize-gadt-pairs rest (unify zero (UIndex carrier (IMeta mid)) skolem s1)
-      other -> skolemize-gadt-pairs rest st
+          skolemize-gadt-pairs keep-metas rest (unify zero (UIndex carrier (IMeta mid)) skolem s1)
+      other -> skolemize-gadt-pairs keep-metas rest st
   gadt-pre-match :: UType -> UType -> Store -> Store
   gadt-pre-match raw-a raw-b st =
     let a = normalize st raw-a in
@@ -8738,7 +8738,8 @@ module Bootstrap.Infer where
                   (bound, fields, field-refs, local-ids, final-res, sf) ->
                     case gadt-refine-match s local-ids final-res expected Nil sf of
                       (res-refs, sg) ->
-                        let sk = skolemize-gadt-pairs pairs sg in
+                        let exp-metas = free-metas sg (normalize sg expected) in
+                        let sk = skolemize-gadt-pairs exp-metas pairs sg in
                         let all-refs = normalize-refs sk (res-refs <> field-refs) in
                         (bound, CPConstructor s expected name (actual-types pairs) ty fields, all-refs, sk)
         else (env, CPWild s UError, Nil, add-error s "pattern name is not a constructor" st)
