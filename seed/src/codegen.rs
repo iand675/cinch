@@ -7089,7 +7089,7 @@ fn bytes_access_word(b: &mut Builder, cx: &LowerCx, reg: &Registry, op: BytesOp)
 
     let len = b.reg();
     b.line(&format!(
-        "{len} = load i64, ptr {payload}, align 8, !invariant.load {inv}, !tbaa {tbaa_h}"
+        "{len} = load i64, ptr {payload}, align 8, !tbaa {tbaa_h}"
     ));
     if let Some(index) = &index {
         let inside = if width == 1 {
@@ -7133,7 +7133,7 @@ fn bytes_access_word(b: &mut Builder, cx: &LowerCx, reg: &Registry, op: BytesOp)
         ));
         let data = b.reg();
         b.line(&format!(
-            "{data} = load ptr, ptr {data_at}, align {}, !invariant.load {inv}, !tbaa {tbaa_h}",
+            "{data} = load ptr, ptr {data_at}, align {}, !tbaa {tbaa_h}",
             b.pointer_bytes
         ));
         if let Some(index) = &index {
