@@ -710,6 +710,7 @@ module Bootstrap.Resolve where
     TUnpackField s enabled ty -> rename-type visible locals ty
     TRow s labels tail -> TRow s (rename-cell-effects visible locals labels) tail
     TTuple s args -> TTuple s (rename-type visible locals args)
+    TSigma s name dom body -> TSigma s name (rename-type visible locals dom) (rename-type visible (Cons name locals) body)
     TForall s binders body -> TForall s (rename-type visible locals binders) (rename-type visible (bound-names binders <> locals) body)
     TQuantifier s name only kind rest -> TQuantifier s name only (rename-type visible locals kind) (rename-type visible (Cons name locals) rest)
     TUsing s bounds body -> TUsing s (rename-proof-bounds visible (argument-names body <> locals) bounds) (rename-type visible (bound-names bounds <> locals) body)
@@ -1200,7 +1201,7 @@ module Bootstrap.Resolve where
   -- instance would claim a structural fact the compiler cannot verify.
   structural-class-head :: TypeExpr -> Bool
   structural-class-head ty = case ty of
-    TName s name -> same name "Copy" || same name "Share"
+    TName s name -> same name "Copy" || same name "Share" || same name "Kernel"
     TApp s head args -> structural-class-head head
     other -> False
   -- Generated names belong to the destination module. Their templates see
@@ -1242,7 +1243,7 @@ module Bootstrap.Resolve where
       else ([DCodata s (global-name home name) (rename-params visible Nil params)
         (rename-record-fields False visible (parameter-names params) observations)], Nil)
     DClass s name params members ->
-      if same name "Copy" || same name "Share" then (Nil, fail s "Copy and Share are compiler-known classes and cannot be declared") else
+      if same name "Copy" || same name "Share" || same name "Kernel" then (Nil, fail s "Copy, Share and Kernel are compiler-known classes and cannot be declared") else
         case rename-class-members home name visible (parameter-names params) (decls-of members) of
           (renamed, errors) -> ([DClass s (defining-symbol home name visible) (rename-params visible Nil params) (decl-spine s renamed)], errors)
     DRefine s name params binder predicate -> if has-name name ["TVar", "MVarCell"] then (Nil, fail s ("the builtin kernel " <> name <> " carrier cannot be redefined as a refinement")) else

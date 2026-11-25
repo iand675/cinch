@@ -588,11 +588,64 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.arrayFilterI32Gt" == 0 then Some (42, 388, "Array I32 -> I32 -> Array I32")
     else if string-compare symbol "cinch.runtime.arrayHistogramU8" == 0 then Some (43, 257, "Array U8 -> Nat -> Array U32")
     else if string-compare symbol "cinch.runtime.arrayStencil2DU8" == 0 then Some (44, 257, "Array U8 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Option (Array U8)")
-    else if string-compare symbol "cinch.runtime.arraySpmvCsrF32" == 0 then Some (45, 260, "Array F32 -> Array I32 -> Array U32 -> Array F32 -> I64 -> Array F32")
-    else if string-compare symbol "cinch.runtime.arraySetExecMode" == 0 then Some (46, 264, "I64 -> I64")
+    else if string-compare symbol "cinch.runtime.arraySpmvCsrF32" == 0 then Some (45, 260, "Array F32 -> Array U32 -> Array U32 -> Array F32 -> I64 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arraySetExecMode" == 0 then Some (46, 264, "I64 -> Unit")
     else if string-compare symbol "cinch.runtime.arrayHistogramBatchU8" == 0 then Some (47, 257, "Array U8 -> Nat -> Nat -> Nat -> Nat -> Option (Array U32)")
     else if string-compare symbol "cinch.runtime.arrayMapUnaryF32" == 0 then Some (48, 260, "Array F32 -> I64 -> F32 -> Array F32")
     else if string-compare symbol "cinch.runtime.arrayFusedMapReduceF32" == 0 then Some (49, 260, "Array F32 -> I64 -> F32 -> I64 -> F32")
+    else if string-compare symbol "cinch.runtime.arrayTabulateF64" == 0 then Some (50, 264, "Nat -> (Nat -> F64) -> Array F64")
+    else if string-compare symbol "cinch.runtime.arrayMapU8" == 0 then Some (51, 257, "(U8 -> U8) -> Array U8 -> Array U8")
+    else if string-compare symbol "cinch.runtime.arrayMapI32" == 0 then Some (52, 388, "(I32 -> I32) -> Array I32 -> Array I32")
+    else if string-compare symbol "cinch.runtime.arrayMapU32" == 0 then Some (53, 260, "(U32 -> U32) -> Array U32 -> Array U32")
+    else if string-compare symbol "cinch.runtime.arrayMapF32" == 0 then Some (54, 260, "(F32 -> F32) -> Array F32 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayMapF64" == 0 then Some (55, 264, "(F64 -> F64) -> Array F64 -> Array F64")
+    else if string-compare symbol "cinch.runtime.arrayZipWithI32" == 0 then Some (56, 388, "(I32 -> I32 -> I32) -> Array I32 -> Array I32 -> Option (Array I32)")
+    else if string-compare symbol "cinch.runtime.arrayZipWithF32" == 0 then Some (57, 260, "(F32 -> F32 -> F32) -> Array F32 -> Array F32 -> Option (Array F32)")
+    else if string-compare symbol "cinch.runtime.arrayFoldlI32" == 0 then Some (58, 388, "(I32 -> I32 -> I32) -> I32 -> Array I32 -> I32")
+    else if string-compare symbol "cinch.runtime.arrayFoldlF32" == 0 then Some (59, 260, "(F32 -> F32 -> F32) -> F32 -> Array F32 -> F32")
+    else if string-compare symbol "cinch.runtime.arrayReduceU32" == 0 then Some (60, 260, "Array U32 -> I64 -> U32")
+    else if string-compare symbol "cinch.runtime.arrayReduceI64" == 0 then Some (61, 392, "Array I64 -> I64 -> I64")
+    else if string-compare symbol "cinch.runtime.arrayReduceF64" == 0 then Some (62, 264, "Array F64 -> I64 -> F64")
+    else if string-compare symbol "cinch.runtime.arrayDotF64" == 0 then Some (63, 264, "Array F64 -> Array F64 -> I64 -> F64")
+    else if string-compare symbol "cinch.runtime.arrayStridedDotF32" == 0 then Some (64, 260, "Array F32 -> Nat -> Nat -> Array F32 -> Nat -> Nat -> Nat -> I64 -> F32")
+    else if string-compare symbol "cinch.runtime.arrayRowReduceI32" == 0 then Some (65, 388, "Array I32 -> Nat -> Nat -> I64 -> Option (Array I32)")
+    else if string-compare symbol "cinch.runtime.arrayScanU32" == 0 then Some (66, 260, "Array U32 -> I64 -> Bool -> Array U32")
+    else if string-compare symbol "cinch.runtime.arrayFilterI32" == 0 then Some (67, 388, "(I32 -> Bool) -> Array I32 -> Array I32")
+    else if string-compare symbol "cinch.runtime.arrayGatherF32" == 0 then Some (68, 260, "Array F32 -> Array I32 -> I64 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayGatherI32" == 0 then Some (69, 388, "Array I32 -> Array I32 -> I64 -> Array I32")
+    else if string-compare symbol "cinch.runtime.arrayScatterUniqueU32" == 0 then Some (70, 260, "Array U32 -> Array U32 -> Array U32 -> Array U32")
+    else if string-compare symbol "cinch.runtime.arrayScatterCombineI32" == 0 then Some (71, 388, "Array I32 -> Array I32 -> Array I32 -> I64 -> Array I32")
+    else if string-compare symbol "cinch.runtime.arrayHistogramU32" == 0 then Some (72, 260, "Array U32 -> Nat -> Array U32")
+    else if string-compare symbol "cinch.runtime.arrayStencil2DF32" == 0 then Some (73, 260, "Array F32 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> Option (Array F32)")
+    else if string-compare symbol "cinch.runtime.arraySegmentedReduceF32" == 0 then Some (74, 260, "Array F32 -> Array U32 -> I64 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayPackStrided1D" == 0 then Some (75, 0, "forall a. Array a -> Nat -> Nat -> Nat -> Option (Array a)")
+    else if string-compare symbol "cinch.runtime.arrayPackStrided2D" == 0 then Some (76, 0, "forall a. Array a -> Nat -> Nat -> Nat -> Nat -> Nat -> Option (Array a)")
+    else if string-compare symbol "cinch.runtime.arrayLastReportBytes" == 0 then Some (77, 264, "Unit -> Bytes")
+    else if string-compare symbol "cinch.runtime.deviceOpen" == 0 then Some (78, 264, "I64 -> I64")
+    else if string-compare symbol "cinch.runtime.deviceClose" == 0 then Some (79, 264, "I64 -> I64")
+    else if string-compare symbol "cinch.runtime.deviceResetTelemetry" == 0 then Some (80, 264, "I64 -> I64")
+    else if string-compare symbol "cinch.runtime.deviceUploadArray" == 0 then Some (81, 0, "forall a. I64 -> Array a -> I64")
+    else if string-compare symbol "cinch.runtime.deviceDownloadU8" == 0 then Some (82, 257, "I64 -> I64 -> Option (Array U8)")
+    else if string-compare symbol "cinch.runtime.deviceDownloadU32" == 0 then Some (83, 260, "I64 -> I64 -> Option (Array U32)")
+    else if string-compare symbol "cinch.runtime.deviceDownloadI32" == 0 then Some (84, 388, "I64 -> I64 -> Option (Array I32)")
+    else if string-compare symbol "cinch.runtime.deviceDownloadF32" == 0 then Some (85, 260, "I64 -> I64 -> Option (Array F32)")
+    else if string-compare symbol "cinch.runtime.deviceBufferFree" == 0 then Some (86, 264, "I64 -> I64")
+    else if string-compare symbol "cinch.runtime.deviceBufferBytes" == 0 then Some (87, 264, "I64 -> I64")
+    else if string-compare symbol "cinch.runtime.deviceDotF32" == 0 then Some (88, 260, "I64 -> I64 -> I64 -> Nat -> I64 -> Option F32")
+    else if string-compare symbol "cinch.runtime.deviceScanI32" == 0 then Some (89, 388, "I64 -> I64 -> Nat -> Bool -> I64")
+    else if string-compare symbol "cinch.runtime.deviceFilterI32Gt" == 0 then Some (90, 388, "I64 -> I64 -> Nat -> I32 -> I64")
+    else if string-compare symbol "cinch.runtime.deviceRowReduceF32" == 0 then Some (91, 260, "I64 -> I64 -> Nat -> Nat -> I64")
+    else if string-compare symbol "cinch.runtime.deviceStencilHistogramU8" == 0 then Some (92, 257, "I64 -> I64 -> Nat -> Nat -> Nat -> Array I32 -> I32 -> I64 -> Nat -> Nat -> I64")
+    else if string-compare symbol "cinch.runtime.deviceStencil2DF32" == 0 then Some (93, 260, "I64 -> I64 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> I64")
+    else if string-compare symbol "cinch.runtime.deviceSpmvCsrF32" == 0 then Some (94, 260, "I64 -> I64 -> I64 -> I64 -> I64 -> Nat -> Nat -> I64 -> I64")
+    else if string-compare symbol "cinch.runtime.deviceReportBytes" == 0 then Some (95, 264, "I64 -> Bytes")
+    else if string-compare symbol "cinch.runtime.arrayFillF32" == 0 then Some (96, 260, "Nat -> F32 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayFillF64" == 0 then Some (97, 264, "Nat -> F64 -> Array F64")
+    else if string-compare symbol "cinch.runtime.arrayZipBinopF64" == 0 then Some (98, 264, "Array F64 -> Array F64 -> I64 -> Option (Array F64)")
+    else if string-compare symbol "cinch.runtime.arrayScaleF64" == 0 then Some (99, 264, "Array F64 -> F64 -> Array F64")
+    else if string-compare symbol "cinch.runtime.arrayRowBroadcastF32" == 0 then Some (100, 260, "Array F32 -> Nat -> Nat -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayScatterAddF32" == 0 then Some (101, 260, "Nat -> Array I32 -> Array F32 -> I64 -> Array F32")
+    else if string-compare symbol "cinch.runtime.arrayStencil2DAdjointF32" == 0 then Some (102, 260, "Array F32 -> Nat -> Nat -> Nat -> Array F32 -> I64 -> Nat -> Option (Array F32)")
     else None
   array-extern :: Nat -> String
   array-extern operation =
@@ -636,6 +689,50 @@ module Bootstrap.Builtin where
     else if operation == 47 then "cinch_array_histogram_batch_u8"
     else if operation == 48 then "cinch_array_map_unary_f32"
     else if operation == 49 then "cinch_array_fused_map_reduce_f32"
+    else if operation == 50 then "cinch_array_tabulate_packed"
+    else if operation >= 51 && operation <= 55 then "cinch_array_map_packed"
+    else if operation == 56 || operation == 57 then "cinch_array_zip_with_packed"
+    else if operation == 58 || operation == 59 then "cinch_array_foldl_packed"
+    else if operation == 60 then "cinch_array_reduce_u32"
+    else if operation == 61 then "cinch_array_reduce_i64"
+    else if operation == 62 then "cinch_array_reduce_f64"
+    else if operation == 63 then "cinch_array_dot_f64"
+    else if operation == 64 then "cinch_array_strided_dot_f32"
+    else if operation == 65 then "cinch_array_row_reduce_i32"
+    else if operation == 66 then "cinch_array_scan_u32"
+    else if operation == 67 then "cinch_array_filter_packed"
+    else if operation == 68 then "cinch_array_gather_f32"
+    else if operation == 69 then "cinch_array_gather_i32"
+    else if operation == 70 then "cinch_array_scatter_unique_u32"
+    else if operation == 71 then "cinch_array_scatter_combine_i32"
+    else if operation == 72 then "cinch_array_histogram_u32"
+    else if operation == 73 then "cinch_array_stencil2d_f32"
+    else if operation == 74 then "cinch_array_segmented_reduce_f32"
+    else if operation == 75 then "cinch_array_pack_strided_1d"
+    else if operation == 76 then "cinch_array_pack_strided_2d"
+    else if operation == 77 then "cinch_array_last_report_bytes"
+    else if operation == 78 then "cinch_device_open"
+    else if operation == 79 then "cinch_device_close"
+    else if operation == 80 then "cinch_device_reset_telemetry"
+    else if operation == 81 then "cinch_device_upload_array"
+    else if operation >= 82 && operation <= 85 then "cinch_device_download_array"
+    else if operation == 86 then "cinch_device_buffer_free"
+    else if operation == 87 then "cinch_device_buffer_bytes"
+    else if operation == 88 then "cinch_device_dot_f32_bits"
+    else if operation == 89 then "cinch_device_scan_i32"
+    else if operation == 90 then "cinch_device_filter_i32_gt_handle"
+    else if operation == 91 then "cinch_device_row_reduce_f32"
+    else if operation == 92 then "cinch_device_stencil_histogram_u8_arr"
+    else if operation == 93 then "cinch_device_stencil2d_f32_arr"
+    else if operation == 94 then "cinch_device_spmv_csr_f32"
+    else if operation == 95 then "cinch_device_report_bytes"
+    else if operation == 96 then "cinch_array_fill_f32"
+    else if operation == 97 then "cinch_array_fill_f64"
+    else if operation == 98 then "cinch_array_zip_binop_f64"
+    else if operation == 99 then "cinch_array_scale_f64"
+    else if operation == 100 then "cinch_array_row_broadcast_f32"
+    else if operation == 101 then "cinch_array_scatter_add_f32"
+    else if operation == 102 then "cinch_array_stencil2d_adjoint_f32"
     else ""
 
   builtin-syntax-metadata :: String -> Option Json

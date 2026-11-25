@@ -103,6 +103,7 @@ module Bootstrap.Export where
     URow labels -> type-measures labels
     URowJoin a b -> type-measures a <> type-measures b
     UTuple fields -> type-measures fields
+    USigma id name domain body -> type-measures domain <> type-measures body
     UArg a b -> type-measures a <> type-measures b
     other -> Nil
   kind-measures :: Kind -> List TotalFunction
@@ -299,6 +300,39 @@ module Bootstrap.Export where
     Cons first rest -> (case value-carrier (quant-kind first) of Some carrier -> 1; None -> 0) + quantified-value-arity rest
   interface-value-arity :: Scheme -> Nat
   interface-value-arity scheme = scheme-arity scheme + list-length (scheme-requirements scheme) + quantified-value-arity (scheme-params scheme)
+  scheme-has-prefix :: List Char -> List Char -> Bool
+  scheme-has-prefix needle haystack = case (needle, haystack) of
+    (Nil, other) -> True
+    (Cons a ra, Cons b rb) -> char-code a == char-code b && scheme-has-prefix ra rb
+    other -> False
+  scheme-contains-chars :: List Char -> List Char -> Bool
+  scheme-contains-chars needle haystack =
+    if scheme-has-prefix needle haystack then True
+    else case haystack of
+      Nil -> False
+      Cons c rest -> scheme-contains-chars needle rest
+  scheme-contains :: String -> String -> Bool
+  scheme-contains needle haystack = scheme-contains-chars (unpack needle) (unpack haystack)
+  kernel-eligibility-json :: String -> Json
+  kernel-eligibility-json spelling =
+    if scheme-contains "Mut " spelling then
+      JObj "blocker" (JStr "mutable borrow (`Mut`) cannot enter a parallel or GPU kernel")
+        (JObj "cpu_parallel" (JBool False) (JObj "gpu_metal" (JBool False) JObjEnd))
+    else if scheme-contains "Lazy " spelling then
+      JObj "blocker" (JStr "memo cell (`Lazy`) is single-threaded and cannot enter a kernel")
+        (JObj "cpu_parallel" (JBool False) (JObj "gpu_metal" (JBool False) JObjEnd))
+    else if scheme-contains "->{" spelling && not (scheme-contains "->{}" spelling) then
+      if scheme-contains "->{Diverge}" spelling then
+        JObj "blocker" (JStr "effect `Diverge` prevents Metal GPU kernel execution")
+          (JObj "cpu_parallel" (JBool True) (JObj "gpu_metal" (JBool False) JObjEnd))
+      else
+        JObj "blocker" (JStr "effect row prevents parallel/device kernel execution")
+          (JObj "cpu_parallel" (JBool False) (JObj "gpu_metal" (JBool False) JObjEnd))
+    else if scheme-contains "String" spelling || scheme-contains "Bytes" spelling || scheme-contains "List " spelling || scheme-contains "Json" spelling || scheme-contains "Sym" spelling then
+      JObj "blocker" (JStr "representation is not device-representable on Metal GPU")
+        (JObj "cpu_parallel" (JBool True) (JObj "gpu_metal" (JBool False) JObjEnd))
+    else
+      JObj "cpu_parallel" (JBool True) (JObj "gpu_metal" (JBool True) JObjEnd)
   value-row :: Bool -> Bool -> Elaboration -> List LoadedInterface -> DeclarationReferences -> String -> String -> CheckedBinding -> Result String Json
   value-row require-worker alias-display typed interfaces references name symbol binding =
     if imported-symbol symbol then imported-value-row interfaces name symbol
@@ -310,10 +344,13 @@ module Bootstrap.Export where
       if row-quantified (scheme-params scheme) then opaque-value-row name symbol binding else
       case (export-global symbol, resolved-value-scheme typed interfaces references symbol scheme, export-display-scheme scheme) of
         (Ok identity, Ok JNull, Ok spelling) -> opaque-value-row name symbol binding
-        (Ok identity, Ok resolved, Ok spelling) -> Ok (JObj "name" (JStr name)
-          (JObj "symbol" (JStr identity) (JObj "scheme" (JStr (value-display-spelling alias-display typed interfaces references symbol scheme spelling))
-            (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int arity))
-              (JObj "total_body" (value-total-body binding) JObjEnd))))))
+        (Ok identity, Ok resolved, Ok spelling) ->
+          let display = value-display-spelling alias-display typed interfaces references symbol scheme spelling in
+          Ok (JObj "name" (JStr name)
+            (JObj "symbol" (JStr identity) (JObj "scheme" (JStr display)
+              (JObj "resolved" resolved (JObj "arity" (JNum (nat-to-int arity))
+                (JObj "total_body" (value-total-body binding)
+                  (JObj "kernel" (kernel-eligibility-json display) JObjEnd)))))))
         (Err error, other, more) -> Err error
         (other, Err error, more) -> Err error
         (other, more, Err error) -> Err error
@@ -364,7 +401,7 @@ module Bootstrap.Export where
       (Ok identity, Ok spelling) -> Ok (JObj "name" (JStr name)
         (JObj "symbol" (JStr identity) (JObj "scheme" (JStr spelling)
           (JObj "resolved" JNull (JObj "arity" (JNum (nat-to-int arity))
-            (JObj "total_body" JNull JObjEnd))))))
+            (JObj "total_body" JNull (JObj "kernel" (kernel-eligibility-json spelling) JObjEnd)))))))
       (Err error, other) -> Err error
       (other, Err error) -> Err error
   constructor-result :: UType -> UType

@@ -145,6 +145,7 @@ module Bootstrap.ExportNominal where
     URow labels -> type-references labels
     URowJoin a b -> combine (type-references a) (type-references b)
     UTuple fields -> type-references fields
+    USigma id name domain body -> combine (type-references domain) (type-references body)
     UArg first rest -> combine (type-references first) (type-references rest)
     UEnd -> Ok Nil
     UPropLit value -> Ok Nil

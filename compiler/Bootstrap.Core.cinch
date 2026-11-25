@@ -62,7 +62,7 @@ module Bootstrap.Core where
   export indexed-source-definition, replace-source-definition
   export core-source-body, core-source-function, core-total-function-uses-native, core-total-function-names, core-method-total-function
   export core-type, core-name, core-scheme, core-clauses, core-openings, core-private-types
-  export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEInstance
+  export CoreGiven, CGiven, CoreEvidence, CENeeded, CEGiven, CECopy, CEKernel, CEInstance
   export CEArgument, CEArgumentsEnd
   export CQualifiedUse, CMethod, core-givens, given-symbol, given-type, evidence-type
   export map-givens, map-evidence, map-evidences, scheme-closed, declaration-scheme-closed
@@ -172,6 +172,7 @@ module Bootstrap.Core where
     URow labels -> effect-type-scope qs labels
     URowJoin a b -> effect-type-scope qs a && effect-type-scope qs b
     UTuple fields -> effect-type-scope qs fields
+    USigma id name domain body -> effect-binder qs id name domain body
     UForall inner body -> effect-type-scope (qs <> quants-list inner) body
     UArg a rest -> effect-type-scope qs a && effect-type-scope qs rest
     UCompare relation a b -> effect-type-scope qs a && effect-type-scope qs b
@@ -307,11 +308,12 @@ module Bootstrap.Core where
     CENeeded :: Span -> UType -> List CoreGiven -> CoreEvidence
     CEGiven :: Span -> UType -> String -> CoreEvidence
     CECopy :: Span -> UType -> CoreEvidence
+    CEKernel :: Span -> UType -> CoreEvidence
     CEInstance :: Span -> UType -> String -> List UType -> CoreEvidence -> CoreEvidence
     CEArgument :: Span -> CoreEvidence -> CoreEvidence -> CoreEvidence
     CEArgumentsEnd :: Span -> CoreEvidence
   evidence-type :: CoreEvidence -> UType
-  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CECopy s carrier -> UApp (UCon "Copy" (KFun KType KType)) carrier; CEInstance s ty name actuals args -> ty; other -> UError
+  evidence-type evidence = case evidence of CENeeded s ty scope -> ty; CEGiven s ty name -> ty; CECopy s carrier -> UApp (UCon "Copy" (KFun KType KType)) carrier; CEKernel s carrier -> UApp (UCon "Kernel" (KFun KType KType)) carrier; CEInstance s ty name actuals args -> ty; other -> UError
   map-givens :: (UType -> UType) -> List CoreGiven -> List CoreGiven
   map-givens f givens = case givens of Nil -> Nil; Cons (CGiven s name ty) rest -> Cons (CGiven s name (f ty)) (map-givens f rest)
   map-evidence :: (UType -> UType) -> CoreEvidence -> CoreEvidence
@@ -319,6 +321,7 @@ module Bootstrap.Core where
     CENeeded s ty scope -> CENeeded s (f ty) (map-givens f scope)
     CEGiven s ty name -> CEGiven s (f ty) name
     CECopy s carrier -> CECopy s (f carrier)
+    CEKernel s carrier -> CEKernel s (f carrier)
     CEInstance s ty name actuals args -> CEInstance s (f ty) name (map-types f actuals) (map-evidence f args)
     CEArgument s arg rest -> CEArgument s (map-evidence f arg) (map-evidence f rest)
     CEArgumentsEnd s -> evidence
@@ -906,6 +909,7 @@ module Bootstrap.Core where
   rewrite-evidence-equal :: CoreEvidence -> CoreEvidence -> Bool
   rewrite-evidence-equal first second = case (first, second) of
     (CECopy sp carrier, CECopy at other) -> same-shape carrier other
+    (CEKernel sp carrier, CEKernel at other) -> same-shape carrier other
     (CEGiven sp ty name, CEGiven at other symbol) ->
       string-compare name symbol == 0 && rewrite-type-equal ty other
     (CEInstance sp ty name types arguments, CEInstance at other symbol actuals supplied) ->
@@ -1314,6 +1318,7 @@ module Bootstrap.Core where
     URow labels -> URow (freeze labels)
     URowJoin a b -> union-effects (freeze a) (freeze b)
     UTuple fields -> UTuple (freeze fields)
+    USigma id name domain body -> USigma id name (freeze domain) (freeze body)
     UForall qs body -> UForall (quants-of (map-quant-kinds freeze (quants-list qs))) (freeze body)
     UArg x rest -> UArg (freeze x) (freeze rest)
     other -> ty
@@ -1364,6 +1369,7 @@ module Bootstrap.Core where
     URow labels -> collect-type-metas st labels tail
     URowJoin a b -> collect-type-metas st a (collect-type-metas st b tail)
     UTuple fields -> collect-type-metas st fields tail
+    USigma id name domain body -> collect-type-metas st domain (collect-type-metas st body tail)
     UForall qs body -> collect-type-metas st body tail
     UArg x rest -> collect-type-metas st x (collect-type-metas st rest tail)
     other -> tail
@@ -1385,6 +1391,7 @@ module Bootstrap.Core where
     CENeeded s ty scope -> type-metas st ty <> given-metas st scope
     CEGiven s ty name -> type-metas st ty
     CECopy s carrier -> type-metas st carrier
+    CEKernel s carrier -> type-metas st carrier
     CEInstance s ty name actuals args -> type-metas st ty <> types-metas st actuals <> evidence-metas st args
     CEArgument s arg rest -> evidence-metas st arg <> evidence-metas st rest
     CEArgumentsEnd s -> Nil
@@ -1463,15 +1470,15 @@ module Bootstrap.Core where
   unique entries seen = case entries of Nil -> Nil; Cons (id, k) rest -> if has-id id seen then unique rest seen else Cons (id, k) (unique rest (Cons (id, k) seen))
   seal-patterns :: Store -> List CorePattern -> List CorePattern
   seal-patterns st ps = case ps of Nil -> Nil; Cons p rest -> Cons (map-pattern-types (freeze-type st) p) (seal-patterns st rest)
-  seal-clauses :: BodyBindings -> List GuardedBinding -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
-  seal-clauses bodies guards st earlier clauses = case clauses of
+  seal-clauses :: BodyBindings -> List GuardedBinding -> List (Nat, UType) -> Store -> List (List CorePattern) -> List CoreClause -> List CoreClause
+  seal-clauses bodies guards values st earlier clauses = case clauses of
     Nil -> Nil
     Cons (MkCoreClause s ps body) rest -> let patterns = seal-patterns st ps in
       let frozen = map-term-types (freeze-type st) body in
-      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies empty-proof-scope) in
+      let scope = with-guarded-bindings guards (with-checked-body-bindings bodies (make-proof-scope values Nil)) in
       let gamma = proof-patterns patterns scope in
       let checked = refresh-certificates gamma (scoped-core-equation-facts gamma earlier patterns) frozen in
-      Cons (MkCoreClause s patterns checked) (seal-clauses bodies guards st (extend-equation-prefix patterns checked earlier) rest)
+      Cons (MkCoreClause s patterns checked) (seal-clauses bodies guards values st (extend-equation-prefix patterns checked earlier) rest)
   normalize-valid-type :: Store -> UType -> UType
   normalize-valid-type st ty = if valid-type ty then normalize st ty else UError
   seal-definition :: Store -> CoreDefinition -> CoreDefinition
@@ -1486,7 +1493,7 @@ module Bootstrap.Core where
   seal-definition-with-checked-contracts bodies guards st definition = case definition of
     MkCoreDefinition s name sc openings givens private clauses ->
       MkCoreDefinition s name (map-scheme (normalize-valid-type st) sc) openings (map-givens (freeze-type st) givens)
-        (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards st Nil clauses)
+        (unique (private <> given-metas st givens <> clauses-metas st clauses) Nil) (seal-clauses bodies guards (opening-value-types openings) st Nil clauses)
 
   closed-type :: UType -> Bool
   closed-type ty = case ty of
@@ -1528,6 +1535,7 @@ module Bootstrap.Core where
     URow labels -> closed-type labels
     URowJoin a b -> closed-type a && closed-type b
     UTuple fields -> closed-type fields
+    USigma id name domain body -> closed-type domain && closed-type body
     UForall qs body -> valid-type ty && closed-type body
     UArg x rest -> closed-type x && closed-type rest
     other -> True
@@ -1562,6 +1570,7 @@ module Bootstrap.Core where
     CENeeded s ty scope -> False
     CEGiven s ty name -> closed-type ty
     CECopy s carrier -> copy-marker-carrier carrier
+    CEKernel s carrier -> kernel-marker-carrier carrier
     CEInstance s ty name actuals args -> closed-type ty && closed-types actuals && evidence-arguments-closed args
     other -> False
   evidence-arguments-closed :: CoreEvidence -> Bool
@@ -1744,6 +1753,7 @@ module Bootstrap.Core where
     URow labels -> type-index-scope bound rigid labels
     URowJoin a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
     UTuple fields -> type-index-scope bound rigid fields
+    USigma id name domain body -> type-index-scope bound rigid domain && type-index-scope (Cons id bound) rigid body
     UForall qs body -> type-index-scope bound rigid body
     UArg a rest -> type-index-scope bound rigid a && type-index-scope bound rigid rest
     UEnd -> True
@@ -1804,6 +1814,7 @@ module Bootstrap.Core where
     CENeeded s ty scope -> False
     CEGiven s ty name -> type-index-scope universals rigid ty
     CECopy s carrier -> copy-marker-carrier carrier
+    CEKernel s carrier -> kernel-marker-carrier carrier
     CEInstance s ty name actuals args -> type-index-scope universals rigid ty && types-index-scope universals rigid actuals && evidence-index-scope-with universals rigid args
     CEArgument s arg rest -> evidence-index-scope-with universals rigid arg && evidence-index-scope-with universals rigid rest
     CEArgumentsEnd s -> True
@@ -2080,6 +2091,7 @@ module Bootstrap.Core where
     URow labels -> borrow-index-regions labels
     URowJoin a b -> borrow-index-regions a <> borrow-index-regions b
     UTuple fields -> borrow-index-regions fields
+    USigma id name domain body -> borrow-index-regions domain <> borrow-index-regions body
     UForall qs body -> borrow-index-regions body
     other -> Nil
   volatile-borrow-index :: UType -> Bool
@@ -2231,11 +2243,13 @@ module Bootstrap.Core where
   valid-integer-literal :: UType -> String -> Bool
   valid-integer-literal carrier text = case decimal-value text of Some value -> integer-literal-valid carrier value; None -> False
   valid-number-literal :: UType -> String -> Bool
-  valid-number-literal carrier text = case decimal-value text of Some value -> number-literal-valid carrier value; None -> False
+  valid-number-literal carrier text = case decimal-value text of
+    Some value -> number-literal-valid carrier value
+    None -> float-string-valid carrier text
   core-float-literal-word :: UType -> String -> Option Int
   core-float-literal-word carrier text = case decimal-value text of
     Some value -> float-literal-bits carrier value (string-compare text "-0" == 0)
-    None -> None
+    None -> float-string-bits carrier text
   same-integer-carrier :: UType -> UType -> Bool
   same-integer-carrier first second = integer-carrier first && contract-equal first second
   ordered-id :: Nat -> List Nat -> List Nat
@@ -2285,7 +2299,9 @@ module Bootstrap.Core where
   byte-length-variable :: Nat -> Arithmetic
   byte-length-variable id = AVariable (string-concat "#bytes-length:" (nat-to-string id))
   byte-length-function :: UType -> UType -> String -> String -> Bool
-  byte-length-function result function symbol role = string-compare symbol "cinch.runtime.bytesLen" == 0 && string-compare role "intrinsic" == 0 && nat-type (numeric-carrier-view result) && (case function of UFun domain output -> contract-equal domain (UCon "Bytes" KType) && contract-equal output result; other -> False)
+  byte-length-function result function symbol role =
+    (string-compare symbol "cinch.runtime.bytesLen" == 0 && string-compare role "intrinsic" == 0 && nat-type (numeric-carrier-view result) && (case function of UFun domain output -> contract-equal domain (UCon "Bytes" KType) && contract-equal output result; other -> False))
+    || ((string-compare symbol "cinch.runtime.bytesLenI64" == 0 || string-compare symbol (interface-global "Data.Bytes.bytes-len-i64") == 0) && (case numeric-carrier-view result of UCon name KType -> string-compare name "I64" == 0; other -> False))
   -- The length of immutable text is opaque to arithmetic. The independent
   -- Core check compares only observations of the same scoped String value.
   string-length-function :: UType -> UType -> String -> String -> Bool

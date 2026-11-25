@@ -601,6 +601,7 @@ module Bootstrap.Ir where
     TIndexLambda s name body -> Some "an index lambda the fragment does not lower"
     TInfix s op a b -> Some "a predicate or index operation the fragment does not lower"
     TUsing s a b -> Some "a using constraint the fragment does not lower"
+    TSigma s name dom body -> Some "a sigma the fragment does not lower"
     TForall s vs body -> Some "a forall the fragment does not lower"
     TFun s a b -> case word-type a of
       None -> sig-unsupported b

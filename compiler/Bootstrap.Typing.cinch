@@ -52,7 +52,7 @@ module Bootstrap.Typing where
   with-copy-givens context givens = case givens of
     Nil -> context
     Cons given rest -> case given-type given of
-      UApp (UCon name (KFun KType KType)) carrier | same name "Copy" ->
+      UApp (UCon name (KFun KType KType)) carrier | same name "Copy" || same name "Kernel" ->
         (case context of
           CheckedTypingContext kinds globals effects datas forwarders usage copies -> with-copy-givens (CheckedTypingContext kinds globals effects datas forwarders usage (Cons carrier copies)) rest)
       other -> with-copy-givens context rest
@@ -295,6 +295,7 @@ module Bootstrap.Typing where
   evidence-types :: TypingContext -> TypeScope -> CoreEvidence -> Bool
   evidence-types context scope evidence = case evidence of
     CECopy sp carrier -> wf context scope (evidence-type evidence) && copy-marker-carrier carrier
+    CEKernel sp carrier -> wf context scope (evidence-type evidence) && kernel-marker-carrier carrier
     CEGiven sp ty symbol -> wf context scope ty
     CEInstance sp ty symbol actuals args -> wf context scope ty && actual-types context scope actuals && evidence-types context scope args
     CEArgument sp first rest -> evidence-types context scope first && evidence-types context scope rest
@@ -326,7 +327,16 @@ module Bootstrap.Typing where
     CPVar sp ty id name -> add-local-scheme id (mono ty) scope
     CPAs sp ty id name inner -> case add-local-scheme id (mono ty) scope of Some bound -> pattern-scope context bound expected inner; None -> None
     CPConstructor sp ty name actuals constructor fields -> if wf context scope constructor && actual-types context scope actuals then constructor-fields context scope expected (pattern-constructor-type expected constructor) fields else None
-    CPTuple sp ty fields -> case tuple-fields ty of Some types -> tuple-patterns context scope types fields; None -> None
+    CPTuple sp ty fields -> case ty of
+      USigma id name domain body -> (case fields of
+        CPField sp1 first (CPField sp2 second (CPDone end)) ->
+          (case pattern-scope context scope domain first of
+            Some bound -> (case pattern-result (UPi id name domain (URow UEnd) body) first of
+              Some opened -> pattern-scope context bound opened second
+              None -> None)
+            None -> None)
+        other -> None)
+      other -> case tuple-fields ty of Some types -> tuple-patterns context scope types fields; None -> None
     CPInt sp ty text -> if integer-carrier ty || wide-carrier ty then Some scope else None
     CPString sp ty text -> if string-type ty then Some scope else None
     CPChar sp ty text -> if type-is "Char" ty && char-value text then Some scope else None
@@ -545,7 +555,17 @@ module Bootstrap.Typing where
     CCase sp ty value alternatives -> let writes = core-mutable-writes value in
       checked-term context scope gamma facts value
         && alternatives-typed context scope (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) value ty alternatives
-    CTuple sp ty fields -> (case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
+    CTuple sp ty fields -> (case ty of
+      USigma id name domain body -> (case fields of
+        CArgument sp1 first (CArgument sp2 second (CArgumentsEnd end)) ->
+          equal-type domain (core-type first)
+            && checked-term context scope gamma facts first
+            && (let (next, live) = term-scope gamma facts first in
+              case application-result context scope next live (UPi id name domain (URow UEnd) body) first of
+                Some (opened, row) -> equal-type opened (core-type second) && checked-term context scope next live second
+                None -> False)
+        other -> False)
+      other -> case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
     -- design/rank-n-polymorphism.md section 8: a generalisation's body has
     -- the polytype's body opened at its rigid ids and performs nothing; an
     -- instantiation opens its value's polytype at forall-free arguments.
@@ -603,6 +623,7 @@ module Bootstrap.Typing where
   copyable-type :: TypingContext -> List UType -> Nat -> UType -> Bool
   copyable-type context seen fuel ty = if fuel == 0 then False else let remaining = fuel - 1 in case task-base ty of
     UTuple fields -> copyable-tuple context seen remaining fields
+    USigma id name domain body -> copyable-type context seen remaining domain && copyable-type context seen remaining body
     UApp (UCon name (KFun KType KType)) element -> if cell-type-name name then True else if array-type-name name then copyable-type context seen remaining element
       else copyable-data context seen remaining ty
     UApp (UApp (UCon name kind) region) carrier -> if same name "Ref" then
@@ -692,6 +713,7 @@ module Bootstrap.Typing where
   task-shareable context seen fuel ty = if fuel == 0 then False else case task-base ty of
     UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] then True else task-data-property context True seen fuel ty
     UTuple fields -> task-fields-property context True seen fuel fields
+    USigma id name domain body -> task-property context True seen fuel domain && task-property context True seen fuel body
     -- `Array`, `Tensor` and `Columnar` are builtin type formers, not
     -- declarations, so no `CoreData` describes them and the structural walk
     -- below would have no field to read. Their element type decides sharing,
@@ -714,6 +736,7 @@ module Bootstrap.Typing where
   task-region-free-type context seen fuel ty = if fuel == 0 then False else case task-base ty of
     UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || same name (global-data-string-string) then True else task-data-property context False seen fuel ty
     UTuple fields -> task-fields-property context False seen fuel fields
+    USigma id name domain body -> task-property context False seen fuel domain && task-property context False seen fuel body
     UApp (UCon name kind) element | cell-type-name name && kind-equal kind (KFun KType KType) -> task-region-free-type context seen (fuel - 1) element
     other -> task-data-property context False seen fuel ty
   task-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
@@ -795,6 +818,7 @@ module Bootstrap.Typing where
     UFun a b -> task-regions a <> task-regions b
     UFunEff a row b -> task-regions a <> task-regions row <> task-regions b
     UPi id name a row b -> task-regions a <> task-regions row <> task-regions b
+    USigma id name domain body -> task-regions domain <> task-regions body
     UTuple fields -> task-regions fields
     UForall qs body -> task-regions body
     UArg first rest -> task-regions first <> task-regions rest
@@ -1269,6 +1293,7 @@ module Bootstrap.Typing where
       UUsageArrow usage arrow -> task-type-holds-mut arrow
       UPi id name a row b -> task-type-holds-mut a || task-type-holds-mut b
       UTuple fields -> task-type-holds-mut fields
+      USigma id name domain body -> task-type-holds-mut domain || task-type-holds-mut body
       UForall qs body -> task-type-holds-mut body
       UArg first rest -> task-type-holds-mut first || task-type-holds-mut rest
       other -> False)
@@ -1286,6 +1311,7 @@ module Bootstrap.Typing where
       UUsageArrow usage arrow -> task-type-holds-memo arrow
       UPi id name a row b -> task-type-holds-memo a || task-type-holds-memo b
       UTuple fields -> task-type-holds-memo fields
+      USigma id name domain body -> task-type-holds-memo domain || task-type-holds-memo body
       UForall qs body -> task-type-holds-memo body
       UArg first rest -> task-type-holds-memo first || task-type-holds-memo rest
       other -> False)
@@ -1310,6 +1336,7 @@ module Bootstrap.Typing where
         Some cell -> False
         None -> (case base of
           UTuple fields -> task-transfer-safe context seen remaining fields
+          USigma id name domain body -> task-transfer-safe context seen remaining domain && task-transfer-safe context seen remaining body
           UArg first rest -> task-transfer-safe context seen remaining first && task-transfer-safe context seen fuel rest
           other -> if task-seen-type base seen then True else
             (case task-type-spine base Nil of
@@ -1605,7 +1632,7 @@ module Bootstrap.Typing where
   par-definition-error context d =
     let declared = scheme-body (core-scheme d) in
     let additive = has-annotated-parameter declared in
-    par-clauses-error context additive (opening-value-patterns (Span 0 0 1 1) (core-openings d)) declared (core-clauses d)
+    par-clauses-error (with-copy-givens context (core-givens d)) additive (opening-value-patterns (Span 0 0 1 1) (core-openings d)) declared (core-clauses d)
   par-clauses-error :: TypingContext -> Bool -> List CorePattern -> UType -> List CoreClause -> Option (Span, String)
   par-clauses-error context additive prefix declared clauses = case clauses of
     Nil -> None
@@ -1681,6 +1708,7 @@ module Bootstrap.Typing where
         (par-children-error context owned bound [body, handled-by])
     CLambda sp ty p body -> par-term-error context (capture-usage ty [p] owned) (par-binding p bound) body
     CLet sp ty id name sc rhs body -> first-task-error (par-term-error context owned bound rhs) (par-term-error context owned (Cons (id, name, scheme-body sc) bound) body)
+    CWith sp ty given value body -> first-task-error (par-term-error context owned bound value) (par-term-error (with-copy-givens context [given]) owned bound body)
     other -> par-children-error context owned bound (runtime-term-children term)
   par-children-error :: TypingContext -> CaptureUsage -> List (Nat, String, UType) -> List CoreTerm -> Option (Span, String)
   par-children-error context owned bound terms = case terms of
@@ -1773,7 +1801,7 @@ module Bootstrap.Typing where
     else if task-type-holds-mut actual then
       Some (sp, string-concat-all ["an exclusive `Mut` borrow cannot enter a parallel callback: ", display,
         " holds one (design/parallel-evaluation.md section 2.3)"])
-    else if task-shareable context Nil 64 actual then None
+    else if task-shareable context Nil 64 actual || scoped-copy context actual then None
     -- A `%1`/`%aff` capture may move into one `parBoth` branch: the branch
     -- runs exactly once and consumes it, which the usage check already
     -- counted (`use-count-once`). The many-shot callbacks run once per

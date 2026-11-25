@@ -3236,7 +3236,45 @@ module Bootstrap.Parse where
     Nil -> PBad
 
   parse-arrow :: List LToken -> Bytes -> Ps TypeExpr
-  parse-arrow toks src = case parse-type-infix toks src 0 of
+  parse-arrow toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w ->
+        if string-compare w "Sigma" == 0 then
+          case sigma-rest (sp-of t) rest src of
+            POk ty tail -> POk ty tail
+            PBad -> parse-arrow-infix toks src
+        else parse-arrow-infix toks src
+      TCon w ->
+        if string-compare w "Sigma" == 0 then
+          case sigma-rest (sp-of t) rest src of
+            POk ty tail -> POk ty tail
+            PBad -> parse-arrow-infix toks src
+        else parse-arrow-infix toks src
+      _ -> parse-arrow-infix toks src
+    Nil -> PBad
+
+  sigma-rest :: Span -> List LToken -> Bytes -> Ps TypeExpr
+  sigma-rest sp toks src = case toks of
+    Cons lp (Cons v (Cons colon rest)) ->
+      if is-punct-t (lt-token lp) "(" && is-punct-t (lt-token colon) "::" then
+        case lt-token v of
+          TVar name ->
+            case parse-type rest src of
+              POk dom rest2 -> case rest2 of
+                Cons rp (Cons dot rest3) ->
+                  if is-punct-t (lt-token rp) ")" && is-punct-t (lt-token dot) "." then
+                    case parse-type rest3 src of
+                      POk body rest4 -> POk (TSigma (span-join sp (type-expr-span body)) name dom body) rest4
+                      PBad -> PBad
+                  else PBad
+                other -> PBad
+              PBad -> PBad
+          other -> PBad
+      else PBad
+    other -> PBad
+
+  parse-arrow-infix :: List LToken -> Bytes -> Ps TypeExpr
+  parse-arrow-infix toks src = case parse-type-infix toks src 0 of
     POk lhs rest -> case rest of
       Cons t rest2 -> case lt-token t of
         TPunct p ->

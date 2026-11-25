@@ -329,6 +329,7 @@ module Bootstrap.Check where
     TRow s labels tail -> (TyHole, fail s "unsupported type: effect row")
     TTuple s xs -> case ty-spine-to-ty xs of
       (args, ds) -> (TyTuple args, ds)
+    TSigma s name dom body -> (TyHole, fail s "unsupported type: sigma")
     TForall s vs body -> (TyHole, fail s "unsupported type: forall")
     TQuantifier s name is-implicit kind rest -> (TyHole, fail s "unsupported type: quantifier binder")
     TQuantifiersEnd s -> (TyHole, fail s "unsupported type: quantifier end")

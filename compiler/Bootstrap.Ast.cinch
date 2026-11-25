@@ -107,6 +107,7 @@ module Bootstrap.Ast where
     TUsageArrow :: Span -> String -> TypeExpr -> TypeExpr
     TRow :: Span -> TypeExpr -> Option String -> TypeExpr
     TTuple :: Span -> TypeExpr -> TypeExpr
+    TSigma :: Span -> String -> TypeExpr -> TypeExpr -> TypeExpr
     TForall :: Span -> TypeExpr -> TypeExpr -> TypeExpr
     TQuantifier :: Span -> String -> Bool -> TypeExpr -> TypeExpr -> TypeExpr
     TQuantifiersEnd :: Span -> TypeExpr
@@ -157,6 +158,7 @@ module Bootstrap.Ast where
     TUsageArrow s usage arrow -> s
     TRow s labels tail -> s
     TTuple s xs -> s
+    TSigma s name dom body -> s
     TForall s vs body -> s
     TQuantifier s name is-implicit kind rest -> s
     TQuantifiersEnd s -> s
@@ -794,6 +796,7 @@ module Bootstrap.Ast where
     TUsageArrow s usage arrow -> type-unmodeled-count arrow
     TRow s labels tail -> type-unmodeled-count labels
     TTuple s xs -> type-unmodeleds (type-args-of xs)
+    TSigma s name dom body -> type-unmodeled-count dom + type-unmodeled-count body
     TForall s vs body -> type-unmodeled-count vs + type-unmodeled-count body
     TQuantifier s name is-implicit kind rest -> type-unmodeled-count kind + type-unmodeled-count rest
     TQuantifiersEnd s -> 0
@@ -1065,6 +1068,7 @@ module Bootstrap.Ast where
     TUsageArrow sp usage arrow -> JArr (JStr "TUsageArrow") (JArr (JStr usage) (JArr (source-identity-type arrow) JArrEnd))
     TRow part0 part1 part2 -> JArr (JStr "TRow") (JArr (source-identity-type part1) (JArr (source-identity-optional part2) (JArrEnd)))
     TTuple part0 part1 -> JArr (JStr "TTuple") (JArr (source-identity-type part1) (JArrEnd))
+    TSigma sp name dom body -> JArr (JStr "TSigma") (JArr (JStr name) (JArr (source-identity-type dom) (JArr (source-identity-type body) JArrEnd)))
     TForall part0 part1 part2 -> JArr (JStr "TForall") (JArr (source-identity-type part1) (JArr (source-identity-type part2) (JArrEnd)))
     TQuantifier part0 part1 part2 part3 part4 -> JArr (JStr "TQuantifier") (JArr (JStr part1) (JArr (JBool part2) (JArr (source-identity-type part3) (JArr (source-identity-type part4) (JArrEnd)))))
     TQuantifiersEnd part0 -> JArr (JStr "TQuantifiersEnd") (JArrEnd)

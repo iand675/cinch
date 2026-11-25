@@ -1874,6 +1874,18 @@
     {
       "classes": "R",
       "symbol": "Data.Enum.enum-from-then-to"
+    },
+    {
+      "classes": "T",
+      "symbol": "Function.Combinators.identity"
+    },
+    {
+      "classes": "O",
+      "symbol": "Function.Combinators.identity"
+    },
+    {
+      "classes": "R",
+      "symbol": "Function.Combinators.identity"
     }
   ]
 }

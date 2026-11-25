@@ -337,6 +337,8 @@ module Bootstrap.ExportType where
       join [Ok "(", type-in-style display scope predicate, Ok " ->", row-in scope row, Ok " ", type-in-style display scope result, Ok ")"]
       else Err "malformed erased proof arrow in interface"
     UTuple fields -> join [Ok "(", separated-style display scope ", " fields, Ok ")"]
+    USigma id name domain body -> let binder = argument-name name scope in let bound = Cons (id, binder) scope in
+      join [Ok "(Sigma (", Ok binder, Ok " :: ", type-in-style display scope domain, Ok "). ", type-in-style display bound body, Ok ")"]
     -- design/rank-n-polymorphism.md section 5: the source spelling, which
     -- the reader parses back through the nested-forall conversion.
     UForall qs body -> case forall-binder-names (quants-list qs) scope of

@@ -317,7 +317,7 @@ module Bootstrap.Nominal where
   global-stage-str-nat :: String
   global-stage-str-nat = "m.$23stage$2dquotation.strNat"
   kernel-type-name :: String -> Bool
-  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
+  kernel-type-name name = array-type-name name || cell-type-name name || has name ["Copy", "Kernel", "Int", "Nat", "Fin", "Bool", "Unit", "()", "(->)", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64", "Ref", "Mut", "Thunk", "Lazy", "Later"]
   nonempty :: Json -> Bool
   nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
   indexed-name :: String -> HashMap String () -> Bool
@@ -482,7 +482,7 @@ module Bootstrap.Nominal where
     TQuantifiersEnd s -> (qs, Nil)
     other -> fail (type-expr-span qs) "invalid resolved quantifier kinds or scope"
   signature-reference :: String -> Json -> Bool
-  signature-reference name refs = same name "Io" || same name "Copy" || signature-in-rows name refs
+  signature-reference name refs = same name "Io" || same name "Copy" || same name "Kernel" || signature-in-rows name refs
   signature-in-rows :: String -> Json -> Bool
   signature-in-rows name refs = case refs of
     JArr row rest -> (same name (text (field "identity" row)) && same (text (field "kind" row)) "signature") || signature-in-rows name rest
@@ -530,6 +530,8 @@ module Bootstrap.Nominal where
     TApp s head args -> case (qualify refs locals head, qualify refs locals args) of
       ((f, ef), (xs, ex)) -> (TApp s f xs, ef <> ex)
     TTuple s args -> case qualify refs locals args of (xs, errors) -> (TTuple s xs, errors)
+    TSigma s name dom body -> case (qualify refs locals dom, qualify refs (Cons name locals) body) of
+      ((d, ed), (b, eb)) -> (TSigma s name d b, ed <> eb)
     TArg s x rest -> case (qualify-argument refs locals x, qualify refs locals rest) of
       ((a, ea), (xs, es)) -> (TArg s a xs, ea <> es)
     TArgsEnd s -> (ty, Nil)

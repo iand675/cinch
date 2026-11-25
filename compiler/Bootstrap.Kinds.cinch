@@ -151,6 +151,7 @@ module Bootstrap.Kinds where
     URow labels -> type-level labels
     URowJoin a b -> highest (type-level a) (type-level b)
     UTuple fields -> type-level fields
+    USigma id name domain body -> highest (type-level domain) (type-level body)
     UForall qs body -> type-level body
     UArg a b -> highest (type-level a) (type-level b)
     UCompare op a b -> highest (type-level a) (type-level b)
@@ -254,6 +255,7 @@ module Bootstrap.Kinds where
     URow labels -> row-labels-well-formed kinds scope labels
     URowJoin a b -> type-authorized kinds scope a && type-authorized kinds scope b
     UTuple fields -> type-authorized kinds scope fields
+    USigma id name domain body -> binder-body kinds scope id domain body
     UForall qs body -> type-authorized kinds (bind-quant-scope (quants-list qs) scope) body
     UArg first rest -> type-authorized kinds scope first && type-authorized kinds scope rest
     UCompare relation a b -> type-authorized kinds scope a && type-authorized kinds scope b

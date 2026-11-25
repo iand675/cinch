@@ -383,6 +383,7 @@ module Bootstrap.Infer where
     TInfix s op a b -> True
     TApp s f xs -> predicate-syntax ty || needs-type f || needs-type xs
     TTuple s xs -> needs-type xs
+    TSigma s name dom body -> True
     TArg s x rest -> needs-type x || needs-type rest
     TUsing s bounds body -> True
     TRefined s predicate carrier -> True
@@ -486,7 +487,7 @@ module Bootstrap.Infer where
   -- | Install canonical primitive headers and their compiler-owned evidence together.
   primitive-kinds :: TypeContext
   primitive-kinds =
-    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) )) in
+    let builtins = [("(->)", arrow-constructor-kind), ("Copy", KFun KType KType), ("Kernel", KFun KType KType)] <> ownership-type-kinds <> foreign-pointer-kinds <> array-kinds <> cell-kinds <> Cons ("b.Scope", scope-kind) (Cons ("b.Task", task-kind) (Cons ("b.Io", KFun KRegion KType) (Cons ("b.Dec", KFun KProp KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "I128", "U128", "F32", "F64"])) )) in
     MkTypeContext False (kind-declarations builtins) (Nil, hash-map-empty, hash-map-empty, hash-map-empty, RecordIndex hash-map-empty None) Nil [ByteObservation "#kernel.bytes-length" None] Nil Nil primitive-payloads
   -- | Install finite owned-array payload authority only with the sealed primitive kind.
   primitive-payloads :: List PayloadCertificate
@@ -779,6 +780,7 @@ module Bootstrap.Infer where
         (h, sh) -> if later-arguments-valid h actuals then convert-args external kinds locals s h actuals sh
           else bad s "Later must be applied to exactly one type and takes no effect row" sh
     TTuple s args -> case convert-spine external kinds locals args st of (xs, sx) -> (UTuple xs, sx)
+    TSigma s name dom body -> convert-sigma external kinds locals s name dom body st
     TForall s binders body -> convert-nested-forall external kinds locals s binders body st
     TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
     TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
@@ -852,6 +854,11 @@ module Bootstrap.Infer where
     other -> Nil
   unique-names :: List String -> List String -> List String
   unique-names names seen = case names of Nil -> Nil; Cons name rest -> if has name seen then unique-names rest seen else Cons name (unique-names rest (Cons name seen))
+  convert-sigma :: Bool -> TypeContext -> List (String, UType) -> Span -> String -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-sigma external kinds locals sp name dom body st = case convert external kinds locals dom st of
+    (domain, checked) -> case fresh-for-types (Cons domain (local-types locals)) (expect-type sp domain checked) of
+      (id, prepared) -> case convert external kinds (Cons (name, UBound id name (value-kind domain)) locals) body prepared of
+        (result, done) -> (USigma id name domain result, expect-type sp result done)
   convert-refined :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
   convert-refined external kinds locals sp predicate syntax st =
     -- A bare closed predicate applies to this refinement's own fresh value,
@@ -909,6 +916,15 @@ module Bootstrap.Infer where
         known -> if number-literal-valid known value then (CInt sp carrier digits, st)
           else term-error sp (number-literal-error known value "literal is outside its integer carrier") st)
     None -> term-error sp "invalid or machine-suffixed mathematical literal" st
+  negate-float-text :: String -> String
+  negate-float-text raw = case unpack raw of
+    Cons first rest | char-code first == 45 -> pack rest
+    other -> string-concat "-" raw
+  checked-float-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
+  checked-float-literal sp carrier raw st = case normalize st carrier of
+    UMeta id KType -> (CInt sp carrier raw, pending-float sp carrier raw st)
+    known -> if float-string-valid known raw then (CInt sp carrier raw, st)
+      else term-error sp (float-string-error known raw) st
   math-carrier :: UType -> Bool
   math-carrier carrier = case carrier of UCon name KType -> same name "Nat" || same name "Int"; other -> False
   index-math :: String -> IndexTerm -> IndexTerm -> IndexTerm
@@ -1260,7 +1276,8 @@ module Bootstrap.Infer where
           Some index -> checked-typed-source-index sp index st
           None -> bad sp "length needs a checked pure container operand" st))
     CApply source ty (CUse at function symbol role Nil) input ->
-      if same symbol "cinch.runtime.bytesLen" && same role "intrinsic" && (case normalize st function of UFun domain result -> same-type domain (primitive-type "Bytes") && same-type result (normalize st ty) && same-type (predicate-base-carrier result) (primitive-type "Nat"); other -> False) then
+      if (same symbol "cinch.runtime.bytesLen" && same role "intrinsic" && (case normalize st function of UFun domain result -> same-type domain (primitive-type "Bytes") && same-type result (normalize st ty) && same-type (predicate-base-carrier result) (primitive-type "Nat"); other -> False))
+        || same symbol "cinch.runtime.bytesLenI64" || same symbol (interface-global "Data.Bytes.bytes-len-i64") then
         (case reify-argument sp env input st of
           (value, checked) -> checked-typed-source-index sp (UIndexByteLength value) checked)
       else if string-length-function (normalize st ty) (normalize st function) symbol role then
@@ -1272,7 +1289,7 @@ module Bootstrap.Infer where
         else case body of
           CRefine at ty evidence actual -> reify-argument sp env actual (unify sp carrier domain st)
           CApply at result (CUse source function symbol role Nil) input ->
-            if same symbol "cinch.runtime.bytesLen" && same role "intrinsic" then reify-argument sp env body (unify sp carrier domain st)
+            if (same symbol "cinch.runtime.bytesLen" && same role "intrinsic") || same symbol "cinch.runtime.bytesLenI64" || same symbol (interface-global "Data.Bytes.bytes-len-i64") then reify-argument sp env body (unify sp carrier domain st)
             else (case reify-argument sp env body st of
               (value, checked) -> checked-typed-source-index sp (UIndexForget value) (unify sp carrier domain checked))
           other -> case reify-argument sp env body st of
@@ -1293,8 +1310,10 @@ module Bootstrap.Infer where
       Some (MkLocalBinding name sc key level) -> reify-local-index sp sc level actuals ty (IRigid id display level) st
       Some (MkValueBinding name sc key level value) -> if level > store-level st then bad sp "local index escapes its binding scope" st
         else case local-actuals sp (scheme-params sc) actuals Nil st of
-          (pairs, prepared) -> checked-typed-source-index sp value
-            (unify sp (substitute-bound pairs (scheme-body sc)) ty (unify-kind sp (type-kind value) (value-kind ty) prepared))
+          (pairs, prepared) ->
+            let resolved = normalize prepared value in
+            checked-typed-source-index sp resolved
+              (unify sp (substitute-bound pairs (scheme-body sc)) ty (unify-kind sp (type-kind resolved) (value-kind ty) prepared))
       other -> bad sp "index reference is not a checked local identity" st
     CInt source ty text -> case index-number text of
       Some value -> checked-source-index sp (normalize st ty) (IInteger value) st
@@ -1355,16 +1374,21 @@ module Bootstrap.Infer where
   index-let-binding sp env name sc id level value st =
     if not (stable-index-source value) then (MkLocalBinding name sc id level, st)
     else (case (scheme-params sc, scheme-requirements sc) of
-      (Nil, Nil) -> case reify-argument sp env value st of
-        (index, checked) -> case (store-errors checked, index-of-type index) of
-          -- Reification can expose the mathematical carrier of a refined
-          -- result (for example a byte length). It is not a definition at the
-          -- refined carrier. Keep the actual local and its checked RHS fact,
-          -- just as Core's scope-definitions does for a mismatched index kind.
-          (Nil, witness) -> if not (volatile-borrow-index (normalize checked index)) && typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
-            (MkValueBinding name sc id level index, checked)
-            else (MkLocalBinding name sc id level, st)
-          other -> (MkLocalBinding name sc id level, st)
+      (Nil, Nil) -> case value of
+        CInt at lit-ty text | (case normalize st lit-ty of UMeta mid KType -> True; other -> False) ->
+          (case index-number text of
+            Some n -> (MkValueBinding name sc id level (UIndex lit-ty (IInteger n)), st)
+            None -> (MkLocalBinding name sc id level, st))
+        other -> case reify-argument sp env value st of
+          (index, checked) -> case (store-errors checked, index-of-type index) of
+            -- Reification can expose the mathematical carrier of a refined
+            -- result (for example a byte length). It is not a definition at the
+            -- refined carrier. Keep the actual local and its checked RHS fact,
+            -- just as Core's scope-definitions does for a mismatched index kind.
+            (Nil, witness) -> if not (volatile-borrow-index (normalize checked index)) && typed-index-admissible index && kind-equal (type-kind (normalize checked index)) (value-kind (normalize checked (scheme-body sc))) then
+              (MkValueBinding name sc id level index, checked)
+              else (MkLocalBinding name sc id level, st)
+            other -> (MkLocalBinding name sc id level, st)
       other -> (MkLocalBinding name sc id level, st))
 
   check-borrow-binding :: Span -> List CheckedBinding -> UType -> Store -> Store
@@ -1562,6 +1586,7 @@ module Bootstrap.Infer where
     TBound sp name annotation rest -> max-arity (constructor-arity-in kinds locals params sought 0 annotation) (constructor-arity-in kinds locals params sought 0 rest)
     TArg sp first rest -> max-arity (constructor-arity-in kinds locals params sought 0 first) (constructor-arity-in kinds locals params sought 0 rest)
     TTuple sp fields -> constructor-arity-in kinds locals params sought 0 fields
+    TSigma sp name dom body -> max-arity (constructor-arity-in kinds locals params sought 0 dom) (if same name sought then 0 else constructor-arity-in kinds locals params sought 0 body)
     TRow sp labels tail -> constructor-arity-in kinds locals params sought 0 labels
     TRefined sp predicate carrier -> constructor-arity-in kinds locals params sought 0 carrier
     TForall sp binders body -> if has sought (parameter-names-for-check (forall-params-of binders)) then 0 else constructor-arity-in kinds locals params sought expected body
@@ -1585,6 +1610,7 @@ module Bootstrap.Infer where
     TApp sp f xs -> row-parameter-names f <> row-parameter-names xs
     TArg sp first rest -> row-parameter-names first <> row-parameter-names rest
     TTuple sp fields -> row-parameter-names fields
+    TSigma sp name dom body -> row-parameter-names dom <> remove-row-parameters [name] (row-parameter-names body)
     TUsing sp bounds body -> row-parameter-names bounds <> row-parameter-names body
     TBound sp name annotation rest -> row-parameter-names annotation <> row-parameter-names rest
     TRefined sp predicate carrier -> row-parameter-names carrier
@@ -1918,6 +1944,7 @@ module Bootstrap.Infer where
     TBound s name app rest -> region-names app <> region-names rest
     TArg s x rest -> region-names x <> region-names rest
     TTuple s xs -> region-names xs
+    TSigma s name dom body -> region-names dom <> region-names body
     other -> Nil
   latent-regions :: TypeExpr -> List String
   latent-regions ty = case ty of
@@ -1928,6 +1955,7 @@ module Bootstrap.Infer where
     TApp s f xs -> latent-regions f <> latent-regions xs
     TArg s x rest -> latent-regions x <> latent-regions rest
     TTuple s xs -> latent-regions xs
+    TSigma s name dom body -> latent-regions dom <> latent-regions body
     other -> Nil
   quantified-name :: String -> List Quant -> Bool
   quantified-name name qs = case qs of Nil -> False; Cons q rest -> same name (quant-name q) || quantified-name name rest
@@ -2589,6 +2617,7 @@ module Bootstrap.Infer where
     URow labels -> imported-cell-effect-in-type labels
     URowJoin left right -> imported-cell-effect-in-type left || imported-cell-effect-in-type right
     UTuple fields -> imported-cell-effect-in-type fields
+    USigma id name domain body -> imported-cell-effect-in-type domain || imported-cell-effect-in-type body
     UForall parameters body -> imported-cell-effect-in-quants (quants-list parameters) || imported-cell-effect-in-type body
     UArg first rest -> imported-cell-effect-in-type first || imported-cell-effect-in-type rest
     other -> False
@@ -2891,6 +2920,7 @@ module Bootstrap.Infer where
     UUsageArrow usage arrow -> occurs-owner name arrow
     UProofFun predicate row result -> occurs-owner name predicate || occurs-owner name row || occurs-owner name result
     UTuple xs -> occurs-owner name xs
+    USigma id binder domain body -> occurs-owner name domain || occurs-owner name body
     UForall qs body -> occurs-quant-owner name qs || occurs-owner name body
     UArg x rest -> occurs-owner name x || occurs-owner name rest
     other -> False
@@ -2938,6 +2968,7 @@ module Bootstrap.Infer where
           None -> False))
       else True
     UTuple xs -> positive kinds group xs
+    USigma id name domain body -> positive kinds group domain && positive kinds group body
     UForall qs body -> positive-quantifiers group qs && positive kinds group body
     UArg x rest -> positive kinds group x && positive kinds group rest
     -- A refinement's carrier is the value, so a group occurrence there is a
@@ -3924,6 +3955,7 @@ module Bootstrap.Infer where
     TFun s a b -> type-names a <> type-names b
     TApp s f xs -> type-names f <> type-names xs
     TTuple s xs -> type-names xs
+    TSigma s name dom body -> type-names dom <> type-names body
     TArg s x rest -> type-names x <> type-names rest
     TForall s qs body -> type-names body
     other -> Nil
@@ -3943,6 +3975,7 @@ module Bootstrap.Infer where
     TRow s labels tail -> structural-type-names labels
     TApp s f xs -> structural-type-names f <> structural-type-names xs
     TTuple s xs -> structural-type-names xs
+    TSigma s name dom body -> structural-type-names dom <> structural-type-names body
     TForall s qs body -> structural-type-names qs <> structural-type-names body
     TQuantifier s name only kind rest -> structural-type-names kind <> structural-type-names rest
     TArg s x rest -> structural-type-names x <> structural-type-names rest
@@ -4184,7 +4217,8 @@ module Bootstrap.Infer where
     Cons (MkBodyContext context names index cache) rest -> Nil
     Nil -> Nil
     Cons (MkValueBinding name sc id level value) rest -> case (scheme-params sc, scheme-requirements sc) of
-      (Nil, Nil) -> Cons (id, normalize st value) (proof-values rest st)
+      (Nil, Nil) -> let resolved = normalize st value in
+        if valid-type resolved then Cons (id, resolved) (proof-values rest st) else proof-values rest st
       other -> proof-values rest st
     Cons binding rest -> proof-values rest st
   proof-facts :: List CheckedBinding -> List Proposition
@@ -4693,7 +4727,8 @@ module Bootstrap.Infer where
     EMap s args -> infer-collection classes kinds families env locals s args True None st
     EList s args -> infer-collection classes kinds families env locals s args False None st
     EQuote sp body -> infer-quotation classes kinds families env locals sp body None st
-    ELitInt s text -> checked-literal s (UCon "Int" KType) text st
+    ELitInt s text -> case fresh-meta KType st of (ty, ss) -> checked-literal s ty text ss
+    ELitFloat s text -> case fresh-meta KType st of (ty, ss) -> checked-float-literal s ty text ss
     ELitStr s text -> (CString s (literal-type kinds "String") text, st)
     ELitChar s text -> (CChar s (primitive-type "Char") text, st)
     ELitSym s text -> (CSymbol s (primitive-type "Sym") text, st)
@@ -4746,7 +4781,8 @@ module Bootstrap.Infer where
     EAnn s body (TForall at binders annotation) -> infer-forall-annotation classes kinds families env locals s body binders annotation st
     EAnn s body annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, ss) -> check classes kinds families env locals body ty (expect-type s ty ss)
-    ENeg s (ELitInt at text) -> checked-literal s (UCon "Int" KType) (string-concat "-" text) st
+    ENeg s (ELitInt at text) -> case fresh-meta KType st of (ty, ss) -> checked-literal s ty (string-concat "-" text) ss
+    ENeg s (ELitFloat at text) -> case fresh-meta KType st of (ty, ss) -> checked-float-literal s ty (negate-float-text text) ss
     ENeg s value -> infer classes kinds families env locals (EApp s (EVar s (source-method-symbol "Algebra.Arithmetic.Neg" "negate")) value) st
     EBin s op a b -> infer-operator classes kinds families env locals s op a b st
     other -> term-error (expr-span expr) "expression needs effect, dictionary or dependent elaboration" st
@@ -4783,6 +4819,14 @@ module Bootstrap.Infer where
     ELocalGroup sp bindings body -> infer-local-group classes kinds families env locals sp bindings body (Some expected) st
     EGuarded sp guard body -> check-alt-body classes kinds families env locals expr expected st
     ETuple sp fields -> (case normalize st expected of
+      USigma id name domain body -> (case fields of
+        EArg s1 e1 (EArg s2 e2 (EArgsEnd end)) ->
+          (case check classes kinds families env locals e1 domain st of
+            (c1, s-c1) -> case reify-argument s1 env c1 s-c1 of
+              (index, s-idx) -> case open-sigma sp expected index s-idx of
+                (opened, s-open) -> case check classes kinds families env locals e2 opened s-open of
+                  (c2, s-c2) -> (CTuple sp expected (CArgument s1 c1 (CArgument s2 c2 (CArgumentsEnd end))), s-c2))
+        other -> term-error sp "a dependent pair has exactly two components" st)
       UTuple types -> (case check-tuple-elements classes kinds families env locals sp fields types st of (values, checked) -> (CTuple sp expected values, checked))
       UMeta id KType -> (case fresh-tuple-elements sp fields st of
         (types, opened) -> let shaped = unify sp expected (UTuple types) opened in
@@ -4804,6 +4848,8 @@ module Bootstrap.Infer where
           (branches, done) -> (CCase s expected scrutinee branches, done)
     ELitInt s text -> check-contextual-literal s expected text st
     ENeg s (ELitInt at text) -> check-contextual-literal s expected (string-concat "-" text) st
+    ELitFloat s text -> check-contextual-float-literal s expected text st
+    ENeg s (ELitFloat at text) -> check-contextual-float-literal s expected (negate-float-text text) st
     ELam s ps body -> check-lambda-patterns None classes (handling-context False kinds) families env locals s ps body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     other -> check-inferred classes kinds families env locals expr expected st
@@ -4813,6 +4859,12 @@ module Bootstrap.Infer where
     if number-literal-carrier carrier || (case carrier of UMeta id KType -> True; other -> False) then
       checked-literal sp expected text st
     else term-error sp (string-concat "type mismatch: integer literal cannot have type " (literal-carrier-name carrier)) st
+  check-contextual-float-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
+  check-contextual-float-literal sp expected raw st =
+    let carrier = normalize st expected in
+    if float-string-valid carrier raw || (case carrier of UMeta id KType -> True; other -> False) then
+      checked-float-literal sp expected raw st
+    else term-error sp (float-string-error carrier raw) st
   literal-carrier-name :: UType -> String
   literal-carrier-name carrier = let rendered = law-domain-text carrier in case root-name carrier of
     Some symbol -> let name = diagnostic-member-name symbol in
@@ -5042,6 +5094,8 @@ module Bootstrap.Infer where
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     ELitInt s text -> case checked-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
     ENeg s (ELitInt at text) -> case checked-literal s carrier (string-concat "-" text) st of (term, checked) -> introduce-refinement env s expected term checked
+    ELitFloat s text -> case checked-float-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
+    ENeg s (ELitFloat at text) -> case checked-float-literal s carrier (negate-float-text text) st of (term, checked) -> introduce-refinement env s expected term checked
     ELam s patterns body -> case check-unrefined classes kinds families env locals expr carrier st of (term, checked) -> introduce-refinement env s expected term checked
     -- Structural refinements are actual generic carriers. Hint their full
     -- expected type before checking a call's arguments; comparison facts
@@ -5204,6 +5258,7 @@ module Bootstrap.Infer where
     URow labels -> URow (relocate-local-index binding new-level labels)
     URowJoin a b -> URowJoin (relocate-local-index binding new-level a) (relocate-local-index binding new-level b)
     UTuple fields -> UTuple (relocate-local-index binding new-level fields)
+    USigma id name domain body -> USigma id name (relocate-local-index binding new-level domain) (relocate-local-index binding new-level body)
     UForall qs body -> UForall qs (relocate-local-index binding new-level body)
     UArg x rest -> UArg (relocate-local-index binding new-level x) (relocate-local-index binding new-level rest)
     UIndex carrier value -> UIndex (relocate-local-index binding new-level carrier) (relocate-local-index-term binding new-level value)
@@ -5232,14 +5287,11 @@ module Bootstrap.Infer where
   -- | Preserve an explicit strict forall without generalizing an evaluated annotation or its performed effects.
   infer-strict-rhs :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
   infer-strict-rhs classes kinds families env locals syntax st = case syntax of
-    -- An unannotated literal bound directly by let is in inference position.
-    -- Arguments of polymorphic calls still wait for their expected carrier.
-    ELitInt sp text -> checked-literal sp (primitive-type "Int") text st
     EAnn sp expression (TForall at binders body) ->
       infer-forall-annotation-with True classes kinds families env locals sp expression binders body st
     other -> infer classes kinds families env locals syntax st
 
-  -- | Match strict local value generalization: functions, names, integer/unit literals and value-only aggregates.
+  -- | Match strict local value generalization: functions, names, numeric/unit literals and value-only aggregates.
   -- Applications and annotations are evaluated once and remain monomorphic.
   strict-syntactic-value :: Expr -> Bool
   strict-syntactic-value syntax = case syntax of
@@ -5247,6 +5299,7 @@ module Bootstrap.Infer where
     EFamilyCon sp fallback candidate arguments -> case arguments of EArgsEnd at -> True; other -> False
     ECon sp name arguments -> case arguments of EArgsEnd at -> True; other -> False
     ELitInt sp value -> True
+    ELitFloat sp value -> True
     EUnit sp -> True
     ELam sp parameters body -> True
     ETuple sp fields -> strict-value-fields fields
@@ -5308,10 +5361,7 @@ module Bootstrap.Infer where
   infer-fields :: List (String, Kind) -> TypeContext -> ConstructorFamilies -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (UType, CoreTerm, Store)
   infer-fields classes kinds families env locals args st = case args of
     EArgsEnd s -> (UEnd, CArgumentsEnd s, st)
-    EArg s x rest -> case (case x of
-        ELitInt at text -> checked-literal at (UCon "Int" KType) text st
-        ENeg at (ELitInt lit text) -> checked-literal at (UCon "Int" KType) ("-" <> text) st
-        other -> infer classes kinds families env locals x st) of
+    EArg s x rest -> case infer classes kinds families env locals x st of
       (term, sx) -> case infer-fields classes kinds families (proof-env-after-term env term sx) locals rest sx of
         (types, terms, ss) -> (UArg (core-type term) types, CArgument s term terms, ss)
     other -> (UEnd, CError (expr-span args), add-error (expr-span args) "malformed tuple expression spine" st)
@@ -6458,9 +6508,19 @@ module Bootstrap.Infer where
     PLitStr s text -> (env, CPString s expected text, unify s expected (literal-type kinds "String") st)
     PLitChar s text -> (env, CPChar s expected text, unify s expected (primitive-type "Char") st)
     PLitSym s text -> (env, CPSymbol s expected text, unify s expected (primitive-type "Sym") st)
-    PTuple s args -> case pattern-fields args st of
-      (fields, sf) -> case bind-pattern-fields classes kinds families env locals args fields (check-tuple-pattern-type s expected fields sf) of
-        (bound, patterns, ss) -> (bound, CPTuple s expected patterns, ss)
+    PTuple s args -> case normalize st expected of
+      USigma id name domain body -> (case args of
+        PArg s1 p1 (PArg s2 p2 (PArgsEnd end)) ->
+          let pi-form = UPi id name domain (URow UEnd) body in
+          let first-pat = if pi-dependent pi-form then indexable-constructor-pattern p1 else p1 in
+          (case bind-arrow-pattern classes kinds families env locals first-pat pi-form st of
+            (bound, pat1, effects, opened, checked) ->
+              case bind-pattern classes kinds families bound locals p2 opened checked of
+                (final, pat2, done) -> (final, CPTuple s expected (CPField s1 pat1 (CPField s2 pat2 (CPDone end))), done))
+        other -> (env, CPWild s UError, add-error s "a dependent pair pattern has two components" st))
+      other -> case pattern-fields args st of
+        (fields, sf) -> case bind-pattern-fields classes kinds families env locals args fields (check-tuple-pattern-type s expected fields sf) of
+          (bound, patterns, ss) -> (bound, CPTuple s expected patterns, ss)
     PFamilyCon sp fallback candidate args -> bind-pattern classes kinds families env locals (PCon sp (expected-constructor st (shared-pattern-carrier (normalize st expected)) fallback candidate) args) expected st
     PCon s name args -> case lookup-binding name env of
       Some b ->
@@ -6471,8 +6531,12 @@ module Bootstrap.Infer where
                 ["constructor ", diagnostic-member-name name, " does not belong to type ", diagnostic-member-name owner]) ss)
               None | coverage-index-apart (normalize ss (result-type ty)) (shared-pattern-carrier (normalize ss expected)) ->
                 (env, CPWild s UError, add-error s ("impossible arm: constructor " <> diagnostic-member-name name <> " is excluded by the scrutinee index") ss)
-              None -> case bind-constructor classes kinds families env locals s args (pattern-constructor-type (normalize ss expected) ty) expected (if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss) of
-                (bound, fields, sf) -> (bound, CPConstructor s expected name (actual-types pairs) ty fields, sf)
+              None ->
+                let ctor-ty = pattern-constructor-type (normalize ss expected) ty in
+                let arity-st = if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss in
+                let pre-st = case type-free-bound (result-type ctor-ty) of Nil -> unify s (result-type ctor-ty) expected arity-st; other -> arity-st in
+                case bind-constructor classes kinds families env locals s args ctor-ty expected pre-st of
+                  (bound, fields, sf) -> (bound, CPConstructor s expected name (actual-types pairs) ty fields, sf)
         else (env, CPWild s UError, add-error s "pattern name is not a constructor" st)
       None -> if codata-name name kinds then
         (env, CPWild s UError, add-error s "a codata value is observed, not destructured: use .field projection" st)
@@ -6851,9 +6915,21 @@ module Bootstrap.Infer where
         -- a function-typed parameter (section 2.2).
         case parallel-safe-row (arrow-row-of expected) arg op checked of
           (ready, False) -> (CError (expr-span arg), ready)
-          (ready, True) -> case parallel-callback-literal core of
+          (ready, True) -> case parallel-callback-literal core || has-kernel-evidence (env-givens env) (normalize ready (core-type core)) ready of
             True -> (core, ready)
             False -> (CError (expr-span arg), add-error (expr-span arg) (parallel-callback-refusal op arg) ready)
+  has-kernel-evidence :: List CoreGiven -> UType -> Store -> Bool
+  has-kernel-evidence givens ty st = case givens of
+    Nil -> False
+    Cons given rest -> (case normalize st (given-type given) of
+      UApp (UCon name (KFun KType KType)) carrier | same name "Kernel" ->
+        same-type (strip-empty-row (normalize st carrier)) (strip-empty-row ty)
+      other -> False) || has-kernel-evidence rest ty st
+  strip-empty-row :: UType -> UType
+  strip-empty-row ty = case ty of
+    UFunEff a (URow UEnd) b -> UFun (strip-empty-row a) (strip-empty-row b)
+    UFun a b -> UFun (strip-empty-row a) (strip-empty-row b)
+    other -> ty
   -- The performed row of a callback's checked type: the arrow's own row.
   arrow-row-of :: UType -> UType
   arrow-row-of ty = case arrow-shape ty of
@@ -7111,6 +7187,7 @@ module Bootstrap.Infer where
       Nil -> coverage-result (coverage-index-empty families env ty st)
       other -> if only-defaults rows then matrix-coverage families env rest (defaults rows) st else case normalize st ty of
         UTuple fields -> matrix-coverage families env (spine-list fields <> rest) (tuple-rows (list-length (spine-list fields)) rows) st
+        USigma id name domain body -> matrix-coverage families env (Cons domain (Cons body rest)) (tuple-rows 2 rows) st
         other -> case root-name (normalize st ty) of
           Some name -> case family-ctors name families of
             Some cs -> cover-constructors families env ty rest rows cs st
@@ -7238,6 +7315,8 @@ module Bootstrap.Infer where
         (head, shaped) -> (case normalize shaped head of
           UTuple fields -> let count = list-length (spine-list fields) in
             uncovered-coverage families env (spine-list fields <> tail) (tuple-rows count covered) (tuple-rows count original) hint shaped
+          USigma id name domain body ->
+            uncovered-coverage families env (Cons domain (Cons body tail)) (tuple-rows 2 covered) (tuple-rows 2 original) hint shaped
           other -> case root-name other of
             Some name -> (case family-ctors name families of
               Some constructors -> uncovered-constructor families env head tail covered original hint constructors shaped
@@ -8057,6 +8136,7 @@ module Bootstrap.Infer where
     URequire predicates result -> rewrite-mentions-task result
     URefine id name carrier predicate -> rewrite-mentions-task carrier
     UTuple fields -> rewrite-mentions-task fields
+    USigma id name domain body -> rewrite-mentions-task domain || rewrite-mentions-task body
     UForall qs body -> rewrite-mentions-task body
     UArg first rest -> rewrite-mentions-task first || rewrite-mentions-task rest
     other -> False
@@ -8767,7 +8847,7 @@ module Bootstrap.Infer where
     let (runtime-kinds, runtime-store) = imported-runtime-class-kinds ordered-classes nominal-kinds sk in
     -- Copy and Share are compiler-known structural classes: their evidence is
     -- the checked shape of a type, so no module declares them.
-    let classes = Cons ("b.Io", KFun KRegion KType) (Cons ("Copy", KFun KType KType) (Cons ("Share", KFun KType KType) (source-class-kinds ds runtime-kinds (class-kinds ordered-classes runtime-kinds hash-map-empty Nil)))) in
+    let classes = Cons ("b.Io", KFun KRegion KType) (Cons ("Copy", KFun KType KType) (Cons ("Kernel", KFun KType KType) (Cons ("Share", KFun KType KType) (source-class-kinds ds runtime-kinds (class-kinds ordered-classes runtime-kinds hash-map-empty Nil))))) in
     let clauses = clause-index ds in
     let (identity-kinds, identity-store) = collect-source-identities clauses ds classes runtime-kinds runtime-store in
     let aliases-checked = validate-refinements identity-kinds (context-aliases identity-kinds) identity-store in

@@ -291,6 +291,7 @@ module Bootstrap.Contracts where
     TFun sp domain result -> TFun sp (canonical-kernel-type domain) (canonical-kernel-type result)
     TApp sp head args -> TApp sp (canonical-kernel-type head) (canonical-kernel-arguments args)
     TTuple sp fields -> TTuple sp (canonical-kernel-arguments fields)
+    TSigma sp name dom body -> TSigma sp name (canonical-kernel-type dom) (canonical-kernel-type body)
     other -> syntax
   canonical-kernel-arguments :: TypeExpr -> TypeExpr
   canonical-kernel-arguments args = case args of TArg sp ty rest -> TArg sp (canonical-kernel-type ty) (canonical-kernel-arguments rest); other -> args
@@ -323,6 +324,7 @@ module Bootstrap.Contracts where
     TUsageArrow s usage arrow -> type-references arrow
     TRow s labels tail -> type-references labels
     TTuple s args -> type-references args
+    TSigma s name dom body -> type-references dom <> type-references body
     TForall s binders body -> type-references binders <> type-references body
     TQuantifier s name only kind rest -> type-references kind <> type-references rest
     TUsing s bounds body -> type-references bounds <> type-references body
