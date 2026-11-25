@@ -10252,7 +10252,11 @@ impl Checker {
                             expected_data,
                             Some(Ty::Adt(eid, _)) if eid.as_str() == ci.parent_identity.as_str()
                         );
-                        expect_parent || (args.len() == ci.field_tys.len() && args.len() != ti.arity)
+                        let expect_con = matches!(expect, Some(ParamKind::Con(_)));
+                        expect_parent
+                            || (!expect_con
+                                && args.len() == ci.field_tys.len()
+                                && args.len() != ti.arity)
                     }
                     _ => false,
                 };
