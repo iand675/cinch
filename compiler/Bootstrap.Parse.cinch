@@ -1023,8 +1023,8 @@ module Bootstrap.Parse where
     else if string-compare w "target" == 0 then case toks of
       Cons keyword rest -> parse-rewrite True rest src fix
       Nil -> PBad
-    else if string-compare w "data" == 0 then parse-data toks src fix
-    else if string-compare w "type" == 0 then parse-refinement toks src
+    else if string-compare w "data" == 0 then parse-data-or-family toks src fix
+    else if string-compare w "type" == 0 then parse-type-or-family toks src
     else if string-compare w "opaque" == 0 then parse-opaque toks src
     else if string-compare w "record" == 0 then parse-field-declaration True DRecord toks src
     else if string-compare w "codata" == 0 then parse-field-declaration False DCodata toks src
@@ -1739,6 +1739,125 @@ module Bootstrap.Parse where
         PBad -> PBad
       else PBad
     Nil -> PBad
+
+  parse-data-or-family :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-data-or-family toks src fix = case toks of
+    Cons t (Cons next rest) -> case lt-token next of
+      TVar w | string-compare w "family" == 0 -> parse-data-family (sp-of t) rest src
+      TWord w | string-compare w "instance" == 0 -> parse-data-instance (sp-of t) rest src
+      other -> parse-data toks src fix
+    other -> parse-data toks src fix
+
+  parse-type-or-family :: List LToken -> Bytes -> Ps Decl
+  parse-type-or-family toks src = case toks of
+    Cons t (Cons next rest) -> case lt-token next of
+      TVar w | string-compare w "family" == 0 -> parse-type-family (sp-of t) rest src
+      TWord w | string-compare w "instance" == 0 -> parse-type-instance (sp-of t) rest src
+      other -> parse-refinement toks src
+    other -> parse-refinement toks src
+
+  parse-type-atom-list :: List LToken -> Bytes -> List TypeExpr -> Ps (List TypeExpr)
+  parse-type-atom-list toks src acc = case toks of
+    Cons t rest ->
+      if starts-type-atom (lt-token t) then
+        case parse-type-atom toks src of
+          POk arg tail -> parse-type-atom-list tail src (Cons arg acc)
+          PBad -> POk (reverse acc) toks
+      else POk (reverse acc) toks
+    Nil -> POk (reverse acc) Nil
+
+  params-as-lhs :: Span -> List TypeParam -> TypeExpr
+  params-as-lhs sp params = case params of
+    Nil -> TArgsEnd sp
+    Cons p rest -> TArg (param-span p) (TName (param-span p) (param-name p)) (params-as-lhs sp rest)
+
+  parse-type-family :: Span -> List LToken -> Bytes -> Ps Decl
+  parse-type-family sp toks src = case parse-ctor-name toks of
+    POk name rest1 -> case parse-params rest1 src Nil of
+      POk params rest2 -> case parse-optional-return-kind rest2 src of
+        POk rk rest3 -> parse-type-family-body sp name params rk rest3 src
+        PBad -> PBad
+      PBad -> PBad
+    PBad -> PBad
+
+  parse-optional-return-kind :: List LToken -> Bytes -> Ps (Option TypeExpr)
+  parse-optional-return-kind toks src = case toks of
+    Cons colon rest | is-punct-t (lt-token colon) "::" -> case parse-type rest src of
+      POk kind tail -> POk (Some kind) tail
+      PBad -> PBad
+    other -> POk None toks
+
+  parse-type-family-body :: Span -> String -> List TypeParam -> Option TypeExpr -> List LToken -> Bytes -> Ps Decl
+  parse-type-family-body sp name params rk toks src = case toks of
+    Cons t rest | is-word-t (lt-token t) "where" -> case rest of
+      Cons open tail | is-punct-t (lt-token open) "{" -> case parse-type-family-eqs tail src Nil of
+        POk eqs after -> POk (DTypeFamily sp name params rk True eqs) after
+        PBad -> PBad
+      other -> PBad
+    Cons t rest | is-punct-t (lt-token t) "=" -> case parse-type rest src of
+      POk rhs tail -> POk (DTypeFamily sp name params rk True [MkTypeFamilyEq sp name (params-as-lhs sp params) rhs]) tail
+      PBad -> PBad
+    other -> if at-boundary toks then POk (DTypeFamily sp name params rk False Nil) toks else PBad
+
+  parse-type-family-eqs :: List LToken -> Bytes -> List TypeFamilyEq -> Ps (List TypeFamilyEq)
+  parse-type-family-eqs toks src acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ";" == 0 then parse-type-family-eqs rest src acc
+        else if string-compare p "}" == 0 then POk (reverse acc) rest
+        else parse-type-family-eq-step toks src acc
+      TEOF -> POk (reverse acc) toks
+      other -> parse-type-family-eq-step toks src acc
+    Nil -> POk (reverse acc) Nil
+
+  parse-type-family-eq-step :: List LToken -> Bytes -> List TypeFamilyEq -> Ps (List TypeFamilyEq)
+  parse-type-family-eq-step toks src acc = case parse-type-family-eq toks src of
+    POk eq tail -> parse-type-family-eqs tail src (Cons eq acc)
+    PBad -> PBad
+
+  parse-type-family-eq :: List LToken -> Bytes -> Ps TypeFamilyEq
+  parse-type-family-eq toks src = case toks of
+    Cons first more -> case parse-ctor-name toks of
+      POk head rest1 -> case parse-type-atom-list rest1 src Nil of
+        POk args rest2 -> case rest2 of
+          Cons eq rest3 | is-punct-t (lt-token eq) "=" -> case parse-type rest3 src of
+            POk rhs tail -> POk (MkTypeFamilyEq (sp-of first) head (type-arg-spine (sp-of first) args) rhs) tail
+            PBad -> PBad
+          other -> PBad
+        PBad -> PBad
+      PBad -> PBad
+    Nil -> PBad
+
+  parse-type-instance :: Span -> List LToken -> Bytes -> Ps Decl
+  parse-type-instance sp toks src = case parse-path toks of
+    POk fam rest1 -> case parse-type-atom-list rest1 src Nil of
+      POk args rest2 -> case rest2 of
+        Cons eq rest3 | is-punct-t (lt-token eq) "=" -> case parse-type rest3 src of
+          POk rhs tail -> POk (DTypeInstance sp fam (type-arg-spine sp args) rhs) tail
+          PBad -> PBad
+        other -> PBad
+      PBad -> PBad
+    PBad -> PBad
+
+  parse-data-family :: Span -> List LToken -> Bytes -> Ps Decl
+  parse-data-family sp toks src = case parse-ctor-name toks of
+    POk name rest1 -> case parse-params rest1 src Nil of
+      POk params rest2 -> case parse-optional-return-kind rest2 src of
+        POk rk rest3 -> if at-boundary rest3 then POk (DDataFamily sp name params) rest3 else PBad
+        PBad -> PBad
+      PBad -> PBad
+    PBad -> PBad
+
+  parse-data-instance :: Span -> List LToken -> Bytes -> Ps Decl
+  parse-data-instance sp toks src = case parse-path toks of
+    POk fam rest1 -> case parse-type-atom-list rest1 src Nil of
+      POk args rest2 -> case expect-word-t rest2 "where" of
+        POk _ rest3 -> case parse-fields rest3 src of
+          POk fields rest4 -> POk (DDataInstance sp fam (type-arg-spine sp args) fields) rest4
+          PBad -> PBad
+        PBad -> PBad
+      PBad -> PBad
+    PBad -> PBad
 
   -- data Name params where { Ctor :: Type ; ... }
   parse-data :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
@@ -3383,6 +3502,7 @@ module Bootstrap.Parse where
     TVar s -> True
     TCon s -> True
     TInt s -> True
+    TStr b -> True
     TTickName name -> True
     TTickType name -> True
     TWord w -> string-compare w "refined" == 0
@@ -3426,6 +3546,7 @@ module Bootstrap.Parse where
       TTickName name -> POk (TUnmodeled (sp-of t) "type-level symbols are deferred") rest
       TTickType name -> POk (TUnmodeled (sp-of t) "a type name quote belongs in a staging or macro name position; type-level symbols are deferred") rest
       TInt s -> POk (TIndex (sp-of t) s) rest
+      TStr b -> POk (TStrLit (sp-of t) (bytes-to-string b)) rest
       TOp op ->
         if string-compare op "-" == 0 then
           case parse-type-atom rest src of
@@ -3574,15 +3695,17 @@ module Bootstrap.Parse where
 
   parse-list-type :: Span -> List LToken -> Bytes -> Ps TypeExpr
   parse-list-type sp toks src = case toks of
-    Cons t rest -> case lt-token t of
-      TPunct p ->
-        if string-compare p "]" == 0 then POk (TName sp "List") rest
-        else case parse-type toks src of
-          POk ty rest2 -> case rest2 of
-            Cons c rest3 ->
-              if is-punct-t (lt-token c) "]" then POk (TApp sp (TName sp "List") (type-arg-spine sp (Cons ty Nil))) rest3
-              else PBad
-            Nil -> PBad
-          PBad -> PBad
-      _ -> PBad
+    Cons t rest ->
+      if is-punct-t (lt-token t) "]" then POk (TList (span-join sp (sp-of t)) (TArgsEnd sp)) rest
+      else list-type-items sp toks src Nil
     Nil -> PBad
+
+  list-type-items :: Span -> List LToken -> Bytes -> List TypeExpr -> Ps TypeExpr
+  list-type-items sp toks src acc = case parse-type toks src of
+    POk ty rest -> case rest of
+      Cons t2 rest2 ->
+        if is-punct-t (lt-token t2) "," then list-type-items sp rest2 src (Cons ty acc)
+        else if is-punct-t (lt-token t2) "]" then POk (TList (span-join sp (sp-of t2)) (type-arg-spine sp (reverse (Cons ty acc)))) rest2
+        else PBad
+      Nil -> PBad
+    PBad -> PBad

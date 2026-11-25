@@ -5,7 +5,7 @@
 module Bootstrap.RuntimeIr where
   import Bootstrap.Ast (Module, program-modules, module-decls, Decl, DInlineHint, DUnrollHint)
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme, checked-body-binding)
+  import Bootstrap.Infer (elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-bindings, elaboration-type-families, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-conditional-target, checked-foreign-plan, checked-c-exports, checked-intrinsic-symbol, scalar-intrinsic-scheme, checked-body-binding)
   import Bootstrap.BodyContract (binding-name, binding-native, binding-function)
   import Bootstrap.Total (TotalFunction, TotalTerm, TotalArguments, total-term, total-parameters, total-result,
     term-node, argument-node, LocalTerm, NumberTerm, PrimitiveTerm, NextArgument, NoArguments)
@@ -145,7 +145,7 @@ module Bootstrap.RuntimeIr where
   target-caps-of-wasm wasm32 = if wasm32 then MkTargetCaps "wasm32" False else target-caps-of-profile host-profile
 
   data ProgramInfo where
-    ProgramInfo :: DataIndex -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> TargetCaps -> ProgramInfo
+    ProgramInfo :: DataIndex -> List CoreClass -> List CoreInstance -> BindingIndex -> List MethodVersion -> Option RuntimeObject -> Option (List String) -> List CoreEffect -> HashMap String (Nat, Nat) -> Bool -> TargetCaps -> List TypeFamilyRuleSet -> ProgramInfo
   -- The units a sweep may copy at their call sites, whether copying is on
   -- at all, and the unfolding stack. The names are fixed before emission, so
   -- the decision at a site depends on nothing but the unit's name; the stack
@@ -250,29 +250,35 @@ module Bootstrap.RuntimeIr where
   program-data :: ProgramInfo -> List CoreData
   program-data info = case data-index-of info of DataIndex datas types constructors unpacked -> datas
   data-index-of :: ProgramInfo -> DataIndex
-  data-index-of info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> index
+  data-index-of info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> index
+  program-type-families :: ProgramInfo -> List TypeFamilyRuleSet
+  program-type-families info = case info of ProgramInfo index descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> families
+  is-type-family-name :: String -> List TypeFamilyRuleSet -> Bool
+  is-type-family-name name families = case families of
+    Nil -> False
+    Cons fs rest -> same name (family-identity fs) || is-type-family-name name rest
   program-classes :: ProgramInfo -> List CoreClass
-  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> descriptions
+  program-classes info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> descriptions
   program-instances :: ProgramInfo -> List CoreInstance
-  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> instances
+  program-instances info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> instances
   program-callable-bindings :: ProgramInfo -> CallableBindings
   program-callable-bindings info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> callable
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> callable
   -- The first binding of this name still controls foreign lookup, even if
   -- a later binding of the same name carries a foreign plan.
   program-foreign-binding :: String -> ProgramInfo -> Option ForeignPlan
   program-foreign-binding name info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> case hash-map-lookup name names of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> case hash-map-lookup name names of
       Some plan -> plan
       None -> None
   foreign-symbol-plans :: String -> ProgramInfo -> List ForeignPlan
   foreign-symbol-plans symbol info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> case hash-map-lookup symbol symbols of
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> case hash-map-lookup symbol symbols of
       Some plans -> plans
       None -> Nil
   foreign-pointer-types :: ProgramInfo -> List UType
   foreign-pointer-types info = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 -> pointers
+    ProgramInfo datas descriptions instances (BindingIndex callable (ForeignBindings names symbols pointers) hints definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> pointers
   index-bindings :: CheckedProgram -> List CoreDefinition -> BindingIndex
   index-bindings checked definitions =
     let bindings = reverse (elaboration-bindings (checked-elaboration checked)) in
@@ -313,7 +319,7 @@ module Bootstrap.RuntimeIr where
     Cons other rest -> index-function-hints rest hints
   function-hints :: ProgramInfo -> String -> FunctionHints
   function-hints info name = case info of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns (Some hints) definitions) versions provider exposed effects tail-groups reclaim wasm32 -> lookup-hints name hints
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns (Some hints) definitions) versions provider exposed effects tail-groups reclaim wasm32 families -> lookup-hints name hints
     other -> FunctionHints "" False None
   function-hint :: ProgramInfo -> String -> String
   function-hint info name = case function-hints info name of FunctionHints inline cold loop -> inline
@@ -336,30 +342,30 @@ module Bootstrap.RuntimeIr where
     Nil -> tail
     Cons first rest -> add-pointer-type first (add-pointer-types rest tail)
   program-versions :: ProgramInfo -> List MethodVersion
-  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> versions
+  program-versions info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> versions
   program-object :: ProgramInfo -> Option RuntimeObject
-  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> provider
+  program-object info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> provider
   program-effects :: ProgramInfo -> List CoreEffect
-  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> effects
+  program-effects info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> effects
   with-versions :: List MethodVersion -> ProgramInfo -> ProgramInfo
-  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim wasm32 -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32
+  with-versions versions info = case info of ProgramInfo datas descriptions instances bindings old provider exposed effects tail-groups reclaim wasm32 families -> ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families
   program-tail-groups :: ProgramInfo -> HashMap String (Nat, Nat)
-  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32 -> groups
+  program-tail-groups info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32 families -> groups
   -- Whether this emission counts references (`--no-reclaim` and
   -- `CINCH_RECLAIM=0` select the other arm): the one switch every
   -- ownership operation reads, so a leak-baseline build emits none of
   -- them and every block it allocates stays live until exit.
   program-reclaim :: ProgramInfo -> Bool
-  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> reclaim
+  program-reclaim info = case info of ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> reclaim
   with-tail-groups :: HashMap String (Nat, Nat) -> ProgramInfo -> ProgramInfo
   with-tail-groups groups info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim wasm32 ->
-      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects old reclaim wasm32 families ->
+      ProgramInfo datas descriptions instances bindings versions provider exposed effects groups reclaim wasm32 families
   exposed-worker :: String -> List String -> Bool
   exposed-worker name names = case names of Nil -> False; Cons first rest -> same name first || exposed-worker name rest
   worker-linkage :: Writer -> String -> String
   worker-linkage w name = case writer-program w of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 -> case exposed of
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim wasm32 families -> case exposed of
       None -> ""
       Some names -> if exposed-worker name names then "" else "internal "
   same-classes :: List Nat -> List Nat -> Bool
@@ -492,13 +498,19 @@ module Bootstrap.RuntimeIr where
   handler-word-type ty = case handler-parts (base ty) of Some parts -> True; None -> False
   -- Sym is an immortal runtime handle, classified Raw by the object ABI.
   value-word-class :: RuntimeContext -> UType -> Option Nat
-  value-word-class context ty = if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
+  value-word-class context raw-ty =
+    let ty = reduce-type-families (program-type-families (program-info context)) raw-ty in
+    if foreign-pointer ty || opaque-foreign-word ty (foreign-pointer-types (program-info context)) then Some 0 else if decision-word-type ty || handler-word-type ty then Some 1 else if number ty then Some 2 else if wide-scalar ty then Some 3 else if named ty "Bool" || named ty "Unit" || raw-integer ty || named ty "Char" || named ty "Sym" || named ty "F32" || named ty "F64" then Some 0 else case context of
     RuntimeContext datas bounds rigids queue inlining -> case base ty of
       -- Structural Copy witnesses travel as Unit, even in a polymorphic closure.
       UApp (UCon name (KFun KType KType)) carrier | same name "Copy" -> Some 0
       UApp (UCon name (KFun KType KType)) carrier | same name "Kernel" -> Some 0
       UBound id name KType -> representation id bounds
-      URigid id name level KType -> representation id rigids
+      URigid id name level KType -> (case representation id rigids of
+        Some code -> Some code
+        None -> if string-starts-with "$gadt_" name then Some 1 else None)
+      UIndex carrier idx -> Some 0
+      UIndexMath op left right -> Some 0
       UFun domain result -> Some 1
       UFunEff domain row result -> Some 1
       UUsageArrow usage arrow -> Some 1
@@ -510,6 +522,8 @@ module Bootstrap.RuntimeIr where
       USigma id name domain body -> if field-types context (UArg domain (UArg body UEnd)) 0 then Some 1 else None
       other -> case type-head ty of
         UCon name kind -> if (same name "b.Io" && kind-equal kind (KFun KRegion KType)) || (same name "b.Scope" && kind-equal kind scope-kind) || (same name "b.Task" && kind-equal kind task-kind) then Some 0
+          else if promoted-ctor-name name || promoted-str-name name then Some 0
+          else if is-type-family-name name (program-type-families datas) then Some 1
           else if (array-type-name name || cell-type-name name) && kind-equal kind (KFun KType KType) then Some 1
           else if (same name "Bytes" || same name "String") && kind-equal kind KType then Some 1 else
           (case data-declaration name datas of
@@ -887,15 +901,46 @@ module Bootstrap.RuntimeIr where
   erased-layout-index actual parameter = case (value-carrier (type-kind actual), value-carrier (type-kind parameter)) of
     (Some carrier, Some expected) -> typed-index-admissible actual && runtime-type-equal carrier expected
     other -> False
+  same-data-head :: UType -> String -> Bool
+  same-data-head ty owner = case type-head ty of
+    UCon name kind -> same name owner
+    other -> False
+  gadt-constructor-shape :: RuntimeContext -> String -> UType -> Bool
+  gadt-constructor-shape context owner ty = case ty of
+    UFun domain more -> word-type context domain && gadt-constructor-shape context owner more
+    UPi id name domain (URow UEnd) more -> word-type context domain && gadt-constructor-shape context owner more
+    UProofFun predicate (URow UEnd) more -> valid-type predicate && kind-equal (type-kind predicate) KProp
+      && gadt-constructor-shape context owner more
+    other -> same-data-head ty owner
+  regular-constructor :: CoreData -> CoreConstructor -> Bool
+  regular-constructor d c = let sc = core-constructor-scheme c in
+    (regular-parameters (core-data-params d) (scheme-params sc) ||
+      (constructor-pattern-supported sc && regular-parameters (core-data-params d)
+        (without-natural-indices (scheme-params sc))))
+    && same-data-result (final-result (scheme-body sc)) (data-result d)
+  add-missing-bounds :: List Quant -> List (Nat, Nat) -> List (Nat, Nat)
+  add-missing-bounds qs bounds = case qs of
+    Nil -> bounds
+    Cons q rest -> case representation (quant-id q) bounds of
+      Some _ -> add-missing-bounds rest bounds
+      None -> if kind-equal (quant-kind q) KType || former-kind (quant-kind q)
+        then add-missing-bounds rest (Cons (quant-id q, 1) bounds)
+        else add-missing-bounds rest bounds
+  gadt-fallback-context :: RuntimeContext -> CoreConstructor -> RuntimeContext
+  gadt-fallback-context context c = case context of
+    RuntimeContext datas bounds rigids queue inlining ->
+      RuntimeContext datas (add-missing-bounds (scheme-params (core-constructor-scheme c)) bounds) rigids queue inlining
   -- Escaped descriptors carry as many mask words as the payload needs.
   -- Their packed identity reserves sixteen bits for the physical word count.
   constructor-supported :: RuntimeContext -> CoreData -> CoreConstructor -> Bool
   constructor-supported context d c = let sc = core-constructor-scheme c in
-    (regular-parameters (core-data-params d) (scheme-params sc) ||
-      (constructor-pattern-supported sc && regular-parameters (core-data-params d)
-        (without-natural-indices (scheme-params sc))))
-    && (case scheme-requirements sc of Nil -> True; other -> False)
-    && constructor-shape context (data-result d) (scheme-body sc) && payload-words context (storage-fields d c) < 65536
+    if regular-constructor d c then
+      (case scheme-requirements sc of Nil -> True; other -> False)
+      && constructor-shape context (data-result d) (scheme-body sc) && payload-words context (storage-fields d c) < 65536
+    else
+      let gctx = gadt-fallback-context context c in
+      (case scheme-requirements sc of Nil -> True; other -> False)
+      && gadt-constructor-shape gctx (core-data-name d) (scheme-body sc) && payload-words gctx (storage-fields d c) < 65536
   storage-fields :: CoreData -> CoreConstructor -> List UType
   storage-fields d c = case core-data-layout d of UnpackedRecord slots -> physical-fields slots; other -> core-constructor-fields c
   -- Each constructor's description, by tag. A constructor the lowering
@@ -904,9 +949,10 @@ module Bootstrap.RuntimeIr where
   constructor-descriptions context d tag constructors w = case constructors of
     Nil -> (w, Nil)
     Cons c rest ->
+      let fctx = if regular-constructor d c then context else gadt-fallback-context context c in
       let (checked, description) = (if not (constructor-supported context d c) then
           (refuse w (Span 0 0 1 1) (cat ["constructor ", core-constructor-name c, " needs dependent, existential or extended runtime lowering"]), 0)
-        else case class-vector context (storage-fields d c) of
+        else case class-vector fctx (storage-fields d c) of
           None -> (refuse w (Span 0 0 1 1) "constructor field representation is unknown", 0)
           Some codes -> (w, shape-description 1 tag (word-codes codes))) in
       case constructor-descriptions context d (tag + 1) rest checked of
@@ -941,7 +987,7 @@ module Bootstrap.RuntimeIr where
     Cons d rest -> index-definitions rest (hash-map-insert (core-name d) d table)
   worker-definition :: String -> Writer -> Option CoreDefinition
   worker-definition name w = case writer-program w of
-    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects groups reclaim wasm32 -> hash-map-lookup name definitions
+    ProgramInfo datas descriptions instances (BindingIndex callable foreigns hints definitions) versions provider exposed effects groups reclaim wasm32 families -> hash-map-lookup name definitions
   join :: List String -> String
   join words = case words of Nil -> ""; Cons word Nil -> word; Cons word rest -> cat [word, ", ", join rest]
   argument-words :: List String -> List String
@@ -1122,6 +1168,7 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty witness body -> not (term-uses id witness) && scoped-call-saturated id remaining body
     CDischarge sp ty evidence _ body -> scoped-call-saturated id remaining body
     CForget sp ty body -> scoped-call-saturated id remaining body
+    CCast sp ty body -> scoped-call-saturated id remaining body
     other -> case head term of
       CLocal sp ty key name Nil -> key == id && list-length (arguments term Nil) == remaining && not (scoped-argument-uses id (arguments term Nil))
       other -> False
@@ -1270,6 +1317,7 @@ module Bootstrap.RuntimeIr where
     CRefine sp ty certificate body -> CRefine sp ty certificate (specialize-local id scheme value body)
     CRefineProof sp ty witness body -> CRefineProof sp ty (specialize-local id scheme value witness) (specialize-local id scheme value body)
     CForget sp ty body -> CForget sp ty (specialize-local id scheme value body)
+    CCast sp ty body -> CCast sp ty (specialize-local id scheme value body)
     CRequire sp ty body -> CRequire sp ty (specialize-local id scheme value body)
     CDischarge sp ty evidence _ body -> CDischarge sp ty evidence False (specialize-local id scheme value body)
     CGuard sp ty condition body -> CGuard sp ty (specialize-local id scheme value condition) (specialize-local id scheme value body)
@@ -1420,6 +1468,7 @@ module Bootstrap.RuntimeIr where
         CRefine sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CRefine sp ty evidence value) fresh) cursor
         CRefineProof sp ty evidence body -> handler-cps context sp body (\value fresh -> next (CRefineProof sp ty evidence value) fresh) cursor
         CForget sp ty body -> handler-cps context sp body (\value fresh -> next (CForget sp ty value) fresh) cursor
+        CCast sp ty body -> handler-cps context sp body (\value fresh -> next (CCast sp ty value) fresh) cursor
         CRequire sp ty body -> handler-cps context sp body (\value fresh -> next (CRequire sp ty value) fresh) cursor
         CDischarge sp ty evidence _ body -> handler-cps context sp body (\value fresh -> next (CDischarge sp ty evidence False value) fresh) cursor
         other -> Err "handled operation occurs in a Core form without continuation lowering"
@@ -1522,6 +1571,7 @@ module Bootstrap.RuntimeIr where
     CRefine sp ty evidence body -> expression definitions locals w body
     CRefineProof sp ty witness body -> expression definitions locals w body
     CForget sp ty body -> expression definitions locals w body
+    CCast sp ty body -> expression definitions locals w body
     CRequire sp ty body -> expression definitions locals w body
     CDischarge sp ty evidence _ body -> expression definitions locals w body
     CDecision sp ty predicate condition -> if decision-word-type ty then decision-expression definitions locals w sp condition else unsupported w sp "decision has no checked kernel result type"
@@ -1762,6 +1812,12 @@ module Bootstrap.RuntimeIr where
   constructor-context d classes w = case class-bindings (core-data-params d) classes of
     None -> None
     Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil empty-queue NoInline)
+  constructor-scheme-context :: CoreConstructor -> List Nat -> Writer -> Option RuntimeContext
+  constructor-scheme-context c classes w = case class-bindings (scheme-params (core-constructor-scheme c)) classes of
+    None -> None
+    Some bounds -> Some (RuntimeContext (writer-program w) bounds Nil empty-queue NoInline)
+  constructor-call-context :: CoreData -> CoreConstructor -> List Nat -> Writer -> Option RuntimeContext
+  constructor-call-context d c classes w = if regular-constructor d c then constructor-context d classes w else constructor-scheme-context c classes w
   -- Array workers specialize on checked element classes; packed constructors
   -- carry their fixed format in their canonical operation identity.
   array-binder-field :: CoreData -> UType -> Bool
@@ -2663,6 +2719,13 @@ module Bootstrap.RuntimeIr where
   box-constructor definitions locals w sp d classes tag args = case request-data sp d classes w of
     (planned, descriptor) -> case expressions definitions locals planned args of
       (ready, values) -> allocate-constructor d ready (data-descriptor descriptor tag) (typed-values (value-llvms (writer-context ready) (term-types args)) values)
+  box-gadt-constructor :: List CoreDefinition -> List Local -> Writer -> Span -> CoreData -> RuntimeContext -> CoreConstructor -> Nat -> List CoreTerm -> (Writer, String)
+  box-gadt-constructor definitions locals w sp d cctx c tag args = case class-vector cctx (storage-fields d c) of
+    None -> unsupported w sp "constructor field representation is unknown"
+    Some codes ->
+      let desc = shape-description 1 tag (word-codes codes) in
+      case expressions definitions locals w args of
+        (ready, values) -> allocate-constructor d ready desc (typed-values (value-llvms (writer-context ready) (term-types args)) values)
 
   allocate-constructor :: CoreData -> Writer -> Nat -> List (String, String) -> (Writer, String)
   allocate-constructor d w descriptor values = case core-data-layout d of
@@ -2711,12 +2774,14 @@ module Bootstrap.RuntimeIr where
         Some (owner, tag, c) -> case data-declaration owner (writer-program w) of
           Some d -> case source-scheme-classes (writer-context w) (scheme-params (core-constructor-scheme c)) actuals of
             None -> unsupported w sp "constructor parameters need runtime representation classes"
-            Some classes -> case constructor-context d classes w of
+            Some classes -> case constructor-call-context d c classes w of
               None -> unsupported w sp "constructor parameters need first-order representation classes"
               Some context -> if list-length args == list-length (core-constructor-fields c) then
                 (case (core-data-layout d, args) of
                   (UnboxedData label word bytes align, [payload]) -> expression definitions locals w payload
-                  other -> box-constructor definitions locals w sp d classes tag args)
+                  other -> if regular-constructor d c
+                    then box-constructor definitions locals w sp d classes tag args
+                    else box-gadt-constructor definitions locals w sp d context c tag args)
                 else if list-length args < list-length (core-constructor-fields c) then
                   (case class-vector context (core-constructor-fields c) of
                     Some parameters -> case expressions definitions locals (request-demand (ConstructorDemand name classes) w) args of
@@ -3565,6 +3630,7 @@ module Bootstrap.RuntimeIr where
     CProved sp ty evidence body -> term-value-dependencies w owner key seen body
     CRefine sp ty evidence body -> term-value-dependencies w owner key seen body
     CForget sp ty body -> term-value-dependencies w owner key seen body
+    CCast sp ty body -> term-value-dependencies w owner key seen body
     CRequire sp ty body -> term-value-dependencies w owner key seen body
     CDischarge sp ty evidence _ body -> term-value-dependencies w owner key seen body
     CGuard sp ty guard body -> merge-value-fields (term-value-dependencies w owner key seen guard) (term-value-dependencies w owner key seen body)
@@ -3948,6 +4014,7 @@ module Bootstrap.RuntimeIr where
     CProved sp ty evidence body -> term-uses id body
     CRefine sp ty evidence body -> term-uses id body
     CForget sp ty body -> term-uses id body
+    CCast sp ty body -> term-uses id body
     CRequire sp ty body -> term-uses id body
     CDischarge sp ty evidence _ body -> term-uses id body
     CGuard sp ty guard body -> term-uses id guard || term-uses id body
@@ -3998,6 +4065,7 @@ module Bootstrap.RuntimeIr where
     CProved sp ty evidence body -> given-uses name body
     CRefine sp ty evidence body -> given-uses name body
     CForget sp ty body -> given-uses name body
+    CCast sp ty body -> given-uses name body
     CRequire sp ty body -> given-uses name body
     CDischarge sp ty evidence _ body -> given-uses name body
     CGuard sp ty guard body -> given-uses name guard || given-uses name body
@@ -4900,6 +4968,7 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty warrant body -> unfold-merge (unfold-shape warrant) (unfold-shape body)
     CDischarge sp ty warrants _ body -> unfold-shape body
     CForget sp ty body -> unfold-shape body
+    CCast sp ty body -> unfold-shape body
     CIf sp ty test yes no -> unfold-merge (unfold-merge (unfold-shape test) (unfold-shape yes)) (unfold-shape no)
     CArgument sp first rest -> unfold-merge (unfold-shape first) (unfold-shape rest)
     CArgumentsEnd sp -> Some (MkUnfoldShape False 0)
@@ -5680,7 +5749,7 @@ module Bootstrap.RuntimeIr where
   par-prefix info = if program-wasm32 info then "@cinch_coop_" else "@cinch_"
   program-caps :: ProgramInfo -> TargetCaps
   program-caps info = case info of
-    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim caps -> caps
+    ProgramInfo datas descriptions instances bindings versions provider exposed effects tail-groups reclaim caps families -> caps
   program-wasm32 :: ProgramInfo -> Bool
   program-wasm32 info = same (target-caps-arch (program-caps info)) "wasm32"
   program-arch :: ProgramInfo -> String
@@ -5906,6 +5975,7 @@ module Bootstrap.RuntimeIr where
   parameter-value :: List Local -> List Local -> CoreTerm -> Option (String, List Local)
   parameter-value locals roots term = case term of
     CForget at ty input -> parameter-value locals roots input
+    CCast at ty input -> parameter-value locals roots input
     CLocal sp ty id name Nil -> (case local id locals of
       Some (declared, word) -> (case take-parameter-root word roots of
         Some remaining -> Some (word, remaining)
@@ -5983,6 +6053,7 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty witness body -> term-has-self-tail self arity body
     CDischarge sp ty ev _ body -> term-has-self-tail self arity body
     CForget sp ty body -> term-has-self-tail self arity body
+    CCast sp ty body -> term-has-self-tail self arity body
     other -> case head term of
       CUse sp ty name role actuals | not (same role "foreign") && not (same role "constructor") ->
         same name self && list-length (arguments term Nil) == arity
@@ -6078,6 +6149,7 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty witness body -> self-loop-result definitions self classes param-llvms result locals roots w failed body
     CDischarge sp ty ev _ body -> self-loop-result definitions self classes param-llvms result locals roots w failed body
     CForget sp ty body -> self-loop-result definitions self classes param-llvms result locals roots w failed body
+    CCast sp ty body -> self-loop-result definitions self classes param-llvms result locals roots w failed body
     other -> case self-loop-call-args self classes (list-length param-llvms) w term of
       Some args -> case tail-operands definitions locals roots Nil w args of
         (evaluated, values, remaining) ->
@@ -6106,6 +6178,7 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty witness body -> cpr-term-ctor body
     CDischarge sp ty ev _ body -> cpr-term-ctor body
     CForget sp ty body -> cpr-term-ctor body
+    CCast sp ty body -> cpr-term-ctor body
     other -> case erased-constructor-call term Nil of
       Some (name, actuals, args) -> Some (name, args)
       None -> None
@@ -6258,6 +6331,7 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty witness body -> cpr-result definitions ctor fllvms agg-ty locals roots w failed body
     CDischarge sp ty ev _ body -> cpr-result definitions ctor fllvms agg-ty locals roots w failed body
     CForget sp ty body -> cpr-result definitions ctor fllvms agg-ty locals roots w failed body
+    CCast sp ty body -> cpr-result definitions ctor fllvms agg-ty locals roots w failed body
     other -> case erased-constructor-call term Nil of
       Some (cname, actuals, args) | same cname ctor ->
         case expressions definitions locals w args of
@@ -6301,18 +6375,27 @@ module Bootstrap.RuntimeIr where
     Some (owner, tag, c) -> case data-declaration owner (writer-program w) of
       Some d | unboxed-owner owner w -> let worker = specialized-name name classes in
         emit-lines w [cat ["define ", worker-linkage w worker, "i64 ", symbol worker, "(i64 %arg0)", worker-open w], "entry:", "  ret i64 %arg0", "}"]
-      Some d -> case constructor-context d classes w of
+      Some d -> case constructor-call-context d c classes w of
         Some context -> case context of
           RuntimeContext datas bounds rigids queue inlining ->
             let scoped = with-representations bounds rigids w in
-            case request-data (Span 0 0 1 1) d classes scoped of
-              (planned, descriptor) ->
-                let count = list-length (core-constructor-fields c) in
-                let values = value-parameters count 0 in
-                let typed = typed-values (value-llvms context (core-constructor-fields c)) values in
-                let started = line (line planned (cat ["define ", worker-linkage planned (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ")", worker-open w])) "entry:" in
-                case allocate-constructor d started (data-descriptor descriptor tag) typed of
-                  (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
+            let count = list-length (core-constructor-fields c) in
+            let values = value-parameters count 0 in
+            let typed = typed-values (value-llvms context (core-constructor-fields c)) values in
+            if regular-constructor d c then
+              case request-data (Span 0 0 1 1) d classes scoped of
+                (planned, descriptor) ->
+                  let started = line (line planned (cat ["define ", worker-linkage planned (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ")", worker-open w])) "entry:" in
+                  case allocate-constructor d started (data-descriptor descriptor tag) typed of
+                    (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
+            else
+              case class-vector context (storage-fields d c) of
+                None -> refuse scoped (Span 0 0 1 1) "constructor field representation is unknown"
+                Some codes ->
+                  let desc = shape-description 1 tag (word-codes codes) in
+                  let started = line (line scoped (cat ["define ", worker-linkage scoped (specialized-name name classes), "i64 ", symbol (specialized-name name classes), "(", join (typed-arguments typed), ")", worker-open w])) "entry:" in
+                  case allocate-constructor d started desc typed of
+                    (allocated, result) -> line (line allocated (cat ["  ret i64 ", result])) "}"
         None -> refuse w (Span 0 0 1 1) "constructor worker needs representation specialization"
       None -> refuse w (Span 0 0 1 1) "constructor worker has no defining data"
     None -> refuse w (Span 0 0 1 1) "constructor worker has no checked constructor"
@@ -6488,6 +6571,9 @@ module Bootstrap.RuntimeIr where
     CRefineProof sp ty witness body -> tail-result definitions locals roots context w failed body
     CDischarge sp ty evidence _ body -> tail-result definitions locals roots context w failed body
     CForget sp ty body -> case parameter-value locals roots term of
+      Some (word, remaining) -> line (drop-locals remaining w) (cat ["  ret i64 ", word])
+      None -> tail-result definitions locals roots context w failed body
+    CCast sp ty body -> case parameter-value locals roots term of
       Some (word, remaining) -> line (drop-locals remaining w) (cat ["  ret i64 ", word])
       None -> tail-result definitions locals roots context w failed body
     other -> case context of
@@ -6938,6 +7024,7 @@ module Bootstrap.RuntimeIr where
     CRefine sp ty evidence body -> source-tail-edges arities body next
     CRefineProof sp ty evidence body -> source-tail-edges arities body next
     CForget sp ty body -> source-tail-edges arities body next
+    CCast sp ty body -> source-tail-edges arities body next
     CDischarge sp ty evidence _ body -> source-tail-edges arities body next
     other -> case head term of
       CUse sp ty name role actuals | not (same role "foreign") -> source-tail-edge arities name 0 (arguments term Nil) next
@@ -7016,7 +7103,7 @@ module Bootstrap.RuntimeIr where
   emit-runtime-library-with-object-mode inlining checked provider roots =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some (root-symbols roots)) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) (elaboration-type-families typed) in
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case workers definitions (foreign-export-bridges exports (settled-workers-with-plan plan definitions (roots <> foreign-export-roots exports) info)) of
@@ -7085,7 +7172,7 @@ module Bootstrap.RuntimeIr where
     Some d -> library-root-shape w d classes
     None -> case constructor name (writer-program w) of
       Some (owner, tag, c) -> (case data-declaration owner (writer-program w) of
-        Some d -> (case constructor-context d classes w of
+        Some d -> (case constructor-call-context d c classes w of
           Some context -> if not (constructor-supported context d c) then None else
             (case class-vector context (core-constructor-fields c) of Some fields -> Some (fields, data-word-class d); None -> None)
           None -> None)
@@ -7151,7 +7238,7 @@ module Bootstrap.RuntimeIr where
   runtime-library-unit-roots checked demands =
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked Nil) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked Nil) Nil None (Some Nil) (elaboration-effects typed) hash-map-empty True (target-caps-of-wasm False) (elaboration-type-families typed) in
     case (library-default-definitions definitions, library-default-constructors (elaboration-data typed) (empty-writer info)) of
       (Ok ordinary, Ok constructors) -> case library-requested-units demands definitions (elaboration-data typed) of
         Ok requested -> Ok (ordinary <> constructors <> requested)
@@ -7305,7 +7392,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> library-intrinsic-definitions (elaboration-bindings typed) <> instance-definitions (elaboration-instances typed) in
     let selected = library-selected-roots roots in
-    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True caps in
+    let info = ProgramInfo (index-data (elaboration-data typed)) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider (Some Nil) (elaboration-effects typed) hash-map-empty True caps (elaboration-type-families typed) in
     let plan = inline-plan inlining definitions info in
     let exports = checked-c-exports (elaboration-bindings typed) in
     case library-bridges definitions roots Nil (foreign-export-bridges exports (settled-workers-with-plan plan definitions (selected <> foreign-export-roots exports) info)) of
@@ -7343,7 +7430,7 @@ module Bootstrap.RuntimeIr where
     let typed = checked-elaboration checked in
     let definitions = elaboration-core typed <> instance-definitions (elaboration-instances typed) in
     let datas = elaboration-data typed in
-    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider None (elaboration-effects typed) hash-map-empty reclaim caps in
+    let info = ProgramInfo (index-data datas) (elaboration-classes typed) (elaboration-instances typed) (index-bindings checked definitions) Nil provider None (elaboration-effects typed) hash-map-empty reclaim caps (elaboration-type-families typed) in
     let exports = checked-c-exports (elaboration-bindings typed) in
     let roots = foreign-export-roots exports in
     let plan = inline-plan inlining definitions info in

@@ -224,7 +224,9 @@ module Bootstrap.Kinds where
 
   type-authorized :: KindIndex -> TypeScope -> UType -> Bool
   type-authorized kinds scope ty = case ty of
-    UCon name actual -> (case kind-at name kinds of Some expected -> kind-equal actual expected && (case expected of KValue carrier -> nominal-name name; other -> True); None -> False)
+    UCon name actual ->
+      if promoted-ctor-name name || promoted-str-name name then True
+      else (case kind-at name kinds of Some expected -> kind-equal actual expected && (case expected of KValue carrier -> nominal-name name; other -> True); None -> False)
     UBound id name actual -> (case lookup-id id (scope-bound scope) of Some expected -> kind-equal actual expected; None -> False)
     URigid id name level actual -> (case lookup-id id (scope-rigid scope) of Some expected -> kind-equal actual expected; None -> case value-carrier actual of Some carrier -> type-authorized kinds scope carrier && local-carrier carrier id scope; None -> False)
     UMeta id kind -> False

@@ -4,8 +4,8 @@ module Bootstrap.Export where
   import Bootstrap.Builtin (array-plan, mvar-plan, total-primitive, scalar-intrinsic)
   import Algebra.Semigroup
   import Bootstrap.Check (CheckedProgram, checked-elaboration, checked-surface)
-  import Bootstrap.Ast (Program, Module, Decl, TypeExpr, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
-  import Bootstrap.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
+  import Bootstrap.Ast (Program, Module, Decl, TypeExpr, TypeParam, param-kind, module-decls, program-modules, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, DTypeFamily, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
+  import Bootstrap.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-contexts, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, promoted-ctor-symbol, promoted-ctor-parent, promoted-ctor-fields, DataFamilyInfo, data-family-name, data-family-params, data-family-patterns, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Bootstrap.Unpack (unpacked-abi)
   import Bootstrap.Core (CoreEffect, core-effect-name, CoreData, DataLayout, UniformData, UnboxedData, TransparentData, UnpackedRecord, core-data-layout, CoreConstructor, CoreDefinition, core-data-name, core-data-params, core-data-constructors, core-constructor-name, core-constructor-scheme, core-name, core-scheme, core-method-total-function, core-definition-closed)
   import Bootstrap.Typing (task-source-forwarder, task-forwarder-type)
@@ -952,7 +952,7 @@ module Bootstrap.Export where
                 Some row -> Ok (values, insert-row "name" (set-field "name" (JStr name) row) types)
                 None -> if constructor-present symbol (elaboration-data typed) then Ok (values, types)
                   else case indexed-binding symbol index of
-                    None -> if equation-method-present symbol (elaboration-classes typed) || declared-effect symbol (elaboration-effects typed) || guarded-instance-name symbol (indexed-guarded index) then Ok (values, types)
+                    None -> if equation-method-present symbol (elaboration-classes typed) || declared-effect symbol (elaboration-effects typed) || guarded-instance-name symbol (indexed-guarded index) || promoted-ctor-present symbol (elaboration-promoted-ctors typed) then Ok (values, types)
                       else Err (string-concat "export has no retained checked declaration: " name)
                     -- Methods and instance factories have their own contract tables.
                     Some binding -> let role = checked-role binding in
@@ -1160,14 +1160,148 @@ module Bootstrap.Export where
           (Err error, other) -> Err error
           (other, Err error) -> Err error)
         else Ok rows
-  document :: HashMap String DataLayout -> Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
-  document layout-index context source-hash dependencies values types signatures instances checked-assumptions foreign-rows laws =
+  promoted-ctor-present :: String -> List PromotedCtorInfo -> Bool
+  promoted-ctor-present symbol infos =
+    let canon = case export-global symbol of Ok id -> "ctor:" <> id; Err _ -> "ctor:" <> symbol in
+    promoted-ctor-has canon infos
+  promoted-ctor-has :: String -> List PromotedCtorInfo -> Bool
+  promoted-ctor-has wanted infos = case infos of
+    Nil -> False
+    Cons info rest -> same wanted (promoted-ctor-symbol info) || promoted-ctor-has wanted rest
+  export-pdk-kind :: Option TypeExpr -> Kind
+  export-pdk-kind mk = case mk of
+    Some (TName _ name) ->
+      if same name "Nat" then KValue (UCon "Nat" KType)
+      else if same name "Int" then KValue (UCon "Int" KType)
+      else if same name "Region" then KRegion
+      else if same name "Prop" then KProp
+      else if same name "Row" then KRow
+      else if same name "Effect" then KEffect
+      else KType
+    other -> KType
+  export-params-kind :: List TypeParam -> Kind -> Kind
+  export-params-kind ps ret = case ps of
+    Nil -> ret
+    Cons p rest -> KFun (export-pdk-kind (param-kind p)) (export-params-kind rest ret)
+  decl-type-family-kind :: String -> Nat -> List Decl -> Kind
+  decl-type-family-kind wanted arity ds = case ds of
+    Nil -> fallback-arity-kind arity
+    Cons (DTypeFamily _ name ps rkind _ _) rest ->
+      if same name wanted then export-params-kind ps (export-pdk-kind rkind)
+      else decl-type-family-kind wanted arity rest
+    Cons _ rest -> decl-type-family-kind wanted arity rest
+  fallback-arity-kind :: Nat -> Kind
+  fallback-arity-kind n = if n == 0 then KType else KFun KType (fallback-arity-kind (n - 1))
+  nat-list-json :: List Nat -> Json
+  nat-list-json xs = case xs of Nil -> JArrEnd; Cons n rest -> JArr (JNum (nat-to-int n)) (nat-list-json rest)
+  type-list-json :: List UType -> Json
+  type-list-json xs = case xs of Nil -> JArrEnd; Cons t rest -> JArr (carrier-tree t) (type-list-json rest)
+  type-family-rules-json :: List TypeFamilyRule -> Json
+  type-family-rules-json rules = case rules of
+    Nil -> JArrEnd
+    Cons r rest ->
+      JArr (JObj "pvars" (nat-list-json (rule-vars r))
+        (JObj "lhs" (carrier-tree (rule-lhs r))
+          (JObj "rhs" (carrier-tree (rule-rhs r)) JObjEnd)))
+        (type-family-rules-json rest)
+  export-type-families-json :: Json -> List Decl -> List TypeFamilyRuleSet -> Json
+  export-type-families-json context decls fams = case fams of
+    Nil -> JArrEnd
+    Cons fs rest ->
+      let more = export-type-families-json context decls rest in
+      let raw-name = family-identity fs in
+      if has-symbol raw-name (field "declarations" context) || not (is-imported-symbol raw-name) then
+        (case export-global raw-name of
+          Ok identity ->
+            let k = decl-type-family-kind raw-name (family-arity fs) decls in
+            JArr (JObj "identity" (JStr identity)
+              (JObj "arity" (JNum (nat-to-int (family-arity fs)))
+                (JObj "closed" (JBool (family-closed fs))
+                  (JObj "kind" (kind-tree k)
+                    (JObj "rules" (type-family-rules-json (family-rules fs)) JObjEnd))))) more
+          Err _ -> more)
+      else more
+  is-imported-symbol :: String -> Bool
+  is-imported-symbol s = case unpack s of
+    Cons a (Cons b _) -> char-code a == 105 && char-code b == 46
+    other -> False
+  data-patterns-json :: List (List UType) -> Json
+  data-patterns-json pats = case pats of Nil -> JArrEnd; Cons p rest -> JArr (type-list-json p) (data-patterns-json rest)
+  export-data-families-json :: Json -> List DataFamilyInfo -> Json
+  export-data-families-json context dfs = case dfs of
+    Nil -> JArrEnd
+    Cons df rest ->
+      let more = export-data-families-json context rest in
+      let raw-name = data-family-name df in
+      if has-symbol raw-name (field "declarations" context) || not (is-imported-symbol raw-name) then
+        (case export-global raw-name of
+          Ok identity ->
+            JArr (JObj "identity" (JStr identity)
+              (JObj "arity" (JNum (nat-to-int (list-length (data-family-params df))))
+                (JObj "patterns" (data-patterns-json (data-family-patterns df)) JObjEnd))) more
+          Err _ -> more)
+      else more
+  pdk-spine-json :: PromotedDataKind -> Json
+  pdk-spine-json spine = case spine of
+    PDKEnd -> JArrEnd
+    PDKArg k rest -> JArr (pdk-json k) (pdk-spine-json rest)
+    other -> JArrEnd
+  pdk-json :: PromotedDataKind -> Json
+  pdk-json pdk = case pdk of
+    PDKType -> JStr "Type"
+    PDKNat -> JStr "Nat"
+    PDKString -> JStr "String"
+    PDKList elem -> JObj "list" (pdk-json elem) JObjEnd
+    PDKTuple elems -> JObj "tuple" (pdk-spine-json elems) JObjEnd
+    PDKData name args -> JObj "data" (JObj "name" (JStr name) (JObj "args" (pdk-spine-json args) JObjEnd)) JObjEnd
+    other -> JNull
+  opt-pdk-list-json :: List (Option PromotedDataKind) -> Json
+  opt-pdk-list-json xs = case xs of
+    Nil -> JArrEnd
+    Cons None rest -> JArr JNull (opt-pdk-list-json rest)
+    Cons (Some k) rest -> JArr (pdk-json k) (opt-pdk-list-json rest)
+  export-promoted-ctors-json :: String -> List PromotedCtorInfo -> Json
+  export-promoted-ctors-json mod-name infos = case infos of
+    Nil -> JArrEnd
+    Cons info rest ->
+      let more = export-promoted-ctors-json mod-name rest in
+      if same (nominal-owner (promoted-ctor-parent info)) mod-name then
+        JArr (JObj "symbol" (JStr (promoted-ctor-symbol info))
+          (JObj "parent" (JStr (promoted-ctor-parent info))
+            (JObj "fields" (pdk-spine-json (promoted-ctor-fields info)) JObjEnd))) more
+      else more
+  export-data-param-kinds-json :: Json -> List (String, List (Option PromotedDataKind)) -> Json
+  export-data-param-kinds-json context entries = case entries of
+    Nil -> JArrEnd
+    Cons (raw-name, pdks) rest ->
+      let more = export-data-param-kinds-json context rest in
+      if has-symbol raw-name (field "declarations" context) || not (is-imported-symbol raw-name) then
+        (case export-global raw-name of
+          Ok identity ->
+            JArr (JObj "identity" (JStr identity)
+              (JObj "param_kinds" (opt-pdk-list-json pdks) JObjEnd)) more
+          Err _ -> more)
+      else more
+  attach-optional-field :: String -> Json -> Json -> Json
+  attach-optional-field key val obj = case val of JArrEnd -> obj; other -> JObj key val obj
+  document :: Elaboration -> HashMap String DataLayout -> Json -> String -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json -> Json
+  document typed layout-index context source-hash dependencies values types signatures instances checked-assumptions foreign-rows laws =
+    let mod-name = text (field "module" context) in
+    let tf-rows = export-type-families-json context (elaboration-declarations typed) (elaboration-type-families typed) in
+    let df-rows = export-data-families-json context (elaboration-data-families typed) in
+    let pc-rows = export-promoted-ctors-json mod-name (elaboration-promoted-ctors typed) in
+    let pk-rows = export-data-param-kinds-json context (elaboration-data-param-kinds typed) in
+    let base-exports = JObj "values" values (JObj "types" types (JObj "signatures" signatures
+          (JObj "instances" instances (JObj "foreign" foreign-rows (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))) in
+    let full-exports = attach-optional-field "type_families" tf-rows
+          (attach-optional-field "data_families" df-rows
+            (attach-optional-field "promoted_ctors" pc-rows
+              (attach-optional-field "data_param_kinds" pk-rows base-exports))) in
     JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
       (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
         (JObj "module" (field "module" context) (JObj "source_hash" (JStr source-hash)
           (JObj "imports" dependencies (JObj "params" JArrEnd
-            (JObj "exports" (JObj "values" values (JObj "types" types (JObj "signatures" signatures
-              (JObj "instances" instances (JObj "foreign" foreign-rows (JObj "fixities" (sort-rows "op" (public-fixities (field "exports" context) (field "fixities" context))) JObjEnd))))))
+            (JObj "exports" full-exports
               (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
                 (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts layout-index types) JObjEnd)))
                 (JObj "assumptions" checked-assumptions (JObj "assertions" JArrEnd
@@ -1260,7 +1394,7 @@ module Bootstrap.Export where
                   (Err error, other, more) -> Err (string-concat-all [name, ": ", error])
                   (other, Err error, more) -> Err error
                   (other, more, Err error) -> Err error
-                  (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document (indexed-layouts index) context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
+                  (Ok dependencies, Ok foreign-rows, Ok laws) -> let doc = document typed (indexed-layouts index) context hash dependencies values types signatures instances (interface-assumptions context typed foreign-rows) foreign-rows laws in
                     (case export-loop typed index interfaces source (Cons (name, interface-hash doc) produced) rest of
                       Err error -> Err error
                       Ok more -> Ok (Cons (name, doc) more))

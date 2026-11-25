@@ -47,6 +47,8 @@ module Bootstrap.Type where
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
   export index-value-bounds
   export number-literal-carrier, wide-carrier, number-literal-valid, number-literal-error, float-literal-bits, float-string-bits, float-string-valid, float-string-error
+  export TypeFamilyRule, MkTypeFamilyRule, rule-vars, rule-lhs, rule-rhs, TypeFamilyRuleSet, MkTypeFamilyRuleSet, family-identity, family-arity, family-closed, family-returns-idx, family-rules, store-type-families, with-type-families, reduce-type-families, type-family-patterns-overlap, types-apart
+  export promoted-ctor-name, promoted-str-name, promoted-nil-name, promoted-cons-name, extract-promoted-list, strip-ctor-prefix
 
   export IndexMeasure, WordToNat, BufferLength, index-measure-name
 
@@ -525,7 +527,7 @@ module Bootstrap.Type where
   carrier-spine :: UType -> Bool -> Bool
   carrier-spine fields values = case fields of
     UEnd -> True
-    UArg first rest -> (if values then carrier-type first else carrier-node first) && carrier-spine rest values
+    UArg first rest -> (if values then (carrier-type first || (carrier-node first && (case type-kind first of KValue c -> True; other -> False))) else carrier-node first) && carrier-spine rest values
     other -> False
 
   quant-id :: Quant -> Nat
@@ -596,44 +598,97 @@ module Bootstrap.Type where
     PendingComparison :: Span -> UType -> List String -> PendingNumber
   -- Trial unification compares the sizes of immutable diagnostic snapshots.
   -- Retain the count with the reversed list so trial checks need no traversal.
+  data TypeFamilyRule where
+    MkTypeFamilyRule :: List Nat -> UType -> UType -> TypeFamilyRule
+  rule-vars :: TypeFamilyRule -> List Nat
+  rule-vars r = case r of MkTypeFamilyRule pvars lhs rhs -> pvars
+  rule-lhs :: TypeFamilyRule -> UType
+  rule-lhs r = case r of MkTypeFamilyRule pvars lhs rhs -> lhs
+  rule-rhs :: TypeFamilyRule -> UType
+  rule-rhs r = case r of MkTypeFamilyRule pvars lhs rhs -> rhs
+  data TypeFamilyRuleSet where
+    MkTypeFamilyRuleSet :: String -> Nat -> Bool -> Bool -> List TypeFamilyRule -> TypeFamilyRuleSet
+  family-identity :: TypeFamilyRuleSet -> String
+  family-identity f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> id
+  family-arity :: TypeFamilyRuleSet -> Nat
+  family-arity f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> arity
+  family-closed :: TypeFamilyRuleSet -> Bool
+  family-closed f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> closed
+  family-returns-idx :: TypeFamilyRuleSet -> Bool
+  family-returns-idx f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> returns-idx
+  family-rules :: TypeFamilyRuleSet -> List TypeFamilyRule
+  family-rules f = case f of MkTypeFamilyRuleSet id arity closed returns-idx rules -> rules
+
+  promoted-nil-name :: String
+  promoted-nil-name = "ctor:Data.Core.Nil"
+  promoted-cons-name :: String
+  promoted-cons-name = "ctor:Data.Core.Cons"
+  promoted-ctor-name :: String -> Bool
+  promoted-ctor-name name = case unpack name of
+    Cons c1 (Cons c2 (Cons c3 (Cons c4 (Cons c5 rest)))) ->
+      char-code c1 == 99 && char-code c2 == 116 && char-code c3 == 111 && char-code c4 == 114 && char-code c5 == 58
+    other -> False
+  strip-ctor-prefix :: String -> String
+  strip-ctor-prefix name = case unpack name of
+    Cons c1 (Cons c2 (Cons c3 (Cons c4 (Cons c5 rest)))) ->
+      if char-code c1 == 99 && char-code c2 == 116 && char-code c3 == 111 && char-code c4 == 114 && char-code c5 == 58
+      then pack rest
+      else name
+    other -> name
+  promoted-str-name :: String -> Bool
+  promoted-str-name name = case unpack name of
+    Cons c1 rest -> char-code c1 == 34
+    Nil -> False
+  extract-promoted-list :: UType -> Option (List UType)
+  extract-promoted-list ty = case ty of
+    UCon name k | same-tag name promoted-nil-name -> Some Nil
+    UApp (UApp (UCon name k) h) t | same-tag name promoted-cons-name ->
+      (case extract-promoted-list t of Some rest -> Some (Cons h rest); None -> None)
+    other -> None
+
   data ErrorLog where
     MkErrorLog :: Nat -> List Diagnostic -> ErrorLog
   data Store where
-    MkStore :: String -> Nat -> Nat -> CellStore -> ErrorLog -> List PendingNumber -> Bool -> Nat -> Store
+    MkStore :: String -> Nat -> Nat -> CellStore -> ErrorLog -> List PendingNumber -> Bool -> Nat -> List TypeFamilyRuleSet -> Store
 
   empty-store :: String -> Store
-  empty-store label = MkStore label 0 0 EmptyCells (MkErrorLog 0 Nil) Nil False 0
+  empty-store label = MkStore label 0 0 EmptyCells (MkErrorLog 0 Nil) Nil False 0 Nil
+  store-type-families :: Store -> List TypeFamilyRuleSet
+  store-type-families st = case st of MkStore label next level cells errors numbers in-law depth fams -> fams
+  with-type-families :: List TypeFamilyRuleSet -> Store -> Store
+  with-type-families fams st = case st of
+    MkStore label next level cells errors numbers in-law depth old -> MkStore label next level cells errors numbers in-law depth fams
   store-let-depth :: Store -> Nat
-  store-let-depth st = case st of MkStore label next level cells errors numbers in-law depth -> depth
+  store-let-depth st = case st of MkStore label next level cells errors numbers in-law depth fams -> depth
   with-let-depth :: Nat -> Store -> Store
   with-let-depth depth st = case st of
-    MkStore label next level cells errors numbers in-law previous -> MkStore label next level cells errors numbers in-law depth
+    MkStore label next level cells errors numbers in-law previous fams -> MkStore label next level cells errors numbers in-law depth fams
   store-law-scope :: Store -> Bool
-  store-law-scope st = case st of MkStore label next level cells errors numbers in-law depth -> in-law
+  store-law-scope st = case st of MkStore label next level cells errors numbers in-law depth fams -> in-law
   with-law-scope :: Bool -> Store -> Store
   with-law-scope active st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors numbers active depth
+    MkStore label next level cells errors numbers in-law depth fams -> MkStore label next level cells errors numbers active depth fams
   store-errors :: Store -> List Diagnostic
-  store-errors st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> reverse errors
+  store-errors st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth fams -> reverse errors
   store-error-count :: Store -> Nat
-  store-error-count st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth -> count
+  store-error-count st = case st of MkStore label next level cells (MkErrorLog count errors) numbers in-law depth fams -> count
   prepend-error :: Diagnostic -> ErrorLog -> ErrorLog
   prepend-error diagnostic log = case log of MkErrorLog count errors -> MkErrorLog (count + 1) (Cons diagnostic errors)
   store-level :: Store -> Nat
-  store-level st = case st of MkStore label next level cells errors numbers in-law depth -> level
+  store-level st = case st of MkStore label next level cells errors numbers in-law depth fams -> level
   enter-level :: Store -> Store
-  enter-level st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next (level + 1) cells errors numbers in-law depth
+  enter-level st = case st of MkStore label next level cells errors numbers in-law depth fams -> MkStore label next (level + 1) cells errors numbers in-law depth fams
   restore-level :: Nat -> Store -> Store
-  restore-level level st = case st of MkStore label next old cells errors numbers in-law depth -> MkStore label next level cells errors numbers in-law depth
+  restore-level level st = case st of MkStore label next old cells errors numbers in-law depth fams -> MkStore label next level cells errors numbers in-law depth fams
   add-error :: Span -> String -> Store -> Store
   add-error sp message st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (MkDiagnostic label sp message) errors) numbers in-law depth
+    MkStore label next level cells errors numbers in-law depth fams -> MkStore label next level cells (prepend-error (MkDiagnostic label sp message) errors) numbers in-law depth fams
   -- A named diagnostic whose text is built when the report is read. A failed
   -- trial unification discards its whole error list, so a mismatch that is
   -- rolled back pays one closure instead of a rendering.
   add-deferred-error :: Span -> (Unit -> String) -> Store -> Store
   add-deferred-error sp render st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells (prepend-error (MkDeferredDiagnostic label sp render) errors) numbers in-law depth
+    MkStore label next level cells errors numbers in-law depth fams -> MkStore label next level cells (prepend-error (MkDeferredDiagnostic label sp render) errors) numbers in-law depth fams
 
   fresh-meta :: Kind -> Store -> (UType, Store)
   fresh-meta k original =
@@ -642,7 +697,7 @@ module Bootstrap.Type where
     else fresh-meta-checked k checked
   fresh-meta-checked :: Kind -> Store -> (UType, Store)
   fresh-meta-checked k st = case st of
-    MkStore label next level cells errors numbers in-law depth ->
+    MkStore label next level cells errors numbers in-law depth fams ->
       let kind = normalize-kind st k in
       let dependencies = kind-metas st kind in
       if not (valid-kind kind) then (UError, add-error (Span 0 0 1 1) "invalid inference variable kind" st)
@@ -650,11 +705,11 @@ module Bootstrap.Type where
       else if not (known-metas dependencies st) then (UError, add-error (Span 0 0 1 1) "unknown inference variable in kind" st)
       else if kind-escapes level kind then (UError, add-error (Span 0 0 1 1) "an inference kind escapes its scope" st)
       else case lower level dependencies st of
-        MkStore label next level lowered errors numbers in-law depth -> (UMeta next kind, MkStore label (next + 1) level (push-cell (MkCell next level kind None) lowered) errors numbers in-law depth)
+        MkStore label next level lowered errors numbers in-law depth fams2 -> (UMeta next kind, MkStore label (next + 1) level (push-cell (MkCell next level kind None) lowered) errors numbers in-law depth fams2)
   known-metas :: List Nat -> Store -> Bool
   known-metas ids st = case ids of Nil -> True; Cons id rest -> (case find-cell id st of Some cell -> known-metas rest st; None -> False)
   fresh-id :: Store -> (Nat, Store)
-  fresh-id st = case st of MkStore label next level cells errors numbers in-law depth -> (next, MkStore label (next + 1) level cells errors numbers in-law depth)
+  fresh-id st = case st of MkStore label next level cells errors numbers in-law depth fams -> (next, MkStore label (next + 1) level cells errors numbers in-law depth fams)
 
   cell-tree-first :: CellTree -> Nat
   cell-tree-first tree = case tree of
@@ -686,7 +741,7 @@ module Bootstrap.Type where
     EmptyCells -> None
     CellRun size tree rest -> if id < cell-tree-first tree then cell id rest else cell-in-tree id tree
   find-cell :: Nat -> Store -> Option Cell
-  find-cell id st = case st of MkStore label next level cells errors numbers in-law depth -> cell id cells
+  find-cell id st = case st of MkStore label next level cells errors numbers in-law depth fams -> cell id cells
   replace-cell-in-tree :: Nat -> Cell -> CellTree -> CellTree
   replace-cell-in-tree id replacement tree = case tree of
     CellLeaf current -> CellLeaf replacement
@@ -704,8 +759,8 @@ module Bootstrap.Type where
   -- it. Only fresh-meta inserts, and its new ID exceeds all existing IDs.
   put-cell :: Cell -> Store -> Store
   put-cell c st = case (c, st) of
-    (MkCell id lev kind solution, MkStore label next level cells errors numbers in-law depth) ->
-      MkStore label next level (replace-cell id c cells) errors numbers in-law depth
+    (MkCell id lev kind solution, MkStore label next level cells errors numbers in-law depth fams) ->
+      MkStore label next level (replace-cell id c cells) errors numbers in-law depth fams
 
   arrow-constructor-kind :: Kind
   arrow-constructor-kind = KFun KType (KFun KType KType)
@@ -743,50 +798,229 @@ module Bootstrap.Type where
       if list-length ids == list-length args then substitute (former-substitution ids args) body else ty
     other -> ty
   normalize :: Store -> UType -> UType
-  normalize st ty = case ty of
+  normalize st ty = normalize-with 64 st ty
+
+  normalize-with :: Nat -> Store -> UType -> UType
+  normalize-with fuel st ty = case ty of
     UPropLit value -> UPropLit value
-    UCompare relation left right -> UCompare relation (normalize st left) (normalize st right)
-    UPropAnd left right -> UPropAnd (normalize st left) (normalize st right)
-    UPropOr left right -> UPropOr (normalize st left) (normalize st right)
-    UPropNot body -> UPropNot (normalize st body)
-    UPropNonZero body -> UPropNonZero (normalize st body)
-    UPropNotNull body -> UPropNotNull (normalize st body)
-    UPropAscii body -> UPropAscii (normalize st body)
-    UPropOrdered body -> UPropOrdered (normalize st body)
-    UPropNonZeroPending body -> normalize-pending-nonzero (normalize st body)
-    URequire predicates body -> URequire (normalize st predicates) (normalize st body)
-    URefine id name carrier predicate -> URefine id name (normalize st carrier) (normalize st predicate)
-    UIndexForget value -> UIndexForget (normalize st value)
-    UIndexByteLength value -> UIndexByteLength (normalize st value)
-    UIndexMeasure measure value -> UIndexMeasure measure (normalize st value)
-    UIndexStringLength value -> UIndexStringLength (normalize st value)
-    UIndexBorrowRead value -> UIndexBorrowRead (normalize st value)
-    UIndexConstructor name arrow input -> UIndexConstructor name (normalize st arrow) (normalize st input)
-    UIndexList element fields -> UIndexList (normalize st element) (normalize st fields)
-    UIndexCall function args -> UIndexCall function (normalize st args)
-    UIndexPromote value -> normalize-promoted-index (normalize st value)
-    UIndexMath op left right -> make-index-math op (normalize st left) (normalize st right)
+    UCompare relation left right -> UCompare relation (normalize-with fuel st left) (normalize-with fuel st right)
+    UPropAnd left right -> UPropAnd (normalize-with fuel st left) (normalize-with fuel st right)
+    UPropOr left right -> UPropOr (normalize-with fuel st left) (normalize-with fuel st right)
+    UPropNot body -> UPropNot (normalize-with fuel st body)
+    UPropNonZero body -> UPropNonZero (normalize-with fuel st body)
+    UPropNotNull body -> UPropNotNull (normalize-with fuel st body)
+    UPropAscii body -> UPropAscii (normalize-with fuel st body)
+    UPropOrdered body -> UPropOrdered (normalize-with fuel st body)
+    UPropNonZeroPending body -> normalize-pending-nonzero (normalize-with fuel st body)
+    URequire predicates body -> URequire (normalize-with fuel st predicates) (normalize-with fuel st body)
+    URefine id name carrier predicate -> URefine id name (normalize-with fuel st carrier) (normalize-with fuel st predicate)
+    UIndexForget value -> UIndexForget (normalize-with fuel st value)
+    UIndexByteLength value -> UIndexByteLength (normalize-with fuel st value)
+    UIndexMeasure measure value -> UIndexMeasure measure (normalize-with fuel st value)
+    UIndexStringLength value -> UIndexStringLength (normalize-with fuel st value)
+    UIndexBorrowRead value -> UIndexBorrowRead (normalize-with fuel st value)
+    UIndexConstructor name arrow input -> UIndexConstructor name (normalize-with fuel st arrow) (normalize-with fuel st input)
+    UIndexList element fields -> UIndexList (normalize-with fuel st element) (normalize-with fuel st fields)
+    UIndexCall function args -> UIndexCall function (normalize-with fuel st args)
+    UIndexPromote value -> normalize-promoted-index (normalize-with fuel st value)
+    UIndexMath op left right -> make-index-math op (normalize-with fuel st left) (normalize-with fuel st right)
     UMeta id k -> case find-cell id st of
-      Some (MkCell n lev kind (Some solved)) -> normalize st solved
+      Some (MkCell n lev kind (Some solved)) -> normalize-with fuel st solved
       Some (MkCell n lev kind None) -> normalized-variable st (UMeta id kind)
       None -> normalized-variable st ty
-    UCon name k -> normalized-variable st ty
+    UCon name k ->
+      let fams = store-type-families st in
+      if fuel > 0 then
+        (case reduce-nullary-family fams name of
+          Some reduced -> normalize-with (fuel - 1) st reduced
+          None -> normalized-variable st ty)
+      else normalized-variable st ty
     UBound id name k -> normalized-variable st ty
     URigid id name level k -> normalized-variable st ty
-    UIndex carrier value -> normalize-value-index st (normalize st carrier) value
-    UPi id name domain row result -> UPi id name (normalize st domain) (normalize st row) (normalize st result)
-    UApp f x -> type-application (normalize st f) (normalize st x)
-    UFun a b -> UFun (normalize st a) (normalize st b)
-    UFunEff a row b -> UFunEff (normalize st a) (normalize st row) (normalize st b)
-    UUsageArrow usage arrow -> UUsageArrow usage (normalize st arrow)
-    UProofFun a row b -> UProofFun (normalize st a) (normalize st row) (normalize st b)
-    URow labels -> URow (unique-effects (normalize st labels))
-    URowJoin a b -> union-effects (normalize st a) (normalize st b)
-    UTuple xs -> UTuple (normalize st xs)
-    USigma id name domain body -> USigma id name (normalize st domain) (normalize st body)
-    UForall qs body -> UForall qs (normalize st body)
-    UArg x rest -> UArg (normalize st x) (normalize st rest)
+    UIndex carrier value -> normalize-value-index st (normalize-with fuel st carrier) value
+    UPi id name domain row result -> UPi id name (normalize-with fuel st domain) (normalize-with fuel st row) (normalize-with fuel st result)
+    UApp f x ->
+      let applied = type-application (normalize-with fuel st f) (normalize-with fuel st x) in
+      let fams = store-type-families st in
+      if fuel > 0 then
+        (case reduce-type-family-app fams applied of
+          Some reduced -> normalize-with (fuel - 1) st reduced
+          None -> applied)
+      else applied
+    UFun a b -> UFun (normalize-with fuel st a) (normalize-with fuel st b)
+    UFunEff a row b -> UFunEff (normalize-with fuel st a) (normalize-with fuel st row) (normalize-with fuel st b)
+    UUsageArrow usage arrow -> UUsageArrow usage (normalize-with fuel st arrow)
+    UProofFun a row b -> UProofFun (normalize-with fuel st a) (normalize-with fuel st row) (normalize-with fuel st b)
+    URow labels -> URow (unique-effects (normalize-with fuel st labels))
+    URowJoin a b -> union-effects (normalize-with fuel st a) (normalize-with fuel st b)
+    UTuple xs -> UTuple (normalize-with fuel st xs)
+    USigma id name domain body -> USigma id name (normalize-with fuel st domain) (normalize-with fuel st body)
+    UForall qs body -> UForall qs (normalize-with fuel st body)
+    UArg x rest -> UArg (normalize-with fuel st x) (normalize-with fuel st rest)
     other -> ty
+
+  reduce-type-families :: List TypeFamilyRuleSet -> UType -> UType
+  reduce-type-families fams ty = case fams of
+    Nil -> ty
+    other -> normalize (with-type-families fams (empty-store "type-family")) ty
+
+  lookup-type-family :: String -> List TypeFamilyRuleSet -> Option TypeFamilyRuleSet
+  lookup-type-family name fams = case fams of
+    Nil -> None
+    Cons first rest -> if same-tag name (family-identity first) then Some first else lookup-type-family name rest
+
+  is-type-family-head :: List TypeFamilyRuleSet -> UType -> Bool
+  is-type-family-head fams ty = case ty of
+    UCon name k -> case lookup-type-family name fams of Some r -> True; None -> False
+    UApp f x -> is-type-family-head fams f
+    other -> False
+
+  reduce-nullary-family :: List TypeFamilyRuleSet -> String -> Option UType
+  reduce-nullary-family fams name = case fams of
+    Nil -> None
+    other -> case lookup-type-family name fams of
+      Some (MkTypeFamilyRuleSet id arity closed returns-idx rules) ->
+        if arity == 0 then try-family-rules fams closed rules UEnd else None
+      None -> None
+
+  unwrap-app-spine :: UType -> List UType -> (UType, List UType)
+  unwrap-app-spine ty acc = case ty of
+    UApp f x -> unwrap-app-spine f (Cons x acc)
+    other -> (ty, acc)
+
+  apply-app-spine :: UType -> List UType -> UType
+  apply-app-spine head args = case args of
+    Nil -> head
+    Cons x rest -> apply-app-spine (type-application head x) rest
+
+  split-args-at :: Nat -> List UType -> (UType, List UType)
+  split-args-at n args =
+    if n == 0 then (UEnd, args)
+    else case args of
+      Nil -> (UEnd, Nil)
+      Cons x rest -> case split-args-at (n - 1) rest of
+        (spine, tail) -> (UArg x spine, tail)
+
+  reduce-type-family-app :: List TypeFamilyRuleSet -> UType -> Option UType
+  reduce-type-family-app fams ty = case fams of
+    Nil -> None
+    other -> case unwrap-app-spine ty Nil of
+      (UCon name k, args) -> case lookup-type-family name fams of
+        Some (MkTypeFamilyRuleSet id arity closed returns-idx rules) ->
+          if list-length args >= arity then
+            case split-args-at arity args of
+              (matched-args, excess) -> case try-family-rules fams closed rules matched-args of
+                Some reduced -> Some (apply-app-spine reduced excess)
+                None -> None
+          else None
+        None -> None
+      other -> None
+
+  try-family-rules :: List TypeFamilyRuleSet -> Bool -> List TypeFamilyRule -> UType -> Option UType
+  try-family-rules fams closed rules args = case rules of
+    Nil -> None
+    Cons (MkTypeFamilyRule pvars lhs rhs) rest ->
+      case match-type-pattern pvars lhs args Nil of
+        Some env -> Some (substitute env rhs)
+        None ->
+          if closed && not (patterns-apart fams pvars lhs Nil args) then None
+          else try-family-rules fams closed rest args
+
+  match-type-pattern :: List Nat -> UType -> UType -> List (Nat, UType) -> Option (List (Nat, UType))
+  match-type-pattern pvars pat arg env = case pat of
+    UBound id name k | contains-id id pvars ->
+      (case mapped id env of
+        Some prev -> if same-shape prev arg then Some env else None
+        None -> Some (Cons (id, arg) env))
+    UIndex carrier (IBound id name) | contains-id id pvars ->
+      (case mapped id env of
+        Some prev -> if same-shape prev arg then Some env else None
+        None -> Some (Cons (id, arg) env))
+    UCon n1 k1 -> case arg of
+      UCon n2 k2 -> if same-tag n1 n2 then Some env else None
+      other -> None
+    UApp f1 x1 -> case arg of
+      UApp f2 x2 -> case match-type-pattern pvars f1 f2 env of
+        Some env2 -> match-type-pattern pvars x1 x2 env2
+        None -> None
+      other -> None
+    UTuple xs -> case arg of
+      UTuple ys -> match-type-pattern pvars xs ys env
+      other -> None
+    UArg a1 r1 -> case arg of
+      UArg a2 r2 -> case match-type-pattern pvars a1 a2 env of
+        Some env2 -> match-type-pattern pvars r1 r2 env2
+        None -> None
+      other -> None
+    UEnd -> case arg of UEnd -> Some env; other -> None
+    UIndex c1 (IInteger n1) -> case arg of
+      UIndex c2 (IInteger n2) -> if n1 == n2 then Some env else None
+      other -> None
+    UFun a1 b1 -> case arg of
+      UFun a2 b2 -> case match-type-pattern pvars a1 a2 env of
+        Some env2 -> match-type-pattern pvars b1 b2 env2
+        None -> None
+      other -> None
+    other -> if same-shape pat arg then Some env else None
+
+  is-pat-var :: List Nat -> UType -> Bool
+  is-pat-var pvars ty = case ty of
+    UBound id name k -> contains-id id pvars
+    UIndex carrier (IBound id name) -> contains-id id pvars
+    other -> False
+
+  patterns-apart :: List TypeFamilyRuleSet -> List Nat -> UType -> List Nat -> UType -> Bool
+  patterns-apart fams pv1 a pv2 b =
+    if is-pat-var pv1 a || is-pat-var pv2 b then False
+    else if is-type-family-head fams a || is-type-family-head fams b then False
+    else case (a, b) of
+      (UMeta id k, other) -> False
+      (other, UMeta id k) -> False
+      (URigid id n l k, other) -> False
+      (other, URigid id n l k) -> False
+      (UIndex c1 (IRigid id n l), other) -> False
+      (other, UIndex c2 (IRigid id n l)) -> False
+      (UIndex c1 (IMeta id), other) -> False
+      (other, UIndex c2 (IMeta id)) -> False
+      (UIndex c1 (IInteger n1), UIndex c2 (IInteger n2)) -> n1 /= n2
+      (UIndex c1 t1, UIndex c2 t2) -> False
+      (UIndexMath op1 x1 y1, other) -> False
+      (other, UIndexMath op2 x2 y2) -> False
+      (UCon n1 k1, UCon n2 k2) -> not (same-tag n1 n2)
+      (UCon n1 k1, UApp f2 x2) -> True
+      (UApp f1 x1, UCon n2 k2) -> True
+      (UApp f1 x1, UApp f2 x2) ->
+        case (unwrap-app-spine a Nil, unwrap-app-spine b Nil) of
+          ((h1, args1), (h2, args2)) ->
+            if patterns-apart fams pv1 h1 pv2 h2 then True
+            else if list-length args1 /= list-length args2 then True
+            else lists-apart fams pv1 args1 pv2 args2
+      (UTuple xs, UTuple ys) -> patterns-apart fams pv1 xs pv2 ys
+      (UArg a1 r1, UArg a2 r2) -> patterns-apart fams pv1 a1 pv2 a2 || patterns-apart fams pv1 r1 pv2 r2
+      (UEnd, UEnd) -> False
+      (UFun a1 b1, UFun a2 b2) -> patterns-apart fams pv1 a1 pv2 a2 || patterns-apart fams pv1 b1 pv2 b2
+      (UCon n1 k1, UTuple ys) -> True
+      (UTuple xs, UCon n2 k2) -> True
+      (UApp f1 x1, UTuple ys) -> True
+      (UTuple xs, UApp f2 x2) -> True
+      (UCon n1 k1, UIndex c2 t2) -> True
+      (UIndex c1 t1, UCon n2 k2) -> True
+      (UApp f1 x1, UIndex c2 t2) -> True
+      (UIndex c1 t1, UApp f2 x2) -> True
+      (UTuple xs, UIndex c2 t2) -> True
+      (UIndex c1 t1, UTuple ys) -> True
+      other -> False
+
+  lists-apart :: List TypeFamilyRuleSet -> List Nat -> List UType -> List Nat -> List UType -> Bool
+  lists-apart fams pv1 xs pv2 ys = case (xs, ys) of
+    (Cons a ra, Cons b rb) -> patterns-apart fams pv1 a pv2 b || lists-apart fams pv1 ra pv2 rb
+    other -> False
+
+  type-family-patterns-overlap :: List TypeFamilyRuleSet -> List Nat -> UType -> List Nat -> UType -> Bool
+  type-family-patterns-overlap fams pv1 lhs1 pv2 lhs2 = not (patterns-apart fams pv1 lhs1 pv2 lhs2)
+
+  types-apart :: List TypeFamilyRuleSet -> UType -> UType -> Bool
+  types-apart fams a b = patterns-apart fams Nil a Nil b
 
   normalized-variable :: Store -> UType -> UType
   normalized-variable st ty = case ty of
@@ -962,7 +1196,9 @@ module Bootstrap.Type where
     -- carrier here refused every dependent function whose result is a goal.
     UPi id name domain row result -> not (contains-id id (type-free-bound domain)) && carrier-type domain && valid-type row && kind-equal (type-kind row) KRow
       && (carrier-type result || proposition-type result)
-    UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
+    UApp f x -> valid-type f && valid-type x && (case type-kind f of
+      KFun a b -> kind-equal a (type-kind x) || (kind-equal a KType && (case type-kind x of KValue c -> True; other -> False))
+      other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UForall qs body -> quants-length qs > 0 && valid-type body && kind-equal (type-kind body) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
@@ -1002,7 +1238,7 @@ module Bootstrap.Type where
   valid-value-fields :: UType -> Bool
   valid-value-fields fields = case fields of
     UEnd -> True
-    UArg value rest -> valid-type value && kind-equal (type-kind value) KType && valid-value-fields rest
+    UArg value rest -> valid-type value && (kind-equal (type-kind value) KType || (case type-kind value of KValue c -> True; other -> False)) && valid-value-fields rest
     other -> False
 
   type-text :: UType -> String
@@ -1022,7 +1258,7 @@ module Bootstrap.Type where
     URequire predicates body -> string-concat-all ["required ", type-text predicates, " => ", type-text body]
     URefine id name carrier predicate -> string-concat-all ["refine (", name, " :: ", type-text carrier, ") with ", type-text predicate]
     URefineFormer name ids body -> name
-    UCon name k -> name
+    UCon name k -> if same-tag name promoted-nil-name then "[]" else strip-ctor-prefix name
     UBound id name k -> name
     URigid id name lev k -> name
     UMeta id k -> string-concat "?" (nat-to-string id)
@@ -1042,7 +1278,9 @@ module Bootstrap.Type where
     UIndexPromote value -> string-concat "integer-index " (type-text value)
     UIndexMath op left right -> string-concat-all ["(", type-text left, " ", op, " ", type-text right, ")"]
     UPi id name domain row result -> string-concat-all ["((", name, " :: ", type-text domain, ") ->", type-text row, " ", type-text result, ")"]
-    UApp f x -> string-concat-all ["(", type-text f, " ", type-text x, ")"]
+    UApp f x -> case extract-promoted-list ty of
+      Some elems -> string-concat-all ["[", promoted-list-text elems, "]"]
+      None -> string-concat-all ["(", type-text f, " ", type-text x, ")"]
     UFun a b -> string-concat-all ["(", type-text a, " -> ", type-text b, ")"]
     UFunEff a row b -> string-concat-all ["(", type-text a, " ->", type-text row, " ", type-text b, ")"]
     UUsageArrow usage arrow -> let marker = arrow-usage-text usage in case arrow of
@@ -1060,6 +1298,11 @@ module Bootstrap.Type where
     UArg x rest -> string-concat-all [type-text x, ", ", type-text rest]
     UEnd -> ""
     UError -> "_"
+  promoted-list-text :: List UType -> String
+  promoted-list-text elems = case elems of
+    Nil -> ""
+    Cons x Nil -> type-text x
+    Cons x rest -> string-concat-all [type-text x, ", ", promoted-list-text rest]
 
   contains-id :: Nat -> List Nat -> Bool
   contains-id id ids = case ids of Nil -> False; Cons n rest -> id == n || contains-id id rest
@@ -1381,7 +1624,7 @@ module Bootstrap.Type where
         else unify-index sp (normalize checked carrier) (resolve-index checked value) (resolve-index checked right) checked
       UIndexConstructor name arrow input -> add-error sp (string-concat (mismatch-message a b) " (index mismatch)") st
       other -> mismatch sp a b st
-    UCon n k -> case b of UCon m l -> if string-compare n m == 0 then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
+    UCon n k -> case b of UCon m l -> if string-compare n m == 0 then (if promoted-ctor-name n then st else unify-kind sp k l st) else mismatch sp a b st; other -> mismatch sp a b st
     UBound n name k -> case b of UBound m other l -> if n == m then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
     URigid n name lev k -> case b of URigid m other l kind -> if n == m then unify-kind sp k kind st else mismatch sp a b st; other -> mismatch sp a b st
     UApp f x -> if distinct-deferrals a b then
@@ -1502,7 +1745,7 @@ module Bootstrap.Type where
               same-shape (substitute (former-substitution ids actuals) body)
                          (substitute (former-substitution keys actuals) template))
       other -> False
-    UCon n k -> case second of UCon m l -> string-compare n m == 0 && kind-equal k l; other -> False
+    UCon n k -> case second of UCon m l -> string-compare n m == 0 && (promoted-ctor-name n || kind-equal k l); other -> False
     UBound n name k -> case second of UBound m other l -> n == m && kind-equal k l; other -> False
     URigid n name level k -> case second of URigid m other outer l -> n == m && kind-equal k l; other -> False
     UMeta n k -> case second of UMeta m l -> n == m && kind-equal k l; other -> False
@@ -1694,9 +1937,9 @@ module Bootstrap.Type where
   instantiate-ordered rigid qs earlier st = case qs of
     Nil -> (Nil, st)
     Cons q rest -> case st of
-      MkStore label next level cells errors numbers in-law depth ->
+      MkStore label next level cells errors numbers in-law depth fams ->
         let kind = map-kind-types (substitute earlier) (quant-kind q) in
-        let (ty, next-store) = if rigid then (URigid next (quant-name q) level kind, MkStore label (next + 1) level cells errors numbers in-law depth) else fresh-meta kind st in
+        let (ty, next-store) = if rigid then (URigid next (quant-name q) level kind, MkStore label (next + 1) level cells errors numbers in-law depth fams) else fresh-meta kind st in
         case instantiate-ordered rigid rest (Cons (quant-id q, ty) earlier) next-store of
           (pairs, final-store) -> (Cons (quant-id q, ty) pairs, final-store)
   instantiate :: Scheme -> Store -> (UType, Store)
@@ -2263,6 +2506,7 @@ module Bootstrap.Type where
     UIndexCall function args -> total-call-runtime-arguments args
     UIndexPromote input -> typed-index-admissible input
     UIndexMath op left right -> typed-index-admissible left && typed-index-admissible right
+    UApp f x -> (case typed-index-carrier value of Some carrier -> True; None -> False)
     other -> case (typed-index-carrier value, index-of-type value) of (Some carrier, Some term) -> index-runtime-admissible carrier term; other -> False)
   typed-index-solutions :: Store -> List Nat -> List (Nat, UType)
   typed-index-solutions st ids = case ids of
@@ -2593,15 +2837,15 @@ module Bootstrap.Type where
     other -> ty
   reserve-type-ids :: UType -> UType -> Store -> Store
   reserve-type-ids first second st = case st of
-    MkStore label next level cells errors numbers in-law depth ->
+    MkStore label next level cells errors numbers in-law depth fams ->
       let highest = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) in
-      MkStore label (if next > highest then next else highest + 1) level cells errors numbers in-law depth
+      MkStore label (if next > highest then next else highest + 1) level cells errors numbers in-law depth fams
   cells-level :: CellStore -> Nat
   cells-level cells = case cells of
     EmptyCells -> 0
     CellRun size tree rest -> max-cell-level (cell-tree-level tree) (cells-level rest)
   pi-level :: Store -> Nat
-  pi-level st = case st of MkStore label next level cells errors numbers in-law depth -> let highest = cells-level cells in (if level > highest then level else highest) + 1
+  pi-level st = case st of MkStore label next level cells errors numbers in-law depth fams -> let highest = cells-level cells in (if level > highest then level else highest) + 1
   -- Two polytypes are equal when their binders agree in number and kind
   -- and their bodies unify over one shared set of rigid variables, opened
   -- one level deeper than every existing metavariable: `bind-other`'s
@@ -2803,17 +3047,17 @@ module Bootstrap.Type where
     other -> term
 
   pending-number :: Span -> UType -> Int -> Store -> Store
-  pending-number sp ty value st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors (Cons (PendingNumber sp ty value) numbers) in-law depth
+  pending-number sp ty value st = case st of MkStore label next level cells errors numbers in-law depth fams -> MkStore label next level cells errors (Cons (PendingNumber sp ty value) numbers) in-law depth fams
   pending-float :: Span -> UType -> String -> Store -> Store
-  pending-float sp ty raw st = case st of MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors (Cons (PendingFloat sp ty raw) numbers) in-law depth
+  pending-float sp ty raw st = case st of MkStore label next level cells errors numbers in-law depth fams -> MkStore label next level cells errors (Cons (PendingFloat sp ty raw) numbers) in-law depth fams
   -- Primitive equality may see a literal's still-unsolved carrier through
   -- a generic call or constructor. Check it after ordinary constraints and
   -- numeric defaulting; never invent an Eq dictionary or default a skolem.
   pending-comparison :: Span -> UType -> List String -> Store -> Store
   pending-comparison sp ty allowed st = case st of
-    MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors (Cons (PendingComparison sp ty allowed) numbers) in-law depth
+    MkStore label next level cells errors numbers in-law depth fams -> MkStore label next level cells errors (Cons (PendingComparison sp ty allowed) numbers) in-law depth fams
   pending-numbers :: Store -> List PendingNumber
-  pending-numbers st = case st of MkStore label next level cells errors numbers in-law depth -> numbers
+  pending-numbers st = case st of MkStore label next level cells errors numbers in-law depth fams -> numbers
   number-meta-ids :: List PendingNumber -> Store -> List Nat
   number-meta-ids checks st = case checks of
     Nil -> Nil
@@ -2868,4 +3112,4 @@ module Bootstrap.Type where
   finish-numbers st = let checks = pending-numbers st in
     let floats = float-meta-ids checks st in
     let checked = check-number-checks floats checks st in
-    case checked of MkStore label next level cells errors numbers in-law depth -> MkStore label next level cells errors Nil in-law depth
+    case checked of MkStore label next level cells errors numbers in-law depth fams -> MkStore label next level cells errors Nil in-law depth fams

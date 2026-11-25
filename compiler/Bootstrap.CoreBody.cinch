@@ -491,6 +491,10 @@ module Bootstrap.CoreBody where
       let (doc, t1) = dense-type-doc dense ty table in
       let (b, t2) = dense-term dense body t1 in
       (dense-node "forget" [doc, b], t2)
+    CCast s ty body ->
+      let (doc, t1) = dense-type-doc dense ty table in
+      let (b, t2) = dense-term dense body t1 in
+      (dense-node "cast" [doc, b], t2)
     CRequire s ty body ->
       let (doc, t1) = dense-type-doc dense ty table in
       let (b, t2) = dense-term dense body t1 in
@@ -1143,6 +1147,12 @@ module Bootstrap.CoreBody where
       JArr typeDoc (JArr bodyDoc JArrEnd) ->
         (case (dense-type-of types typeDoc, dense-term-of types bodyDoc) of
           (Some ty, Some body) -> Some (CForget dense-zero ty body)
+          other -> None)
+      other -> None)
+    else if dense-same tag "cast" then (case rest of
+      JArr typeDoc (JArr bodyDoc JArrEnd) ->
+        (case (dense-type-of types typeDoc, dense-term-of types bodyDoc) of
+          (Some ty, Some body) -> Some (CCast dense-zero ty body)
           other -> None)
       other -> None)
     else if dense-same tag "require" then (case rest of

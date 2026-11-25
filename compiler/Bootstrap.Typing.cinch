@@ -25,27 +25,33 @@ module Bootstrap.Typing where
   export context-body-context, close-typing-context-with-definitions, closure-refusal
   export task-source-forwarder, task-forwarder-type
   export task-free, task-pattern-ids
-  export close-typing-context-with-usage, close-typing-context-with-indexes
+  export close-typing-context-with-usage, close-typing-context-with-indexes, with-typing-type-families
   -- | Retain checked declarations and separate usage-only fields for later Core and provenance checks.
   data TypingContext where
     -- | Usage facts remain distinct from actual source constructors and runtime data declarations.
-    CheckedTypingContext :: KindIndex -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> HashMap String UsageShape -> List UType -> TypingContext
+    CheckedTypingContext :: KindIndex -> CoreGlobals -> List CoreEffect -> List CoreData -> List String -> HashMap String UsageShape -> List UType -> List TypeFamilyRuleSet -> TypingContext
   context-data :: TypingContext -> List CoreData
-  context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> datas
+  context-data context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> datas
+  context-type-families :: TypingContext -> List TypeFamilyRuleSet
+  context-type-families context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> families
+  with-typing-type-families :: List TypeFamilyRuleSet -> TypingContext -> TypingContext
+  with-typing-type-families families context = case context of
+    CheckedTypingContext kinds globals effects datas forwarders usage copies old ->
+      CheckedTypingContext kinds globals effects datas forwarders usage copies families
   context-declarations :: TypingContext -> List CoreGlobal
-  context-declarations context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-declarations globals
+  context-declarations context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> globals-declarations globals
   context-effects :: TypingContext -> List CoreEffect
-  context-effects context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> effects
+  context-effects context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> effects
   context-bodies :: TypingContext -> List BodyBinding
-  context-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-bodies globals
+  context-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> globals-bodies globals
   context-body-context :: TypingContext -> BodyBindings
-  context-body-context context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-body-context globals
+  context-body-context context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> globals-body-context globals
   context-guarded-bodies :: TypingContext -> List GuardedBinding
-  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> globals-guarded-bodies globals
+  context-guarded-bodies context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> globals-guarded-bodies globals
   context-kinds :: TypingContext -> KindIndex
-  context-kinds context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> kinds
+  context-kinds context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> kinds
   context-task-forwarder :: TypingContext -> String -> Bool
-  context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> has name forwarders
+  context-task-forwarder context name = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> has name forwarders
   -- Only checked nominal Copy dictionaries introduce an assumption. Keep it
   -- lexical so another definition or the supplier of a with cannot use it.
   with-copy-givens :: TypingContext -> List CoreGiven -> TypingContext
@@ -54,11 +60,11 @@ module Bootstrap.Typing where
     Cons given rest -> case given-type given of
       UApp (UCon name (KFun KType KType)) carrier | same name "Copy" || same name "Kernel" ->
         (case context of
-          CheckedTypingContext kinds globals effects datas forwarders usage copies -> with-copy-givens (CheckedTypingContext kinds globals effects datas forwarders usage (Cons carrier copies)) rest)
+          CheckedTypingContext kinds globals effects datas forwarders usage copies families -> with-copy-givens (CheckedTypingContext kinds globals effects datas forwarders usage (Cons carrier copies) families) rest)
       other -> with-copy-givens context rest
   scoped-copy :: TypingContext -> UType -> Bool
   scoped-copy context carrier = case context of
-    CheckedTypingContext kinds globals effects datas forwarders usage copies -> task-seen-type carrier copies
+    CheckedTypingContext kinds globals effects datas forwarders usage copies families -> task-seen-type carrier copies
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
   poly-rigid-pairs :: List Quant -> List Nat -> List (Nat, UType)
@@ -81,6 +87,50 @@ module Bootstrap.Typing where
     Cons arg rest -> not (has-forall arg) && wf context scope arg && poly-arguments-wf context scope rest
   equal-type :: UType -> UType -> Bool
   equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core typing")) of Nil -> True; other -> False)
+  equal-type-in :: TypingContext -> UType -> UType -> Bool
+  equal-type-in context a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-type-families (context-type-families context) (empty-store "Core typing"))) of Nil -> True; other -> False)
+  typing-type-head :: UType -> UType
+  typing-type-head ty = case ty of UApp f _ -> typing-type-head f; other -> ty
+  same-data-head :: UType -> UType -> Bool
+  same-data-head a b = case (typing-type-head a, typing-type-head b) of
+    (UCon na _, UCon nb _) -> same na nb
+    other -> False
+  add-missing-rigid :: Nat -> Kind -> TypeScope -> TypeScope
+  add-missing-rigid id kind scope = case add-rigid-kind id kind scope of
+    Some next -> next
+    None -> scope
+  add-type-rigids :: UType -> TypeScope -> TypeScope
+  add-type-rigids ty scope = case ty of
+    URigid id name level kind -> add-missing-rigid id kind scope
+    UIndex carrier idx -> add-index-rigids carrier idx (add-type-rigids carrier scope)
+    UApp f x -> add-type-rigids x (add-type-rigids f scope)
+    UFun a b -> add-type-rigids b (add-type-rigids a scope)
+    UFunEff a row b -> add-type-rigids b (add-type-rigids row (add-type-rigids a scope))
+    UPi id name a row b -> add-type-rigids b (add-type-rigids row (add-type-rigids a scope))
+    USigma id name a b -> add-type-rigids b (add-type-rigids a scope)
+    UTuple fields -> add-type-rigids fields scope
+    UArg first rest -> add-type-rigids rest (add-type-rigids first scope)
+    URow fields -> add-type-rigids fields scope
+    URowJoin first rest -> add-type-rigids rest (add-type-rigids first scope)
+    URefine id name carrier pred -> add-type-rigids pred (add-type-rigids carrier scope)
+    URequire preds body -> add-type-rigids body (add-type-rigids preds scope)
+    UProofFun pred row result -> add-type-rigids result (add-type-rigids row (add-type-rigids pred scope))
+    UUsageArrow u arrow -> add-type-rigids arrow scope
+    UForall qs body -> add-type-rigids body scope
+    UIndexMath op left right -> add-type-rigids right (add-type-rigids left scope)
+    other -> scope
+  add-index-rigids :: UType -> IndexTerm -> TypeScope -> TypeScope
+  add-index-rigids carrier idx scope = case idx of
+    IRigid id name level -> add-missing-rigid id (value-kind carrier) scope
+    IAdd l r -> add-index-rigids carrier r (add-index-rigids carrier l scope)
+    ISubtract l r -> add-index-rigids carrier r (add-index-rigids carrier l scope)
+    IMultiply l r -> add-index-rigids carrier r (add-index-rigids carrier l scope)
+    IApply f x -> add-index-rigids carrier x (add-index-rigids carrier f scope)
+    other -> scope
+  add-types-rigids :: List UType -> TypeScope -> TypeScope
+  add-types-rigids types scope = case types of
+    Nil -> scope
+    Cons first rest -> add-types-rigids rest (add-type-rigids first scope)
   has :: String -> List String -> Bool
   has name names = case names of Nil -> False; Cons key rest -> same name key || has name rest
   empty-row :: UType
@@ -177,7 +227,7 @@ module Bootstrap.Typing where
     if nominal-index-closed defined (declared-kinds kinds) && global-types all declarations && effects-registered all registered hash-map-empty effects && task-data-closed all datas then
       (case index-checked-usage all usage hash-map-empty of
         Some owners | usage-schemes-closed usage declarations datas -> (case close () of
-          Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) owners Nil)
+          Some globals -> Some (CheckedTypingContext all globals effects datas (task-forwarder-names definitions) owners Nil Nil)
           None -> None)
         other -> None)
     else None
@@ -242,7 +292,7 @@ module Bootstrap.Typing where
     Cons first rest -> usage-scheme-agrees rows (core-constructor-name first) (core-constructor-scheme first) && usage-constructors-closed rows rest
   -- | Obtain only the structural field table; source-visible constructor and runtime contexts stay separate.
   context-usage :: TypingContext -> HashMap String UsageShape
-  context-usage context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> usage
+  context-usage context = case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> usage
   -- | Instantiate a validated defining proof, failing closed when either the owner or roles are unavailable.
   task-usage-fields :: TypingContext -> String -> List UType -> Option (List UType)
   task-usage-fields context owner actuals = case hash-map-lookup owner (context-usage context) of
@@ -322,12 +372,14 @@ module Bootstrap.Typing where
   tuple-fields :: UType -> Option UType
   tuple-fields ty = case ty of UTuple fields -> Some fields; UCon name KType -> if same name "Unit" then Some UEnd else None; other -> None
   pattern-scope :: TypingContext -> TypeScope -> UType -> CorePattern -> Option TypeScope
-  pattern-scope context scope expected pattern = if not (wf context scope expected && equal-type expected (pattern-type pattern)) then None else if kind-equal (type-kind expected) KProp then (case pattern of CPProof sp predicate id name -> add-local-scheme id (mono predicate) scope; other -> None) else if not (proper-type expected) then None else case pattern of
+  pattern-scope context scope expected pattern = if not (wf context scope expected && equal-type-in context expected (pattern-type pattern)) then None else if kind-equal (type-kind expected) KProp then (case pattern of CPProof sp predicate id name -> add-local-scheme id (mono predicate) scope; other -> None) else if not (proper-type expected) then None else case pattern of
     CPWild sp ty -> Some scope
     CPVar sp ty id name -> add-local-scheme id (mono ty) scope
     CPAs sp ty id name inner -> case add-local-scheme id (mono ty) scope of Some bound -> pattern-scope context bound expected inner; None -> None
-    CPConstructor sp ty name actuals constructor fields -> if wf context scope constructor && actual-types context scope actuals then constructor-fields context scope expected (pattern-constructor-type expected constructor) fields else None
-    CPTuple sp ty fields -> case ty of
+    CPConstructor sp ty name actuals constructor fields ->
+      let gscope = add-type-rigids constructor (add-types-rigids actuals scope) in
+      if wf context gscope constructor && actual-types context gscope actuals then constructor-fields context gscope expected (pattern-constructor-type expected constructor) fields else None
+    CPTuple sp ty fields -> case reduce-type-families (context-type-families context) ty of
       USigma id name domain body -> (case fields of
         CPField sp1 first (CPField sp2 second (CPDone end)) ->
           (case pattern-scope context scope domain first of
@@ -336,7 +388,7 @@ module Bootstrap.Typing where
               None -> None)
             None -> None)
         other -> None)
-      other -> case tuple-fields ty of Some types -> tuple-patterns context scope types fields; None -> None
+      other -> case tuple-fields other of Some types -> tuple-patterns context scope types fields; None -> None
     CPInt sp ty text -> if integer-carrier ty || wide-carrier ty then Some scope else None
     CPString sp ty text -> if string-type ty then Some scope else None
     CPChar sp ty text -> if type-is "Char" ty && char-value text then Some scope else None
@@ -344,7 +396,7 @@ module Bootstrap.Typing where
     other -> None
   arrow-pattern-scope :: TypingContext -> TypeScope -> UType -> UType -> CorePattern -> Option TypeScope
   arrow-pattern-scope context scope function domain pattern = case pattern of
-    CPErasedValue sp carrier id name -> if erased-value-arrow function && wf context scope domain && proper-type domain && equal-type domain carrier then
+    CPErasedValue sp carrier id name -> if erased-value-arrow function && wf context scope domain && proper-type domain && equal-type-in context domain carrier then
       add-local-scheme id (mono carrier) scope else None
     other -> pattern-scope context scope domain pattern
   tuple-patterns :: TypingContext -> TypeScope -> UType -> CorePattern -> Option TypeScope
@@ -362,7 +414,7 @@ module Bootstrap.Typing where
     other -> None
   constructor-fields :: TypingContext -> TypeScope -> UType -> UType -> CorePattern -> Option TypeScope
   constructor-fields context scope expected ty fields = case fields of
-    CPDone sp -> if equal-type expected ty then Some scope else None
+    CPDone sp -> if equal-type-in context expected ty || same-data-head (reduce-type-families (context-type-families context) expected) (reduce-type-families (context-type-families context) ty) then Some scope else None
     CPField sp first rest -> case arrow-domain ty of
       Some (domain, row) -> if not (effects-fit row empty-row) then None else
         (case pattern-scope context scope domain first of Some bound -> (case pattern-result ty first of Some result -> constructor-fields context bound expected result rest; None -> None); None -> None)
@@ -374,7 +426,7 @@ module Bootstrap.Typing where
   application-result context scope gamma facts function argument = case arrow-result gamma facts function argument of
     Some result -> Some result
     None -> (case (arrow-shape function, argument) of
-      (UPi id name domain row result, CLocal sp ty key display actuals) -> if not (equal-type domain ty) then None else
+      (UPi id name domain row result, CLocal sp ty key display actuals) -> if not (equal-type-in context domain ty) then None else
         (case lookup-local key (scope-locals scope) of
           Some sc -> (case scheme-params sc of
             Cons q rest -> let value = UIndex ty (IRigid key display 0) in
@@ -391,13 +443,13 @@ module Bootstrap.Typing where
       && (case core-type f of UUsageArrow UsageMany arrow -> task-shareable context Nil 64 (core-type x); other -> True)
       && checked-term context scope gamma facts f
       && checked-term context scope (proof-after-writes gamma before-argument) (facts-after-writes gamma facts before-argument) x
-      && (case application-result context scope (proof-after-writes gamma before-call) (facts-after-writes gamma facts before-call) (core-type f) x of
-        Some (result, effects) -> equal-type result ty && equal-type effects row
+      && (case application-result context scope (proof-after-writes gamma before-call) (facts-after-writes gamma facts before-call) (reduce-type-families (context-type-families context) (core-type f)) x of
+        Some (result, effects) -> equal-type-in context result ty && equal-type-in context effects row
         None -> False)
   tuple-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   tuple-terms context scope gamma facts types terms = case (types, terms) of
     (UEnd, CArgumentsEnd sp) -> True
-    (UArg ty rest, CArgument sp first more) -> equal-type ty (core-type first)
+    (UArg ty rest, CArgument sp first more) -> equal-type-in context ty (core-type first)
       && checked-term context scope gamma facts first
       && (let (next, live) = term-scope gamma facts first in tuple-terms context scope next live rest more)
     other -> False
@@ -479,7 +531,7 @@ module Bootstrap.Typing where
     CAlternative sp pattern body rest -> (case pattern-scope context scope (core-type scrutinee) pattern of
       Some bound -> let row-scope = proof-pattern pattern gamma in
         let introduced = facts-after-writes row-scope (scoped-core-case-facts row-scope facts scrutinee pattern True) (core-mutable-writes scrutinee) in
-        equal-type expected (core-type body) && checked-term context bound row-scope (introduced <> facts) body
+        equal-type-in context expected (core-type body) && checked-term context bound row-scope (introduced <> facts) body
       None -> False) && (let writes = guard-fallthrough-writes body in
         let introduced = scoped-core-case-rest-facts gamma facts scrutinee pattern body <> facts in
         alternatives-typed context scope (proof-after-writes gamma writes) (facts-after-writes gamma introduced writes) scrutinee expected rest)
@@ -507,21 +559,21 @@ module Bootstrap.Typing where
     CHandle sp ty label residual body handled-by -> checked-handle context scope gamma facts ty label residual body handled-by
     CDecision sp ty predicate condition -> wf context scope predicate && checked-term context scope gamma facts condition && scoped-decision-valid gamma facts ty predicate condition
     CErasedApply sp ty row f witness -> wf context scope row && checked-term context scope gamma facts f
-      && (case core-type f of
+      && (case reduce-type-families (context-type-families context) (core-type f) of
         UProofFun predicate effects result -> let writes = core-mutable-writes f in
-          equal-type result ty && equal-type effects row && wf context scope predicate
+          equal-type-in context result ty && equal-type-in context effects row && wf context scope predicate
           && scoped-erased-witness (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) predicate witness
         UUsageArrow UsageZero arrow -> let writes = core-mutable-writes f in
           let next = proof-after-writes gamma writes in
           let live = facts-after-writes gamma facts writes in
           erasable-value-argument witness && checked-term context scope next live witness
             && (case arrow-result next live arrow witness of
-              Some (result, effects) -> equal-type result ty && equal-type effects row
+              Some (result, effects) -> equal-type-in context result ty && equal-type-in context effects row
               None -> False)
         other -> False)
-    CLambda sp ty pattern body -> (case (arrow-domain ty, pattern-result ty pattern) of
+    CLambda sp ty pattern body -> (case (arrow-domain (reduce-type-families (context-type-families context) ty), pattern-result (reduce-type-families (context-type-families context) ty) pattern) of
       (Some (domain, row), Some result) -> (case arrow-pattern-scope context scope ty domain pattern of
-        Some bound -> let writes = [(sp, (None :: Option UType))] in equal-type result (core-type body)
+        Some bound -> let writes = [(sp, (None :: Option UType))] in equal-type-in context result (core-type body)
           && checked-term context bound (proof-pattern pattern (proof-after-writes gamma writes)) (facts-after-writes gamma facts writes) body
           && effects-fit (core-effects body) row && pattern-usage-allowed context ty pattern body
         None -> False)
@@ -529,17 +581,17 @@ module Bootstrap.Typing where
     CScope sp ty region evidence callback -> checked-scope context scope gamma facts ty region evidence callback
     CMemoScope sp ty region body -> checked-memo-scope context scope gamma facts ty region body
     CSpawn sp ty token body -> checked-spawn ty token body && checked-term context scope gamma facts token && checked-term context scope gamma facts body
-    CJoin sp ty token handles -> (case task-join-result token handles of Some result -> equal-type ty result; None -> False) && checked-term context scope gamma facts token && argument-terms context scope gamma facts handles
-    CWith sp ty given value body -> wf context scope (given-type given) && equal-type (given-type given) (core-type value)
-      && equal-type ty (core-type body) && checked-term context scope gamma facts value
+    CJoin sp ty token handles -> (case task-join-result token handles of Some result -> equal-type-in context ty result; None -> False) && checked-term context scope gamma facts token && argument-terms context scope gamma facts handles
+    CWith sp ty given value body -> wf context scope (given-type given) && equal-type-in context (given-type given) (core-type value)
+      && equal-type-in context ty (core-type body) && checked-term context scope gamma facts value
       && checked-term (with-copy-givens context [given]) scope (proof-after-writes gamma (core-mutable-writes value)) (facts-after-writes gamma facts (core-mutable-writes value)) body
     CLet sp ty id name sc rhs body -> checked-let context scope gamma facts ty id sc rhs body
-    CRecursiveFunctions sp ty members body -> equal-type ty (core-type body)
+    CRecursiveFunctions sp ty members body -> equal-type-in context ty (core-type body)
       && (case recursive-type-scope context scope members of
         Some bound -> let proofs = recursive-proof-scope gamma members in
           checked-recursive-functions context bound proofs facts members && checked-term context bound proofs facts body
         None -> False)
-    CRecursiveValues sp ty region members body -> equal-type ty (core-type body)
+    CRecursiveValues sp ty region members body -> equal-type-in context ty (core-type body)
       && scope-region-closed region ty && scope-region-closed region (core-effects term)
       && (case recursive-type-scope context scope members of
         Some bound ->
@@ -548,30 +600,30 @@ module Bootstrap.Typing where
           let live = facts-after-writes gamma facts writes in
           checked-recursive-values context bound proofs live members && checked-term context bound proofs live body
         None -> False)
-    CIf sp ty condition yes no -> type-is "Bool" (core-type condition) && equal-type ty (core-type yes) && equal-type ty (core-type no)
+    CIf sp ty condition yes no -> type-is "Bool" (core-type condition) && equal-type-in context ty (core-type yes) && equal-type-in context ty (core-type no)
       && checked-term context scope gamma facts condition
       && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) yes
       && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition False)) (scoped-branch-facts gamma facts condition False) no
     CCase sp ty value alternatives -> let writes = core-mutable-writes value in
       checked-term context scope gamma facts value
         && alternatives-typed context scope (proof-after-writes gamma writes) (facts-after-writes gamma facts writes) value ty alternatives
-    CTuple sp ty fields -> (case ty of
+    CTuple sp ty fields -> (case reduce-type-families (context-type-families context) ty of
       USigma id name domain body -> (case fields of
         CArgument sp1 first (CArgument sp2 second (CArgumentsEnd end)) ->
-          equal-type domain (core-type first)
+          equal-type-in context domain (core-type first)
             && checked-term context scope gamma facts first
             && (let (next, live) = term-scope gamma facts first in
               case application-result context scope next live (UPi id name domain (URow UEnd) body) first of
-                Some (opened, row) -> equal-type opened (core-type second) && checked-term context scope next live second
+                Some (opened, row) -> equal-type-in context opened (core-type second) && checked-term context scope next live second
                 None -> False)
         other -> False)
-      other -> case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
+      other -> case tuple-fields other of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
     -- design/rank-n-polymorphism.md section 8: a generalisation's body has
     -- the polytype's body opened at its rigid ids and performs nothing; an
     -- instantiation opens its value's polytype at forall-free arguments.
     CPolyIntro sp ty ids body -> (case ty of
       UForall qs inner -> list-length ids == quants-length qs && wf context scope ty
-        && equal-type (substitute-bound (poly-rigid-pairs (quants-list qs) ids) inner) (core-type body)
+        && equal-type-in context (substitute-bound (poly-rigid-pairs (quants-list qs) ids) inner) (core-type body)
         && effects-fit (core-effects body) (URow UEnd)
         -- The skolems are in scope, as rigid variables, for the body only.
         && (case poly-rigid-scope (quants-list qs) ids scope of
@@ -580,7 +632,7 @@ module Bootstrap.Typing where
       other -> False)
     CPolyElim sp ty value args -> (case core-type value of
       UForall qs inner -> list-length args == quants-length qs && poly-arguments-wf context scope args
-        && equal-type ty (substitute-bound (poly-argument-pairs (quants-list qs) args) inner)
+        && equal-type-in context ty (substitute-bound (poly-argument-pairs (quants-list qs) args) inner)
         && checked-term context scope gamma facts value
       other -> False)
     CPrimitive sp ty name args -> (if same name "copy-out" then copy-out-checked context ty args
@@ -589,16 +641,17 @@ module Bootstrap.Typing where
       else if has name ["memo-alloc", "memo-init", "memo-demand"] then checked-memo-primitive context scope ty name args
       else primitive-types ty name args)
       && argument-terms context scope gamma facts args
-    CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body
-    CRefine sp ty certificate body -> (case refinement-view ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
+    CProved sp ty certificate body -> equal-type-in context ty (core-type body) && checked-term context scope gamma facts body
+    CRefine sp ty certificate body -> (case refinement-view ty of URefine id name carrier predicate -> equal-type-in context carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
     CRefineProof sp ty witness body -> wf context scope (core-type witness) && checked-term context scope gamma facts body && scoped-refinement-proof gamma facts ty witness body
     CForget sp ty body -> (case (refinement-view (core-type body), ty) of
-      (URefine id name carrier predicate, requested) -> equal-type carrier requested
+      (URefine id name carrier predicate, requested) -> equal-type-in context carrier requested
       (UTuple fields, UTuple requested) -> forgotten-tuple-fields fields requested
       other -> False) && checked-term context scope gamma facts body
-    CRequire sp ty body -> (case ty of URequire predicates result -> equal-type result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
-    CDischarge sp ty certificates _ body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
-    CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) body
+    CCast sp ty body -> checked-term context scope gamma facts body
+    CRequire sp ty body -> (case ty of URequire predicates result -> equal-type-in context result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
+    CDischarge sp ty certificates _ body -> equal-type-in context ty (required-body (core-type body)) && checked-term context scope gamma facts body
+    CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type-in context ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope (proof-after-writes gamma (scoped-branch-writes condition True)) (scoped-branch-facts gamma facts condition True) body
     -- Reflexive evidence is the one proof term an ordinary body may be, and
     -- its carrier is the goal it discharges. `reflexive-equality` is the whole
     -- check: the goal's two sides must be definitionally equal.
@@ -991,6 +1044,7 @@ module Bootstrap.Typing where
     CRefine sp ty evidence value -> use-count-row interrupted id value rest
     CRefineProof sp ty witness value -> use-count-row interrupted id value rest
     CForget sp ty value -> use-count-row interrupted id value rest
+    CCast sp ty value -> use-count-row interrupted id value rest
     other -> use-count interrupted id body
   use-count-alternatives :: UseInterruptions -> Nat -> CoreTerm -> Option (Nat, Nat)
   use-count-alternatives interrupted id alts = case alts of
@@ -1151,6 +1205,7 @@ module Bootstrap.Typing where
     CRefine sp ty evidence value -> guard-falls-through value
     CRefineProof sp ty witness value -> guard-falls-through value
     CForget sp ty value -> guard-falls-through value
+    CCast sp ty value -> guard-falls-through value
     other -> False
   guard-uses :: Nat -> CoreTerm -> Option (Nat, Nat)
   guard-uses id body = case body of
@@ -1162,6 +1217,7 @@ module Bootstrap.Typing where
     CRefine sp ty evidence value -> guard-uses id value
     CRefineProof sp ty witness value -> guard-uses id value
     CForget sp ty value -> guard-uses id value
+    CCast sp ty value -> guard-uses id value
     other -> Some (0, 0)
   guard-uses-none :: List Nat -> CoreTerm -> Bool
   guard-uses-none binders body = case binders of
@@ -1946,7 +2002,7 @@ module Bootstrap.Typing where
   checked-let :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> Nat -> Scheme -> CoreTerm -> CoreTerm -> Bool
   checked-let context scope gamma facts ty id sc rhs body = body-scheme-authorized (context-bodies context) sc && scheme-well-formed-in (context-kinds context) scope sc
     && not (volatile-borrow-index (scheme-body sc)) && (case scheme-requirements sc of Nil -> True; other -> False)
-    && equal-type (scheme-body sc) (core-type rhs) && equal-type ty (core-type body)
+    && equal-type-in context (scheme-body sc) (core-type rhs) && equal-type-in context ty (core-type body)
     && (case scheme-type-scope-in (context-kinds context) scope (scheme-params sc) of Some universal -> checked-term context universal gamma facts rhs; None -> False)
     && (case add-local-scheme id sc scope of
       Some bound -> let writes = core-mutable-writes rhs in
@@ -1990,8 +2046,8 @@ module Bootstrap.Typing where
   givens-typed context scope givens = case givens of Nil -> True; Cons given rest -> wf context scope (given-type given) && givens-typed context scope rest
   clause-typed :: TypingContext -> TypeScope -> ProofScope -> UType -> UType -> List CorePattern -> CoreTerm -> Bool
   clause-typed context scope gamma expected allowed patterns body = case patterns of
-    Nil -> equal-type expected (core-type body) && checked-term context scope gamma Nil body && effects-fit (core-effects body) allowed
-    Cons pattern rest -> effects-fit allowed empty-row && (case (arrow-domain expected, pattern-result expected pattern) of
+    Nil -> equal-type-in context expected (core-type body) && checked-term context scope gamma Nil body && effects-fit (core-effects body) allowed
+    Cons pattern rest -> effects-fit allowed empty-row && (case (arrow-domain (reduce-type-families (context-type-families context) expected), pattern-result (reduce-type-families (context-type-families context) expected) pattern) of
       (Some (domain, row), Some result) -> pattern-usage-allowed context expected pattern body
         && (case arrow-pattern-scope context scope expected domain pattern of Some bound -> clause-typed context bound (proof-pattern pattern gamma) result row rest body; None -> False)
       other -> False)
@@ -2007,18 +2063,19 @@ module Bootstrap.Typing where
     Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-checked-body-bindings (context-body-context context) (make-proof-scope values Nil))) expected empty-row patterns body && clauses-typed-with context scope values expected rest
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
   typing-definition-closed context definition =
-    core-definition-checked-contracts-closed (context-body-context context) (context-guarded-bodies context) definition
+    core-definition-checked-contracts-closed-with-families (context-type-families context) (context-body-context context) (context-guarded-bodies context) definition
     && task-definition-safe context definition && (case par-definition-error context definition of None -> True; Some error -> False) && definition-structure-closed context definition
 
   -- On the compiler path the same checks also provide diagnostics. Keep
   -- their order so the most specific refusal reaches the source location.
   checked-definition-error :: TypingContext -> CoreDefinition -> Option (Span, String)
   checked-definition-error context definition =
+    let fams = context-type-families context in
     let bodies = context-body-context context in
     let guarded = context-guarded-bodies context in
     let at = Span 0 0 1 1 in
-    if not (core-definition-checked-contracts-closed bodies guarded definition) then
-      let reason = case core-definition-refusal bodies guarded definition of Some message -> message; None -> "the conjunction refused without a named clause" in
+    if not (core-definition-checked-contracts-closed-with-families fams bodies guarded definition) then
+      let reason = case core-definition-refusal-with-families fams bodies guarded definition of Some message -> message; None -> "the conjunction refused without a named clause" in
       Some (at, "typed core contains an unresolved scheme or error term: " <> core-name definition <> ": " <> reason)
       else case par-definition-error context definition of
         Some error -> Some error
@@ -2027,7 +2084,7 @@ module Bootstrap.Typing where
           None -> if definition-structure-closed context definition then None
             else Some (at, "independent Core typing disagrees with the declaration or term: " <> core-name definition)
   definition-structure-closed :: TypingContext -> CoreDefinition -> Bool
-  definition-structure-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders usage copies -> global-definition-closed globals definition)
+  definition-structure-closed context definition = (case context of CheckedTypingContext kinds globals effects datas forwarders usage copies families -> global-definition-closed-with families globals definition)
     && (case openings-scope context empty-type-scope (core-openings definition) of
       Some opened -> (case private-scope opened (core-private-types definition) of
         Some scope -> private-kinds context scope (core-private-types definition) && givens-typed context scope (core-givens definition)

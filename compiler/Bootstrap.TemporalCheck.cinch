@@ -216,6 +216,7 @@ module Bootstrap.TemporalCheck where
     CLocal sp ty id name actuals -> Some id
     CPrimitive sp ty op (CArgument at inner (CArgumentsEnd end)) -> local-identity inner
     CForget sp ty inner -> local-identity inner
+    CCast sp ty inner -> local-identity inner
     CRefine sp ty evidence inner -> local-identity inner
     other -> None
 
@@ -744,6 +745,7 @@ module Bootstrap.TemporalCheck where
     CDischarge sp ty evidence _ body -> temporal-scope-sites body
     CRequire sp ty body -> temporal-scope-sites body
     CForget sp ty body -> temporal-scope-sites body
+    CCast sp ty body -> temporal-scope-sites body
     CRefine sp ty evidence body -> temporal-scope-sites body
     CRefineProof sp ty witness body -> temporal-scope-sites body
     CProved sp ty evidence body -> temporal-scope-sites body

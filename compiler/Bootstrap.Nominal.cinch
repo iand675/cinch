@@ -530,6 +530,8 @@ module Bootstrap.Nominal where
     TApp s head args -> case (qualify refs locals head, qualify refs locals args) of
       ((f, ef), (xs, ex)) -> (TApp s f xs, ef <> ex)
     TTuple s args -> case qualify refs locals args of (xs, errors) -> (TTuple s xs, errors)
+    TList s args -> case qualify refs locals args of (xs, errors) -> (TList s xs, errors)
+    TStrLit s text -> (ty, Nil)
     TSigma s name dom body -> case (qualify refs locals dom, qualify refs (Cons name locals) body) of
       ((d, ed), (b, eb)) -> (TSigma s name d b, ed <> eb)
     TArg s x rest -> case (qualify-argument refs locals x, qualify refs locals rest) of
