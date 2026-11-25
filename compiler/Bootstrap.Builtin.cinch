@@ -11,7 +11,7 @@ module Bootstrap.Builtin where
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Scan (string-starts-with, string-drop)
 
-  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, intrinsic-contract, array-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, total-primitive
+  export builtin-bindings, builtin-declarations, builtin-syntax-metadata, finite-index-declaration, vector-declaration, intrinsic-contract, array-plan, ad-plan, array-type-name, nat-arithmetic-extern, u32-wrapping-operation, fast-bytes-intrinsic, platform-intrinsic, total-primitive
   export mvar-plan, mvar-type-name, cell-type-name, cell-effect-name, mvar-arity, mvar-consumes, mvar-optional
   export par-lowering-name
   export ScalarShape, ScalarOperation, scalar-shape-name, scalar-shape-width, scalar-shape-signed
@@ -219,7 +219,15 @@ module Bootstrap.Builtin where
         Some (operation, scheme) -> Some (scheme, if operation < 2 then "cinch_mvar_new" else "cinch_mvar_access")
         None -> case array-plan symbol of
           Some (operation, format, scheme) -> Some (scheme, array-extern operation)
-          None -> None
+          None -> case ad-plan symbol of
+            Some (operation, scheme) -> Some (scheme, symbol)
+            None -> None
+
+  ad-plan :: String -> Option (Nat, String)
+  ad-plan symbol =
+    if string-compare symbol "cinch.ad.jvp2" == 0 then Some (0, "forall a b. (a -> b) -> a -> a -> (b, b)")
+    else if string-compare symbol "cinch.ad.vjp2" == 0 then Some (1, "forall a b. (a -> b) -> a -> b -> (b, a)")
+    else None
 
   -- Runtime operations over buffers, the platform, sockets, piped children
   -- and pseudo-terminals: canonical scheme, runtime extern, argument

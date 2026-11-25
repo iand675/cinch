@@ -30,7 +30,7 @@ module Bootstrap.Infer where
   import Bootstrap.Usage (UsageShape, usage-name, usage-equal, read-usage-shape, prepare-usage-shape)
   import Bootstrap.ExportType (export-global, diagnostic-member-name, constructor-field-erasure)
   import Bootstrap.Typing
-  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, array-type-name, mvar-plan, cell-type-name, cell-effect-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
+  import Bootstrap.Builtin (builtin-declarations, builtin-syntax-metadata, intrinsic-contract, array-plan, ad-plan, array-type-name, mvar-plan, cell-type-name, cell-effect-name, u32-wrapping-operation, ScalarShape, ScalarOperation, scalar-intrinsic, scalar-shape-name, scalar-operation-code, scalar-operation-arguments, scalar-operation-result)
   import Bootstrap.RuntimeAbi (runtime-abi-int)
   import Bootstrap.Dictionary (InstanceInventory, MkInstanceInventory, inventory-candidates, resolve-inventory-definition, resolve-inventory-term, check-instance-coherence, check-law-term-evidence, law-context-resolves)
   import Bootstrap.Parse (parse-scheme)
@@ -2600,10 +2600,17 @@ module Bootstrap.Infer where
       other -> (env, add-error sp "incomplete imported MVar binding" st))
     None -> (env, add-error sp "imported MVar value lacks its defining foreign authority" st)
 
+  array-or-ad-canonical :: String -> Option String
+  array-or-ad-canonical symbol = case array-plan symbol of
+    Some (_, _, canonical) -> Some canonical
+    None -> case ad-plan symbol of
+      Some (_, canonical) -> Some canonical
+      None -> None
+
   imported-array-observers :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
   imported-array-observers sp owner rows context st = case rows of
     JArr row rest -> case field "external" row of
-      JStr symbol -> (case array-plan symbol of
+      JStr symbol -> (case array-or-ad-canonical symbol of
         Some plan -> (case (field "symbol" row, field "kind" row, field "abi" row, field "effects" row, field "type" row) of
           (JStr local, JStr category, JStr abi, JStr effects, JStr syntax) ->
             if string-length local == 0 || not (same category "intrinsic" && same abi "ccall" && same effects "") then
@@ -2627,8 +2634,8 @@ module Bootstrap.Infer where
   register-imported-array :: Span -> String -> Scheme -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-imported-array sp name actual classes context env st = case context-array-observation name context of
     Some row -> (case (field "external" row, field "type" row) of
-      (JStr symbol, JStr declared) -> (case array-plan symbol of
-        Some (operation, format, canonical) -> (case (parse-scheme symbol (string-to-bytes canonical), parse-scheme name (string-to-bytes declared)) of
+      (JStr symbol, JStr declared) -> (case array-or-ad-canonical symbol of
+        Some canonical -> (case (parse-scheme symbol (string-to-bytes canonical), parse-scheme name (string-to-bytes declared)) of
           (Parsed expected Nil, Parsed cached Nil) -> (case make-scheme False classes context Nil (kernel-canonical-type expected) st of
             (wanted, ready) -> case make-scheme False classes context Nil (kernel-canonical-type cached) ready of
               (foreign-scheme, checked) ->
@@ -3446,7 +3453,7 @@ module Bootstrap.Infer where
   collect-promoted-rejections ds kinds = case ds of
     Nil -> kinds
     Cons (DForeign _ _ _ symbol fname _) rest ->
-      let next = case array-plan symbol of
+      let next = case array-or-ad-canonical symbol of
             Some _ -> kinds
             None -> context-add-promoted-rejection fname ("cannot promote foreign function `" <> diagnostic-member-name fname <> "` to the type level") kinds in
       collect-promoted-rejections rest next
@@ -4861,8 +4868,8 @@ module Bootstrap.Infer where
     if not (same direction "import" && same abi "ccall") then (env, add-error sp "runtime intrinsic requires foreign import ccall" st)
     else case mvar-plan symbol of
       Some (operation, expected) -> register-mvar-intrinsic sp name symbol syntax expected classes kinds env st
-      None -> case array-plan symbol of
-        Some (operation, format, expected) -> register-array-intrinsic sp name symbol syntax expected classes kinds env st
+      None -> case array-or-ad-canonical symbol of
+        Some expected -> register-array-intrinsic sp name symbol syntax expected classes kinds env st
         None -> register-monomorphic-intrinsic sp symbol name syntax classes kinds env st
   -- | Require a scalar declaration's complete nominal scheme before assigning a canonical operation.
   register-monomorphic-intrinsic :: Span -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
